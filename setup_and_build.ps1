@@ -61,20 +61,17 @@ Write-Host ""
 & .\builder.exe ios build
 
 Write-Host ""
+# -- ETAPE 4 : Verification et Recuperation du livrable .ipa --
+Write-Host "[4/4] Verification du livrable .ipa..." -ForegroundColor Yellow
+if (Test-Path "download_ipa.ps1") {
+    & .\download_ipa.ps1
+} else {
+    Write-Host "  [INFO] Consultez vos builds et telechargez l'IPA directement ici :" -ForegroundColor Yellow
+    Write-Host "  https://github.com/200012Yoel/SarahAI/actions" -ForegroundColor Cyan
+}
+
+Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  [OK] TRAITEMENT TERMINE !" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-
-# -- ETAPE 4 : Verification du binaire IPA --
-Write-Host "[4/4] Verification du livrable .ipa..." -ForegroundColor Yellow
-if (Test-Path "dist\SarahIA.ipa") {
-    Write-Host "  [SUCCESS] Fichier IPA genere avec succes dans dist\SarahIA.ipa" -ForegroundColor Green
-} else {
-    Write-Host "  [INFO] Verification du dossier dist:" -ForegroundColor Yellow
-    if (Test-Path "dist") {
-        Get-ChildItem "dist"
-    }
-}
-
 Write-Host ""
