@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Structure représentant un élément de mémoire pour l'affichage SwiftUI
+public struct LearnedMemoryEntry: Identifiable {
+    public var id: String { trigger }
+    public let trigger: String
+    public let response: String
+    
+    public init(trigger: String, response: String) {
+        self.trigger = trigger
+        self.response = response
+    }
+}
+
 /// Vue feuille de gestion visuelle de la mémoire permanente ("AI Brain Vault") de Sarah.
 public struct MemoryVaultView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -15,15 +27,15 @@ public struct MemoryVaultView: View {
         self.viewModel = viewModel
     }
     
-    private var filteredMemories: [(trigger: String, response: String)] {
+    private var filteredMemories: [LearnedMemoryEntry] {
         let memories = viewModel.learnedMemories
+        let entries = memories.map { LearnedMemoryEntry(trigger: $0.key, response: $0.value) }
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return memories.map { ($0.key, $0.value) }.sorted { $0.trigger < $1.trigger }
+            return entries.sorted { $0.trigger < $1.trigger }
         } else {
             let lower = searchText.lowercased()
-            return memories
-                .filter { $0.key.lowercased().contains(lower) || $0.value.lowercased().contains(lower) }
-                .map { ($0.key, $0.value) }
+            return entries
+                .filter { $0.trigger.lowercased().contains(lower) || $0.response.lowercased().contains(lower) }
                 .sorted { $0.trigger < $1.trigger }
         }
     }
@@ -151,7 +163,7 @@ public struct MemoryVaultView: View {
     
     private var memoryListView: some View {
         List {
-            ForEach(filteredMemories, id: \.trigger) { item in
+            ForEach(filteredMemories) { item in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Quand vous dites :")
