@@ -1,0 +1,16 @@
+{
+  "project": "SarahAI",
+  "platform": "ios",
+  "github": {
+    "owner": "200012Yoel",
+    "repo": "SarahAI"
+  },
+  "ios": {
+    "path": "SarahIA"
+  },
+  "flutter": {
+    "watch": {}
+  },
+  "reactNative": {},
+  "mobai": {}
+}
