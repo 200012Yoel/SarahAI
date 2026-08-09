@@ -170,9 +170,10 @@ jobs:
           xcodebuild \
             -project "${PROJECT:-SarahIA.xcodeproj}" \
             -scheme "$TARGET_SCHEME" \
-            -configuration "${CONFIGURATION:-Release}" \
+            -configuration "Release" \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            PRODUCT_BUNDLE_IDENTIFIER="com.sarahia.app" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
