@@ -12,7 +12,7 @@ on:
         description: 'Ref holding the working-tree snapshot to build (empty builds this branch)'
         required: false
         type: string
-        default: "$IPA_NAME"
+        default: ''
       ios_path:
         description: 'Path to iOS project (e.g., "ios" for React Native)'
         required: false
@@ -22,7 +22,7 @@ on:
         description: 'Xcode scheme to build (auto-detected if empty)'
         required: false
         type: string
-        default: "$IPA_NAME"
+        default: ''
       use_signing:
         description: 'Enable code signing (requires secrets to be configured)'
         required: false
@@ -37,7 +37,7 @@ on:
         description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
         required: false
         type: string
-        default: "$IPA_NAME"
+        default: ''
 
 jobs:
   build:
@@ -51,7 +51,7 @@ jobs:
       # The dispatch always runs the workflow from the default branch, so the
       # sources come from a snapshot ref pushed by the CLI instead.
       - name: Checkout working-tree snapshot
-        if: inputs.snapshot_ref != "$IPA_NAME"
+        if: inputs.snapshot_ref != ''
         env:
           SNAPSHOT_REF: ${{ inputs.snapshot_ref }}
         run: |
@@ -118,7 +118,7 @@ jobs:
         if: steps.detect.outputs.type == 'flutter'
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ inputs.flutter_version || "$IPA_NAME" }}
+          flutter-version: ${{ inputs.flutter_version || '' }}
           channel: ${{ inputs.flutter_version && 'stable' || 'stable' }}
           cache: true
 
@@ -191,9 +191,6 @@ jobs:
           PROFILE_UUID=$(plutil -extract UUID raw -o - "$PROFILE_PLIST")
           cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
 
-          # xcodebuild will not pick a team on its own on a CI machine, so read
-          # the team and profile name out of the profile and pass them to the
-          # build as manual signing settings.
           TEAM_ID=$(plutil -extract TeamIdentifier.0 raw -o - "$PROFILE_PLIST")
           PROFILE_NAME=$(plutil -extract Name raw -o - "$PROFILE_PLIST")
           APP_ID=$(plutil -extract Entitlements.application-identifier raw -o - "$PROFILE_PLIST")
@@ -202,11 +199,6 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "DEVELOPMENT_TEAM=$TEAM_ID" >> $GITHUB_ENV
           echo "PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
-          echo "Certificate and provisioning profile installed"
-          echo "  team:    $TEAM_ID"
-          echo "  profile: $PROFILE_NAME ($PROFILE_UUID)"
-          echo "  app id:  $PROFILE_BUNDLE_ID"
-          echo "If the build fails on a provisioning mismatch, the app's PRODUCT_BUNDLE_IDENTIFIER must match the app id above."
 
       - name: Build IPA
         env:
@@ -308,14 +300,6 @@ jobs:
           echo "- **Build ID:** ${{ inputs.build_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Configuration:** $CONFIGURATION" >> $GITHUB_STEP_SUMMARY
-          echo "- **DerivedData Cache:** ${{ steps.cache-deriveddata.outputs.cache-hit == 'true' && 'Hit' || 'Miss' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Pods Cache:** ${{ steps.pods-cache.outputs.cache-hit == 'true' && 'Hit' || 'Miss' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Node Modules Cache:** ${{ steps.node-modules-cache.outputs.cache-hit == 'true' && 'Hit' || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
-          if [ "$USE_SIGNING" = "true" ]; then
-            echo "- **Signing:** Signed (development)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- **Signing:** Unsigned (sign locally with AltStore/Sideloadly)" >> $GITHUB_STEP_SUMMARY
-          fi
           if [ -f build/*.ipa ]; then
             IPA_PATH=$(find build -name "*.ipa" -type f | head -1)
             echo "- **IPA Size:** $(ls -lh "$IPA_PATH" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
