@@ -1,0 +1,59 @@
+# ios-builder workflow — Généré pour Sarah IA
+# Ce workflow est déclenché par le CLI `builder ios build`
+
+name: iOS Build (Sarah IA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: false
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build:
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+      
+      - name: Show Xcode version
+        run: xcodebuild -version
+      
+      - name: Build iOS app
+        run: |
+          xcodebuild \
+            -project SarahIA/SarahIA.xcodeproj \
+            -scheme SarahIA \
+            -sdk iphoneos \
+            -configuration ${{ github.event.inputs.build_mode == 'debug' && 'Debug' || 'Release' }} \
+            -archivePath ./build/SarahIA.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=15.0
+      
+      - name: Create IPA
+        run: |
+          mkdir -p ./dist/Payload
+          cp -r ./build/SarahIA.xcarchive/Products/Applications/SarahIA.app ./dist/Payload/
+          cd ./dist
+          zip -r SarahIA.ipa Payload
+          rm -rf Payload
+      
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-IPA
+          path: ./dist/SarahIA.ipa
+          retention-days: 30
