@@ -34,13 +34,13 @@ Write-Host "  [OK] Version: $version" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 2 : Commit et Push des fixes --
-Write-Host "[2/4] Commit et push de la correction xcodebuild archive..." -ForegroundColor Yellow
+Write-Host "[2/4] Commit et push de la correction d'expansion de chemin..." -ForegroundColor Yellow
 
 git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Suppression CODE_SIGNING_ALLOWED=NO pour autoriser archive ad-hoc" --allow-empty
+git commit -m "Fix expansion de la variable GITHUB_WORKSPACE dans xcodebuild archive" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
