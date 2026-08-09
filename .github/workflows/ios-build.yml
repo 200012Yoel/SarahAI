@@ -63,93 +63,27 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Restore DerivedData cache
-        uses: actions/cache/restore@v4
-        id: cache-deriveddata
-        with:
-          path: DerivedData
-          key: deriveddata-${{ github.run_id }}
-          restore-keys: |
-            deriveddata-
-
-      - name: Detect project type
-        id: detect
-        run: |
-          if [ -f "pubspec.yaml" ]; then
-            echo "type=flutter" >> $GITHUB_OUTPUT
-          elif [ -f "package.json" ] && grep -q '"expo"' package.json; then
-            echo "type=expo" >> $GITHUB_OUTPUT
-          elif [ -f "package.json" ] && grep -q '"react-native"' package.json; then
-            echo "type=reactnative" >> $GITHUB_OUTPUT
-          else
-            echo "type=native" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate Xcode project (XcodeGen)
+      - name: Debug - List project structure
         env:
           IOS_PATH: ${{ inputs.ios_path }}
         run: |
-          set -e
-          cd "$IOS_PATH"
+          echo "=== Working directory ==="
+          pwd
+          echo "=== IOS_PATH = $IOS_PATH ==="
+          echo "=== Root listing ==="
+          ls -la
+          echo "=== IOS_PATH listing ==="
+          ls -la "$IOS_PATH/" || echo "IOS_PATH not found!"
+          echo "=== Looking for .xcodeproj ==="
+          find . -name "*.xcodeproj" -type d 2>/dev/null || true
+          echo "=== Looking for schemes ==="
+          find . -name "*.xcscheme" -type f 2>/dev/null || true
+          echo "=== Xcode version ==="
+          xcodebuild -version
+          echo "=== Available schemes in IOS_PATH ==="
+          cd "$IOS_PATH" 2>/dev/null && xcodebuild -list 2>&1 || echo "xcodebuild -list failed"
 
-          MANIFEST=""
-          for f in project.yml project.yaml; do
-            if [ -f "$f" ] && grep -qE '^targets:' "$f"; then
-              MANIFEST="$f"
-              break
-            fi
-          done
-
-          if [ -z "$MANIFEST" ]; then
-            echo "No XcodeGen manifest — skipping."
-          elif [ -n "$(find . -maxdepth 1 -name '*.xcodeproj' -print -quit)" ]; then
-            echo "Found a committed .xcodeproj — skipping generation."
-          else
-            echo "Found $MANIFEST and no .xcodeproj — generating with XcodeGen."
-            brew install xcodegen
-            xcodegen generate
-          fi
-
-      - name: Setup Flutter
-        if: steps.detect.outputs.type == 'flutter'
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ inputs.flutter_version || '' }}
-          channel: ${{ inputs.flutter_version && 'stable' || 'stable' }}
-          cache: true
-
-      - name: Flutter pub get
-        if: steps.detect.outputs.type == 'flutter'
-        run: flutter pub get
-
-      - name: Setup Node.js
-        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Restore node_modules cache
-        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
-        uses: actions/cache@v4
-        id: node-modules-cache
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'yarn.lock') }}
-          restore-keys: |
-            node-modules-${{ runner.os }}-
-
-      - name: Install npm dependencies
-        if: (steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo') && steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm install
-
-      - name: Restore Pods cache
-        uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: Pods
-          key: pods-${{ runner.os }}-${{ github.run_id }}
-
-      - name: Build IPA
+      - name: Build App
         env:
           BUILD_ID: ${{ inputs.build_id }}
           IOS_PATH: ${{ inputs.ios_path }}
@@ -160,29 +94,39 @@ jobs:
 
           cd "$IOS_PATH"
           TARGET_SCHEME="${SCHEME:-SarahIA}"
-          PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" -print -quit)
 
-          echo "Building iOS App with xcodebuild..."
+          echo "=== Building $TARGET_SCHEME ==="
           xcodebuild \
-            -project "${PROJECT:-SarahIA.xcodeproj}" \
+            -project SarahIA.xcodeproj \
             -scheme "$TARGET_SCHEME" \
-            -configuration "Release" \
+            -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.sarahia.app" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM="" \
-            build
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+
+          echo "=== Build completed successfully ==="
+
+      - name: Package IPA
+        env:
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          set -e
+
+          echo "=== Searching for .app bundle ==="
+          find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d 2>/dev/null || true
 
           # Recherche dynamique du binaire .app généré
-          set +e
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)
-          set -e
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1 || true)
 
           if [ -z "$APP_PATH" ]; then
             echo "Erreur : Aucun fichier .app trouve dans DerivedData !"
+            echo "=== DerivedData contents ==="
+            find "$GITHUB_WORKSPACE/DerivedData" -maxdepth 4 -type d 2>/dev/null || true
             exit 1
           fi
 
@@ -190,11 +134,14 @@ jobs:
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           mkdir -p "$GITHUB_WORKSPACE/build"
-          mkdir -p "$GITHUB_WORKSPACE/DerivedData/Payload"
-          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/DerivedData/Payload/"
-          cd "$GITHUB_WORKSPACE/DerivedData"
+          mkdir -p /tmp/Payload
+          cp -R "$APP_PATH" /tmp/Payload/
+          cd /tmp
           zip -rq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
           zip -rq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
+          echo "=== IPA generated successfully ==="
+          ls -la "$GITHUB_WORKSPACE/dist/"
+          ls -la "$GITHUB_WORKSPACE/build/"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -203,6 +150,15 @@ jobs:
           path: build/*.ipa
           retention-days: 7
           if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log
+          retention-days: 3
+          if-no-files-found: ignore
 
       - name: Save DerivedData cache
         uses: actions/cache/save@v4
@@ -213,18 +169,15 @@ jobs:
 
       - name: Build summary
         if: always()
-        env:
-          USE_SIGNING: ${{ inputs.use_signing }}
-          CONFIGURATION: ${{ inputs.configuration }}
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Build ID:** ${{ inputs.build_id }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Configuration:** $CONFIGURATION" >> $GITHUB_STEP_SUMMARY
-          if [ -f build/*.ipa ]; then
-            set +e
-            IPA_PATH=$(find build -name "*.ipa" -type f | head -n 1)
-            set -e
-            echo "- **IPA Size:** $(ls -lh "$IPA_PATH" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+          if [ -f "$GITHUB_WORKSPACE/xcodebuild.log" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Last 50 lines of xcodebuild output" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -50 "$GITHUB_WORKSPACE/xcodebuild.log" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
           fi
