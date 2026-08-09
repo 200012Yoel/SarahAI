@@ -184,9 +184,9 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/build"
           mkdir -p "$GITHUB_WORKSPACE/DerivedData/Payload"
 
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d | head -1)
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d -print -quit)
           if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -1)
+            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d -print -quit)
           fi
 
           if [ -z "$APP_PATH" ]; then
@@ -228,6 +228,6 @@ jobs:
           echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Configuration:** $CONFIGURATION" >> $GITHUB_STEP_SUMMARY
           if [ -f build/*.ipa ]; then
-            IPA_PATH=$(find build -name "*.ipa" -type f | head -1)
+            IPA_PATH=$(find build -name "*.ipa" -type f -print -quit)
             echo "- **IPA Size:** $(ls -lh "$IPA_PATH" | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
           fi
