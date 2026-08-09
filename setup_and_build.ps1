@@ -34,13 +34,13 @@ Write-Host "  [OK] Version: $version" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 2 : Commit et Push des fixes --
-Write-Host "[2/4] Commit et push de la restauration du workflow YAML..." -ForegroundColor Yellow
+Write-Host "[2/4] Commit et push de la compilation directe sdk iphoneos..." -ForegroundColor Yellow
 
 git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Restauration d'un workflow YAML 100% valide" --allow-empty
+git commit -m "Build direct xcodebuild -sdk iphoneos sans signature" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
