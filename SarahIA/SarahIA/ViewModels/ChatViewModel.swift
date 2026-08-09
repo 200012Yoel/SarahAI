@@ -75,10 +75,14 @@ public final class ChatViewModel: ObservableObject {
     
     /// Sauvegarde l'état courant de l'application
     public func persistCurrentState() {
+        let existing = storageService.loadState()
         let state = AppPersistedState(
             activeMode: appMode.rawValue,
             messages: messages,
-            lastActiveTimestamp: Date()
+            lastActiveTimestamp: Date(),
+            voiceSettings: existing.voiceSettings,
+            learnedMemories: existing.learnedMemories,
+            pendingLearningTrigger: existing.pendingLearningTrigger
         )
         storageService.saveState(state)
     }
@@ -232,7 +236,7 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             self.persistCurrentState()
             
-            // Prononcer la réponse et animer l'avatar 3D
+            // Prononcer la réponse à voix haute et animer l'avatar 3D
             self.ttsService.speak(text: response)
             
             await self.sendNotificationIfNeeded(message: response)
@@ -259,10 +263,8 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             self.persistCurrentState()
             
-            // En mode texte ou avatar, synthèse vocale avec synchronisation
-            if self.appMode == .avatar {
-                self.ttsService.speak(text: response)
-            }
+            // Synthèse vocale fluide et synchronisée à voix haute
+            self.ttsService.speak(text: response)
             
             await self.sendNotificationIfNeeded(message: response)
         }

@@ -1,64 +1,145 @@
 import Foundation
 
-/// Service d'intelligence artificielle simulée.
-/// Génère des réponses contextuelles en français après un délai réaliste.
+/// Service d'intelligence artificielle avec moteur d'apprentissage dynamique et mémoire persistante.
 final class AIService {
     
     static let shared = AIService()
     
+    private let storage = StorageService.shared
+    
     private init() {}
     
-    /// Génère une réponse IA pour la question donnée.
-    /// - Parameter question: La question posée par l'utilisateur.
-    /// - Returns: Une réponse textuelle simulée.
+    /// Génère une réponse IA pour la question ou la commande donnée, avec prise en compte de la mémoire apprise.
     func generateResponse(for question: String) async -> String {
-        // Simule un délai de traitement réaliste (2 à 4 secondes)
-        let delay = UInt64.random(in: 2_000_000_000...4_000_000_000)
+        // Simule un délai de traitement fluide (0.8 à 1.8 secondes)
+        let delay = UInt64.random(in: 800_000_000...1_800_000_000)
         try? await Task.sleep(nanoseconds: delay)
         
-        let lowercased = question.lowercased()
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = normalizeText(trimmed)
         
-        // Réponses contextuelles basées sur des mots-clés
-        if lowercased.contains("bonjour") || lowercased.contains("salut") || lowercased.contains("hello") || lowercased.contains("coucou") {
-            return pickRandom(from: greetingResponses)
+        var state = storage.loadState()
+        
+        // -----------------------------------------------------------------
+        // 1. ÉTAPE 2 DE L'APPRENTISSAGE INTERACTIF (En attente de la réponse)
+        // -----------------------------------------------------------------
+        if let pendingTrigger = state.pendingLearningTrigger, !pendingTrigger.isEmpty {
+            // Si l'utilisateur annule
+            if normalized == "annule" || normalized == "annuler" || normalized == "laisse tomber" || normalized == "stop" {
+                state.pendingLearningTrigger = nil
+                storage.saveState(state)
+                return "D'accord, apprentissage annulé ! Que souhaitez-vous faire ?"
+            }
+            
+            // Enregistrer l'association dans la mémoire persistante
+            let cleanTrigger = pendingTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+            state.learnedMemories[normalizeText(cleanTrigger)] = trimmed
+            state.pendingLearningTrigger = nil
+            storage.saveState(state)
+            
+            return "C'est appris ! 🧠 Dès que vous me direz « \(cleanTrigger) », je répondrai : « \(trimmed) »."
         }
         
-        if lowercased.contains("météo") || lowercased.contains("temps") || lowercased.contains("pluie") || lowercased.contains("soleil") {
+        // -----------------------------------------------------------------
+        // 2. DÉCLENCHEMENT D'APPRENTISSAGE DIRECT (Mono-instruction)
+        // Ex: "Apprends : papa = il est pas là" ou "Quand je dis papa, réponds il est pas là"
+        // -----------------------------------------------------------------
+        if let directLearning = parseDirectLearningCommand(trimmed) {
+            state.learnedMemories[normalizeText(directLearning.trigger)] = directLearning.response
+            storage.saveState(state)
+            return "Parfait ! J'ai mémorisé que pour « \(directLearning.trigger) », je dois répondre : « \(directLearning.response) »."
+        }
+        
+        // -----------------------------------------------------------------
+        // 3. DÉCLENCHEMENT D'APPRENTISSAGE INTERACTIF (Multi-tours)
+        // Ex: "Apprends papa" ou "Apprends : papa" ou "Enseigne papa"
+        // -----------------------------------------------------------------
+        if let triggerToLearn = parseInteractiveLearningInitiation(trimmed) {
+            state.pendingLearningTrigger = triggerToLearn
+            storage.saveState(state)
+            return "Je dois répondre quoi ?"
+        }
+        
+        // -----------------------------------------------------------------
+        // 4. COMMANDES DE GESTION DE MÉMOIRE (Oublier / Lister)
+        // -----------------------------------------------------------------
+        if normalized.starts(with: "oublie ") || normalized.starts(with: "efface ") {
+            let target = trimmed.replacingOccurrences(of: "oublie ", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "efface ", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let normTarget = normalizeText(target)
+            if state.learnedMemories.removeValue(forKey: normTarget) != nil {
+                storage.saveState(state)
+                return "C'est fait, j'ai oublié ce que je devais répondre pour « \(target) »."
+            } else if normalized.contains("tout") || normalized.contains("memoire") {
+                state.learnedMemories.removeAll()
+                storage.saveState(state)
+                return "Toute ma mémoire personnalisée a été réinitialisée !"
+            }
+        }
+        
+        if normalized.contains("qu'est ce que tu as appris") || normalized.contains("que sais tu") || normalized.contains("liste ta memoire") || normalized.contains("tes souvenirs") {
+            if state.learnedMemories.isEmpty {
+                return "Je n'ai pas encore appris de réponses personnalisées. Vous pouvez m'apprendre quelque chose en disant par exemple : « Apprends papa » !"
+            } else {
+                var list = "Voici ce que vous m'avez appris jusqu'à présent :\n"
+                for (trigger, response) in state.learnedMemories {
+                    list += "• Quand vous dites « \(trigger) » ➔ « \(response) »\n"
+                }
+                return list
+            }
+        }
+        
+        // -----------------------------------------------------------------
+        // 5. RECHERCHE DANS LA MÉMOIRE PERSISTANTE APPRISE
+        // -----------------------------------------------------------------
+        if let learnedResponse = state.learnedMemories[normalized] {
+            return learnedResponse
+        }
+        
+        // Recherche souple si la phrase contient exactement un déclencheur appris
+        for (trigger, response) in state.learnedMemories {
+            if normalized == trigger || normalized.contains(" \(trigger) ") || normalized.starts(with: "\(trigger) ") || normalized.hasSuffix(" \(trigger)") {
+                return response
+            }
+        }
+        
+        // -----------------------------------------------------------------
+        // 6. CONVERSATION NATURELLE & GREETINGS
+        // -----------------------------------------------------------------
+        if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
+            return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?"
+        }
+        
+        if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
             return pickRandom(from: weatherResponses)
         }
         
-        if lowercased.contains("heure") || lowercased.contains("quelle heure") {
+        if normalized.contains("heure") || normalized.contains("quelle heure") {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
             let time = formatter.string(from: Date())
-            return "Il est actuellement \(time). ⏰ Comment puis-je vous aider ?"
+            return "Il est actuellement \(time). ⏰ Que puis-je faire pour vous ?"
         }
         
-        if lowercased.contains("aide") || lowercased.contains("aider") || lowercased.contains("help") {
-            return pickRandom(from: helpResponses)
+        if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("comment tu marche") {
+            return "Je suis Sarah, votre assistante IA interactive ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Voir mes expressions et gestes en direct sur mon Avatar 3D !"
         }
         
-        if lowercased.contains("merci") || lowercased.contains("super") || lowercased.contains("génial") || lowercased.contains("parfait") {
+        if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") {
             return pickRandom(from: thanksResponses)
         }
         
-        if lowercased.contains("nom") || lowercased.contains("appelle") || lowercased.contains("qui es") || lowercased.contains("sarah") {
+        if normalized.contains("nom") || normalized.contains("appelle") || normalized.contains("qui es tu") || normalized.contains("qui est tu") || normalized == "sarah" {
             return pickRandom(from: identityResponses)
         }
         
-        if lowercased.contains("blague") || lowercased.contains("rire") || lowercased.contains("drôle") || lowercased.contains("humour") {
+        if normalized.contains("blague") || normalized.contains("rire") || normalized.contains("drole") || normalized.contains("humour") {
             return pickRandom(from: jokeResponses)
         }
         
-        if lowercased.contains("recette") || lowercased.contains("cuisine") || lowercased.contains("manger") || lowercased.contains("repas") {
-            return pickRandom(from: cookingResponses)
-        }
-        
-        if lowercased.contains("musique") || lowercased.contains("chanson") || lowercased.contains("écouter") {
-            return pickRandom(from: musicResponses)
-        }
-        
-        if lowercased.contains("au revoir") || lowercased.contains("bye") || lowercased.contains("à bientôt") || lowercased.contains("bonne nuit") {
+        if normalized.contains("au revoir") || normalized.contains("bye") || normalized.contains("a bientot") || normalized.contains("bonne nuit") {
             return pickRandom(from: goodbyeResponses)
         }
         
@@ -66,80 +147,128 @@ final class AIService {
         return pickRandom(from: defaultResponses)
     }
     
-    /// Génère une réponse rapide pour le test de notification en arrière-plan.
+    /// Réponse pour le test de notification d'arrière-plan
     func generateBackgroundTestResponse() async -> String {
-        // Délai plus long pour permettre à l'utilisateur de mettre l'app en arrière-plan
-        try? await Task.sleep(nanoseconds: 5_000_000_000)
-        return "🔔 Ceci est un test de notification en arrière-plan ! Sarah IA fonctionne même quand l'application n'est pas visible. 🚀"
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        return "🔔 Test d'arrière-plan réussi ! Sarah AI continue de fonctionner et de vous écouter même en arrière-plan. 🚀"
     }
     
-    // MARK: - Pools de réponses
+    // MARK: - Parsing Helpers
     
-    private let greetingResponses = [
-        "Bonjour ! 👋 Je suis Sarah, votre assistante IA. Comment puis-je vous aider aujourd'hui ?",
-        "Salut ! Ravie de vous retrouver. 😊 Que puis-je faire pour vous ?",
-        "Hey ! Bienvenue ! Je suis prête à répondre à vos questions. 💬",
-        "Bonjour ! ☀️ Belle journée pour discuter. Qu'avez-vous en tête ?"
-    ]
+    private func parseDirectLearningCommand(_ text: String) -> (trigger: String, response: String)? {
+        let lower = text.lowercased()
+        
+        // Ex: "Apprends : papa = il est pas là" ou "Apprends papa = il est pas là"
+        if (lower.starts(with: "apprends") || lower.starts(with: "enseigne")) && text.contains("=") {
+            let cleaned = text.replacingOccurrences(of: "apprends :", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "apprends", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "enseigne", with: "", options: .caseInsensitive)
+            let parts = cleaned.components(separatedBy: "=")
+            if parts.count >= 2 {
+                let trigger = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let response = parts.dropFirst().joined(separator: "=").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trigger.isEmpty && !response.isEmpty {
+                    return (trigger, response)
+                }
+            }
+        }
+        
+        // Ex: "Quand je dis papa, réponds il est pas là"
+        if lower.starts(with: "quand je dis ") && lower.contains("reponds ") {
+            let withoutPrefix = text.replacingOccurrences(of: "quand je dis ", with: "", options: .caseInsensitive)
+            let parts = withoutPrefix.components(separatedBy: "réponds ")
+            if parts.count >= 2 {
+                let trigger = parts[0].replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let response = parts.dropFirst().joined(separator: "réponds ").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trigger.isEmpty && !response.isEmpty {
+                    return (trigger, response)
+                }
+            }
+        }
+        
+        return nil
+    }
     
-    private let weatherResponses = [
-        "Je ne peux pas accéder à la météo en temps réel pour le moment, mais je vous recommande de vérifier votre application météo préférée ! 🌤️ En attendant, je peux vous aider avec autre chose.",
-        "La météo est capricieuse, n'est-ce pas ? ☁️ Malheureusement, je n'ai pas accès aux données météo en direct. Avez-vous une autre question ?",
-        "Pour la météo, je vous conseille de consulter Météo-France ou votre app météo favorite ! 🌡️ Je suis meilleure pour les conversations. 😄"
-    ]
+    private func parseInteractiveLearningInitiation(_ text: String) -> String? {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if lower.starts(with: "apprends :") || lower.starts(with: "apprends:") {
+            let trigger = text.replacingOccurrences(of: "apprends :", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "apprends:", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return trigger.isEmpty ? nil : trigger
+        }
+        
+        if lower.starts(with: "apprends ") {
+            let trigger = text.replacingOccurrences(of: "apprends ", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return trigger.isEmpty ? nil : trigger
+        }
+        
+        if lower.starts(with: "enseigne ") {
+            let trigger = text.replacingOccurrences(of: "enseigne ", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return trigger.isEmpty ? nil : trigger
+        }
+        
+        return nil
+    }
     
-    private let helpResponses = [
-        "Bien sûr, je suis là pour vous ! 🤝 Vous pouvez me poser n'importe quelle question, me demander une blague, ou simplement discuter. Que souhaitez-vous ?",
-        "Je peux vous aider de plusieurs façons :\n• 💬 Discuter et répondre à vos questions\n• 😄 Raconter des blagues\n• 🔔 Tester les notifications en arrière-plan\n\nQue voulez-vous essayer ?",
-        "Je suis Sarah, votre assistante IA ! Je suis ici pour discuter avec vous, répondre à vos questions, et vous accompagner. N'hésitez pas à me poser vos questions ! 💡"
-    ]
+    private func normalizeText(_ text: String) -> String {
+        return text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "?", with: "")
+            .replacingOccurrences(of: "!", with: "")
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: "'", with: " ")
+            .replacingOccurrences(of: "«", with: "")
+            .replacingOccurrences(of: "»", with: "")
+            .replacingOccurrences(of: "\"", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    // MARK: - Pools de Réponses
     
     private let thanksResponses = [
-        "De rien ! C'est un plaisir de vous aider. 😊 N'hésitez pas si vous avez d'autres questions !",
+        "De rien ! C'est un plaisir de vous aider. 😊",
         "Avec plaisir ! 🌟 Je suis toujours là si vous avez besoin de moi.",
-        "Merci à vous ! C'est motivant de savoir que je peux aider. 💪 Autre chose ?",
-        "Pas de quoi ! 😄 C'est exactement pour ça que je suis là."
+        "Merci à vous ! C'est motivant de pouvoir échanger. 💪"
     ]
     
     private let identityResponses = [
-        "Je suis Sarah IA, votre assistante intelligente ! 🤖 J'ai été conçue pour discuter avec vous et répondre à vos questions en français.",
-        "Mon nom est Sarah ! Je suis une intelligence artificielle embarquée sur votre iPhone. 📱 Comment puis-je vous être utile ?",
-        "Je m'appelle Sarah IA — votre compagne de conversation ! 💬 Je suis là pour vous aider et discuter avec vous."
+        "Je suis Sarah AI, votre assistante 3D intelligente ! 🤖 Vous pouvez me poser des questions ou m'apprendre de nouvelles réponses.",
+        "Mon nom est Sarah ! Je suis une intelligence artificielle interactive embarquée sur votre appareil. 📱"
     ]
     
     private let jokeResponses = [
         "Pourquoi les plongeurs plongent-ils toujours en arrière et jamais en avant ? 🤔 Parce que sinon ils tomberaient dans le bateau ! 😂",
         "Qu'est-ce qu'un canif ? 🔪 Un petit fien ! 😄",
-        "Pourquoi est-ce que le chat traverse-t-il la route ? 🐱 Pour aller de l'autre côté... du chat-min ! 😸",
-        "Deux informaticiens discutent : \"C'est quoi ton adresse IP ?\" — \"192.168... attends, c'est personnel !\" 💻😄",
-        "Comment appelle-t-on un chat tombé dans un pot de peinture le jour de Noël ? 🎄 Un chat-peint de Noël ! 🐱🎨"
+        "Deux informaticiens discutent : « C'est quoi ton adresse IP ? » — « 192.168... attends, c'est personnel ! » 💻😄"
     ]
     
-    private let cookingResponses = [
-        "J'adore parler cuisine ! 🍳 Voici une idée simple : des pâtes aglio e olio — faites revenir de l'ail dans de l'huile d'olive, ajoutez du piment, et mélangez avec des spaghetti. Rapide, délicieux, et élégant !",
-        "Pour un repas rapide, je suggère un croque-monsieur revisité : pain de mie, jambon, fromage gruyère, et une béchamel maison. Passez-le au four 10 minutes et régalez-vous ! 🧀",
-        "Que diriez-vous d'une salade composée ? 🥗 Mélangez de la roquette, des tomates cerises, de la mozzarella, et arrosez d'un filet de vinaigre balsamique. Simple et délicieux !"
-    ]
-    
-    private let musicResponses = [
-        "La musique, quel beau sujet ! 🎵 Je ne peux pas jouer de la musique, mais je vous recommande d'écouter quelques classiques français : Édith Piaf, Charles Aznavour, ou pour du moderne, Stromae !",
-        "J'adore la musique ! 🎶 Si vous cherchez de l'inspiration, explorez les playlists de Daft Punk, Air, ou Christine and the Queens. La musique française a tellement à offrir !",
-        "La musique adoucit les mœurs ! 🎧 Dites-moi quel genre vous aimez et je pourrai vous suggérer des artistes."
+    private let weatherResponses = [
+        "La météo est changeante ! ☁️ N'oubliez pas de jeter un coup d'œil à votre application météo.",
+        "Je n'ai pas accès aux données satellites en temps réel, mais j'espère qu'il fait beau chez vous ! ☀️"
     ]
     
     private let goodbyeResponses = [
-        "Au revoir ! 👋 C'était un plaisir de discuter avec vous. À bientôt !",
-        "À la prochaine ! 🌟 N'hésitez pas à revenir quand vous voulez. Bonne journée !",
-        "Bye bye ! 😊 Prenez soin de vous et à très vite !",
-        "Bonne nuit ! 🌙 Dormez bien et à demain peut-être !"
+        "Au revoir ! 👋 C'était un plaisir. À très vite !",
+        "À bientôt ! 🌟 Prenez soin de vous.",
+        "Bonne journée ! 😊 N'hésitez pas à revenir quand vous voulez."
     ]
     
     private let defaultResponses = [
-        "C'est une question intéressante ! 🤔 En tant qu'IA simulée, je n'ai pas toutes les réponses, mais je fais de mon mieux pour vous aider. Pourriez-vous reformuler votre question ?",
-        "Hmm, je réfléchis... 💭 Je ne suis pas sûre d'avoir la réponse parfaite, mais je suis toujours en apprentissage ! Essayez de me poser la question autrement.",
-        "Bonne question ! 💡 Je suis une IA en développement, alors certaines réponses me dépassent encore. Mais n'hésitez pas à continuer de me challenger !",
-        "Intéressant ! 🧠 Je note votre question. Même si je ne peux pas y répondre maintenant, je m'améliore constamment. Essayez autre chose en attendant !",
-        "Je comprends votre question, mais ma base de connaissances est encore limitée. 📚 Essayons un autre sujet ! Vous pouvez me demander des blagues, de l'aide, ou simplement discuter."
+        "C'est une remarque intéressante ! 🤔 Si vous voulez que je retienne une réponse précise pour ce mot, dites-moi « Apprends [mot] » !",
+        "Je comprends ! 💡 N'hésitez pas à m'apprendre comment vous souhaitez que je réponde à cela.",
+        "Je note cela ! 🧠 Je m'améliore constamment grâce à nos échanges."
+    ]
+    
+    private func pickRandom(from pool: [String]) -> String {
+        pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
+    }
+}
+ connaissances est encore limitée. 📚 Essayons un autre sujet ! Vous pouvez me demander des blagues, de l'aide, ou simplement discuter."
     ]
     
     // MARK: - Helpers

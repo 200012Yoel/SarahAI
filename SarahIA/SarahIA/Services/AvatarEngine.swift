@@ -36,6 +36,7 @@ public final class AvatarEngine: ObservableObject {
     private var rightForearmNode: SCNNode?
     private var leftHandNode: SCNNode?
     private var rightHandNode: SCNNode?
+    private var allMorphers: [SCNMorpher] = []
     
     // MARK: - Animation State & Motion Blending
     private var animationTimer: Timer?
@@ -143,74 +144,33 @@ public final class AvatarEngine: ObservableObject {
         scene.rootNode.addChildNode(avatarRootNode)
     }
     
-    // MARK: - 2. Chargement du Modèle ou Construction Procédurale Complète
+    // MARK: - 2. Chargement du Modèle VRoid (Sarah.vrm) ou Procédural
     
     private func setupAvatarModel() {
-        let possibleModelNames = ["SarahHead.usdz", "SarahHead.scn", "avatar.usdz", "sarah.scn", "sarah_avatar.usdz"]
-        var loadedCustomModel = false
-        
-        for name in possibleModelNames {
-            if let url = Bundle.main.url(forResource: (name as NSString).deletingPathExtension, withExtension: (name as NSString).pathExtension) {
-                if let modelScene = try? SCNScene(url: url, options: nil) {
-                    print("✅ [AvatarEngine] Modèle 3D personnalisé chargé: \(name)")
-                    let importedRoot = SCNNode()
-                    for child in modelScene.rootNode.childNodes {
-                        importedRoot.addChildNode(child)
-                    }
-                    avatarRootNode.addChildNode(importedRoot)
-                    
-                    // Découverte automatique des os et blendshapes dans le modèle importé
-                    bindSkeletalAndMorphNodes(in: importedRoot)
-                    loadedCustomModel = true
-                    break
-                }
-            }
-        }
-        
-        if !loadedCustomModel {
-            print("🎨 [AvatarEngine] Construction de l'avatar 3D complet (visage, blendshapes & rigging haut du corps).")
-            createFullProceduralAvatarWithRig()
-        }
-    }
-    
-    /// Découverte intelligente des os de la hiérarchie squelettique (Mixamo / ReadyPlayerMe / ARKit standard)
-    private func bindSkeletalAndMorphNodes(in root: SCNNode) {
-        root.enumerateChildNodes { node, _ in
-            let name = node.name?.lowercased() ?? ""
+        // Tentative de chargement prioritaire de "Sarah.vrm" via VRMLoader
+        if let vrmRig = VRMLoader.shared.loadSarahAvatar() {
+            print("✨ [AvatarEngine] Modèle VRoid Studio Sarah.vrm chargé avec succès !")
+            avatarRootNode.addChildNode(vrmRig.rootNode)
             
-            // Morpher
-            if let morpher = node.morpher {
-                self.morpher = morpher
-                self.headNode = node
-            }
-            
-            // Squelette / Bones
-            if name.contains("spine") || name.contains("torso") {
-                self.spineNode = node
-            } else if name.contains("chest") || name.contains("upperchest") {
-                self.chestNode = node
-            } else if name.contains("neck") {
-                self.neckNode = node
-            } else if name.contains("head") && self.headNode == nil {
-                self.headNode = node
-            } else if name.contains("leftshoulder") || name.contains("shoulder_l") || name.contains("clavicle_l") {
-                self.leftShoulderNode = node
-            } else if name.contains("rightshoulder") || name.contains("shoulder_r") || name.contains("clavicle_r") {
-                self.rightShoulderNode = node
-            } else if name.contains("leftarm") || name.contains("upperarm_l") || name.contains("leftupperarm") {
-                self.leftUpperArmNode = node
-            } else if name.contains("rightarm") || name.contains("upperarm_r") || name.contains("rightupperarm") {
-                self.rightUpperArmNode = node
-            } else if name.contains("leftforearm") || name.contains("forearm_l") || name.contains("leftlowerarm") {
-                self.leftForearmNode = node
-            } else if name.contains("rightforearm") || name.contains("forearm_r") || name.contains("rightlowerarm") {
-                self.rightForearmNode = node
-            } else if name.contains("lefthand") || name.contains("hand_l") || name.contains("wrist_l") {
-                self.leftHandNode = node
-            } else if name.contains("righthand") || name.contains("hand_r") || name.contains("wrist_r") {
-                self.rightHandNode = node
-            }
+            self.headNode = vrmRig.headNode
+            self.spineNode = vrmRig.spineNode
+            self.chestNode = vrmRig.chestNode
+            self.neckNode = vrmRig.neckNode
+            self.leftShoulderNode = vrmRig.leftShoulderNode
+            self.rightShoulderNode = vrmRig.rightShoulderNode
+            self.leftUpperArmNode = vrmRig.leftUpperArmNode
+            self.rightUpperArmNode = vrmRig.rightUpperArmNode
+            self.leftForearmNode = vrmRig.leftForearmNode
+            self.rightForearmNode = vrmRig.rightForearmNode
+            self.leftHandNode = vrmRig.leftHandNode
+            self.rightHandNode = vrmRig.rightHandNode
+            self.allMorphers = vrmRig.morphers
+            self.morpher = vrmRig.morphers.first
+            return
         }
+        
+        print("🎨 [AvatarEngine] Aucun fichier Sarah.vrm détecté pour l'instant : utilisation de l'avatar procédural stylisé avec squelette.")
+        createFullProceduralAvatarWithRig()
     }
     
     /// Construit un avatar stylisé complet avec rig squelettique articulaire (Buste, Épaules, Bras, Mains)
@@ -491,19 +451,49 @@ public final class AvatarEngine: ObservableObject {
         }
     }
     
-    /// Applique les poids de blendshapes faciaux
+    /// Applique les poids de blendshapes faciaux (Support ARKit & VRoid Studio VRM)
     public func applyVisemeFrame(_ frame: VisemeFrame) {
         speechEnergySmoothed = frame.amplitude
         
-        // Modèle avec Morpher USDZ standard
-        if let morpher = morpher {
-            morpher.setWeight(CGFloat(frame.jawOpen), forTargetNamed: "jawOpen")
-            morpher.setWeight(CGFloat(frame.mouthPucker), forTargetNamed: "mouthPucker")
-            morpher.setWeight(CGFloat(frame.mouthFunnel), forTargetNamed: "mouthFunnel")
-            morpher.setWeight(CGFloat(frame.mouthSmile), forTargetNamed: "mouthSmile")
+        // 1. Application sur tous les Morphers découverts (VRoid VRM & USDZ)
+        for m in allMorphers {
+            // Mapping ARKit standard
+            m.setWeight(CGFloat(frame.jawOpen), forTargetNamed: "jawOpen")
+            m.setWeight(CGFloat(frame.mouthPucker), forTargetNamed: "mouthPucker")
+            m.setWeight(CGFloat(frame.mouthFunnel), forTargetNamed: "mouthFunnel")
+            m.setWeight(CGFloat(frame.mouthSmile), forTargetNamed: "mouthSmile")
+            
+            // Mapping VRoid Studio VRM Standard (Voyelles & Expressions)
+            // A (Grande ouverture)
+            m.setWeight(CGFloat(frame.jawOpen), forTargetNamed: "Fcl_MTH_A")
+            m.setWeight(CGFloat(frame.jawOpen), forTargetNamed: "A")
+            m.setWeight(CGFloat(frame.jawOpen), forTargetNamed: "vrm.a")
+            
+            // I (Sourire / Étirement)
+            m.setWeight(CGFloat(frame.mouthSmile), forTargetNamed: "Fcl_MTH_I")
+            m.setWeight(CGFloat(frame.mouthSmile), forTargetNamed: "I")
+            m.setWeight(CGFloat(frame.mouthSmile), forTargetNamed: "vrm.i")
+            m.setWeight(CGFloat(frame.mouthSmile * 0.5), forTargetNamed: "Joy")
+            m.setWeight(CGFloat(frame.mouthSmile * 0.5), forTargetNamed: "Fcl_ALL_Joy")
+            
+            // U (Bouche en avant / Pucker)
+            m.setWeight(CGFloat(frame.mouthPucker), forTargetNamed: "Fcl_MTH_U")
+            m.setWeight(CGFloat(frame.mouthPucker), forTargetNamed: "U")
+            m.setWeight(CGFloat(frame.mouthPucker), forTargetNamed: "vrm.u")
+            
+            // E (Ouverture intermédiaire)
+            let weightE = (frame.jawOpen * 0.5) + (frame.mouthSmile * 0.5)
+            m.setWeight(CGFloat(weightE), forTargetNamed: "Fcl_MTH_E")
+            m.setWeight(CGFloat(weightE), forTargetNamed: "E")
+            m.setWeight(CGFloat(weightE), forTargetNamed: "vrm.e")
+            
+            // O (Rond / Funnel)
+            m.setWeight(CGFloat(frame.mouthFunnel), forTargetNamed: "Fcl_MTH_O")
+            m.setWeight(CGFloat(frame.mouthFunnel), forTargetNamed: "O")
+            m.setWeight(CGFloat(frame.mouthFunnel), forTargetNamed: "vrm.o")
         }
         
-        // Modèle procédural
+        // 2. Modèle procédural de secours
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.03
         
@@ -637,6 +627,14 @@ public final class AvatarEngine: ObservableObject {
     }
     
     private func triggerNaturalBlink() {
+        // Animation des paupières VRM
+        for m in allMorphers {
+            m.setWeight(1.0, forTargetNamed: "Fcl_EYE_Close")
+            m.setWeight(1.0, forTargetNamed: "Blink")
+            m.setWeight(1.0, forTargetNamed: "eyeBlinkLeft")
+            m.setWeight(1.0, forTargetNamed: "eyeBlinkRight")
+        }
+        
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.07
         SCNTransaction.completionBlock = {
@@ -644,6 +642,12 @@ public final class AvatarEngine: ObservableObject {
             SCNTransaction.animationDuration = 0.07
             self.leftEyelidNode?.scale = SCNVector3(1, 1, 0.01)
             self.rightEyelidNode?.scale = SCNVector3(1, 1, 0.01)
+            for m in self.allMorphers {
+                m.setWeight(0.0, forTargetNamed: "Fcl_EYE_Close")
+                m.setWeight(0.0, forTargetNamed: "Blink")
+                m.setWeight(0.0, forTargetNamed: "eyeBlinkLeft")
+                m.setWeight(0.0, forTargetNamed: "eyeBlinkRight")
+            }
             SCNTransaction.commit()
         }
         

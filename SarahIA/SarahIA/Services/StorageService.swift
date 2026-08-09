@@ -6,17 +6,23 @@ public struct AppPersistedState: Codable {
     public var messages: [Message]
     public var lastActiveTimestamp: Date
     public var voiceSettings: VoiceSettings
+    public var learnedMemories: [String: String] // Associations apprises [trigger: response]
+    public var pendingLearningTrigger: String? // Déclencheur en attente d'apprentissage
     
     public init(
         activeMode: String = "avatar",
         messages: [Message] = [],
         lastActiveTimestamp: Date = Date(),
-        voiceSettings: VoiceSettings = VoiceSettings()
+        voiceSettings: VoiceSettings = VoiceSettings(),
+        learnedMemories: [String: String] = [:],
+        pendingLearningTrigger: String? = nil
     ) {
         self.activeMode = activeMode
         self.messages = messages
         self.lastActiveTimestamp = lastActiveTimestamp
         self.voiceSettings = voiceSettings
+        self.learnedMemories = learnedMemories
+        self.pendingLearningTrigger = pendingLearningTrigger
     }
 }
 

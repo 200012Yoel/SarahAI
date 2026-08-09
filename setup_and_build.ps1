@@ -33,14 +33,22 @@ $version = & .\builder.exe --version
 Write-Host "  [OK] Version: $version" -ForegroundColor Green
 Write-Host ""
 
-# -- ETAPE 2 : Commit et Push des fixes --
-Write-Host "[2/4] Commit et push de Sarah AI (Avatar 3D, Full-Duplex VAD, Gestuelle et Persistance)..." -ForegroundColor Yellow
+# -- ETAPE 2 : Configuration AppIcon, Commit et Push --
+Write-Host "[2/4] Configuration AppIcon et commit sur GitHub..." -ForegroundColor Yellow
+
+$iconSource = "C:\Users\Yoel Cohen\.gemini\antigravity-ide\brain\b5766280-dfe0-468c-8738-c350a1ff540a\sarah_app_icon_1786296632469.png"
+$iconDest = "SarahIA\SarahIA\Assets.xcassets\AppIcon.appiconset\AppIcon-1024.png"
+
+if (Test-Path $iconSource) {
+    Copy-Item -Path $iconSource -Destination $iconDest -Force
+    Write-Host "  [OK] Nouvelle App Icon 1A / 1I copiee dans Assets.xcassets" -ForegroundColor Green
+}
 
 git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Full-Screen 3D Avatar, Full-Duplex Whisper VAD, Procedural Gestures & State Persistence" --allow-empty
+git commit -m "Sarah AI: VRoid Sarah.vrm avatar, persistent AI memory, free local TTS & new 1A/1I App Icon" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
