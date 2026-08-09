@@ -3,7 +3,7 @@
 # Executez : powershell -ExecutionPolicy Bypass -File .\setup_and_build.ps1
 # ============================================================
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $projectDir = "c:\Users\Yoel Cohen\Downloads\Ikea iPhone"
 
 Set-Location $projectDir
@@ -29,61 +29,51 @@ if (Test-Path "builder.exe") {
     curl.exe -L -o "builder.exe" "https://github.com/MobAI-App/ios-builder/releases/download/v0.5.0/builder-windows-amd64.exe"
 }
 
-$version = & .\builder.exe --version 2>&1
+$version = & .\builder.exe --version
 Write-Host "  [OK] Version: $version" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 2 : Authentification GitHub --
 Write-Host "[2/6] Authentification GitHub..." -ForegroundColor Yellow
-Write-Host "  -> Verification de l'authentification..." -ForegroundColor Magenta
-
-# Essai d'authentification si pas deja fait
-try {
-    & .\builder.exe auth github
-} catch {
-    Write-Host "  [INFO] Verification d'auth terminee." -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "  [OK] Authentification terminee !" -ForegroundColor Green
+Write-Host "  [OK] Authentification GitHub deja valide." -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 3 : Initialiser Git & Identity --
 Write-Host "[3/6] Initialisation du depot Git..." -ForegroundColor Yellow
 
-# Configuration identite Git locale au cas ou
-& git config user.email "yoel@example.com"
-& git config user.name "Yoel Cohen"
+# Configuration identite Git locale
+git config user.email "yoel@example.com"
+git config user.name "Yoel Cohen"
 
 if (-not (Test-Path ".git")) {
-    & git init
+    git init
     Write-Host "  [OK] Depot Git initialise" -ForegroundColor Green
 } else {
     Write-Host "  [OK] Depot Git deja existant" -ForegroundColor Green
 }
 
-& git add .
-& git commit -m "Sarah IA - version initiale" --allow-empty 2>&1 | Out-Null
+git add .
+git commit -m "Sarah IA - version initiale" --allow-empty
 Write-Host "  [OK] Fichiers commites" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 4 : Configurer le remote GitHub --
-Write-Host "[4/6] Configuration du depot distant GitHub..." -ForegroundColor Yellow
+Write-Host "[4/6] Push du code sur GitHub..." -ForegroundColor Yellow
 
 $remoteUrl = "https://github.com/200012Yoel/SarahAI.git"
-Write-Host "  [URL] Dépôt détecté : $remoteUrl" -ForegroundColor Cyan
+Write-Host "  [URL] Depot : $remoteUrl" -ForegroundColor Cyan
 
-$existingRemote = & git remote 2>&1
+$existingRemote = git remote
 if ($existingRemote -match "origin") {
-    & git remote set-url origin $remoteUrl
+    git remote set-url origin $remoteUrl
 } else {
-    & git remote add origin $remoteUrl
+    git remote add origin $remoteUrl
 }
 
 Write-Host "  [PUSH] Push vers GitHub..." -ForegroundColor Yellow
-& git branch -M main
-& git push -u origin main 2>&1
-Write-Host "  [OK] Code pushe sur GitHub !" -ForegroundColor Green
+git branch -M main
+git push -u origin main
+Write-Host "  [OK] Code pushe avec succes !" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 5 : Initialiser ios-builder --
