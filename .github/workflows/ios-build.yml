@@ -103,21 +103,25 @@ jobs:
           fi
           echo "=== Projet Xcode trouve : $PROJECT_FILE ==="
 
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          PROJECT_NAME=$(basename "$PROJECT_FILE")
           TARGET_SCHEME="${SCHEME:-SarahIA}"
-          echo "=== Compilation du scheme $TARGET_SCHEME ==="
+
+          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME ==="
+          cd "$PROJECT_DIR"
 
           xcodebuild \
-            -project "$PROJECT_FILE" \
+            -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            clean build | tee "$GITHUB_WORKSPACE/xcodebuild.log"
 
           echo "=== Compilation Xcode terminee avec succes ==="
 

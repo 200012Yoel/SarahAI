@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Fix SwiftUI Identifiable ForEach in MemoryVaultView & Xcode project path" --allow-empty
+git commit -m "Sarah AI: Switch working directory to SarahIA project folder, set arm64 architecture & clean build" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
