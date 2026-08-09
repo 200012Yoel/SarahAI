@@ -373,8 +373,8 @@ jobs:
               BUILD_CMD="$BUILD_CMD PROVISIONING_PROFILE_SPECIFIER='$PROVISIONING_PROFILE_NAME'"
               BUILD_CMD="$BUILD_CMD -archivePath '$GITHUB_WORKSPACE/build/App.xcarchive' archive"
             else
-              # For unsigned builds, archive with ad-hoc signing allowed
-              BUILD_CMD="$BUILD_CMD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' AD_HOC_CODE_SIGNING_ALLOWED=YES -archivePath '$GITHUB_WORKSPACE/build/App.xcarchive' archive"
+              # For unsigned/ad-hoc builds, archive with ad-hoc identity "-"
+              BUILD_CMD="$BUILD_CMD CODE_SIGN_IDENTITY='-' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES AD_HOC_CODE_SIGNING_ALLOWED=YES -archivePath '$GITHUB_WORKSPACE/build/App.xcarchive' archive"
             fi
 
             echo "Running: $BUILD_CMD"
