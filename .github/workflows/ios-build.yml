@@ -373,8 +373,8 @@ jobs:
               BUILD_CMD="$BUILD_CMD PROVISIONING_PROFILE_SPECIFIER='$PROVISIONING_PROFILE_NAME'"
               BUILD_CMD="$BUILD_CMD -archivePath '$GITHUB_WORKSPACE/build/App.xcarchive' archive"
             else
-              # For unsigned builds, use faster 'build' action
-              BUILD_CMD="$BUILD_CMD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build"
+              # For unsigned builds, archive with ad-hoc signing allowed
+              BUILD_CMD="$BUILD_CMD CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' AD_HOC_CODE_SIGNING_ALLOWED=YES -archivePath '$GITHUB_WORKSPACE/build/App.xcarchive' archive"
             fi
 
             echo "Running: $BUILD_CMD"
@@ -384,13 +384,8 @@ jobs:
           # Create IPA
           if [ "$USE_SIGNING" = "true" ]; then
             # For signed builds, use xcodebuild -exportArchive.
-            # Everything below is relative to the repo root, which is also what
-            # the upload-artifact step ("build/*.ipa") resolves against — do not
-            # use "cd .." here, it breaks when ios_path is "." (native at root).
             cd "$GITHUB_WORKSPACE"
 
-            # The export has to use the same manual signing as the archive, and
-            # it needs the app's real bundle id to map it to the profile.
             APP_BUNDLE_ID=$(plutil -extract ApplicationProperties.CFBundleIdentifier raw -o - build/App.xcarchive/Info.plist)
             echo "Exporting $APP_BUNDLE_ID with profile '$PROVISIONING_PROFILE_NAME' (team $DEVELOPMENT_TEAM)"
 
@@ -417,17 +412,17 @@ jobs:
               -exportOptionsPlist ExportOptions.plist \
               -exportPath build/export
 
-            # Move IPA to expected location
             mv build/export/*.ipa "build/$BUILD_ID.ipa"
             echo "Created signed IPA: build/$BUILD_ID.ipa"
           else
-            # For unsigned builds, find .app and create IPA
-            if [ "$PROJECT_TYPE" = "flutter" ]; then
-              # Flutter outputs to build/ios/iphoneos/
-              APP_PATH=$(find "${GITHUB_WORKSPACE}/build/ios/iphoneos" -name "*.app" -type d | head -1)
-            else
-              # Native and React Native/Expo use DerivedData
-              APP_PATH=$(find "$DERIVED_DATA_PATH/Build/Products/${CONFIGURATION}-iphoneos" -name "*.app" -type d | head -1)
+            # For unsigned builds, find .app from archive or DerivedData and create IPA
+            cd "$GITHUB_WORKSPACE"
+            APP_PATH=$(find "${GITHUB_WORKSPACE}/build/App.xcarchive/Products/Applications" -name "*.app" -type d 2>/dev/null | head -1)
+            if [ -z "$APP_PATH" ]; then
+              APP_PATH=$(find "$DERIVED_DATA_PATH/Build/Products/${CONFIGURATION}-iphoneos" -name "*.app" -type d 2>/dev/null | head -1)
+            fi
+            if [ -z "$APP_PATH" ]; then
+              APP_PATH=$(find "${GITHUB_WORKSPACE}/build" -name "*.app" -type d 2>/dev/null | head -1)
             fi
 
             if [ -z "$APP_PATH" ]; then
@@ -435,7 +430,6 @@ jobs:
               exit 1
             fi
             echo "Found app at: $APP_PATH"
-            cd "$GITHUB_WORKSPACE"
             mkdir -p build/Payload
             cp -R "$APP_PATH" build/Payload/
             cd build
