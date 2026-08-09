@@ -1,7 +1,8 @@
 import SwiftUI
 import UserNotifications
+import AVFoundation
 
-/// Point d'entrée de l'application Sarah IA.
+/// Point d'entrée de l'application Sarah AI.
 @main
 struct SarahIAApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -9,8 +10,11 @@ struct SarahIAApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
                 .onAppear {
-                    // Demander la permission de notification au premier lancement
+                    // Initialiser la session audio full-duplex
+                    AudioEngineManager.shared.setupAudioSession()
+                    // Demander la permission de notification
                     NotificationService.shared.requestPermission()
                     // Réinitialiser le badge
                     NotificationService.shared.clearBadge()
@@ -19,7 +23,7 @@ struct SarahIAApp: App {
     }
 }
 
-// MARK: - AppDelegate pour gérer les notifications au premier plan
+// MARK: - AppDelegate pour gérer les notifications et l'audio en arrière-plan
 
 /// AppDelegate nécessaire pour afficher les notifications même quand l'app est active.
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -28,8 +32,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        // S'enregistrer comme délégué pour les notifications
         UNUserNotificationCenter.current().delegate = self
+        AudioEngineManager.shared.setupAudioSession()
         return true
     }
     
@@ -39,7 +43,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Afficher la notification en bannière + son même si l'app est active
         completionHandler([.banner, .sound, .badge])
     }
     
@@ -49,8 +52,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        // Réinitialiser le badge quand l'utilisateur ouvre via la notification
         NotificationService.shared.clearBadge()
         completionHandler()
     }
 }
+

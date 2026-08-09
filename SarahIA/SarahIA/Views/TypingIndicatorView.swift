@@ -1,31 +1,32 @@
 import SwiftUI
 
 /// Indicateur de frappe animé (3 points qui rebondissent).
-/// Affiché dans le chat quand Sarah IA est en train de "réfléchir".
-struct TypingIndicatorView: View {
+public struct TypingIndicatorView: View {
     @State private var animateFirstDot = false
     @State private var animateSecondDot = false
     @State private var animateThirdDot = false
     
-    var body: some View {
+    public init() {}
+    
+    public var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            // Avatar Sarah (identique à ChatBubbleView)
+            // Miniature Avatar
             ZStack {
                 Circle()
                     .fill(
                         LinearGradient(
                             gradient: Gradient(colors: [
-                                Color(red: 0.55, green: 0.35, blue: 0.85),
-                                Color(red: 0.35, green: 0.25, blue: 0.75)
+                                Color(red: 0.35, green: 0.55, blue: 1.0),
+                                Color(red: 0.70, green: 0.30, blue: 0.95)
                             ]),
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 32, height: 32)
+                    .frame(width: 28, height: 28)
                 
-                Text("🤖")
-                    .font(.system(size: 16))
+                Text("👩🏻‍💼")
+                    .font(.system(size: 14))
             }
             
             // Bulle avec les points animés
@@ -34,15 +35,19 @@ struct TypingIndicatorView: View {
                 DotView(animate: $animateSecondDot)
                 DotView(animate: $animateThirdDot)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(red: 0.16, green: 0.16, blue: 0.18))
+            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            )
             
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
         .onAppear {
             startAnimation()
         }
@@ -74,10 +79,18 @@ struct DotView: View {
     var body: some View {
         Circle()
             .fill(
-                Color(red: 0.55, green: 0.35, blue: 0.85).opacity(animate ? 1.0 : 0.3)
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.35, green: 0.65, blue: 1.0),
+                        Color(red: 0.70, green: 0.40, blue: 0.95)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
             )
-            .frame(width: 8, height: 8)
-            .offset(y: animate ? -4 : 2)
+            .frame(width: 7, height: 7)
+            .opacity(animate ? 1.0 : 0.35)
+            .offset(y: animate ? -3 : 2)
     }
 }
 
@@ -86,5 +99,8 @@ struct DotView: View {
 struct TypingIndicatorView_Previews: PreviewProvider {
     static var previews: some View {
         TypingIndicatorView()
+            .background(Color.black)
+            .preferredColorScheme(.dark)
     }
 }
+
