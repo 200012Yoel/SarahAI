@@ -1,59 +1,62 @@
-import Foundation
+import Foundation                                        
 import UserNotifications
+import UIKit
 
-/// Gère les notifications locales pour informer l'utilisateur
-/// quand une réponse IA est prête (même si l'app est en arrière-plan).
+// Manage local notifications
+// when AI response is ready
 final class NotificationService: NSObject {
-    
-    static let shared = NotificationService()
-    
-    private override init() {
-        super.init()
-    }
-    
-    /// Demande l'autorisation d'envoyer des notifications à l'utilisateur.
-    func requestPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(
-            options: [.alert, .sound, .badge]
-        ) { granted, error in
-            if let error = error {
-                print("❌ Erreur de permission de notification: \(error.localizedDescription)")
-                return
-            }
-            print(granted ? "✅ Notifications autorisées" : "⚠️ Notifications refusées par l'utilisateur")
+        static let shared = NotificationService()
+
+        private override init() {
+                    super.init()
         }
-    }
-    
-    /// Envoie une notification locale avec la réponse de Sarah IA.
-    /// - Parameter message: Le contenu de la réponse à afficher.
-    func sendResponseNotification(message: String) {
-        let content = UNMutableNotificationContent()
-        content.title = "Sarah IA 🤖"
-        content.subtitle = "Nouvelle réponse"
-        content.body = message
-        content.sound = .default
-        content.badge = 1
-        
-        // Déclencher immédiatement (délai de 0.1s minimum requis)
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
-        
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: trigger
-        )
-        
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("❌ Erreur d'envoi de notification: \(error.localizedDescription)")
-            } else {
-                print("✅ Notification envoyée: \(message.prefix(50))...")
-            }
+
+        // Request permission
+        func requestPermission() {
+                    UNUserNotificationCenter.current().requestAuthorization(
+                                    options: [.alert, .sound, .badge]
+                    ) { granted, error in
+                                   if let error = error {
+                                                       print("Notification permission error: \(error.localizedDescription)")
+                                                       return
+                                   }
+                                   print(granted ? "Notifications allowed" : "Notifications denied")
+                      }
         }
-    }
-    
-    /// Réinitialise le badge de l'application.
-    func clearBadge() {
-        UNUserNotificationCenter.current().setBadgeCount(0) { _ in }
-    }
+
+        // Send response notification
+        func sendResponseNotification(message: String) {
+                    let content = UNMutableNotificationContent()
+                    content.title = "Sarah IA"
+                    content.subtitle = "New response"
+                    content.body = message
+                    content.sound = .default
+                    content.badge = 1
+
+                    // Trigger immediately
+                    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+
+                    let request = UNNotificationRequest(
+                                    identifier: UUID().uuidString,
+                                    content: content,
+                                    trigger: trigger
+                    )
+
+                    UNUserNotificationCenter.current().add(request) { error in
+                                                                                 if let error = error {
+                                                                                                     print("Notification send error: \(error.localizedDescription)")
+                                                                                 } else {
+                                                                                                     print("Notification sent: \(message.prefix(50))...")
+                                                                                 }
+                                                                    }
+        }
+
+        // Reset app badge
+        func clearBadge() {
+                    if #available(iOS 16.0, *) {
+                                    UNUserNotificationCenter.current().setBadgeCount(0) { _ in }
+                    } else {
+                                    UIApplication.shared.applicationIconBadgeNumber = 0
+                    }
+        }
 }
