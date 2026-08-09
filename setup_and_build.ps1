@@ -38,67 +38,35 @@ Write-Host "[2/6] Authentification GitHub..." -ForegroundColor Yellow
 Write-Host "  [OK] Authentification GitHub deja valide." -ForegroundColor Green
 Write-Host ""
 
-# -- ETAPE 3 : Initialiser Git & Identity --
-Write-Host "[3/6] Initialisation du depot Git..." -ForegroundColor Yellow
+# -- ETAPE 3 : Commit et Push des fichiers de configuration --
+Write-Host "[3/6] Commit des fichiers de projet et de scheme Xcode..." -ForegroundColor Yellow
 
-# Configuration identite Git locale
 git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
-if (-not (Test-Path ".git")) {
-    git init
-    Write-Host "  [OK] Depot Git initialise" -ForegroundColor Green
-} else {
-    Write-Host "  [OK] Depot Git deja existant" -ForegroundColor Green
-}
-
 git add .
-git commit -m "Sarah IA - version initiale" --allow-empty
-Write-Host "  [OK] Fichiers commites" -ForegroundColor Green
-Write-Host ""
-
-# -- ETAPE 4 : Configurer le remote GitHub --
-Write-Host "[4/6] Push du code sur GitHub..." -ForegroundColor Yellow
-
-$remoteUrl = "https://github.com/200012Yoel/SarahAI.git"
-Write-Host "  [URL] Depot : $remoteUrl" -ForegroundColor Cyan
-
-$existingRemote = git remote
-if ($existingRemote -match "origin") {
-    git remote set-url origin $remoteUrl
-} else {
-    git remote add origin $remoteUrl
-}
-
-Write-Host "  [PUSH] Push vers GitHub..." -ForegroundColor Yellow
-git branch -M main
+git commit -m "Fix scheme Xcode et configuration builder.json" --allow-empty
 git push -u origin main
-Write-Host "  [OK] Code pushe avec succes !" -ForegroundColor Green
+Write-Host "  [OK] Modifications pushees sur GitHub" -ForegroundColor Green
 Write-Host ""
 
-# -- ETAPE 5 : Initialiser ios-builder --
-Write-Host "[5/6] Initialisation de ios-builder..." -ForegroundColor Yellow
-& .\builder.exe init
-Write-Host "  [OK] ios-builder initialise" -ForegroundColor Green
-Write-Host ""
-
-# -- ETAPE 6 : Lancer le build iOS --
-Write-Host "[6/6] Lancement du build iOS..." -ForegroundColor Yellow
+# -- ETAPE 4 : Lancer le build iOS --
+Write-Host "[4/6] Lancement du build iOS via ios-builder..." -ForegroundColor Yellow
 Write-Host "  -> Le build sera execute sur GitHub Actions (macOS runner)" -ForegroundColor Magenta
-Write-Host "  -> Cela peut prendre quelques minutes..." -ForegroundColor Magenta
+Write-Host "  -> Cela prend en moyenne 2 a 3 minutes..." -ForegroundColor Magenta
 Write-Host ""
 
 & .\builder.exe ios build
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host "  [OK] BUILD TERMINE !" -ForegroundColor Green
+Write-Host "  [OK] TRAITEMENT TERMINE !" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 
 if (Test-Path "dist\SarahIA.ipa") {
     $ipaSize = (Get-Item "dist\SarahIA.ipa").Length
-    Write-Host "  [IPA] Fichier IPA: dist\SarahIA.ipa ($($ipaSize) octets)" -ForegroundColor Cyan
+    Write-Host "  [IPA] Fichier IPA disponible: dist\SarahIA.ipa ($($ipaSize) octets)" -ForegroundColor Cyan
 } else {
     Write-Host "  [INFO] Verifiez le dossier .\dist\ pour le fichier .ipa" -ForegroundColor Yellow
     if (Test-Path "dist") {

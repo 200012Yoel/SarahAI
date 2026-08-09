@@ -6,7 +6,8 @@
     "repo": "SarahAI"
   },
   "ios": {
-    "path": "SarahIA"
+    "path": "SarahIA",
+    "scheme": "SarahIA"
   },
   "flutter": {
     "watch": {}
