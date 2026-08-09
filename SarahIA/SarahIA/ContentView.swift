@@ -5,6 +5,8 @@ public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @Namespace private var bottomAnchor
     @State private var isHeaderExpanded: Bool = false
+    @State private var isShowingMemoryVault: Bool = false
+    @State private var isShowingSettings: Bool = false
     
     public init() {}
     
@@ -47,6 +49,12 @@ public struct ContentView: View {
         }
         .statusBarHidden(viewModel.appMode == .avatar)
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: viewModel.appMode)
+        .sheet(isPresented: $isShowingMemoryVault) {
+            MemoryVaultView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(viewModel: viewModel)
+        }
     }
     
     // MARK: - 1. Disposition Mode Avatar Plein Écran
@@ -64,13 +72,49 @@ public struct ContentView: View {
             // Interface vocale épurée et indicateurs flottants
             VStack {
                 // Barre supérieure discrète
-                HStack {
+                HStack(spacing: 8) {
                     statusPillBadge
                     Spacer()
+                    
+                    // Bouton Cerveau Permanent / Mémoire
+                    Button(action: {
+                        HapticService.shared.buttonTap()
+                        isShowingMemoryVault = true
+                    }) {
+                        HStack(spacing: 4) {
+                            Text("🧠")
+                                .font(.system(size: 13))
+                            if !viewModel.learnedMemories.isEmpty {
+                                Text("\(viewModel.learnedMemories.count)")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundColor(.cyan)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.12))
+                                .overlay(Capsule().stroke(Color.cyan.opacity(0.35), lineWidth: 1))
+                        )
+                    }
+                    
+                    // Bouton Réglages
+                    Button(action: {
+                        HapticService.shared.buttonTap()
+                        isShowingSettings = true
+                    }) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.85))
+                            .padding(8)
+                            .background(Circle().fill(Color.white.opacity(0.12)))
+                    }
+                    
                     testNotificationPill
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
                 
                 Spacer()
                 
@@ -84,22 +128,22 @@ public struct ContentView: View {
     /// Overlay vocal affichant l'état en direct et les ondes
     private var liveVoiceOverlay: some View {
         VStack(spacing: 12) {
-            // Ondes d'énergie vocale
-            HStack(spacing: 5) {
-                ForEach(0..<12) { index in
+            // Ondes d'énergie vocale (16 barres harmoniques)
+            HStack(spacing: 4) {
+                ForEach(0..<16) { index in
                     let height = voiceWaveHeight(for: index)
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 2.5)
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(red: 0.20, green: 0.60, blue: 1.0),
+                                    Color(red: 0.20, green: 0.65, blue: 1.0),
                                     Color(red: 0.75, green: 0.35, blue: 0.95)
                                 ]),
                                 startPoint: .bottom,
                                 endPoint: .top
                             )
                         )
-                        .frame(width: 4, height: height)
+                        .frame(width: 3.5, height: height)
                 }
             }
             .frame(height: 36)
@@ -115,21 +159,22 @@ public struct ContentView: View {
                     .padding(.vertical, 8)
                     .background(
                         Capsule()
-                            .fill(Color.black.opacity(0.65))
+                            .fill(Color.black.opacity(0.7))
                             .overlay(
-                                Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1)
+                                Capsule().stroke(Color.cyan.opacity(0.3), lineWidth: 1)
                             )
                     )
                     .transition(.opacity)
             } else {
                 Text(voiceStatusText)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.8))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.85))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.1))
+                            .fill(Color.white.opacity(0.12))
+                            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
                     )
             }
         }
@@ -138,22 +183,22 @@ public struct ContentView: View {
     private var voiceStatusText: String {
         switch viewModel.voiceStatus {
         case .idle:
-            return "Sarah est prête • Dites quelque chose"
+            return "Sarah écoute en continu • Parlez librement"
         case .listening:
-            return "Sarah écoute..."
+            return "🎙️ Sarah vous écoute..."
         case .processing:
-            return "Sarah réfléchit..."
+            return "💭 Réflexion..."
         case .speaking:
-            return "Sarah parle • Vous pouvez l'interrompre"
+            return "🗣️ Sarah parle • Interrompez à tout moment"
         case .error(let msg):
             return msg
         }
     }
     
     private func voiceWaveHeight(for index: Int) -> CGFloat {
-        let baseHeight: CGFloat = 6.0
-        let multiplier = CGFloat(viewModel.micInputLevel) * 35.0
-        let harmonic = sin(Double(index) * 0.6) * Double(multiplier)
+        let baseHeight: CGFloat = 5.0
+        let multiplier = CGFloat(viewModel.micInputLevel) * 40.0
+        let harmonic = sin(Double(index) * 0.5 + Double(viewModel.micInputLevel * 5.0)) * Double(multiplier)
         return max(baseHeight, min(36.0, baseHeight + CGFloat(abs(harmonic))))
     }
     
@@ -167,12 +212,50 @@ public struct ContentView: View {
             // Liste scrollable des bulles de messages
             messagesScrollView
             
+            // Chips de suggestions d'actions rapides
+            quickSuggestionsChips
+            
             // Barre de saisie fluide (MessageInputView)
             MessageInputView(
                 text: $viewModel.inputText,
                 isTyping: viewModel.isTyping,
                 onSend: viewModel.sendMessage
             )
+        }
+    }
+    
+    /// Suggestions rapides en chips défilants
+    private var quickSuggestionsChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                suggestionChip("💡 Apprendre un mot", query: "Apprends ")
+                suggestionChip("🧠 Que sais-tu ?", query: "Qu'est-ce que tu as appris ?")
+                suggestionChip("👋 Bonjour Sarah", query: "Bonjour")
+                suggestionChip("😄 Raconte une blague", query: "Raconte-moi une blague")
+                suggestionChip("⏰ Quelle heure ?", query: "Quelle heure est-il ?")
+                suggestionChip("✨ Qui es-tu ?", query: "Qui es-tu ?")
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+        }
+        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
+    }
+    
+    private func suggestionChip(_ label: String, query: String) -> some View {
+        Button(action: {
+            HapticService.shared.buttonTap()
+            viewModel.sendQuickSuggestion(query)
+        }) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.9))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                )
         }
     }
     
@@ -207,7 +290,7 @@ public struct ContentView: View {
                     Circle()
                         .fill(Color.green)
                         .frame(width: 7, height: 7)
-                    Text("Vocal & Texte • En ligne")
+                    Text("VRoid 3D • Vocal & Texte")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(.green)
                 }
@@ -215,24 +298,36 @@ public struct ContentView: View {
             
             Spacer()
             
-            // Menu d'options (Réinitialisation conversation)
-            Menu {
-                Button(role: .destructive) {
-                    viewModel.resetConversation()
-                } label: {
-                    Label("Effacer la conversation", systemImage: "trash")
+            // Bouton Mémoire
+            Button(action: {
+                HapticService.shared.buttonTap()
+                isShowingMemoryVault = true
+            }) {
+                HStack(spacing: 4) {
+                    Text("🧠")
+                    if !viewModel.learnedMemories.isEmpty {
+                        Text("\(viewModel.learnedMemories.count)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.cyan)
+                    }
                 }
-                
-                Button {
-                    viewModel.sendBackgroundTest()
-                } label: {
-                    Label("Tester notification background", systemImage: "bell.badge")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(.white.opacity(0.6))
-                    .padding(8)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(8)
+            }
+            
+            // Bouton Réglages
+            Button(action: {
+                HapticService.shared.buttonTap()
+                isShowingSettings = true
+            }) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 15))
+                    .foregroundColor(.white.opacity(0.75))
+                    .padding(7)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Circle())
             }
         }
         .padding(.horizontal, 16)
@@ -262,46 +357,76 @@ public struct ContentView: View {
                         .frame(height: 1)
                         .id("bottomAnchor")
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 16)
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
                 .padding(.bottom, 20)
             }
             .onChange(of: viewModel.messages.count) { _ in
-                withAnimation(.easeOut(duration: 0.25)) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                     proxy.scrollTo("bottomAnchor", anchor: .bottom)
                 }
             }
-            .onChange(of: viewModel.isTyping) { _ in
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
+            .onChange(of: viewModel.isTyping) { isTyping in
+                if isTyping {
+                    withAnimation {
+                        proxy.scrollTo("typingIndicator", anchor: .bottom)
+                    }
                 }
             }
         }
     }
     
-    // MARK: - Composants UI Flottants & Pilules
+    // MARK: - 3. Composants et Badges
     
-    /// Badge d'état dans le coin supérieur gauche
     private var statusPillBadge: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(Color.green)
+                .fill(statusIndicatorColor)
                 .frame(width: 8, height: 8)
-                .shadow(color: .green.opacity(0.8), radius: 4)
             
-            Text("Sarah AI 3D")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+            Text(statusIndicatorLabel)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(Color.white.opacity(0.12))
+                .fill(Color.black.opacity(0.6))
                 .overlay(
-                    Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+                    Capsule().stroke(statusIndicatorColor.opacity(0.4), lineWidth: 1)
                 )
         )
+    }
+    
+    private var statusIndicatorColor: Color {
+        switch viewModel.voiceStatus {
+        case .idle:
+            return .green
+        case .listening:
+            return .cyan
+        case .processing:
+            return .purple
+        case .speaking:
+            return .blue
+        case .error:
+            return .red
+        }
+    }
+    
+    private var statusIndicatorLabel: String {
+        switch viewModel.voiceStatus {
+        case .idle:
+            return "Sarah Prête"
+        case .listening:
+            return "Écoute Active"
+        case .processing:
+            return "Réflexion..."
+        case .speaking:
+            return "Sarah Parle"
+        case .error:
+            return "Erreur"
+        }
     }
     
     /// Bouton de test rapide en arrière-plan
@@ -311,18 +436,18 @@ public struct ContentView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "bell.badge.fill")
-                    .font(.system(size: 12))
-                Text("Test Bg")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 11))
+                Text("Bg Test")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
             }
-            .foregroundColor(.white.opacity(0.9))
-            .padding(.horizontal, 10)
+            .foregroundColor(.white.opacity(0.85))
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(Color.blue.opacity(0.3))
+                    .fill(Color.blue.opacity(0.25))
                     .overlay(
-                        Capsule().stroke(Color.blue.opacity(0.5), lineWidth: 0.5)
+                        Capsule().stroke(Color.blue.opacity(0.4), lineWidth: 0.5)
                     )
             )
         }
@@ -358,7 +483,7 @@ public struct ContentView: View {
                                     endPoint: .trailing
                                 )
                             )
-                            .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 5)
+                            .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 5)
                             .overlay(
                                 Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1)
                             )

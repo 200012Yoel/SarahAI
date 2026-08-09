@@ -30,6 +30,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var voiceStatus: VoiceInteractionStatus = .idle
     @Published public var liveTranscriptionText: String = ""
     @Published public var micInputLevel: Float = 0.0
+    @Published public var learnedMemories: [String: String] = [:]
     
     // MARK: - Services
     private let aiService = AIService.shared
@@ -38,6 +39,7 @@ public final class ChatViewModel: ObservableObject {
     private let audioEngine = AudioEngineManager.shared
     private let whisperService = WhisperService.shared
     private let ttsService = TTSService.shared
+    private let haptics = HapticService.shared
     
     private var cancellables = Set<AnyCancellable>()
     private var stateSaveDebounceTimer: Timer?
@@ -53,6 +55,8 @@ public final class ChatViewModel: ObservableObject {
     /// Restaure la conversation et le mode actif depuis le stockage local
     private func restorePersistedState() {
         let savedState = storageService.loadState()
+        
+        self.learnedMemories = savedState.learnedMemories
         
         if let mode = AppMode(rawValue: savedState.activeMode) {
             self.appMode = mode
@@ -81,7 +85,7 @@ public final class ChatViewModel: ObservableObject {
             messages: messages,
             lastActiveTimestamp: Date(),
             voiceSettings: existing.voiceSettings,
-            learnedMemories: existing.learnedMemories,
+            learnedMemories: self.learnedMemories,
             pendingLearningTrigger: existing.pendingLearningTrigger
         )
         storageService.saveState(state)
@@ -98,6 +102,7 @@ public final class ChatViewModel: ObservableObject {
             )
         ]
         persistCurrentState()
+        haptics.memoryDeleted()
     }
     
     // MARK: - Gestion des Modes d'Affichage
@@ -107,12 +112,10 @@ public final class ChatViewModel: ObservableObject {
             .sink { [weak self] newMode in
                 guard let self = self else { return }
                 self.persistCurrentState()
+                self.haptics.modeToggled()
                 
                 if newMode == .avatar {
                     self.startFullDuplexVoiceMode()
-                } else {
-                    // En mode texte, ne pas couper brutalement si Sarah parle, mais libérer le micro VAD continu
-                    // si l'utilisateur souhaite taper du texte
                 }
             }
             .store(in: &cancellables)
@@ -153,13 +156,13 @@ public final class ChatViewModel: ObservableObject {
             case .bargeInDetected:
                 // --- BARGE-IN INTERRUPTION ---
                 print("⚡ [ChatViewModel] Interruption détectée! Arrêt immédiat de la parole de Sarah.")
+                self.haptics.bargeIn()
                 self.ttsService.stopSpeaking()
                 self.whisperService.startTranscription()
                 self.voiceStatus = .listening(level: self.micInputLevel)
             case .silenceDetected:
                 // Fin de prise de parole -> Finaliser la transcription
                 if self.whisperService.status == .listening {
-                    print("🎙️ [ChatViewModel] Silence détecté, finalisation de la transcription...")
                     self.whisperService.stopTranscription()
                 }
             }
@@ -186,11 +189,13 @@ public final class ChatViewModel: ObservableObject {
         // 5. Événements TTS
         ttsService.onSpeechStarted = { [weak self] in
             self?.voiceStatus = .speaking
+            self?.haptics.speechStarted()
         }
         
         ttsService.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.voiceStatus = .idle
+            self.haptics.speechFinished()
             if self.appMode == .avatar {
                 // Se remettre en écoute automatiquement
                 self.whisperService.startTranscription()
@@ -230,6 +235,7 @@ public final class ChatViewModel: ObservableObject {
         
         Task {
             let response = await aiService.generateResponse(for: transcription)
+            self.refreshLearnedMemories()
             
             let aiMessage = Message(content: response, isFromUser: false)
             self.messages.append(aiMessage)
@@ -257,6 +263,7 @@ public final class ChatViewModel: ObservableObject {
         
         Task {
             let response = await aiService.generateResponse(for: text)
+            self.refreshLearnedMemories()
             
             let aiMessage = Message(content: response, isFromUser: false)
             self.messages.append(aiMessage)
@@ -268,6 +275,61 @@ public final class ChatViewModel: ObservableObject {
             
             await self.sendNotificationIfNeeded(message: response)
         }
+    }
+    
+    /// Envoie une suggestion rapide (chips)
+    public func sendQuickSuggestion(_ text: String) {
+        inputText = text
+        sendMessage()
+    }
+    
+    // MARK: - Gestion de la Mémoire Apprise ("Brain Vault")
+    
+    public func refreshLearnedMemories() {
+        self.learnedMemories = storageService.loadState().learnedMemories
+    }
+    
+    public func addLearnedMemory(trigger: String, response: String) {
+        var state = storageService.loadState()
+        state.learnedMemories[trigger.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)] = response
+        storageService.saveState(state)
+        self.learnedMemories = state.learnedMemories
+    }
+    
+    public func deleteLearnedMemory(trigger: String) {
+        var state = storageService.loadState()
+        state.learnedMemories.removeValue(forKey: trigger.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))
+        storageService.saveState(state)
+        self.learnedMemories = state.learnedMemories
+    }
+    
+    public func clearAllLearnedMemories() {
+        var state = storageService.loadState()
+        state.learnedMemories.removeAll()
+        storageService.saveState(state)
+        self.learnedMemories = [:]
+    }
+    
+    public func speakLearnedResponse(text: String) {
+        ttsService.speak(text: text)
+    }
+    
+    // MARK: - Réglages Vocaux
+    
+    public func saveVoiceSettings(rate: Float, pitch: Float, vadSensitivity: Float) {
+        var state = storageService.loadState()
+        state.voiceSettings.speechRate = rate
+        state.voiceSettings.speechPitch = pitch
+        state.voiceSettings.vadSensitivity = vadSensitivity
+        storageService.saveState(state)
+    }
+    
+    public func testVoiceSettings(rate: Float, pitch: Float) {
+        ttsService.speak(
+            text: "Bonjour ! Ceci est un aperçu de mes réglages vocaux personnalisés.",
+            rate: rate,
+            pitch: pitch
+        )
     }
     
     /// Test de notification locale en arrière-plan

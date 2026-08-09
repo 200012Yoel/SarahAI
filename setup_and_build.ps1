@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: VRoid Sarah.vrm avatar, persistent AI memory, free local TTS & new 1A/1I App Icon" --allow-empty
+git commit -m "Sarah AI: Total App Overhaul - VRoid Sarah.vrm support, Brain Vault UI, Settings Sheet, Haptics, Quick Chips & 1A/1I App Icon" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
