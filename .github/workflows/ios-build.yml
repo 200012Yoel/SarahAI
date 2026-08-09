@@ -163,41 +163,42 @@ jobs:
           set -e
 
           cd "$IOS_PATH"
-          mkdir -p "$GITHUB_WORKSPACE/build"
-
           TARGET_SCHEME="${SCHEME:-SarahIA}"
           PROJECT=$(find . -maxdepth 1 -name "*.xcodeproj" | head -1)
 
-          echo "Building iOS App with xcodebuild..."
+          # 1. Compilation de l'application
           xcodebuild \
             -project "${PROJECT:-SarahIA.xcodeproj}" \
             -scheme "$TARGET_SCHEME" \
-            -configuration "${CONFIGURATION:-Debug}" \
+            -configuration "${CONFIGURATION:-Release}" \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            -allowProvisioningUpdates \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_STYLE=Manual \
-            COMPILER_INDEX_STORE_ENABLE=NO \
             build
 
-          cd "$GITHUB_WORKSPACE"
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -1)
+          # 2. Création manuelle du fichier .ipa
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          mkdir -p "$GITHUB_WORKSPACE/build"
+          mkdir -p "$GITHUB_WORKSPACE/DerivedData/Payload"
+
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -1)
+          fi
 
           if [ -z "$APP_PATH" ]; then
-            echo "Error: Could not find .app bundle in DerivedData"
+            echo "Error: Could not find .app in DerivedData"
             exit 1
           fi
 
           echo "Found app bundle at: $APP_PATH"
-          mkdir -p build/Payload
-          cp -R "$APP_PATH" build/Payload/
-          cd build
-          zip -rq "$BUILD_ID.ipa" Payload
-          rm -rf Payload
-          echo "Successfully created IPA: build/$BUILD_ID.ipa"
+          cp -R "$APP_PATH" "$GITHUB_WORKSPACE/DerivedData/Payload/"
+          cd "$GITHUB_WORKSPACE/DerivedData"
+          zip -rq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
+          zip -rq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
+          echo "Successfully generated IPA files"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
