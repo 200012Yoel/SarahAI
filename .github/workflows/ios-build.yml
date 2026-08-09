@@ -243,6 +243,9 @@ jobs:
             elif [ -n "$PROJECT" ]; then
               SCHEME=$(xcodebuild -project "$PROJECT" -list 2>/dev/null | grep -A 100 "Schemes:" | tail -n +2 | head -1 | xargs)
             fi
+            if [ -z "$SCHEME" ]; then
+              SCHEME="SarahIA"
+            fi
             echo "Building with scheme: $SCHEME (configuration: $CONFIGURATION)"
           fi
 
