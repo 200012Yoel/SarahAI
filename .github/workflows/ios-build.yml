@@ -93,14 +93,21 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           CONFIGURATION: ${{ inputs.configuration }}
         run: |
-          set -e
+          set -eo pipefail
 
-          cd "$IOS_PATH"
+          # Trouver le projet Xcode n'importe ou dans le repo
+          PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
+          if [ -z "$PROJECT_FILE" ]; then
+            echo "Erreur : Aucun fichier .xcodeproj trouve dans le repertoire !"
+            exit 1
+          fi
+          echo "=== Projet Xcode trouve : $PROJECT_FILE ==="
+
           TARGET_SCHEME="${SCHEME:-SarahIA}"
+          echo "=== Compilation du scheme $TARGET_SCHEME ==="
 
-          echo "=== Building $TARGET_SCHEME ==="
           xcodebuild \
-            -project SarahIA.xcodeproj \
+            -project "$PROJECT_FILE" \
             -scheme "$TARGET_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
@@ -110,41 +117,40 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            build | tee "$GITHUB_WORKSPACE/xcodebuild.log"
 
-          echo "=== Build completed successfully ==="
+          echo "=== Compilation Xcode terminee avec succes ==="
 
       - name: Package IPA
         env:
           BUILD_ID: ${{ inputs.build_id }}
         run: |
-          set -e
+          set -eo pipefail
 
-          echo "=== Searching for .app bundle ==="
-          find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d 2>/dev/null || true
+          echo "=== Recherche du binaire .app compile ==="
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData/Build/Products" -name "*.app" -type d | head -n 1)
 
-          # Recherche dynamique du binaire .app généré
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1 || true)
-
-          if [ -z "$APP_PATH" ]; then
-            echo "Erreur : Aucun fichier .app trouve dans DerivedData !"
-            echo "=== DerivedData contents ==="
-            find "$GITHUB_WORKSPACE/DerivedData" -maxdepth 4 -type d 2>/dev/null || true
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "Erreur : Bundle .app introuvable dans DerivedData !"
+            find "$GITHUB_WORKSPACE/DerivedData" -maxdepth 5 -type d
             exit 1
           fi
 
-          echo "App trouvee : $APP_PATH"
+          echo "=== Application trouvee : $APP_PATH ==="
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           mkdir -p "$GITHUB_WORKSPACE/build"
+          rm -rf /tmp/Payload
           mkdir -p /tmp/Payload
           cp -R "$APP_PATH" /tmp/Payload/
+
           cd /tmp
-          zip -rq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
-          zip -rq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
-          echo "=== IPA generated successfully ==="
-          ls -la "$GITHUB_WORKSPACE/dist/"
-          ls -la "$GITHUB_WORKSPACE/build/"
+          zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
+          zip -ryq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
+
+          echo "=== Fichier IPA genere avec succes ==="
+          ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+          ls -lh "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4

@@ -20,36 +20,64 @@ $releaseUrl = "https://github.com/$repo/releases/download/latest/SarahIA.ipa"
 $actionsUrl = "https://github.com/$repo/actions"
 $releasesPage = "https://github.com/$repo/releases"
 
-Write-Host "Verification et telechargement de l'IPA depuis la derniere Release GitHub..." -ForegroundColor Yellow
+Write-Host "Attente et telechargement du fichier IPA valide..." -ForegroundColor Yellow
 
-try {
-    # Telechargement direct avec curl.exe (suit les redirections GitHub automatiquement)
-    curl.exe -L -f -o $destFile $releaseUrl
+$maxAttempts = 20
+$attempt = 1
+$downloadSuccess = $false
+
+while ($attempt -le $maxAttempts -and -not $downloadSuccess) {
+    Write-Host "  [Tentative $attempt/$maxAttempts] Verification de la disponibilite de SarahIA.ipa..." -ForegroundColor Yellow
     
+    # Supprimer l'ancien fichier s'il est corrompu ou incomplet
     if (Test-Path $destFile) {
-        $sizeBytes = (Get-Item $destFile).Length
-        if ($sizeBytes -gt 50000) {
-            $sizeMB = [math]::Round($sizeBytes / 1MB, 2)
-            Write-Host ""
-            Write-Host "  [SUCCES TOTAL] Fichier IPA complet telecharge avec succes !" -ForegroundColor Green
-            Write-Host "  -> Emplacement : $destFile" -ForegroundColor Green
-            Write-Host "  -> Taille : $sizeMB Mo" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "Pour l'installer sur votre iPhone :" -ForegroundColor Cyan
-            Write-Host "1. Ouvrez Sideloadly (ou AltStore) sur votre PC." -ForegroundColor White
-            Write-Host "2. Glissez-deposez le fichier '$destFile' dans Sideloadly." -ForegroundColor White
-            Write-Host "3. Cliquez sur 'Start' pour installer Sarah AI sur votre iPhone !" -ForegroundColor White
-            Write-Host ""
-            exit 0
-        } else {
+        $size = (Get-Item $destFile).Length
+        if ($size -lt 50000) {
             Remove-Item -Path $destFile -Force -ErrorAction SilentlyContinue
+        } else {
+            $downloadSuccess = $true
+            break
         }
     }
-} catch {
-    # Ignorer si la release est en cours de generation
+    
+    try {
+        curl.exe -L -f -s -o $destFile $releaseUrl
+        if (Test-Path $destFile) {
+            $size = (Get-Item $destFile).Length
+            if ($size -gt 50000) {
+                $downloadSuccess = $true
+                break
+            } else {
+                Remove-Item -Path $destFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {
+        # En attente de compilation
+    }
+    
+    Write-Host "  -> Compilation macOS en cours... Nouvelle tentative dans 12s..." -ForegroundColor DarkGray
+    Start-Sleep -Seconds 12
+    $attempt++
 }
 
-Write-Host "  [INFO] La compilation est en cours de finalisation sur GitHub Actions." -ForegroundColor Yellow
-Write-Host "  -> Suivre la compilation : $actionsUrl" -ForegroundColor Cyan
-Write-Host "  -> Page des Releases : $releasesPage" -ForegroundColor Cyan
-Write-Host ""
+if ($downloadSuccess -and (Test-Path $destFile)) {
+    $finalSizeMB = [math]::Round((Get-Item $destFile).Length / 1MB, 2)
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host "  [SUCCES TOTAL] Fichier IPA complet telecharge !" -ForegroundColor Green
+    Write-Host "  -> Emplacement : $destFile" -ForegroundColor Green
+    Write-Host "  -> Taille du binaire : $finalSizeMB Mo" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Instructions pour l'installer sur votre iPhone :" -ForegroundColor Cyan
+    Write-Host "1. Branchez votre iPhone en USB sur votre PC." -ForegroundColor White
+    Write-Host "2. Ouvrez Sideloadly (ou AltStore)." -ForegroundColor White
+    Write-Host "3. Glissez le fichier '$destFile' dans Sideloadly et cliquez sur 'Start'." -ForegroundColor White
+    Write-Host ""
+} else {
+    Write-Host ""
+    Write-Host "  [INFO] Telechargez l'IPA directement depuis votre navigateur :" -ForegroundColor Yellow
+    Write-Host "  -> $releasesPage" -ForegroundColor Cyan
+    Write-Host "  -> $actionsUrl" -ForegroundColor Cyan
+    Write-Host ""
+}

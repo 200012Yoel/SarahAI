@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Automated IPA GitHub Release publication and fix 0-byte download" --allow-empty
+git commit -m "Sarah AI: Fix Xcode project path and enable automatic IPA packaging" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
@@ -58,12 +58,8 @@ Write-Host "[3/4] Lancement de la compilation iOS sur macOS runner..." -Foregrou
 & .\builder.exe ios build
 
 Write-Host ""
-Write-Host "  [INFO] Attente de la finalisation du paquet IPA (45s)..." -ForegroundColor Yellow
-Start-Sleep -Seconds 45
-
-Write-Host ""
 # -- ETAPE 4 : Verification et Recuperation du livrable .ipa --
-Write-Host "[4/4] Verification du livrable .ipa..." -ForegroundColor Yellow
+Write-Host "[4/4] Verification et telechargement du fichier IPA..." -ForegroundColor Yellow
 if (Test-Path "download_ipa.ps1") {
     & .\download_ipa.ps1
 } else {
