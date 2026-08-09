@@ -3,67 +3,53 @@
 # ============================================================
 
 $repo = "200012Yoel/SarahAI"
+$destDir = "dist"
+$destFile = "dist\SarahIA.ipa"
+
+if (-not (Test-Path $destDir)) {
+    New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+}
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  SARAH AI - Telechargement de l'IPA" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "Recherche du dernier workflow de compilation iOS sur GitHub..." -ForegroundColor Yellow
+$releaseUrl = "https://github.com/$repo/releases/download/latest/SarahIA.ipa"
+$actionsUrl = "https://github.com/$repo/actions"
+$releasesPage = "https://github.com/$repo/releases"
 
-$runsUrl = "https://api.github.com/repos/$repo/actions/workflows/ios-build.yml/runs?per_page=1"
+Write-Host "Verification et telechargement de l'IPA depuis la derniere Release GitHub..." -ForegroundColor Yellow
 
 try {
-    $runsResponse = Invoke-RestMethod -Uri $runsUrl -Method Get -Headers @{ "User-Agent" = "PowerShell" }
-    $latestRun = $runsResponse.workflow_runs[0]
+    # Telechargement direct avec curl.exe (suit les redirections GitHub automatiquement)
+    curl.exe -L -f -o $destFile $releaseUrl
     
-    if ($null -eq $latestRun) {
-        Write-Host "[ERREUR] Aucun workflow trouve sur le depot $repo" -ForegroundColor Red
-        exit 1
+    if (Test-Path $destFile) {
+        $sizeBytes = (Get-Item $destFile).Length
+        if ($sizeBytes -gt 50000) {
+            $sizeMB = [math]::Round($sizeBytes / 1MB, 2)
+            Write-Host ""
+            Write-Host "  [SUCCES TOTAL] Fichier IPA complet telecharge avec succes !" -ForegroundColor Green
+            Write-Host "  -> Emplacement : $destFile" -ForegroundColor Green
+            Write-Host "  -> Taille : $sizeMB Mo" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "Pour l'installer sur votre iPhone :" -ForegroundColor Cyan
+            Write-Host "1. Ouvrez Sideloadly (ou AltStore) sur votre PC." -ForegroundColor White
+            Write-Host "2. Glissez-deposez le fichier '$destFile' dans Sideloadly." -ForegroundColor White
+            Write-Host "3. Cliquez sur 'Start' pour installer Sarah AI sur votre iPhone !" -ForegroundColor White
+            Write-Host ""
+            exit 0
+        } else {
+            Remove-Item -Path $destFile -Force -ErrorAction SilentlyContinue
+        }
     }
-
-    $runId = $latestRun.id
-    $status = $latestRun.status
-    $conclusion = $latestRun.conclusion
-    $htmlUrl = $latestRun.html_url
-
-    Write-Host "Dernier Run ID : $runId" -ForegroundColor Green
-    Write-Host "Lien du workflow : $htmlUrl" -ForegroundColor Magenta
-    Write-Host "Statut actuel : $status" -ForegroundColor Yellow
-
-    # Attendre que la compilation macOS soit completement terminee
-    while ($status -ne "completed") {
-        Write-Host "  -> Compilation en cours sur le serveur macOS... Attente de 15s..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 15
-        $checkUrl = "https://api.github.com/repos/$repo/actions/runs/$runId"
-        $runCheck = Invoke-RestMethod -Uri $checkUrl -Method Get -Headers @{ "User-Agent" = "PowerShell" }
-        $status = $runCheck.status
-        $conclusion = $runCheck.conclusion
-    }
-
-    Write-Host "  [OK] Compilation terminee avec succes ! (Conclusion: $conclusion)" -ForegroundColor Green
-
-    # Recuperer les artefacts
-    $artifactsUrl = "https://api.github.com/repos/$repo/actions/runs/$runId/artifacts"
-    $artifactsResponse = Invoke-RestMethod -Uri $artifactsUrl -Method Get -Headers @{ "User-Agent" = "PowerShell" }
-    
-    $ipaArtifact = $artifactsResponse.artifacts | Where-Object { $_.name -eq "ipa" }
-    
-    if ($null -ne $ipaArtifact) {
-        $sizeMB = [math]::Round($ipaArtifact.size_in_bytes / 1MB, 2)
-        Write-Host "  [TROUVE] Artefact IPA trouve ($sizeMB Mo)" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "============================================================" -ForegroundColor Cyan
-        Write-Host "  VOUS POUVEZ TELECHARGER L'IPA DIRECTEMENT VIA CE LIEN :" -ForegroundColor Green
-        Write-Host "  $htmlUrl" -ForegroundColor Yellow
-        Write-Host "============================================================" -ForegroundColor Cyan
-    } else {
-        Write-Host "Consultez le statut et telechargez l'artefact sur : $htmlUrl" -ForegroundColor Yellow
-    }
-
 } catch {
-    Write-Host "Consultez vos runs et telechargez l'IPA directement ici :" -ForegroundColor Yellow
-    Write-Host "https://github.com/$repo/actions" -ForegroundColor Cyan
+    # Ignorer si la release est en cours de generation
 }
 
+Write-Host "  [INFO] La compilation est en cours de finalisation sur GitHub Actions." -ForegroundColor Yellow
+Write-Host "  -> Suivre la compilation : $actionsUrl" -ForegroundColor Cyan
+Write-Host "  -> Page des Releases : $releasesPage" -ForegroundColor Cyan
 Write-Host ""

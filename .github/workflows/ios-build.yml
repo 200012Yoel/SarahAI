@@ -43,6 +43,9 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -150,6 +153,20 @@ jobs:
           path: build/*.ipa
           retention-days: 7
           if-no-files-found: error
+
+      - name: Publish GitHub Release with Direct Download IPA
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: latest
+          name: "Sarah AI Latest iOS Build"
+          body: "Official build of Sarah AI iOS Application. Download SarahIA.ipa directly."
+          files: |
+            dist/SarahIA.ipa
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build log
         if: always()
