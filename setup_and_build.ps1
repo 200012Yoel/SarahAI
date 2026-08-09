@@ -34,13 +34,13 @@ Write-Host "  [OK] Version: $version" -ForegroundColor Green
 Write-Host ""
 
 # -- ETAPE 2 : Commit et Push des fixes --
-Write-Host "[2/4] Commit et push des optimisations de build..." -ForegroundColor Yellow
+Write-Host "[2/4] Commit et push de la configuration Code Sign Manual..." -ForegroundColor Yellow
 
 git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Optimisation flags xcodebuild et bypass signing" --allow-empty
+git commit -m "Passage en Code Sign Manual dans project.pbxproj" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
