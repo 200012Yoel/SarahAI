@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Fix unexpanded CFBundleIdentifier in Info.plist for Sideloadly error 9412" --allow-empty
+git commit -m "Sarah AI: Set PRODUCT_NAME = SarahIA and guarantee Mach-O executable name alignment" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""

@@ -167,6 +167,18 @@ jobs:
             sed -i 's/\$(PRODUCT_BUNDLE_PACKAGE_TYPE)/APPL/g' "$INFOPLIST_TARGET" || true
           fi
 
+          # Garantir que le binaire exécutable Mach-O s'appelle SarahIA dans Payload/SarahIA.app/
+          if [ ! -f "/tmp/Payload/$APP_NAME/SarahIA" ]; then
+            BINARY_FOUND=$(find "/tmp/Payload/$APP_NAME" -maxdepth 1 -type f -exec file {} \; | grep -i "Mach-O" | cut -d: -f1 | head -n 1)
+            if [ -n "$BINARY_FOUND" ]; then
+              echo "Re-nommage du binaire Mach-O ($BINARY_FOUND) en SarahIA..."
+              mv "$BINARY_FOUND" "/tmp/Payload/$APP_NAME/SarahIA"
+            fi
+          fi
+          if [ -f "/tmp/Payload/$APP_NAME/SarahIA" ]; then
+            chmod +x "/tmp/Payload/$APP_NAME/SarahIA"
+          fi
+
           echo "=== Structure interne de Payload/$APP_NAME/ ==="
           ls -la "/tmp/Payload/$APP_NAME/"
 
