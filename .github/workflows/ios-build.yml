@@ -116,17 +116,15 @@ jobs:
             -scheme "$TARGET_SCHEME" \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="
-            echo "❌ ERREUR DE COMPILATION XCODEBUILD - DERNIERES LIGNES DE LOG :"
+            echo "❌ ERREUR DE COMPILATION XCODEBUILD - LIGNES D'ERREURS DETECTEES :"
             echo "=================================================="
-            tail -n 120 "$GITHUB_WORKSPACE/xcodebuild.log"
+            grep -i -C 3 "error:" "$GITHUB_WORKSPACE/xcodebuild.log" || tail -n 150 "$GITHUB_WORKSPACE/xcodebuild.log"
             exit 1
           fi
 
