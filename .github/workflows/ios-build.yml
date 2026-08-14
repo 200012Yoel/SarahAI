@@ -114,11 +114,16 @@ jobs:
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
-            -configuration Debug \
-            -sdk iphonesimulator \
+            -configuration Release \
+            -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM="" \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="

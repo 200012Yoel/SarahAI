@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Add grep error diagnostics to xcodebuild log output" --allow-empty
+git commit -m "Sarah AI: Configure standard ad-hoc code signing for iOS release build" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
