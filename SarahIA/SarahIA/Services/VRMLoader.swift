@@ -19,18 +19,22 @@ public struct VRMAvatarRig {
     public var rightHandNode: SCNNode?
     public var morphers: [SCNMorpher] = []
     public var blendshapeTargetNames: [String] = []
+    
+    public init(rootNode: SCNNode) {
+        self.rootNode = rootNode
+    }
 }
 
-/// Chargeur et analyseur de modèles VRoid Studio (.vrm / .glb / .usdz / .scn)
+/// Chargeur et analyseur sécurisé de modèles 3D VRoid Studio (.vrm / .glb / .usdz / .scn)
 public final class VRMLoader {
     
     public static let shared = VRMLoader()
     
     private init() {}
     
-    /// Recherche et charge le fichier VRM "Sarah.vrm" ou ses variantes
+    /// Recherche et charge le fichier VRM "Sarah.vrm" ou ses variantes en toute sécurité sans risque de crash.
     public func loadSarahAvatar() -> VRMAvatarRig? {
-        let candidates = [
+        let candidateNames = [
             "Sarah.vrm",
             "Sarah.glb",
             "Sarah.gltf",
@@ -46,22 +50,22 @@ public final class VRMLoader {
         let documentUrls = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
         let appSupportUrls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         
-        for candidate in candidates {
+        for candidate in candidateNames {
             let baseName = (candidate as NSString).deletingPathExtension
             let ext = (candidate as NSString).pathExtension
             
             // 1. Recherche dans le Bundle principal
             if let bundleUrl = Bundle.main.url(forResource: baseName, withExtension: ext) {
-                if let rig = loadAvatar(from: bundleUrl) {
-                    print("✅ [VRMLoader] Modèle chargé depuis le Bundle: \(candidate)")
+                if let rig = safeLoadAvatar(from: bundleUrl) {
+                    print("✅ [VRMLoader] Modèle 3D chargé depuis le Bundle: \(candidate)")
                     return rig
                 }
             }
             
             // 2. Recherche dans Documents
             if let docUrl = documentUrls.first?.appendingPathComponent(candidate), fileManager.fileExists(atPath: docUrl.path) {
-                if let rig = loadAvatar(from: docUrl) {
-                    print("✅ [VRMLoader] Modèle chargé depuis Documents: \(candidate)")
+                if let rig = safeLoadAvatar(from: docUrl) {
+                    print("✅ [VRMLoader] Modèle 3D chargé depuis Documents: \(candidate)")
                     return rig
                 }
             }
@@ -70,8 +74,8 @@ public final class VRMLoader {
             if let appSupport = appSupportUrls.first {
                 let customUrl = appSupport.appendingPathComponent("SarahAI/\(candidate)")
                 if fileManager.fileExists(atPath: customUrl.path) {
-                    if let rig = loadAvatar(from: customUrl) {
-                        print("✅ [VRMLoader] Modèle chargé depuis AppSupport: \(candidate)")
+                    if let rig = safeLoadAvatar(from: customUrl) {
+                        print("✅ [VRMLoader] Modèle 3D chargé depuis AppSupport: \(candidate)")
                         return rig
                     }
                 }
@@ -81,35 +85,39 @@ public final class VRMLoader {
         return nil
     }
     
-    /// Charge un avatar depuis une URL locale
-    public func loadAvatar(from url: URL) -> VRMAvatarRig? {
+    /// Charge un avatar depuis une URL locale avec gestion d'erreurs try-catch globale.
+    public func safeLoadAvatar(from url: URL) -> VRMAvatarRig? {
         let ext = url.pathExtension.lowercased()
         
-        // Pour les formats SceneKit / USDZ natifs
-        if ext == "usdz" || ext == "scn" || ext == "dae" || ext == "obj" {
-            if let scene = try? SCNScene(url: url, options: nil) {
-                return parseAvatarRig(from: scene.rootNode)
-            }
-        }
-        
-        // Pour les fichiers VRM / GLB (glTF 2.0 Binary)
-        if ext == "vrm" || ext == "glb" || ext == "gltf" {
-            // Tentative directe avec ModelIO / SceneKit
-            if let scene = try? SCNScene(url: url, options: nil) {
+        do {
+            // Formats SceneKit / USDZ natifs
+            if ext == "usdz" || ext == "scn" || ext == "dae" || ext == "obj" {
+                let scene = try SCNScene(url: url, options: [
+                    .checkConsistency: true,
+                    .createNormalsIfAbsent: true
+                ])
                 return parseAvatarRig(from: scene.rootNode)
             }
             
-            // Si SCNScene n'a pas de convertisseur glTF natif sur cette version iOS,
-            // on inspecte le contenu et on extrait les nodes
-            if let data = try? Data(contentsOf: url) {
+            // Formats VRM / GLB (glTF 2.0 Binary)
+            if ext == "vrm" || ext == "glb" || ext == "gltf" {
+                // Tentative de chargement via SCNScene
+                if let scene = try? SCNScene(url: url, options: nil) {
+                    return parseAvatarRig(from: scene.rootNode)
+                }
+                
+                // Inspection des données binaire GLB
+                let data = try Data(contentsOf: url)
                 return parseGLBOrVRMData(data, originalUrl: url)
             }
+        } catch {
+            print("⚠️ [VRMLoader] Erreur de chargement du fichier 3D (\(url.lastPathComponent)): \(error.localizedDescription)")
         }
         
         return nil
     }
     
-    /// Analyse et découvre l'arborescence squelettique et les blendshapes VRM / VRoid
+    /// Analyse l'arborescence 3D et extrait les os squelettiques et les morphers BlendShapes.
     public func parseAvatarRig(from root: SCNNode) -> VRMAvatarRig {
         var rig = VRMAvatarRig(rootNode: root)
         
@@ -117,7 +125,7 @@ public final class VRMLoader {
             let rawName = node.name ?? ""
             let name = rawName.lowercased()
             
-            // 1. Détection des Morphers (Visage & BlendShapes)
+            // 1. Extraction des Morphers (Expressions faciales & voyelles)
             if let morpher = node.morpher {
                 rig.morphers.append(morpher)
                 if rig.headNode == nil {
@@ -131,15 +139,12 @@ public final class VRMLoader {
                 }
             }
             
-            // 2. Détection du Squelette Humanoïde VRoid Studio (Convention J_Bip_ / Mixamo / VRM)
-            // Tête & Cou
-            if name.contains("j_bip_c_head") || name.contains("head") && !name.contains("hair") && !name.contains("headband") {
+            // 2. Mapping Squelettique Humanoïde (VRoid Studio / Mixamo / VRM)
+            if name.contains("j_bip_c_head") || (name.contains("head") && !name.contains("hair") && !name.contains("headband")) {
                 if rig.headNode == nil { rig.headNode = node }
             } else if name.contains("j_bip_c_neck") || name.contains("neck") {
                 rig.neckNode = node
-            }
-            // Rachis & Torse
-            else if name.contains("j_bip_c_chest") || name.contains("j_bip_c_upperchest") || name.contains("chest") || name.contains("upperchest") {
+            } else if name.contains("j_bip_c_chest") || name.contains("j_bip_c_upperchest") || name.contains("chest") {
                 rig.chestNode = node
             } else if name.contains("j_bip_c_spine") || name.contains("spine") || name.contains("torso") {
                 rig.spineNode = node
@@ -147,21 +152,21 @@ public final class VRMLoader {
             // Bras Gauche
             else if name.contains("j_bip_l_shoulder") || name.contains("shoulder_l") || name.contains("leftshoulder") {
                 rig.leftShoulderNode = node
-            } else if name.contains("j_bip_l_upperarm") || name.contains("arm_l") || name.contains("leftupperarm") || name.contains("leftarm") {
+            } else if name.contains("j_bip_l_upperarm") || name.contains("arm_l") || name.contains("leftupperarm") {
                 rig.leftUpperArmNode = node
-            } else if name.contains("j_bip_l_lowerarm") || name.contains("forearm_l") || name.contains("leftforearm") || name.contains("leftlowerarm") {
+            } else if name.contains("j_bip_l_lowerarm") || name.contains("forearm_l") || name.contains("leftforearm") {
                 rig.leftForearmNode = node
-            } else if name.contains("j_bip_l_hand") || name.contains("hand_l") || name.contains("lefthand") || name.contains("wrist_l") {
+            } else if name.contains("j_bip_l_hand") || name.contains("hand_l") || name.contains("lefthand") {
                 rig.leftHandNode = node
             }
             // Bras Droit
             else if name.contains("j_bip_r_shoulder") || name.contains("shoulder_r") || name.contains("rightshoulder") {
                 rig.rightShoulderNode = node
-            } else if name.contains("j_bip_r_upperarm") || name.contains("arm_r") || name.contains("rightupperarm") || name.contains("rightarm") {
+            } else if name.contains("j_bip_r_upperarm") || name.contains("arm_r") || name.contains("rightupperarm") {
                 rig.rightUpperArmNode = node
-            } else if name.contains("j_bip_r_lowerarm") || name.contains("forearm_r") || name.contains("rightforearm") || name.contains("rightlowerarm") {
+            } else if name.contains("j_bip_r_lowerarm") || name.contains("forearm_r") || name.contains("rightforearm") {
                 rig.rightForearmNode = node
-            } else if name.contains("j_bip_r_hand") || name.contains("hand_r") || name.contains("righthand") || name.contains("wrist_r") {
+            } else if name.contains("j_bip_r_hand") || name.contains("hand_r") || name.contains("righthand") {
                 rig.rightHandNode = node
             }
         }
@@ -170,16 +175,16 @@ public final class VRMLoader {
     }
     
     private func parseGLBOrVRMData(_ data: Data, originalUrl: URL) -> VRMAvatarRig? {
-        // Validation header glTF (Magic 0x46546C67 = "glTF")
         guard data.count >= 12 else { return nil }
         let magic = data.subdata(in: 0..<4)
         guard let magicStr = String(data: magic, encoding: .ascii), magicStr == "glTF" else { return nil }
         
-        // Chargement via SCNScene temporaire
-        if let scene = try? SCNScene(url: originalUrl, options: nil) {
+        do {
+            let scene = try SCNScene(url: originalUrl, options: nil)
             return parseAvatarRig(from: scene.rootNode)
+        } catch {
+            print("⚠️ [VRMLoader] Impossible de parser les données GLB: \(error.localizedDescription)")
+            return nil
         }
-        
-        return nil
     }
 }

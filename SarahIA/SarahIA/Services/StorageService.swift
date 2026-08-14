@@ -1,6 +1,6 @@
 import Foundation
 
-/// Modèle d'état persisté de l'application Sarah AI.
+/// Modèle d'état persisté complet de l'application Sarah AI.
 public struct AppPersistedState: Codable {
     public var activeMode: String // "text" ou "avatar"
     public var messages: [Message]
@@ -49,35 +49,47 @@ public struct VoiceSettings: Codable {
     }
 }
 
-/// Service de persistance thread-safe pour les données et l'état de l'application Sarah AI.
+/// Service de persistance atomique et thread-safe pour les données et l'état de l'application Sarah AI.
 public final class StorageService {
     
     public static let shared = StorageService()
     
     private let fileManager = FileManager.default
     private let stateFileName = "sarah_ai_state.json"
-    private let queue = DispatchQueue(label: "com.sarahai.storage", qos: .utility)
+    private let backupFileName = "sarah_ai_state.json.bak"
+    private let ioQueue = DispatchQueue(label: "com.sarahai.storage.queue", qos: .userInitiated)
+    
+    private var appDirectoryURL: URL {
+        let baseDirectory: URL
+        if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            baseDirectory = appSupport
+        } else {
+            baseDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        }
+        let dir = baseDirectory.appendingPathComponent("SarahAI", isDirectory: true)
+        if !fileManager.fileExists(atPath: dir.path) {
+            do {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                print("⚠️ [StorageService] Impossible de créer le dossier SarahAI: \(error)")
+            }
+        }
+        return dir
+    }
     
     private var stateFileURL: URL {
-        let directory: URL
-        if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            directory = appSupport
-        } else {
-            directory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        }
-        
-        let appDirectory = directory.appendingPathComponent("SarahAI", isDirectory: true)
-        if !fileManager.fileExists(atPath: appDirectory.path) {
-            try? fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
-        }
-        return appDirectory.appendingPathComponent(stateFileName)
+        return appDirectoryURL.appendingPathComponent(stateFileName)
+    }
+    
+    private var backupFileURL: URL {
+        return appDirectoryURL.appendingPathComponent(backupFileName)
     }
     
     private init() {}
     
-    /// Sauvegarde l'état complet de l'application de manière atomique
+    /// Sauvegarde l'état complet de l'application de manière atomique et thread-safe.
     public func saveState(_ state: AppPersistedState) {
-        queue.async { [weak self] in
+        ioQueue.async { [weak self] in
             guard let self = self else { return }
             do {
                 let encoder = JSONEncoder()
@@ -85,35 +97,60 @@ public final class StorageService {
                 encoder.dateEncodingStrategy = .iso8601
                 let data = try encoder.encode(state)
                 
+                // Sauvegarde d'un fichier de secours avant écriture atomique
+                if self.fileManager.fileExists(atPath: self.stateFileURL.path) {
+                    try? self.fileManager.removeItem(at: self.backupFileURL)
+                    try? self.fileManager.copyItem(at: self.stateFileURL, to: self.backupFileURL)
+                }
+                
+                // Écriture atomique sécurisée
                 try data.write(to: self.stateFileURL, options: [.atomicWrite, .completeFileProtectionUnlessOpen])
             } catch {
-                print("⚠️ [StorageService] Erreur lors de la sauvegarde de l'état: \(error)")
+                print("❌ [StorageService] Erreur critique de sauvegarde: \(error.localizedDescription)")
             }
         }
     }
     
-    /// Charge l'état persisté depuis le stockage local
+    /// Charge l'état persisté depuis le stockage local avec restauration automatique de secours.
     public func loadState() -> AppPersistedState {
-        do {
-            let url = stateFileURL
-            guard fileManager.fileExists(atPath: url.path) else {
-                return AppPersistedState()
+        return ioQueue.sync {
+            // 1. Essai de lecture du fichier principal
+            if fileManager.fileExists(atPath: stateFileURL.path) {
+                do {
+                    let data = try Data(contentsOf: stateFileURL)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    return try decoder.decode(AppPersistedState.self, from: data)
+                } catch {
+                    print("⚠️ [StorageService] Fichier principal corrompu, essai du secours: \(error.localizedDescription)")
+                }
             }
-            let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(AppPersistedState.self, from: data)
-        } catch {
-            print("⚠️ [StorageService] Erreur lors du chargement de l'état, initialisation par défaut: \(error)")
+            
+            // 2. Essai de restauration depuis le fichier de secours (.bak)
+            if fileManager.fileExists(atPath: backupFileURL.path) {
+                do {
+                    let data = try Data(contentsOf: backupFileURL)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    let state = try decoder.decode(AppPersistedState.self, from: data)
+                    print("✅ [StorageService] État restauré depuis la sauvegarde de secours")
+                    return state
+                } catch {
+                    print("⚠️ [StorageService] Échec du secours: \(error.localizedDescription)")
+                }
+            }
+            
+            // 3. Fallback état par défaut si aucun fichier n'existe ou si corruption complète
             return AppPersistedState()
         }
     }
     
     /// Efface l'historique et réinitialise l'état
     public func clearState() {
-        queue.async { [weak self] in
+        ioQueue.async { [weak self] in
             guard let self = self else { return }
             try? self.fileManager.removeItem(at: self.stateFileURL)
+            try? self.fileManager.removeItem(at: self.backupFileURL)
         }
     }
 }
