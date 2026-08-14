@@ -114,15 +114,16 @@ jobs:
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
-            -configuration "$BUILD_CONFIG" \
-            -sdk iphoneos \
-            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$GITHUB_WORKSPACE/DerivedData/SarahIA.xcarchive" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
+            archive 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="

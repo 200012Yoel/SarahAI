@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Switch xcodebuild to Debug configuration with unsigned flags" --allow-empty
+git commit -m "Sarah AI: Use xcodebuild archive for ad-hoc iOS IPA compilation" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
