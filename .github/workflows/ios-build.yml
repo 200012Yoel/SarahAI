@@ -106,24 +106,23 @@ jobs:
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
           TARGET_SCHEME="${SCHEME:-SarahIA}"
+          BUILD_CONFIG="${CONFIGURATION:-Debug}"
 
-          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME ==="
+          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME (Config: $BUILD_CONFIG) ==="
           cd "$PROJECT_DIR"
 
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
-            -configuration Release \
+            -configuration "$BUILD_CONFIG" \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="

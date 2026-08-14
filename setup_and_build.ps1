@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set PROVISIONING_PROFILE_SPECIFIER='' and AD_HOC_CODE_SIGNING_ALLOWED=YES" --allow-empty
+git commit -m "Sarah AI: Switch xcodebuild to Debug configuration with unsigned flags" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
