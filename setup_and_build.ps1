@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Use iphonesimulator SDK for code-sign-free IPA packaging" --allow-empty
+git commit -m "Sarah AI: Set destination generic/platform=iOS Simulator for xcodebuild" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""

@@ -116,6 +116,7 @@ jobs:
             -scheme "$TARGET_SCHEME" \
             -configuration Debug \
             -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
