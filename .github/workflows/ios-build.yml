@@ -114,10 +114,13 @@ jobs:
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 

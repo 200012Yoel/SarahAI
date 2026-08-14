@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set AD_HOC_CODE_SIGNING_ALLOWED=YES in pbxproj and output targeted xcodebuild log diagnostics" --allow-empty
+git commit -m "Sarah AI: Target iphoneos Release build with CODE_SIGNING_ALLOWED=NO" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
