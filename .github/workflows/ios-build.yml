@@ -93,6 +93,8 @@ jobs:
           SCHEME: ${{ inputs.scheme }}
           CONFIGURATION: ${{ inputs.configuration }}
         run: |
+          set -o pipefail
+
           # Finding Xcode Project
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           if [ -z "$PROJECT_FILE" ]; then
@@ -101,18 +103,22 @@ jobs:
           fi
           echo "=== Projet Xcode trouve : $PROJECT_FILE ==="
 
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          PROJECT_NAME=$(basename "$PROJECT_FILE")
           TARGET_SCHEME="${SCHEME:-SarahIA}"
-          echo "=== Compilation du scheme $TARGET_SCHEME à la racine ==="
+
+          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME ==="
+          cd "$PROJECT_DIR"
 
           xcodebuild \
-            -project "$PROJECT_FILE" \
+            -project "$PROJECT_NAME" \
             -scheme "$TARGET_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
@@ -122,7 +128,7 @@ jobs:
             echo "=================================================="
             echo "❌ ERREUR DE COMPILATION XCODEBUILD - DERNIERES LIGNES DE LOG :"
             echo "=================================================="
-            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log"
+            tail -n 120 "$GITHUB_WORKSPACE/xcodebuild.log"
             exit 1
           fi
 
