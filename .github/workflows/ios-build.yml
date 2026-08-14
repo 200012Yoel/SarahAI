@@ -140,7 +140,7 @@ jobs:
           set -eo pipefail
 
           echo "=== Recherche du binaire .app compile ==="
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData/Build/Products" -name "*.app" -type d | head -n 1)
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)
 
           if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
             echo "Erreur : Bundle .app introuvable dans DerivedData !"
