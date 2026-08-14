@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set generic iOS platform destination and disable code signing for remote runner" --allow-empty
+git commit -m "Sarah AI: Set CODE_SIGN_IDENTITY='-' and generic iOS platform destination" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
