@@ -261,14 +261,8 @@ final class AIService {
     private let defaultResponses = [
         "C'est une remarque intéressante ! 🤔 Si vous voulez que je retienne une réponse précise pour ce mot, dites-moi « Apprends [mot] » !",
         "Je comprends ! 💡 N'hésitez pas à m'apprendre comment vous souhaitez que je réponde à cela.",
-        "Je note cela ! 🧠 Je m'améliore constamment grâce à nos échanges."
-    ]
-    
-    private func pickRandom(from pool: [String]) -> String {
-        pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
-    }
-}
- connaissances est encore limitée. 📚 Essayons un autre sujet ! Vous pouvez me demander des blagues, de l'aide, ou simplement discuter."
+        "Je note cela ! 🧠 Je m'améliore constamment grâce à nos échanges.",
+        "Ma base de connaissances est encore limitée. 📚 Essayons un autre sujet ! Vous pouvez me demander des blagues, de l'aide, ou simplement discuter."
     ]
     
     // MARK: - Helpers
