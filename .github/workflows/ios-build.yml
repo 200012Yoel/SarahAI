@@ -123,9 +123,13 @@ jobs:
 
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="
-            echo "❌ ERREUR DE COMPILATION XCODEBUILD - LOG COMPLET :"
+            echo "❌ ERREUR DE COMPILATION XCODEBUILD - EXTRAITS CIBLES :"
             echo "=================================================="
-            cat "$GITHUB_WORKSPACE/xcodebuild.log"
+            grep -E -i "(error:|failed|warning:)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
+            echo "--------------------------------------------------"
+            echo "=== DERNIERES 80 LIGNES DE XCODEBUILD.LOG ==="
+            echo "--------------------------------------------------"
+            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log"
             exit 1
           fi
 
