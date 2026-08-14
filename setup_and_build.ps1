@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set CODE_SIGNING_ALLOWED=YES & AD_HOC_CODE_SIGNING_ALLOWED=YES with error logging" --allow-empty
+git commit -m "Sarah AI: Fix Payload/SarahIA.app/Info.plist packaging structure for Sideloadly compatibility" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""

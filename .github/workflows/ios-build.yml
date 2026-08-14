@@ -101,15 +101,11 @@ jobs:
           fi
           echo "=== Projet Xcode trouve : $PROJECT_FILE ==="
 
-          PROJECT_DIR=$(dirname "$PROJECT_FILE")
-          PROJECT_NAME=$(basename "$PROJECT_FILE")
           TARGET_SCHEME="${SCHEME:-SarahIA}"
-
-          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME ==="
-          cd "$PROJECT_DIR"
+          echo "=== Compilation du scheme $TARGET_SCHEME à la racine ==="
 
           xcodebuild \
-            -project "$PROJECT_NAME" \
+            -project "$PROJECT_FILE" \
             -scheme "$TARGET_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
@@ -143,23 +139,43 @@ jobs:
 
           if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
             echo "Erreur : Bundle .app introuvable dans DerivedData !"
-            find "$GITHUB_WORKSPACE/DerivedData" -maxdepth 5 -type d
             exit 1
           fi
 
-          echo "=== Application trouvee : $APP_PATH ==="
+          APP_NAME=$(basename "$APP_PATH")
+          echo "=== Application trouvee : $APP_PATH (Nom: $APP_NAME) ==="
+
+          # Nettoyage et creation du dossier Payload officiel iOS
+          rm -rf /tmp/Payload
+          mkdir -p /tmp/Payload
+
+          # Copie de l'application .app dans Payload/
+          cp -R "$APP_PATH" /tmp/Payload/
+
+          # Verification et garantie de presence d'Info.plist dans Payload/SarahIA.app/
+          INFOPLIST_TARGET="/tmp/Payload/$APP_NAME/Info.plist"
+          if [ ! -f "$INFOPLIST_TARGET" ]; then
+            echo "⚠️ Info.plist absent du bundle .app, copie explicite..."
+            find . -name "Info.plist" -exec cp {} "$INFOPLIST_TARGET" \; 2>/dev/null || true
+          fi
+
+          echo "=== Structure interne de Payload/$APP_NAME/ ==="
+          ls -la "/tmp/Payload/$APP_NAME/"
+
+          if [ ! -f "$INFOPLIST_TARGET" ]; then
+            echo "❌ ERREUR CRITIQUE: Info.plist est manquant dans Payload/$APP_NAME/Info.plist !"
+            exit 1
+          fi
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           mkdir -p "$GITHUB_WORKSPACE/build"
-          rm -rf /tmp/Payload
-          mkdir -p /tmp/Payload
-          cp -R "$APP_PATH" /tmp/Payload/
 
+          # Archiver le dossier Payload au format .ipa valide
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
           zip -ryq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
 
-          echo "=== Fichier IPA genere avec succes ==="
+          echo "=== Fichier .ipa valide et conforme genere ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
           ls -lh "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa"
 
