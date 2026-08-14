@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set CODE_SIGNING_ALLOWED=NO in pbxproj for seamless archive" --allow-empty
+git commit -m "Sarah AI: Clean simulator build with pbxproj code signing disabled" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
