@@ -159,6 +159,14 @@ jobs:
             find . -name "Info.plist" -exec cp {} "$INFOPLIST_TARGET" \; 2>/dev/null || true
           fi
 
+          # Nettoyage et expansion garantie du CFBundleIdentifier pour Sideloadly
+          if [ -f "$INFOPLIST_TARGET" ]; then
+            sed -i 's/\$(PRODUCT_BUNDLE_IDENTIFIER)/com.sarahia.app/g' "$INFOPLIST_TARGET" || true
+            sed -i 's/\$(EXECUTABLE_NAME)/SarahIA/g' "$INFOPLIST_TARGET" || true
+            sed -i 's/\$(PRODUCT_NAME)/SarahIA/g' "$INFOPLIST_TARGET" || true
+            sed -i 's/\$(PRODUCT_BUNDLE_PACKAGE_TYPE)/APPL/g' "$INFOPLIST_TARGET" || true
+          fi
+
           echo "=== Structure interne de Payload/$APP_NAME/ ==="
           ls -la "/tmp/Payload/$APP_NAME/"
 
