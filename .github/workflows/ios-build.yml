@@ -117,11 +117,9 @@ jobs:
             -configuration Debug \
             -destination 'generic/platform=iOS' \
             -archivePath "$GITHUB_WORKSPACE/DerivedData/SarahIA.xcarchive" \
-            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=YES \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            DEVELOPMENT_TEAM="" \
+            CODE_SIGN_IDENTITY="" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             archive 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
