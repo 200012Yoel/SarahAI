@@ -48,7 +48,7 @@ git config user.email "yoel@example.com"
 git config user.name "Yoel Cohen"
 
 git add .
-git commit -m "Sarah AI: Set CODE_SIGN_IDENTITY='-' for ad-hoc iphoneos build" --allow-empty
+git commit -m "Sarah AI: Target iPhone 15 simulator for code-sign-free compilation" --allow-empty
 git push -u origin main
 Write-Host "  [OK] Push reussi sur GitHub !" -ForegroundColor Green
 Write-Host ""
