@@ -84,7 +84,7 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                 }
-                .scrollContentBackground(.hidden)
+                .hideScrollContentBackground()
             }
             .navigationTitle("⚙️ Réglages")
             .navigationBarTitleDisplayMode(.inline)
@@ -108,6 +108,18 @@ public struct SettingsView: View {
                 self.speechPitch = Double(s.speechPitch)
                 self.vadSensitivity = Double(s.vadSensitivity)
             }
+        }
+    }
+}
+
+// MARK: - Compatibility Extension
+extension View {
+    @ViewBuilder
+    func hideScrollContentBackground() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollContentBackground(.hidden)
+        } else {
+            self
         }
     }
 }

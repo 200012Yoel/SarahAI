@@ -245,7 +245,7 @@ public final class ChatViewModel: ObservableObject {
             // Prononcer la réponse à voix haute et animer l'avatar 3D
             self.ttsService.speak(text: response)
             
-            await self.sendNotificationIfNeeded(message: response)
+            self.sendNotificationIfNeeded(message: response)
         }
     }
     
@@ -273,7 +273,7 @@ public final class ChatViewModel: ObservableObject {
             // Synthèse vocale fluide et synchronisée à voix haute
             self.ttsService.speak(text: response)
             
-            await self.sendNotificationIfNeeded(message: response)
+            self.sendNotificationIfNeeded(message: response)
         }
     }
     
@@ -355,8 +355,8 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    private func sendNotificationIfNeeded(message: String) async {
-        let state = await UIApplication.shared.applicationState
+    private func sendNotificationIfNeeded(message: String) {
+        let state = UIApplication.shared.applicationState
         if state != .active {
             notificationService.sendResponseNotification(message: message)
         }

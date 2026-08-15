@@ -215,7 +215,7 @@ public struct MemoryVaultView: View {
                         viewModel.deleteLearnedMemory(trigger: item.trigger)
                         HapticService.shared.memoryDeleted()
                     } label: {
-                        Label("Oublier", systemName: "trash")
+                        Label("Oublier", systemImage: "trash")
                     }
                 }
             }

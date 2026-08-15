@@ -64,7 +64,7 @@ public final class AudioEngineManager: NSObject, ObservableObject {
                 mode: .voiceChat,
                 options: [
                     .defaultToSpeaker,
-                    .allowBluetooth,
+                    .allowBluetoothHFP,
                     .allowBluetoothA2DP,
                     .allowAirPlay
                 ]
