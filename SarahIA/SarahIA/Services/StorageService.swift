@@ -104,7 +104,7 @@ public final class StorageService {
                 }
                 
                 // Écriture atomique sécurisée
-                try data.write(to: self.stateFileURL, options: [.atomicWrite, .completeFileProtectionUnlessOpen])
+                try data.write(to: self.stateFileURL, options: [.atomicWrite])
             } catch {
                 print("❌ [StorageService] Erreur critique de sauvegarde: \(error.localizedDescription)")
             }

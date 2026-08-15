@@ -112,6 +112,18 @@ jobs:
           cd "$PROJECT_DIR"
 
           xcodebuild \
+            -project "$PROJECT_NAME" \
+            -scheme "$TARGET_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || \
+          xcodebuild \
+            -project "$PROJECT_NAME" \
             -target "$TARGET_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
@@ -167,12 +179,21 @@ jobs:
             find . -name "Info.plist" -exec cp {} "$INFOPLIST_TARGET" \; 2>/dev/null || true
           fi
 
-          # Nettoyage et expansion garantie du CFBundleIdentifier pour Sideloadly
+          # Nettoyage et expansion garantie des variables plist via plutil & sed macOS
           if [ -f "$INFOPLIST_TARGET" ]; then
-            sed -i 's/\$(PRODUCT_BUNDLE_IDENTIFIER)/com.sarahia.app/g' "$INFOPLIST_TARGET" || true
-            sed -i 's/\$(EXECUTABLE_NAME)/SarahIA/g' "$INFOPLIST_TARGET" || true
-            sed -i 's/\$(PRODUCT_NAME)/SarahIA/g' "$INFOPLIST_TARGET" || true
-            sed -i 's/\$(PRODUCT_BUNDLE_PACKAGE_TYPE)/APPL/g' "$INFOPLIST_TARGET" || true
+            echo "=== Conversion et expansion Info.plist avec plutil ==="
+            plutil -convert xml1 "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace CFBundleDisplayName -string "Sarah IA" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace MinimumOSVersion -string "15.0" "$INFOPLIST_TARGET" 2>/dev/null || true
+
+            sed -i '' 's/\$(PRODUCT_BUNDLE_IDENTIFIER)/com.sarahia.app/g' "$INFOPLIST_TARGET" 2>/dev/null || true
+            sed -i '' 's/\$(EXECUTABLE_NAME)/SarahIA/g' "$INFOPLIST_TARGET" 2>/dev/null || true
+            sed -i '' 's/\$(PRODUCT_NAME)/SarahIA/g' "$INFOPLIST_TARGET" 2>/dev/null || true
+            sed -i '' 's/\$(PRODUCT_BUNDLE_PACKAGE_TYPE)/APPL/g' "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
 
           # Garantir que le binaire exécutable Mach-O s'appelle SarahIA dans Payload/SarahIA.app/
