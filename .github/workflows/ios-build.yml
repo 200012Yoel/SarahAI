@@ -1,13 +1,17 @@
 name: iOS Build
-run-name: iOS Build ${{ inputs.build_id }}
+run-name: iOS Build ${{ inputs.build_id || format('v{0}', github.run_number) }}
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       build_id:
         description: 'Unique build identifier'
-        required: true
+        required: false
         type: string
+        default: 'latest'
       snapshot_ref:
         description: 'Ref holding the working-tree snapshot to build (empty builds this branch)'
         required: false
@@ -32,7 +36,7 @@ on:
         description: 'Build configuration (Debug is faster, Release for production)'
         required: false
         type: string
-        default: 'Debug'
+        default: 'Release'
       flutter_version:
         description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
         required: false
@@ -144,6 +148,7 @@ jobs:
           BUILD_ID: ${{ inputs.build_id }}
         run: |
           set -eo pipefail
+          BUILD_ID="${BUILD_ID:-SarahIA}"
 
           echo "=== Recherche du binaire .app compile ==="
           APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)

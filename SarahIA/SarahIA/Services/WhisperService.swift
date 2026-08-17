@@ -67,6 +67,8 @@ public final class WhisperService: NSObject, ObservableObject {
         }
     }
     
+    private var hasDeliveredFinalResult: Bool = false
+    
     // MARK: - Démarrage de la Session de Transcription
     
     /// Démarre l'écoute et l'ingestion des buffers audio
@@ -87,6 +89,7 @@ public final class WhisperService: NSObject, ObservableObject {
         
         self.recognitionRequest = request
         self.currentLiveText = ""
+        self.hasDeliveredFinalResult = false
         self.status = .listening
         
         self.recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] (result, error) in
@@ -99,7 +102,8 @@ public final class WhisperService: NSObject, ObservableObject {
                     self.onPartialTranscription?(transcription)
                 }
                 
-                if result.isFinal {
+                if result.isFinal && !self.hasDeliveredFinalResult {
+                    self.hasDeliveredFinalResult = true
                     DispatchQueue.main.async {
                         self.status = .transcribed(text: transcription)
                         self.onFinalTranscription?(transcription)
@@ -126,11 +130,14 @@ public final class WhisperService: NSObject, ObservableObject {
     public func stopTranscription() {
         recognitionRequest?.endAudio()
         
-        if !currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let finalResult = currentLiveText
+        let finalResult = currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !finalResult.isEmpty && !hasDeliveredFinalResult {
+            hasDeliveredFinalResult = true
             status = .transcribed(text: finalResult)
-            onFinalTranscription?(finalResult)
-        } else {
+            DispatchQueue.main.async {
+                self.onFinalTranscription?(finalResult)
+            }
+        } else if finalResult.isEmpty {
             status = .idle
         }
         

@@ -65,8 +65,8 @@ public struct ContentView: View {
             Color.black
                 .ignoresSafeArea()
             
-            // Rendu 3D SceneKit Centré en Plein Écran
-            Avatar3DView()
+            // Rendu 3D Avatar Centré en Plein Écran
+            Avatar3DView(isSpeaking: viewModel.voiceStatus == .speaking)
                 .ignoresSafeArea()
             
             // Interface vocale épurée et indicateurs flottants

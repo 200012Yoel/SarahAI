@@ -64,27 +64,44 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         let utterance = AVSpeechUtterance(string: cleanedText)
         
-        // Sélection d'une voix naturelle féminine (ex: Thomas/Audrey ou Siri FR)
-        if let voice = AVSpeechSynthesisVoice(language: language) {
-            utterance.voice = voice
+        // 🎙️ SÉLECTION D'UNE VOIX NEURALE ULTRA-RÉALISTE (Compatible iOS 15 à iOS 18+ / iPhone 7 à iPhone 17 Pro Max)
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
+        
+        var selectedVoice: AVSpeechSynthesisVoice?
+        
+        if #available(iOS 16.0, *) {
+            selectedVoice = frenchVoices.first(where: { $0.quality == .premium && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Siri") || $0.name.contains("Thomas")) })
+                ?? frenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Siri") || $0.name.contains("Thomas")) })
+                ?? frenchVoices.first(where: { $0.quality == .premium })
+                ?? frenchVoices.first(where: { $0.quality == .enhanced })
         } else {
-            utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
+            selectedVoice = frenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Thomas")) })
+                ?? frenchVoices.first(where: { $0.quality == .enhanced })
         }
         
+        let bestVoice = selectedVoice
+            ?? frenchVoices.first(where: { $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Thomas") })
+            ?? frenchVoices.first
+            ?? AVSpeechSynthesisVoice(language: "fr-FR")
+            ?? AVSpeechSynthesisVoice(language: language)
+        
+        utterance.voice = bestVoice
         utterance.rate = rate
         utterance.pitchMultiplier = pitch
         utterance.volume = 1.0
-        utterance.preUtteranceDelay = 0.05
+        utterance.preUtteranceDelay = 0.0
+        utterance.postUtteranceDelay = 0.0
         
         isSpeaking = true
         AudioEngineManager.shared.isTTSCurrentlyActive = true
         startVisemeAnimationLoop()
-        onSpeechStarted?( )
+        onSpeechStarted?()
         
         synthesizer.speak(utterance)
     }
     
-    /// Interrompt immédiatement la parole (BARGE-IN) et réinitialise les morph targets
+    /// Interrompt immédiatement la parole (BARGE-IN / INTERRUPTION INSTANTANÉE)
     public func stopSpeaking() {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)

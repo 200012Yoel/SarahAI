@@ -62,5 +62,10 @@
 	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel et la détection d'activité vocale (VAD).</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Sarah AI utilise la reconnaissance vocale sur l'appareil pour transcrire votre voix instantanément en texte.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
