@@ -29,30 +29,31 @@ while ($elapsed -lt $maxWaitSeconds) {
     Write-Host -NoNewline "`r[En attente du binaire...] $($elapsed)s ecoulees (Verification en cours...)   "
     
     try {
-        # Verifier si la release est prete via curl
-        $testHeader = curl.exe -sI -L "$releaseUrl" | Select-String "HTTP/" | Select-Object -Last 1
-        
-        if ($testHeader -match "200 OK") {
-            Write-Host ""
-            Write-Host "`n[1/2] Binaire detecte ! Telechargement en cours..." -ForegroundColor Green
-            
-            # Telechargement direct avec curl avec barre de progression
-            curl.exe -L -o "$targetPath" "$releaseUrl" --progress-bar
-            
-            if (Test-Path "$targetPath") {
-                $size = (Get-Item "$targetPath").Length
-                if ($size -gt 100000) {
-                    $sizeMB = [math]::Round($size / 1MB, 2)
-                    Write-Host ""
-                    Write-Host "=======================================================" -ForegroundColor Green
-                    Write-Host "  🎉 $fileName TELECHARGE AVEC SUCCES DANS VOS DOSSIERS !" -ForegroundColor Green
-                    Write-Host "  Emplacement : $targetPath ($sizeMB Mo)" -ForegroundColor Yellow
-                    Write-Host "=======================================================" -ForegroundColor Green
-                    Write-Host ""
-                    
-                    # Ouvrir et selectionner le fichier directement dans l'explorateur Windows
-                    explorer.exe /select,"$targetPath"
-                    exit 0
+        # Verifier via l'API GitHub des releases
+        $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases" -ErrorAction SilentlyContinue
+        if ($rel -and $rel.Count -gt 0) {
+            $asset = $rel[0].assets | Where-Object { $_.name -eq $fileName } | Select-Object -First 1
+            if ($asset -and $asset.size -gt 100000) {
+                Write-Host ""
+                Write-Host "`n[1/2] Binaire detecte (${fileName}) ! Telechargement en cours..." -ForegroundColor Green
+                
+                $assetUrl = $asset.url
+                curl.exe -L -H "Accept: application/octet-stream" -o "$targetPath" "$assetUrl" --progress-bar
+                
+                if (Test-Path "$targetPath") {
+                    $size = (Get-Item "$targetPath").Length
+                    if ($size -gt 100000) {
+                        $sizeMB = [math]::Round($size / 1MB, 2)
+                        Write-Host ""
+                        Write-Host "=======================================================" -ForegroundColor Green
+                        Write-Host "  🎉 $fileName TELECHARGE AVEC SUCCES DANS VOS DOSSIERS !" -ForegroundColor Green
+                        Write-Host "  Emplacement : $targetPath ($sizeMB Mo)" -ForegroundColor Yellow
+                        Write-Host "=======================================================" -ForegroundColor Green
+                        Write-Host ""
+                        
+                        explorer.exe /select,"$targetPath"
+                        exit 0
+                    }
                 }
             }
         }

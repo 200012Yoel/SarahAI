@@ -21,6 +21,7 @@ package-lock.json
 # Build output
 dist/
 *.ipa
+*.apk
 
 # macOS
 .DS_Store

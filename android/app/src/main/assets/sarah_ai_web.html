@@ -41,49 +41,30 @@
       display: block;
     }
 
-    /* Minimal Floating Voice Controls (discreet) */
+    /* Clean Floating Status Badge (Continuous Background Voice) */
     #voice-dock {
       position: absolute;
-      bottom: 30px; left: 50%;
+      bottom: 35px; left: 50%;
       transform: translateX(-50%);
       z-index: 20;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
-    }
-
-    #mic-btn {
-      width: 68px; height: 68px;
-      border-radius: 50%; border: none; cursor: pointer;
-      background: linear-gradient(135deg, #4f6ef7, #a855f7);
-      box-shadow: 0 8px 30px rgba(100, 80, 240, 0.5), inset 0 0 0 2px rgba(255,255,255,0.25);
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 26px;
-      transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
-    }
-    #mic-btn:hover { transform: scale(1.08); box-shadow: 0 12px 36px rgba(100, 80, 240, 0.7); }
-    #mic-btn:active { transform: scale(0.94); }
-    #mic-btn.active {
-      background: linear-gradient(135deg, #ef4444, #f43f5e);
-      animation: pulseMic 1.3s infinite;
-      box-shadow: 0 0 35px rgba(239, 68, 68, 0.75);
-    }
-    @keyframes pulseMic {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
-      50% { transform: scale(1.1); box-shadow: 0 0 0 16px rgba(239, 68, 68, 0); }
+      gap: 8px;
+      pointer-events: none;
     }
 
     #status-badge {
-      font-size: 13px; font-weight: 600;
-      color: rgba(255,255,255,0.9);
-      padding: 6px 16px; border-radius: 20px;
-      background: rgba(0,0,0,0.65);
-      border: 1px solid rgba(255,255,255,0.12);
-      backdrop-filter: blur(12px);
+      font-size: 14px; font-weight: 600;
+      color: rgba(255,255,255,0.95);
+      padding: 10px 22px; border-radius: 24px;
+      background: rgba(10, 10, 20, 0.75);
+      border: 1px solid rgba(147, 112, 219, 0.35);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       text-align: center;
-      pointer-events: none;
-      transition: opacity 0.3s;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(147, 112, 219, 0.2);
+      transition: all 0.3s ease;
     }
   </style>
   <script src="vrm_data.js" defer></script>
@@ -108,12 +89,14 @@
         if (window.setSpeaking) window.setSpeaking(true);
       };
       utter.onend = () => {
-        window.updateStatus("Sarah est prête • Touchez le micro");
+        window.updateStatus("Sarah vous écoute en continu");
         if (window.setSpeaking) window.setSpeaking(false);
+        if (window.restartWebRecognition) window.restartWebRecognition();
       };
       utter.onerror = () => {
-        window.updateStatus("Sarah est prête • Touchez le micro");
+        window.updateStatus("Sarah vous écoute en continu");
         if (window.setSpeaking) window.setSpeaking(false);
+        if (window.restartWebRecognition) window.restartWebRecognition();
       };
       window.speechSynthesis.speak(utter);
     };
@@ -126,10 +109,9 @@
     <canvas id="vrm-canvas"></canvas>
   </div>
 
-  <!-- Micro Vocal Flottant Minimaliste & Épuré -->
+  <!-- Indicateur Vocal Flottant Continu (Zéro bouton requis) -->
   <div id="voice-dock">
-    <div id="status-badge">Sarah vous écoute</div>
-    <button id="mic-btn" onclick="toggleVoice()" title="Parler à Sarah">🎤</button>
+    <div id="status-badge">Sarah vous écoute en continu</div>
   </div>
 
 <script type="module">
@@ -639,76 +621,136 @@ window.addEventListener('resize', () => {
 
 <script>
 /* ════════════════════════════════════════════════════════════════════
-   RECONNAISSANCE VOCALE DU MICROPHONE
+   RECONNAISSANCE VOCALE CONTINUE & BARGE-IN (ZERO BOUTON REQUIS)
 ════════════════════════════════════════════════════════════════════ */
 const RESPONSES = [
   "Bonjour ! Je suis Sarah, ravie de vous parler. Comment puis-je vous aider ?",
-  "Je vous écoute ! Posez-moi vos questions, je suis à votre disposition.",
+  "Je vous écoute ! Posez-moi vos questions, je suis à votre entière disposition.",
   "Très bonne question ! Je suis votre assistante intelligente 3D en temps réel.",
   "Avec grand plaisir ! N'hésitez pas si vous avez besoin de quoi que ce soit d'autre."
 ];
 
 function generateReply(text) {
   const t = text.toLowerCase();
-  if (/bonjour|salut|hello|coucou/.test(t)) return "Salut, je me présente, je m'appelle Sarah ! Comment puis-je vous aider aujourd'hui ?";
-  if (/qui es.tu|présente.toi|ton nom/.test(t)) return "Salut, je me présente, je m'appelle Sarah. Je suis votre assistante 3D intelligente en temps réel !";
+  if (/bonjour|salut|hello|coucou/.test(t)) return "Bonjour ! Je suis Sarah, votre assistante IA. Comment puis-je vous aider aujourd'hui ?";
+  if (/qui es.tu|présente.toi|ton nom/.test(t)) return "Je m'appelle Sarah. Je suis votre assistante 3D intelligente en temps réel !";
   if (/heure/.test(t)) { const d = new Date(); return `Il est actuellement ${d.getHours()} heures et ${d.getMinutes()} minutes.`; }
   if (/blague/.test(t)) return "Pourquoi les plongeurs plongent-ils toujours en arrière ? Parce que sinon ils tombent dans le bateau !";
   return RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
 }
 
 let recognition = null;
-let isRecording = false;
+let isListeningActive = false;
 
-window.toggleVoice = function() {
+// --- BARGE-IN : Interrompre instantanément la parole quand l'utilisateur parle ---
+function triggerBargeIn() {
+  if (window.speechSynthesis && window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if (window.SarahBridge && window.SarahBridge.stopSpeaking) {
+    window.SarahBridge.stopSpeaking();
+  }
+  if (window.setSpeaking) {
+    window.setSpeaking(false);
+  }
+}
+window.triggerBargeIn = triggerBargeIn;
+
+function startContinuousRecognition() {
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const micBtn = document.getElementById('mic-btn');
-
   if (!SpeechRec) {
-    window.speakText("Bonjour ! Comment puis-je vous aider aujourd'hui ?");
+    // Si exécuté dans une WebView sans web-speech natif, Android/iOS gère la voix via Bridge
     return;
   }
 
-  if (!recognition) {
+  try {
+    if (recognition) {
+      recognition.abort();
+      recognition = null;
+    }
+
     recognition = new SpeechRec();
     recognition.lang = 'fr-FR';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
     recognition.onstart = () => {
-      isRecording = true;
-      micBtn.classList.add('active');
+      isListeningActive = true;
       window.updateStatus("🎙️ Sarah vous écoute...");
     };
 
-    recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      window.updateStatus(`🎙️ « ${transcript} »`);
-      setTimeout(() => {
-        const reply = generateReply(transcript);
-        window.speakText(reply);
-      }, 400);
+    recognition.onspeechstart = () => {
+      triggerBargeIn();
     };
 
-    recognition.onerror = () => {
-      isRecording = false;
-      micBtn.classList.remove('active');
-      window.updateStatus("Sarah est prête • Touchez le micro");
+    recognition.onresult = (e) => {
+      triggerBargeIn();
+      let interim = '';
+      let final = '';
+
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          final += e.results[i][0].transcript;
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+
+      if (interim) {
+        window.updateStatus(`🎙️ « ${interim}... »`);
+      }
+
+      if (final && final.trim()) {
+        const query = final.trim();
+        window.updateStatus(`« ${query} »`);
+        if (window.SarahBridge && window.SarahBridge.onUserSpoke) {
+          window.SarahBridge.onUserSpoke(query);
+        } else {
+          setTimeout(() => {
+            const reply = generateReply(query);
+            window.speakText(reply);
+          }, 300);
+        }
+      }
+    };
+
+    recognition.onerror = (err) => {
+      isListeningActive = false;
+      setTimeout(() => {
+        if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+          restartWebRecognition();
+        }
+      }, 1000);
     };
 
     recognition.onend = () => {
-      isRecording = false;
-      micBtn.classList.remove('active');
+      isListeningActive = false;
+      setTimeout(() => {
+        if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+          restartWebRecognition();
+        }
+      }, 500);
     };
-  }
 
-  if (isRecording) {
-    recognition.stop();
-  } else {
-    window.speechSynthesis && window.speechSynthesis.cancel();
     recognition.start();
+  } catch(e) {
+    console.warn("SpeechRec error:", e);
   }
-};
+}
+
+function restartWebRecognition() {
+  if (!isListeningActive && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+    startContinuousRecognition();
+  }
+}
+window.restartWebRecognition = restartWebRecognition;
+
+// Démarrage automatique continu au chargement
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    startContinuousRecognition();
+  }, 1000);
+});
 </script>
 
 </body>

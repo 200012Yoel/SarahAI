@@ -1,13 +1,15 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.SarahIA" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/primary_accent</item>
-        <item name="colorSecondary">@color/cyan_accent</item>
+<resources>
+    <!-- Thème ultra-compatible AppCompat pour éviter tout crash de démarrage -->
+    <style name="Theme.SarahIA" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/sarah_bg</item>
+        <item name="android:colorBackground">@color/sarah_bg</item>
         <item name="android:statusBarColor">@color/black</item>
         <item name="android:navigationBarColor">@color/black</item>
-        <item name="android:windowBackground">@color/sarah_bg</item>
     </style>
 
     <style name="Theme.SarahIA.FullScreen" parent="Theme.SarahIA">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
     </style>

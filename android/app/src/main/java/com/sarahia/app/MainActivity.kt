@@ -5,82 +5,129 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var webView: WebView
-    private val RECORD_AUDIO_REQUEST_CODE = 1001
+    private val TAG = "SarahMainActivity"
+    private var webView: WebView? = null
+    private var voiceManager: VoiceManager? = null
+    private val RECORD_AUDIO_REQUEST_CODE = 2001
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        hideSystemUI()
+        
+        try {
+            // Configuration plein écran sans risque de crash
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "FLAG_LAYOUT_NO_LIMITS non supporté: ${e.message}")
+        }
 
         setContentView(R.layout.activity_main)
 
-        webView = findViewById(R.id.webView)
-        setupWebView()
-
-        checkAudioPermission()
-
-        // Chargement du moteur 3D VRM Sarah AI
-        webView.loadUrl("file:///android_asset/sarah_ai_web.html")
+        initWebView()
+        initVoiceEngine()
+        checkAndRequestPermissions()
     }
 
-    private fun setupWebView() {
-        webView.setBackgroundColor(Color.BLACK)
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+    private fun initWebView() {
+        try {
+            val wv = findViewById<WebView>(R.id.webView)
+            this.webView = wv
 
-        val settings = webView.settings
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        settings.databaseEnabled = true
-        settings.allowFileAccess = true
-        settings.allowContentAccess = true
-        settings.allowFileAccessFromFileURLs = true
-        settings.allowUniversalAccessFromFileURLs = true
-        settings.mediaPlaybackRequiresUserGesture = false
-        settings.loadWithOverviewMode = true
-        settings.useWideViewPort = true
-        settings.cacheMode = WebSettings.LOAD_DEFAULT
+            wv.setBackgroundColor(Color.BLACK)
+            wv.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                return false
+            val s = wv.settings
+            s.javaScriptEnabled = true
+            s.domStorageEnabled = true
+            s.databaseEnabled = true
+            s.allowFileAccess = true
+            s.allowContentAccess = true
+            s.mediaPlaybackRequiresUserGesture = false
+            s.loadWithOverviewMode = true
+            s.useWideViewPort = true
+            s.cacheMode = WebSettings.LOAD_DEFAULT
+
+            try {
+                s.allowFileAccessFromFileURLs = true
+                s.allowUniversalAccessFromFileURLs = true
+            } catch (e: Exception) {
+                Log.w(TAG, "Universal access flag error: ${e.message}")
             }
-        }
 
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onPermissionRequest(request: PermissionRequest?) {
-                request?.let {
-                    val requestedResources = it.resources
-                    for (r in requestedResources) {
-                        if (r == PermissionRequest.RESOURCE_AUDIO_CAPTURE) {
-                            it.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
-                            return
-                        }
-                    }
-                    it.grant(requestedResources)
+            // Interface JavaScript Native Bridge
+            wv.addJavascriptInterface(SarahNativeBridge(), "SarahBridge")
+
+            wv.webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return false
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "✅ Page 3D VRM chargée.")
+                    updateWebStatus("Sarah est prête • Parlez-lui directement")
                 }
             }
+
+            wv.webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: PermissionRequest?) {
+                    try {
+                        request?.grant(request.resources)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Erreur grant permission: ${e.message}")
+                    }
+                }
+            }
+
+            // Chargement local direct du moteur 3D VRM Sarah IA
+            wv.loadUrl("file:///android_asset/sarah_ai_web.html")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur critique WebView: ${e.message}")
         }
     }
 
-    private fun checkAudioPermission() {
+    private fun initVoiceEngine() {
+        try {
+            voiceManager = VoiceManager(
+                context = this,
+                onStatusUpdate = { status ->
+                    updateWebStatus(status)
+                },
+                onSpeakingStateChanged = { isSpeaking ->
+                    setWebAvatarSpeaking(isSpeaking)
+                },
+                onLiveTranscription = { liveText ->
+                    setWebLiveTranscription(liveText)
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur initialisation VoiceManager: ${e.message}")
+        }
+    }
+
+    private fun checkAndRequestPermissions() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
@@ -88,6 +135,11 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(Manifest.permission.RECORD_AUDIO),
                 RECORD_AUDIO_REQUEST_CODE
             )
+        } else {
+            // Permission déjà accordée : Démarrer l'écoute automatique en continu
+            mainHandler.postDelayed({
+                voiceManager?.startContinuousListening()
+            }, 800)
         }
     }
 
@@ -98,45 +150,75 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == RECORD_AUDIO_REQUEST_CODE) {
-            if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
-                webView.reload()
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "✅ Permission micro accordée.")
+                voiceManager?.startContinuousListening()
             }
         }
     }
 
-    private fun hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let {
-                it.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-            )
+    // MARK: - Synchronisation JavaScript avec l'Avatar 3D VRM
+
+    private fun updateWebStatus(text: String) {
+        mainHandler.post {
+            val safe = text.replace("'", "\\'")
+            webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
         }
     }
+
+    private fun setWebAvatarSpeaking(isSpeaking: Boolean) {
+        mainHandler.post {
+            webView?.evaluateJavascript("if (window.setSpeaking) { window.setSpeaking($isSpeaking); }", null)
+        }
+    }
+
+    private fun setWebLiveTranscription(text: String) {
+        mainHandler.post {
+            val safe = text.replace("'", "\\'")
+            webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
+        }
+    }
+
+    // MARK: - Pont JavaScriptInterface
+
+    inner class SarahNativeBridge {
+        @JavascriptInterface
+        fun onUserSpoke(text: String) {
+            Log.d(TAG, "Message reçu depuis le Web: $text")
+        }
+
+        @JavascriptInterface
+        fun stopSpeaking() {
+            voiceManager?.stopSpeaking()
+        }
+
+        @JavascriptInterface
+        fun startListening() {
+            voiceManager?.startContinuousListening()
+        }
+    }
+
+    // MARK: - Cycle de Vie Android
 
     override fun onResume() {
         super.onResume()
-        hideSystemUI()
-        webView.onResume()
+        webView?.onResume()
+        voiceManager?.startContinuousListening()
     }
 
     override fun onPause() {
+        voiceManager?.stopSpeaking()
+        voiceManager?.stopListening()
+        webView?.onPause()
         super.onPause()
-        webView.onPause()
     }
 
     override fun onDestroy() {
-        webView.destroy()
+        voiceManager?.destroy()
+        voiceManager = null
+        try {
+            webView?.destroy()
+        } catch (_) {}
         super.onDestroy()
     }
 }
