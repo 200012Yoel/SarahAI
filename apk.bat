@@ -1,18 +1,17 @@
 @echo off
-chcp 65001 >nul
 echo.
 echo =======================================================
-echo   🚀 SARAH IA — COMPILATION AUTOMATIQUE ANDROID (APK)
-echo   Package : com.sarahia.app ^| Version : 1.0
+echo   SARAH IA - COMPILATION AUTOMATIQUE ANDROID (APK)
+echo   Package : com.sarahia.app - Version : 1.0
 echo =======================================================
 echo.
 
 echo [1/3] Synchronisation des fichiers et assets VRM Android...
 if not exist "android\app\src\main\assets" mkdir "android\app\src\main\assets"
-copy /Y "sarah_ai_web.html" "android\app\src\main\assets\sarah_ai_web.html" >nul 2>&1
-copy /Y "vrm_data.js" "android\app\src\main\assets\vrm_data.js" >nul 2>&1
-copy /Y "AA.vrm" "android\app\src\main\assets\AA.vrm" >nul 2>&1
-copy /Y "AA.vrm" "android\app\src\main\assets\Sarah.vrm" >nul 2>&1
+copy /Y "sarah_ai_web.html" "android\app\src\main\assets\sarah_ai_web.html" >nul
+copy /Y "vrm_data.js" "android\app\src\main\assets\vrm_data.js" >nul
+copy /Y "AA.vrm" "android\app\src\main\assets\AA.vrm" >nul
+copy /Y "AA.vrm" "android\app\src\main\assets\Sarah.vrm" >nul
 echo   [OK] Assets 3D VRM synchronises dans le projet Android.
 echo.
 
@@ -26,15 +25,14 @@ echo.
 echo [3/3] Lancement de la compilation Android en cours...
 echo.
 echo =======================================================
-echo   ✅ BUILD ANDROID DECLENCHE AVEC SUCCES !
+echo   [OK] BUILD ANDROID DECLENCHE AVEC SUCCES !
 echo =======================================================
 echo.
-echo 📱 Suivez le build et telechargez votre APK directement :
+echo Suivez le build et telechargez votre APK directement :
 echo.
-echo   👉 Actions GitHub : https://github.com/200012Yoel/SarahAI/actions
-echo   👉 Telechargement direct Release : https://github.com/200012Yoel/SarahAI/releases
+echo   Actions GitHub : https://github.com/200012Yoel/SarahAI/actions
+echo   Telechargement direct Release : https://github.com/200012Yoel/SarahAI/releases
 echo.
-echo Fichier genere : SarahIA.apk (Compatible 100%% Android 7.0 a Android 15+)
+echo Fichier genere : SarahIA.apk (Compatible Android 7.0 a 15+)
 echo =======================================================
 echo.
-pause

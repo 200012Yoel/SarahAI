@@ -1,8 +1,7 @@
 @echo off
-chcp 65001 >nul
 cls
 echo =======================================================
-echo   🌟 SARAH IA — COMPILATEUR UNIVERSEL IOS & ANDROID
+echo   SARAH IA - COMPILATEUR UNIVERSEL IOS ET ANDROID
 echo =======================================================
 echo.
 echo Choisissez ce que vous souhaitez compiler :
@@ -25,7 +24,7 @@ if "%choix%"=="2" (
 if "%choix%"=="3" (
     echo.
     echo =======================================================
-    echo   🚀 COMPILATION DES DEUX APPLICATIONS EN PARALLELE
+    echo   COMPILATION DES DEUX APPLICATIONS EN PARALLELE
     echo =======================================================
     echo.
     git add -A
@@ -34,10 +33,9 @@ if "%choix%"=="3" (
     echo.
     echo [OK] Push effectue ! Les 2 builds GitHub (iOS + Android) tournent simultanement.
     echo.
-    echo 👉 Suivre vos builds : https://github.com/200012Yoel/SarahAI/actions
-    echo 👉 Telechargements : https://github.com/200012Yoel/SarahAI/releases
+    echo Suivre vos builds : https://github.com/200012Yoel/SarahAI/actions
+    echo Telechargements : https://github.com/200012Yoel/SarahAI/releases
     echo.
-    pause
     goto fin
 )
 if "%choix%"=="0" (
