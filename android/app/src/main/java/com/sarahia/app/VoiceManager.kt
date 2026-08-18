@@ -132,10 +132,11 @@ class VoiceManager(
                                 Log.d(TAG, "Transcription: $userText")
                                 onLiveTranscription("« $userText »")
                                 
-                                val reply = generateAnswer(userText)
-                                mainHandler.postDelayed({
-                                    speak(reply)
-                                }, 200)
+                                brain.getAnswerAsync(userText) { reply ->
+                                    mainHandler.postDelayed({
+                                        speak(reply)
+                                    }, 150)
+                                }
                             } else {
                                 restartListeningWithDelay(300)
                             }
@@ -249,40 +250,11 @@ class VoiceManager(
         }, delayMs)
     }
 
-    // MARK: - Cerveau Conversationnel de Sarah IA
-    private fun generateAnswer(input: String): String {
-        val lower = input.lowercase().trim()
+    private val brain = SarahBrain(context)
 
-        return when {
-            lower.contains("bonjour") || lower.contains("salut") || lower.contains("coucou") || lower.contains("hello") ->
-                "Bonjour ! Je suis ravie de vous parler. Comment puis-je vous aider aujourd'hui ?"
+    // MARK: - RecognitionListener Callbacks
 
-            lower.contains("qui es-tu") || lower.contains("qui es tu") || lower.contains("présente-toi") || lower.contains("ton nom") ->
-                "Je m'appelle Sarah ! Je suis votre assistante virtuelle 3D intelligente. Je vous écoute en direct et je réponds à toutes vos questions."
-
-            lower.contains("heure") || lower.contains("quelle heure") -> {
-                val cal = java.util.Calendar.getInstance()
-                "Il est actuellement ${cal.get(java.util.Calendar.HOUR_OF_DAY)} heures et ${cal.get(java.util.Calendar.MINUTE)} minutes."
-            }
-
-            lower.contains("date") || lower.contains("quel jour") -> {
-                val sdf = java.text.SimpleDateFormat("EEEE d MMMM yyyy", Locale.FRENCH)
-                "Nous sommes le ${sdf.format(java.util.Date())}."
-            }
-
-            lower.contains("blague") || lower.contains("raconte une blague") || lower.contains("fais-moi rire") ->
-                "Pourquoi les plongeurs plongent-ils toujours en arrière et jamais en avant ? Parce que sinon ils tombent dans le bateau !"
-
-            lower.contains("merci") ->
-                "Je vous en prie ! C'est toujours un plaisir d'échanger avec vous."
-
-            lower.contains("comment vas-tu") || lower.contains("ça va") ->
-                "Je vais merveilleusement bien, merci ! Et vous, comment se passe votre journée ?"
-
-            else ->
-                "J'ai bien compris : $input. Je suis à votre écoute !"
-        }
-    }
+    // [suite des callbacks avec SarahBrain]
 
     public fun destroy() {
         shouldKeepListening = false

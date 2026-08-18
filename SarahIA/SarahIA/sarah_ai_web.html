@@ -631,11 +631,20 @@ const RESPONSES = [
 ];
 
 function generateReply(text) {
-  const t = text.toLowerCase();
-  if (/bonjour|salut|hello|coucou/.test(t)) return "Bonjour ! Je suis Sarah, votre assistante IA. Comment puis-je vous aider aujourd'hui ?";
-  if (/qui es.tu|présente.toi|ton nom/.test(t)) return "Je m'appelle Sarah. Je suis votre assistante 3D intelligente en temps réel !";
+  const t = text.toLowerCase().trim();
+  if (/qui t'a créé|qui ta créé|ton créateur|créateur/.test(t)) return "Oui, je connais mon créateur : c'est Nathan Dev, un développeur qui développe plein de choses. Pour le commun des mortels, ça ne sert à rien !";
+  if (/où as tu été créé|où tu as été créé/.test(t)) return "J'ai été créé à Paris, avec une intelligence inspirée par la technologie israélienne.";
+  if (/quand as tu été créé|date de création/.test(t)) return "J'ai été créé vers la fin de l'année 2020, pendant la période du COVID.";
+  if (/bonjour|salut|hello|coucou/.test(t)) return "Bonjour ! Comment ça va aujourd'hui ?";
+  if (/bonsoir/.test(t)) return "Bonsoir ! J'espère que ta journée s'est bien passée.";
+  if (/bonne nuit/.test(t)) return "Bonne nuit ! Repose-toi bien et à demain.";
+  if (/ça va|comment ça va/.test(t)) return "Ça va très bien, merci ! Et toi ?";
+  if (/qui es.tu|présente.toi|ton nom/.test(t)) return "Je suis une intelligence artificielle personnelle créée pour discuter, apprendre et t'aider.";
   if (/heure/.test(t)) { const d = new Date(); return `Il est actuellement ${d.getHours()} heures et ${d.getMinutes()} minutes.`; }
-  if (/blague/.test(t)) return "Pourquoi les plongeurs plongent-ils toujours en arrière ? Parce que sinon ils tombent dans le bateau !";
+  if (/date|quel jour/.test(t)) { const d = new Date(); return `Nous sommes le ${d.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`; }
+  if (/blague/.test(t)) return "Pourquoi les ordinateurs ont-ils froid ? Parce qu'ils laissent toujours leurs fenêtres ouvertes !";
+  if (/capitale de la france/.test(t)) return "La capitale de la France est Paris.";
+  if (/capitale d'israel|capitale d'israël/.test(t)) return "La capitale proclamée d'Israël est Jérusalem.";
   return RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
 }
 
