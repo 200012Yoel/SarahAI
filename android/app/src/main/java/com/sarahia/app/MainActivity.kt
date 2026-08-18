@@ -8,7 +8,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
-import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -30,16 +29,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        try {
-            window.setFlags(
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "FLAG_LAYOUT_NO_LIMITS: ${e.message}")
-        }
-
         setContentView(R.layout.activity_main)
 
         initWebView()
@@ -49,11 +38,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun initWebView() {
         try {
-            val wv = findViewById<WebView>(R.id.webView)
+            val wv = findViewById<WebView>(R.id.webView) ?: return
             this.webView = wv
 
             wv.setBackgroundColor(Color.BLACK)
-            wv.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
             val s = wv.settings
             s.javaScriptEnabled = true
@@ -124,17 +112,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.RECORD_AUDIO),
-                RECORD_AUDIO_REQUEST_CODE
-            )
-        } else {
-            mainHandler.postDelayed({
-                voiceManager?.startContinuousListening()
-            }, 800)
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    RECORD_AUDIO_REQUEST_CODE
+                )
+            } else {
+                mainHandler.postDelayed({
+                    voiceManager?.startContinuousListening()
+                }, 800)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur permission: ${e.message}")
         }
     }
 
@@ -154,28 +146,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateWebStatus(text: String) {
         mainHandler.post {
-            val safe = text.replace("'", "\\'")
-            webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
+            try {
+                val safe = text.replace("'", "\\'")
+                webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
+            } catch (e: Exception) {}
         }
     }
 
     private fun setWebAvatarSpeaking(isSpeaking: Boolean) {
         mainHandler.post {
-            webView?.evaluateJavascript("if (window.setSpeaking) { window.setSpeaking($isSpeaking); }", null)
+            try {
+                webView?.evaluateJavascript("if (window.setSpeaking) { window.setSpeaking($isSpeaking); }", null)
+            } catch (e: Exception) {}
         }
     }
 
     private fun setWebLiveTranscription(text: String) {
         mainHandler.post {
-            val safe = text.replace("'", "\\'")
-            webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
+            try {
+                val safe = text.replace("'", "\\'")
+                webView?.evaluateJavascript("if (window.updateStatus) { window.updateStatus('$safe'); }", null)
+            } catch (e: Exception) {}
         }
     }
 
     inner class SarahNativeBridge {
         @JavascriptInterface
         fun onUserSpoke(text: String) {
-            Log.d(TAG, "Message reçu depuis le Web: $text")
+            Log.d(TAG, "Message reçu: $text")
         }
 
         @JavascriptInterface
@@ -191,21 +189,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        webView?.onResume()
-        voiceManager?.startContinuousListening()
+        try {
+            webView?.onResume()
+            voiceManager?.startContinuousListening()
+        } catch (e: Exception) {}
     }
 
     override fun onPause() {
-        voiceManager?.stopSpeaking()
-        voiceManager?.stopListening()
-        webView?.onPause()
+        try {
+            voiceManager?.stopSpeaking()
+            voiceManager?.stopListening()
+            webView?.onPause()
+        } catch (e: Exception) {}
         super.onPause()
     }
 
     override fun onDestroy() {
-        voiceManager?.destroy()
-        voiceManager = null
         try {
+            voiceManager?.destroy()
+            voiceManager = null
             webView?.destroy()
         } catch (e: Exception) {}
         super.onDestroy()
