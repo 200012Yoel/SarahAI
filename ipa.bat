@@ -14,24 +14,15 @@ copy /Y "AA.vrm" "SarahIA\SarahIA\Sarah.vrm" >nul
 echo   [OK] Assets 3D VRM synchronises dans le Bundle Xcode iOS.
 echo.
 
-echo [2/3] Sauvegarde et envoi du code sur GitHub...
+echo [2/3] Sauvegarde et declenchement du build sur GitHub...
 git add -A
 git commit -m "Build iOS IPA: Sarah IA com.sarahia.app avec Avatar 3D VRM" --allow-empty
 git push origin main
-echo   [OK] Push reussi vers GitHub !
+echo   [OK] Build lance sur les serveurs macOS !
 echo.
 
-echo [3/3] Compilation du projet Xcode sur le runner macOS...
+echo [3/3] Recuperation et telechargement automatique du fichier IPA...
+powershell -ExecutionPolicy Bypass -File .\download_deliverable.ps1 -Type ipa
+
 echo.
-echo =======================================================
-echo   [OK] BUILD IOS DECLENCHE AVEC SUCCES !
-echo =======================================================
-echo.
-echo Suivez le build et telechargez votre IPA directement :
-echo.
-echo   Actions GitHub : https://github.com/200012Yoel/SarahAI/actions
-echo   Telechargement direct Release : https://github.com/200012Yoel/SarahAI/releases
-echo.
-echo Fichier genere : SarahIA.ipa (Pret pour AltStore / Sideloadly / TrollStore)
-echo =======================================================
-echo.
+pause

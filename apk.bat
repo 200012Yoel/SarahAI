@@ -15,24 +15,15 @@ copy /Y "AA.vrm" "android\app\src\main\assets\Sarah.vrm" >nul
 echo   [OK] Assets 3D VRM synchronises dans le projet Android.
 echo.
 
-echo [2/3] Sauvegarde et envoi du code sur GitHub...
+echo [2/3] Sauvegarde et declenchement du build sur GitHub...
 git add -A
 git commit -m "Build Android APK: Sarah IA com.sarahia.app avec Avatar 3D VRM" --allow-empty
 git push origin main
-echo   [OK] Push reussi vers GitHub !
+echo   [OK] Build lance sur les serveurs !
 echo.
 
-echo [3/3] Lancement de la compilation Android en cours...
+echo [3/3] Recuperation et telechargement automatique du fichier APK...
+powershell -ExecutionPolicy Bypass -File .\download_deliverable.ps1 -Type apk
+
 echo.
-echo =======================================================
-echo   [OK] BUILD ANDROID DECLENCHE AVEC SUCCES !
-echo =======================================================
-echo.
-echo Suivez le build et telechargez votre APK directement :
-echo.
-echo   Actions GitHub : https://github.com/200012Yoel/SarahAI/actions
-echo   Telechargement direct Release : https://github.com/200012Yoel/SarahAI/releases
-echo.
-echo Fichier genere : SarahIA.apk (Compatible Android 7.0 a 15+)
-echo =======================================================
-echo.
+pause
