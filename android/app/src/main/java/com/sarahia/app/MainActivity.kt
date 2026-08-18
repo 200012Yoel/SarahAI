@@ -3,7 +3,6 @@ package com.sarahia.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -33,13 +32,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         try {
-            // Configuration plein écran sans risque de crash
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
         } catch (e: Exception) {
-            Log.w(TAG, "FLAG_LAYOUT_NO_LIMITS non supporté: ${e.message}")
+            Log.w(TAG, "FLAG_LAYOUT_NO_LIMITS: ${e.message}")
         }
 
         setContentView(R.layout.activity_main)
@@ -72,10 +70,9 @@ class MainActivity : AppCompatActivity() {
                 s.allowFileAccessFromFileURLs = true
                 s.allowUniversalAccessFromFileURLs = true
             } catch (e: Exception) {
-                Log.w(TAG, "Universal access flag error: ${e.message}")
+                Log.w(TAG, "Universal access flag: ${e.message}")
             }
 
-            // Interface JavaScript Native Bridge
             wv.addJavascriptInterface(SarahNativeBridge(), "SarahBridge")
 
             wv.webViewClient = object : WebViewClient() {
@@ -100,11 +97,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Chargement local direct du moteur 3D VRM Sarah IA
             wv.loadUrl("file:///android_asset/sarah_ai_web.html")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Erreur critique WebView: ${e.message}")
+            Log.e(TAG, "Erreur WebView: ${e.message}")
         }
     }
 
@@ -123,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Erreur initialisation VoiceManager: ${e.message}")
+            Log.e(TAG, "Erreur VoiceManager: ${e.message}")
         }
     }
 
@@ -136,7 +132,6 @@ class MainActivity : AppCompatActivity() {
                 RECORD_AUDIO_REQUEST_CODE
             )
         } else {
-            // Permission déjà accordée : Démarrer l'écoute automatique en continu
             mainHandler.postDelayed({
                 voiceManager?.startContinuousListening()
             }, 800)
@@ -156,8 +151,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // MARK: - Synchronisation JavaScript avec l'Avatar 3D VRM
 
     private fun updateWebStatus(text: String) {
         mainHandler.post {
@@ -179,8 +172,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // MARK: - Pont JavaScriptInterface
-
     inner class SarahNativeBridge {
         @JavascriptInterface
         fun onUserSpoke(text: String) {
@@ -197,8 +188,6 @@ class MainActivity : AppCompatActivity() {
             voiceManager?.startContinuousListening()
         }
     }
-
-    // MARK: - Cycle de Vie Android
 
     override fun onResume() {
         super.onResume()
@@ -218,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         voiceManager = null
         try {
             webView?.destroy()
-        } catch (_) {}
+        } catch (e: Exception) {}
         super.onDestroy()
     }
 }
