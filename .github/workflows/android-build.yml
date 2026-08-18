@@ -1,0 +1,83 @@
+name: Android Build
+run-name: Android Build ${{ inputs.build_id || format('v{0}', github.run_number) }}
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: 'Unique build identifier'
+        required: false
+        type: string
+        default: 'latest'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradle Wrapper Executable
+        run: |
+          cd android
+          chmod +x gradlew || gradle wrapper
+
+      - name: Build Android APK (Release & Debug)
+        run: |
+          cd android
+          ./gradlew assembleRelease || ./gradlew assembleDebug
+
+      - name: Prepare APK deliverables
+        run: |
+          mkdir -p dist
+          mkdir -p build
+          
+          # Trouver le binaire APK compilé
+          APK_FILE=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -n "$APK_FILE" ]; then
+            cp "$APK_FILE" dist/SarahIA.apk
+            cp "$APK_FILE" build/SarahIA.apk
+            echo "✅ APK généré avec succès : $APK_FILE"
+          else
+            echo "❌ Erreur: Aucun APK trouvé !"
+            exit 1
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sarah-ia-apk
+          path: dist/SarahIA.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with Direct Download APK
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: latest
+          name: "Sarah AI Latest Build (iOS IPA & Android APK)"
+          body: "Official build of Sarah AI Application for iOS and Android. Download SarahIA.ipa and SarahIA.apk directly."
+          files: |
+            dist/SarahIA.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
