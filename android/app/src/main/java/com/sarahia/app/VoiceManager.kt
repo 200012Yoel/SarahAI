@@ -13,19 +13,12 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import java.util.Locale
 
-/**
- * Gestionnaire Vocal Full-Duplex pour Sarah IA (Android) :
- * - Écoute continue en arrière-plan (zéro bouton requis)
- * - Barge-In (interruption instantanée de la voix dès que l'utilisateur commence à parler)
- * - Synthèse vocale française avec synchronisation labiale et gestuelle 3D VRM
- */
 class VoiceManager(
     private val context: Context,
     private val onStatusUpdate: (String) -> Unit,
     private val onSpeakingStateChanged: (Boolean) -> Unit,
     private val onLiveTranscription: (String) -> Unit
-) : TextToSpeech.OnInitListener, RecognitionListener {
-
+) {
     private val TAG = "SarahVoiceManager"
     private var speechRecognizer: SpeechRecognizer? = null
     private var recognizerIntent: Intent? = null
@@ -34,7 +27,6 @@ class VoiceManager(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var isListening = false
     private var isSpeaking = false
-    private var isTtsReady = false
     private var shouldKeepListening = true
 
     init {
@@ -44,60 +36,55 @@ class VoiceManager(
 
     private fun initTTS() {
         try {
-            tts = TextToSpeech(context, this)
+            tts = TextToSpeech(context) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val result = tts?.setLanguage(Locale.FRENCH)
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        tts?.setLanguage(Locale.getDefault())
+                    }
+                    tts?.setSpeechRate(1.02f)
+                    tts?.setPitch(1.06f)
+
+                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) {
+                            mainHandler.post {
+                                isSpeaking = true
+                                onSpeakingStateChanged(true)
+                                onStatusUpdate("🗣️ Sarah parle...")
+                            }
+                        }
+
+                        override fun onDone(utteranceId: String?) {
+                            mainHandler.post {
+                                isSpeaking = false
+                                onSpeakingStateChanged(false)
+                                onStatusUpdate("Sarah vous écoute en continu")
+                                if (shouldKeepListening) {
+                                    startContinuousListening()
+                                }
+                            }
+                        }
+
+                        override fun onError(utteranceId: String?) {
+                            mainHandler.post {
+                                isSpeaking = false
+                                onSpeakingStateChanged(false)
+                                onStatusUpdate("Sarah vous écoute en continu")
+                                if (shouldKeepListening) {
+                                    startContinuousListening()
+                                }
+                            }
+                        }
+                    })
+
+                    Log.d(TAG, "✅ TTS initialisé.")
+                    mainHandler.postDelayed({
+                        speak("Bonjour ! Je m'appelle Sarah. Je vous écoute !")
+                    }, 500)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Erreur initialisation TTS: ${e.message}")
-        }
-    }
-
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.FRENCH)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.setLanguage(Locale.getDefault())
-            }
-            tts?.setSpeechRate(1.02f)
-            tts?.setPitch(1.06f)
-
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
-                    mainHandler.post {
-                        isSpeaking = true
-                        onSpeakingStateChanged(true)
-                        onStatusUpdate("🗣️ Sarah parle...")
-                    }
-                }
-
-                override fun onDone(utteranceId: String?) {
-                    mainHandler.post {
-                        isSpeaking = false
-                        onSpeakingStateChanged(false)
-                        onStatusUpdate("Sarah vous écoute en continu")
-                        if (shouldKeepListening) {
-                            startContinuousListening()
-                        }
-                    }
-                }
-
-                override fun onError(utteranceId: String?) {
-                    mainHandler.post {
-                        isSpeaking = false
-                        onSpeakingStateChanged(false)
-                        onStatusUpdate("Sarah vous écoute en continu")
-                        if (shouldKeepListening) {
-                            startContinuousListening()
-                        }
-                    }
-                }
-            })
-
-            isTtsReady = true
-            Log.d(TAG, "✅ TTS initialisé avec succès.")
-
-            // Accueil vocal au lancement
-            mainHandler.postDelayed({
-                speak("Bonjour ! Je m'appelle Sarah, votre assistante 3D intelligente. Je vous écoute !")
-            }, 600)
         }
     }
 
@@ -107,7 +94,64 @@ class VoiceManager(
                 if (SpeechRecognizer.isRecognitionAvailable(context)) {
                     speechRecognizer?.destroy()
                     speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-                    speechRecognizer?.setRecognitionListener(this)
+                    
+                    speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: Bundle?) {
+                            onStatusUpdate("🎙️ Sarah vous écoute...")
+                        }
+
+                        override fun onBeginningOfSpeech() {
+                            triggerBargeIn()
+                            onStatusUpdate("🎙️ Écoute de votre voix...")
+                        }
+
+                        override fun onRmsChanged(rmsdB: Float) {
+                            if (rmsdB > 2.0f && isSpeaking) {
+                                triggerBargeIn()
+                            }
+                        }
+
+                        override fun onBufferReceived(buffer: ByteArray?) {}
+
+                        override fun onEndOfSpeech() {
+                            onStatusUpdate("🧠 Traitement...")
+                        }
+
+                        override fun onError(error: Int) {
+                            Log.w(TAG, "SpeechRecognizer Code: $error")
+                            isListening = false
+                            if (shouldKeepListening && !isSpeaking) {
+                                restartListeningWithDelay(400)
+                            }
+                        }
+
+                        override fun onResults(results: Bundle?) {
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val userText = matches[0]
+                                Log.d(TAG, "Transcription: $userText")
+                                onLiveTranscription("« $userText »")
+                                
+                                val reply = generateAnswer(userText)
+                                mainHandler.postDelayed({
+                                    speak(reply)
+                                }, 200)
+                            } else {
+                                restartListeningWithDelay(300)
+                            }
+                        }
+
+                        override fun onPartialResults(partialResults: Bundle?) {
+                            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val partial = matches[0]
+                                triggerBargeIn()
+                                onLiveTranscription("« $partial... »")
+                            }
+                        }
+
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
 
                     recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -120,7 +164,7 @@ class VoiceManager(
                     Log.d(TAG, "✅ SpeechRecognizer configuré.")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Erreur initialisation SpeechRecognizer: ${e.message}")
+                Log.e(TAG, "Erreur SpeechRecognizer: ${e.message}")
             }
         }
     }
@@ -205,66 +249,6 @@ class VoiceManager(
         }, delayMs)
     }
 
-    // MARK: - RecognitionListener Callbacks
-
-    override fun onReadyForSpeech(params: Bundle?) {
-        onStatusUpdate("🎙️ Sarah vous écoute...")
-    }
-
-    override fun onBeginningOfSpeech() {
-        triggerBargeIn()
-        onStatusUpdate("🎙️ Écoute de votre voix...")
-    }
-
-    override fun onRmsChanged(rmsdB: Float) {
-        if (rmsdB > 2.5f && isSpeaking) {
-            triggerBargeIn()
-        }
-    }
-
-    override fun onBufferReceived(buffer: ByteArray?) {}
-
-    override fun onEndOfSpeech() {
-        onStatusUpdate("🧠 Traitement de votre demande...")
-    }
-
-    override fun onError(error: Int) {
-        Log.w(TAG, "SpeechRecognizer Code Erreur: $error")
-        isListening = false
-        // Redémarrage continu et transparent de l'écoute
-        if (shouldKeepListening && !isSpeaking) {
-            restartListeningWithDelay(500)
-        }
-    }
-
-    override fun onResults(results: Bundle?) {
-        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        if (!matches.isNullOrEmpty()) {
-            val userText = matches[0]
-            Log.d(TAG, "Transcription Reçue: $userText")
-            onLiveTranscription("« $userText »")
-            
-            // Génération de la réponse de Sarah
-            val reply = generateAnswer(userText)
-            mainHandler.postDelayed({
-                speak(reply)
-            }, 250)
-        } else {
-            restartListeningWithDelay(300)
-        }
-    }
-
-    override fun onPartialResults(partialResults: Bundle?) {
-        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        if (!matches.isNullOrEmpty()) {
-            val partial = matches[0]
-            triggerBargeIn()
-            onLiveTranscription("« $partial... »")
-        }
-    }
-
-    override fun onEvent(eventType: Int, params: Bundle?) {}
-
     // MARK: - Cerveau Conversationnel de Sarah IA
     private fun generateAnswer(input: String): String {
         val lower = input.lowercase().trim()
@@ -296,7 +280,7 @@ class VoiceManager(
                 "Je vais merveilleusement bien, merci ! Et vous, comment se passe votre journée ?"
 
             else ->
-                "J'ai bien compris : $input. Je suis prête à vous aider avec grand plaisir !"
+                "J'ai bien compris : $input. Je suis à votre écoute !"
         }
     }
 
