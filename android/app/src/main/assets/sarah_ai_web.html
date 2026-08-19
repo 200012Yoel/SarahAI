@@ -271,16 +271,12 @@ function setupAvatarModel(vrm) {
   currentVRM = vrm;
   window.currentVRM = vrm;
 
-  // Cadrage parfait : TÊTE COMPLÈTE, BUSTE FÉMININ & BRAS DÉGAGÉS
-  const box = new THREE.Box3().setFromObject(vrm.scene);
-  const height = box.max.y - box.min.y;
-  const center = box.getCenter(new THREE.Vector3());
-
-  vrm.scene.position.x -= center.x;
-  vrm.scene.position.y -= box.min.y;
+  // Cadrage parfait : Centrage strict au milieu de l'écran
+  vrm.scene.position.set(0, 0, 0);
+  vrm.scene.rotation.set(0, 0, 0);
 
   const headBone = vrm.humanoid?.getNormalizedBoneNode('head');
-  let headY = height * 0.85;
+  let headY = 1.35;
   if (headBone) {
     vrm.scene.updateMatrixWorld(true);
     const headWorldPos = new THREE.Vector3();
@@ -302,29 +298,19 @@ function setupAvatarModel(vrm) {
 }
 
 function updateCameraFraming() {
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const aspect = window.innerWidth / window.innerHeight;
+  const w = window.innerWidth || 360;
+  const h = window.innerHeight || 640;
+  const aspect = w / h;
   camera.aspect = aspect;
 
-  // Cadrage universel 100% adapté de l'iPhone 7 (16:9) jusqu'à l'iPhone 17 Pro Max (19.5:9)
+  const isPortrait = h > w;
   if (isPortrait) {
-    if (aspect >= 0.54) {
-      // Écrans classiques 16:9 (iPhone 7 / 8 / SE)
-      camera.fov = 28;
-      const camY = targetHeadY + 0.04;
-      const targetY = targetHeadY - 0.12;
-      const camZ = 3.65;
-      camera.position.set(0, camY, camZ);
-      camera.lookAt(0, targetY, 0);
-    } else {
-      // Écrans allongés Notch & Dynamic Island (iPhone X, 11, 12, 13, 14, 15, 16, 17 Pro Max)
-      camera.fov = 29;
-      const camY = targetHeadY + 0.05;
-      const targetY = targetHeadY - 0.10;
-      const camZ = 3.95;
-      camera.position.set(0, camY, camZ);
-      camera.lookAt(0, targetY, 0);
-    }
+    camera.fov = 28;
+    const camY = targetHeadY + 0.04;
+    const targetY = targetHeadY - 0.12;
+    const camZ = aspect < 0.52 ? 4.0 : 3.75;
+    camera.position.set(0, camY, camZ);
+    camera.lookAt(0, targetY, 0);
   } else {
     // Mode Paysage / Desktop
     camera.fov = 23;

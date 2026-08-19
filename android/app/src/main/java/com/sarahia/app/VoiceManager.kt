@@ -43,7 +43,7 @@ class VoiceManager(
                         tts?.setLanguage(Locale.getDefault())
                     }
                     
-                    // 🎙️ SÉLECTION D'UNE VRAIE VOIX FÉMININE JEUNE ET NATURELLE (Exclusion stricte des voix d'homme)
+                    // 🎙️ SÉLECTION D'UNE VRAIE VOIX FÉMININE JEUNE ET NATURELLE (100% GARANTI SANS VOIX D'HOMME)
                     try {
                         val availableVoices = tts?.voices
                         val frVoices = availableVoices?.filter { voice ->
@@ -87,9 +87,9 @@ class VoiceManager(
                         Log.w(TAG, "Sélection personnalisée voix: ${e.message}")
                     }
 
-                    // Réglage pour voix de jeune fille : ton cristallin, dynamique, pétillant et chaleureux
-                    tts?.setSpeechRate(1.06f)
-                    tts?.setPitch(1.24f)
+                    // Réglage pour voix de jeune fille : pitch plus aigu (1.38f), ton cristallin, dynamique, pétillant et chaleureux
+                    tts?.setSpeechRate(1.08f)
+                    tts?.setPitch(1.38f)
 
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
@@ -254,6 +254,8 @@ class VoiceManager(
                     speechRecognizer?.cancel()
                     isListening = false
                 }
+                tts?.setPitch(1.38f)
+                tts?.setSpeechRate(1.08f)
                 val params = Bundle().apply {
                     putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sarah_${System.currentTimeMillis()}")
                 }
