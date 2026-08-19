@@ -13,19 +13,24 @@ public final class AudioSessionManager {
     public var onInterruptionEnded: (() -> Void)?
     
     private init() {
-        configurePlaybackSession()
         setupInterruptionObservers()
+        // NOTE: On ne configure PAS la session au démarrage pour laisser iOS gérer par défaut
+        // La session est configurée uniquement au moment de parler ou d'écouter
     }
     
     // MARK: - Configuration des Sessions Audio
     
-    /// Active la session audio avec routage forcé vers le haut-parleur principal (Loudspeaker).
+    /// Active la session audio en mode lecture seule (contourne le mode silencieux).
+    /// IMPORTANT : Appeler UNIQUEMENT avant de déclencher la synthèse vocale.
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
-            print("🔊 [AudioSessionManager] Mode .playback activé (Mode silencieux contourné, haut-parleur garanti).")
+            // Ne pas activer si déjà en mode playAndRecord (micro actif)
+            if session.category != .playAndRecord {
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
+                print("🔊 [AudioSessionManager] Mode .playback activé (mode silencieux contourné).")
+            }
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }
@@ -119,10 +124,10 @@ public final class AudioSessionManager {
     }
     
     @objc private func handleAppWillResignActive() {
-        print("⚡ [AudioSessionManager] App en arrière-plan / Siri activé -> Coupure du micro.")
-        DispatchQueue.main.async {
-            self.onInterruptionBegan?()
-        }
+        // Ne pas couper le micro quand on passe en arrière-plan :
+        // iOS gère lui-même les interruptions audio via AVAudioSession.interruptionNotification.
+        // Déclencher onInterruptionBegan ici causait des crashs aléatoires à la fermeture de l'app.
+        print("ℹ️ [AudioSessionManager] App en arrière-plan - gestion audio laissée à iOS.")
     }
     
     @objc private func handleSecondaryAudioHint(_ notification: Notification) {

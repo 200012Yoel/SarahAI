@@ -224,34 +224,57 @@ jobs:
           # Intégration du vrai .appex compilé par Xcode depuis DerivedData
           echo "=== Integration du bundle SarahIAWidgets.appex compile par Xcode ==="
           WIDGET_APPEX=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIAWidgets.appex" -type d | head -n 1)
+          mkdir -p "/tmp/Payload/$APP_NAME/PlugIns"
           
           if [ -n "$WIDGET_APPEX" ] && [ -d "$WIDGET_APPEX" ]; then
             echo "✅ SarahIAWidgets.appex trouve : $WIDGET_APPEX"
-            mkdir -p "/tmp/Payload/$APP_NAME/PlugIns"
             cp -R "$WIDGET_APPEX" "/tmp/Payload/$APP_NAME/PlugIns/"
-            echo "=== Contenu du .appex integre ==="
-            ls -la "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/"
           else
-            echo "⚠️ SarahIAWidgets.appex non trouve dans DerivedData, creation d'un bundle de base..."
+            echo "⚠️ SarahIAWidgets.appex non trouve dans DerivedData, creation bundle manuel..."
             mkdir -p "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex"
-            WIDGET_PLIST="/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
-            echo '<?xml version="1.0" encoding="UTF-8"?>' > "$WIDGET_PLIST"
-            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> "$WIDGET_PLIST"
-            echo '<plist version="1.0"><dict>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundleDisplayName</key><string>Sarah IA Widgets</string>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundleExecutable</key><string>SarahIAWidgets</string>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundleIdentifier</key><string>com.sarahia.app.widgets</string>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundlePackageType</key><string>XPC!</string>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundleShortVersionString</key><string>1.0</string>' >> "$WIDGET_PLIST"
-            echo '    <key>CFBundleVersion</key><string>1</string>' >> "$WIDGET_PLIST"
-            echo '    <key>MinimumOSVersion</key><string>15.0</string>' >> "$WIDGET_PLIST"
-            echo '    <key>NSExtension</key><dict>' >> "$WIDGET_PLIST"
-            echo '        <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>' >> "$WIDGET_PLIST"
-            echo '    </dict>' >> "$WIDGET_PLIST"
-            echo '</dict></plist>' >> "$WIDGET_PLIST"
             cp "/tmp/Payload/$APP_NAME/SarahIA" "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets" 2>/dev/null || true
             chmod +x "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets" 2>/dev/null || true
           fi
+
+          # Patch OBLIGATOIRE du Info.plist du widget (clés requises par iOS pour installation)
+          WIDGET_PLIST="/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
+          echo "=== Ecriture du Info.plist widget (garanti valide) ==="
+          cat > "$WIDGET_PLIST" << 'PLIST_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>fr</string>
+    <key>CFBundleDisplayName</key>
+    <string>Sarah IA Widgets</string>
+    <key>CFBundleExecutable</key>
+    <string>SarahIAWidgets</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.sarahia.app.widgets</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>SarahIAWidgets</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.widgetkit-extension</string>
+    </dict>
+</dict>
+</plist>
+PLIST_EOF
+          echo "✅ Info.plist widget ecrit avec CFBundleName=SarahIAWidgets"
+          echo "=== Contenu du .appex final ==="
+          ls -la "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/"
 
           if [ ! -f "$INFOPLIST_TARGET" ]; then
             echo "❌ ERREUR CRITIQUE: Info.plist est manquant dans Payload/$APP_NAME/Info.plist !"
