@@ -356,6 +356,8 @@ public struct SarahStatusWidget: Widget {
     }
 }
 
+#if WIDGET_EXTENSION
+@main
 public struct SarahIAWidgetsBundle: WidgetBundle {
     public init() {}
     
@@ -365,4 +367,5 @@ public struct SarahIAWidgetsBundle: WidgetBundle {
         SarahStatusWidget()
     }
 }
+#endif
 #endif

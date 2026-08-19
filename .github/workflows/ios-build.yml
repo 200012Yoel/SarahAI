@@ -232,9 +232,20 @@ jobs:
           echo '</dict>' >> "$WIDGET_PLIST"
           echo '</plist>' >> "$WIDGET_PLIST"
 
-          # Copie de l'exécutable Mach-O pour l'extension
-          cp "/tmp/Payload/$APP_NAME/SarahIA" "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
-          chmod +x "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
+           # Compilation du binaire de l'extension avec swiftc et sdk iphoneos
+           echo "=== Compilation de l'extension de widgets avec swiftc ==="
+           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+           xcrun -sdk iphoneos swiftc -target arm64-apple-ios15.0 \
+             -sdk "$SDK_PATH" \
+             -D WIDGET_EXTENSION \
+             -emit-executable \
+             -framework SwiftUI \
+             -framework WidgetKit \
+             -framework Foundation \
+             -o "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets" \
+             SarahIA/SarahIA/Views/SarahWidgets.swift \
+             SarahIA/SarahIA/Services/SarahWidgetBridge.swift
+           chmod +x "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
 
           echo "=== Structure interne de Payload/$APP_NAME/ ==="
           ls -la "/tmp/Payload/$APP_NAME/"
