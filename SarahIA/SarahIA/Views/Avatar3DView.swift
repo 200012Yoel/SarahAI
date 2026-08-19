@@ -34,19 +34,16 @@ public struct Avatar3DView: View {
                         DragGesture()
                             .onChanged { value in
                                 dragOffset = value.translation
-                                // Ajuster le regard de l'avatar au toucher de l'utilisateur
-                                let normalizedX = Float(value.translation.width / (geometry.size.width / 2.0))
-                                let normalizedY = Float(-value.translation.height / (geometry.size.height / 2.0))
-                                avatarEngine.setLookAtTarget(
-                                    x: max(-1.0, min(1.0, normalizedX)),
-                                    y: max(-1.0, min(1.0, normalizedY))
+                                avatarEngine.setLookAtOffset(
+                                    deltaX: Float(value.translation.width),
+                                    deltaY: Float(value.translation.height)
                                 )
                             }
                             .onEnded { _ in
                                 withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                                     dragOffset = .zero
                                 }
-                                avatarEngine.setLookAtTarget(x: 0, y: 0)
+                                avatarEngine.setLookAtOffset(deltaX: 0, deltaY: 0)
                             }
                     )
                 

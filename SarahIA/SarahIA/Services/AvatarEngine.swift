@@ -656,11 +656,14 @@ public final class AvatarEngine: ObservableObject {
         SCNTransaction.commit()
     }
     
-    // MARK: - 6. Interaction Tactile
-    
     public func setLookAtOffset(deltaX: Float, deltaY: Float) {
         lookAtDeltaX = min(0.35, max(-0.35, deltaY * 0.004))
         lookAtDeltaY = min(0.45, max(-0.45, deltaX * 0.004))
+    }
+    
+    public func setLookAtTarget(x: Float, y: Float) {
+        lookAtDeltaY = min(0.45, max(-0.45, x * 0.45))
+        lookAtDeltaX = min(0.35, max(-0.35, y * 0.35))
     }
 }
 

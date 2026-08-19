@@ -136,7 +136,7 @@ jobs:
             -target "SarahIAWidgets" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CONFIGURATION_BUILD_DIR="$GITHUB_WORKSPACE/DerivedData/Build/Products/Release-iphoneos" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
