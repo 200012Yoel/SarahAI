@@ -342,6 +342,28 @@ class SarahBrain(private val context: Context) {
             return
         }
 
+        // 3. Mise à jour dynamique du Widget d'Écran d'Accueil
+        if (norm.startsWith("note dans le widget") || norm.startsWith("mets dans le widget") || norm.startsWith("ajoute au widget")) {
+            val noteContent = userText.replace(Regex("^(?:note dans le widget|mets dans le widget|ajoute au widget)\\s*[:,-]?\\s*", RegexOption.IGNORE_CASE), "").trim()
+            SarahAppWidgetProvider.updateAllWidgets(context, noteContent, "● Note mise à jour")
+            callback("J'ai mis à jour votre widget d'écran d'accueil avec : « $noteContent ».")
+            return
+        }
+
+        // 4. Génération de Mini-Apps & Outils Locaux
+        if (norm.contains("crée une calculatrice") || norm.contains("ouvre une calculatrice")) {
+            val calcHtml = """
+                <p>Calculatrice Rapide</p>
+                <input id="calcIn" style="width:90%;padding:10px;border-radius:8px;border:none;margin-bottom:10px;" placeholder="ex: 12 * 4">
+                <button onclick="document.getElementById('res').innerText = eval(document.getElementById('calcIn').value)">Calculer</button>
+                <div id="res" style="font-size:22px;color:#4ECCA3;margin-top:10px;"></div>
+            """.trimIndent()
+            val miniApp = scriptSandbox.generateMiniAppHtml("Calculatrice Sarah", calcHtml)
+            scriptSandbox.saveScript("calculator.html", miniApp)
+            callback("J'ai généré votre calculatrice locale ! Elle est disponible dans votre espace mini-apps.")
+            return
+        }
+
         // 3. Détection de demande de Traduction Multilingue Temps Réel (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
         val translationReq = translationEngine.parseTranslationIntent(userText)
         if (translationReq != null) {

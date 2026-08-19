@@ -3,10 +3,11 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#151728"
+    android:background="#12131F"
     android:orientation="vertical"
-    android:padding="14dp">
+    android:padding="16dp">
 
+    <!-- En-tête du Widget -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -14,40 +15,56 @@
         android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
             android:src="@mipmap/ic_launcher" />
 
-        <TextView
-            android:id="@+id/widget_title"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:text="Sarah IA"
-            android:textColor="#8e7dff"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sarah AI"
+                android:textColor="#9C8EFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="● Prête et à l'écoute"
+                android:textColor="#4ECCA3"
+                android:textSize="11sp" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/widget_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="● Prête"
-            android:textColor="#4ECCA3"
-            android:textSize="12sp" />
+            android:text="3D"
+            android:textColor="#8888AA"
+            android:textSize="11sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- Contenu dynamique de la note / discussion -->
     <TextView
         android:id="@+id/widget_content"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:layout_weight="1"
         android:ellipsize="end"
+        android:lineSpacingExtra="2dp"
         android:maxLines="3"
-        android:text="Touchez pour parler avec Sarah ou lancez vos raccourcis."
-        android:textColor="#E0E0E0"
+        android:text="Touchez ici pour ouvrir votre avatar 3D ou dites « Hey Sarah » à tout moment."
+        android:textColor="#E4E4EE"
         android:textSize="13sp" />
 
 </LinearLayout>
