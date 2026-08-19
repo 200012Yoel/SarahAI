@@ -48,8 +48,8 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
     public func speak(
         text: String,
         language: String = "fr-FR",
-        rate: Float = 0.52,
-        pitch: Float = 1.05
+        rate: Float = 0.53,
+        pitch: Float = 1.15
     ) {
         // Stopper toute lecture en cours
         stopSpeaking()

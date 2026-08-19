@@ -42,8 +42,34 @@ class VoiceManager(
                     if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                         tts?.setLanguage(Locale.getDefault())
                     }
+                    
+                    // Sélection d'une voix féminine jeune et naturelle (Neural/HQ)
+                    try {
+                        val availableVoices = tts?.voices
+                        val frenchFemaleVoice = availableVoices?.firstOrNull { voice ->
+                            voice.locale.language.equals("fr", ignoreCase = true) &&
+                            (voice.name.contains("female", ignoreCase = true) ||
+                             voice.name.contains("fr-fr-x-fra-network", ignoreCase = true) ||
+                             voice.name.contains("fr-fr-x-frd-network", ignoreCase = true) ||
+                             voice.name.contains("fr-fr-x-fre-network", ignoreCase = true) ||
+                             voice.name.contains("fr-fr-x-frb-network", ignoreCase = true) ||
+                             voice.name.contains("audrey", ignoreCase = true) ||
+                             voice.name.contains("hortense", ignoreCase = true))
+                        } ?: availableVoices?.firstOrNull { voice ->
+                            voice.locale.language.equals("fr", ignoreCase = true) && !voice.isNetworkConnectionRequired
+                        }
+                        
+                        if (frenchFemaleVoice != null) {
+                            tts?.voice = frenchFemaleVoice
+                            Log.d(TAG, "🎙️ Voix sélectionnée : ${frenchFemaleVoice.name}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Sélection personnalisée voix: ${e.message}")
+                    }
+
+                    // Réglage pour voix de jeune fille : ton cristallin, dynamique et chaleureux
                     tts?.setSpeechRate(1.02f)
-                    tts?.setPitch(1.06f)
+                    tts?.setPitch(1.14f)
 
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
