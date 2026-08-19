@@ -215,8 +215,17 @@ class MainActivity : AppCompatActivity() {
     inner class SarahNativeBridge {
         @JavascriptInterface
         fun onUserSpoke(text: String) {
-            Log.d(TAG, "Message reçu: $text")
-            chatDatabase?.insertMessage(role = "user", content = text)
+            val userText = text.trim()
+            if (userText.isEmpty()) return
+            Log.d(TAG, "Message reçu depuis interface: $userText")
+            chatDatabase?.insertMessage(role = "user", content = userText)
+            
+            voiceManager?.getBrain()?.getAnswerAsync(userText) { reply ->
+                chatDatabase?.insertMessage(role = "assistant", content = reply)
+                mainHandler.post {
+                    voiceManager?.speak(reply)
+                }
+            }
         }
 
         @JavascriptInterface

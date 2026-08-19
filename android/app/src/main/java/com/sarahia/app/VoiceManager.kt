@@ -10,9 +10,17 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
 import java.util.Locale
 
+/**
+ * Gestionnaire Vocal & TTS Haute Fidélité pour SarahAI :
+ * - Synthèse vocale jeune fille naturelle, cristalline, dynamique et chaleureuse (Pitch 1.38f, Rate 1.08f)
+ * - Filtrage strict et absolu des voix masculines ou robotiques
+ * - Reconnaissance vocale continue résiliente avec protection anti-auto-écoute (pas d'auto-coupure TTS)
+ * - Connexion directe du flux audio -> Cerveau IA local -> Synthèse vocale & Lip-Sync 3D
+ */
 class VoiceManager(
     private val context: Context,
     private val onStatusUpdate: (String) -> Unit,
@@ -28,11 +36,14 @@ class VoiceManager(
     private var isListening = false
     private var isSpeaking = false
     private var shouldKeepListening = true
+    private val brain = SarahBrain(context)
 
     init {
         initTTS()
         initSpeechRecognizer()
     }
+
+    public fun getBrain(): SarahBrain = brain
 
     private fun initTTS() {
         try {
@@ -43,53 +54,7 @@ class VoiceManager(
                         tts?.setLanguage(Locale.getDefault())
                     }
                     
-                    // 🎙️ SÉLECTION D'UNE VRAIE VOIX FÉMININE JEUNE ET NATURELLE (100% GARANTI SANS VOIX D'HOMME)
-                    try {
-                        val availableVoices = tts?.voices
-                        val frVoices = availableVoices?.filter { voice ->
-                            voice.locale.language.equals("fr", ignoreCase = true) ||
-                            voice.locale == Locale.FRENCH ||
-                            voice.locale == Locale.FRANCE ||
-                            voice.locale.language.startsWith("fr")
-                        } ?: emptyList()
-
-                        // Mots-clés masculins à bannir absolument
-                        val maleKeywords = listOf("male", "homme", "masculin", "fra", "frb", "fre", "frf", "thomas", "nicolas", "paul", "antoine", "remi", "alain", "guy", "jean", "bernard", "pierre", "garcon", "garçon")
-                        val nonMaleFrVoices = frVoices.filter { voice ->
-                            val lowerName = voice.name.lowercase()
-                            !maleKeywords.any { lowerName.contains(it) }
-                        }
-
-                        // Mots-clés féminins connus (Google TTS, Samsung, Xiaomi, etc.)
-                        val femaleKeywords = listOf(
-                            "female", "feminin", "féminin",
-                            "fr-fr-x-frc", "fr-fr-x-frd", "fr-fr-x-frg", "fr-fr-x-frh",
-                            "fr-ca-x-cac", "fr-ca-x-cad",
-                            "audrey", "hortense", "amelie", "amélie", "celine", "julie", "lea", "clara", "chloe", "chloé", "manon", "camille", "sarah", "virginie", "alice", "siwis"
-                        )
-
-                        val frenchFemaleVoice = nonMaleFrVoices.firstOrNull { voice ->
-                            val lowerName = voice.name.lowercase()
-                            femaleKeywords.any { lowerName.contains(it) }
-                        } ?: nonMaleFrVoices.firstOrNull { voice ->
-                            voice.features?.any { it.contains("female", ignoreCase = true) || it.contains("gender=2") || it.contains("gender=female") } == true
-                        } ?: nonMaleFrVoices.firstOrNull()
-                          ?: frVoices.firstOrNull { voice ->
-                              val lowerName = voice.name.lowercase()
-                              femaleKeywords.any { lowerName.contains(it) }
-                          }
-                        
-                        if (frenchFemaleVoice != null) {
-                            tts?.voice = frenchFemaleVoice
-                            Log.d(TAG, "🎙️ Voix féminine sélectionnée : ${frenchFemaleVoice.name}")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Sélection personnalisée voix: ${e.message}")
-                    }
-
-                    // Réglage pour voix de jeune fille : pitch plus aigu (1.38f), ton cristallin, dynamique, pétillant et chaleureux
-                    tts?.setSpeechRate(1.08f)
-                    tts?.setPitch(1.38f)
+                    applyYoungFemaleVoice()
 
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
@@ -105,8 +70,9 @@ class VoiceManager(
                                 isSpeaking = false
                                 onSpeakingStateChanged(false)
                                 onStatusUpdate("Sarah vous écoute en continu")
+                                // Reprise de l'écoute après la fin de la parole (délai de 350ms pour dissiper l'écho)
                                 if (shouldKeepListening) {
-                                    startContinuousListening()
+                                    restartListeningWithDelay(350)
                                 }
                             }
                         }
@@ -117,21 +83,70 @@ class VoiceManager(
                                 onSpeakingStateChanged(false)
                                 onStatusUpdate("Sarah vous écoute en continu")
                                 if (shouldKeepListening) {
-                                    startContinuousListening()
+                                    restartListeningWithDelay(350)
                                 }
                             }
                         }
                     })
 
-                    Log.d(TAG, "✅ TTS initialisé.")
+                    Log.d(TAG, "✅ TTS initialisé avec succès.")
                     mainHandler.postDelayed({
                         speak("Bonjour ! Je m'appelle Sarah. Je vous écoute !")
-                    }, 500)
+                    }, 400)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Erreur initialisation TTS: ${e.message}")
         }
+    }
+
+    private fun applyYoungFemaleVoice() {
+        try {
+            val availableVoices = tts?.voices
+            if (!availableVoices.isNullOrEmpty()) {
+                val frVoices = availableVoices.filter { voice ->
+                    val lang = voice.locale?.language ?: ""
+                    lang.equals("fr", ignoreCase = true) || lang.startsWith("fr")
+                }
+
+                // 1. Liste noire stricte des voix d'homme
+                val maleBanned = listOf("male", "homme", "masculin", "fra", "frb", "fre", "frf", "thomas", "nicolas", "paul", "antoine", "remi", "alain", "guy", "jean", "bernard", "pierre", "garcon", "garçon")
+                val cleanFrVoices = frVoices.filter { voice ->
+                    val name = voice.name.lowercase()
+                    !maleBanned.any { name.contains(it) }
+                }
+
+                // 2. Mots-clés féminins prioritaires (Google Neural, Samsung, etc.)
+                val femaleKeywords = listOf(
+                    "fr-fr-x-frd", "fr-fr-x-frc", "fr-fr-x-frg", "fr-fr-x-frh",
+                    "fr-ca-x-cac", "fr-ca-x-cad",
+                    "female", "feminin", "féminin",
+                    "audrey", "hortense", "amelie", "amélie", "celine", "julie", "lea", "clara", "chloe", "chloé", "manon", "camille", "sarah", "virginie", "alice", "siwis"
+                )
+
+                var chosenVoice: Voice? = cleanFrVoices.firstOrNull { voice ->
+                    val name = voice.name.lowercase()
+                    femaleKeywords.any { name.contains(it) }
+                }
+
+                if (chosenVoice == null) {
+                    chosenVoice = cleanFrVoices.firstOrNull { voice ->
+                        voice.features?.any { it.contains("female", ignoreCase = true) || it.contains("gender=2") } == true
+                    } ?: cleanFrVoices.firstOrNull()
+                }
+
+                if (chosenVoice != null) {
+                    tts?.voice = chosenVoice
+                    Log.d(TAG, "🎙️ Voix féminine appliquée : ${chosenVoice.name}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Exception sélection voix: ${e.message}")
+        }
+
+        // Configuration du timbre jeune fille : Pitch 1.38f (aigu, clair, dynamique), Vitesse 1.08f
+        tts?.setPitch(1.38f)
+        tts?.setSpeechRate(1.08f)
     }
 
     private fun initSpeechRecognizer() {
@@ -143,31 +158,35 @@ class VoiceManager(
                     
                     speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                         override fun onReadyForSpeech(params: Bundle?) {
-                            onStatusUpdate("🎙️ Sarah vous écoute...")
+                            if (!isSpeaking) {
+                                onStatusUpdate("🎙️ Sarah vous écoute...")
+                            }
                         }
 
                         override fun onBeginningOfSpeech() {
-                            triggerBargeIn()
-                            onStatusUpdate("🎙️ Écoute de votre voix...")
+                            if (!isSpeaking) {
+                                onStatusUpdate("🎙️ Écoute de votre voix...")
+                            }
                         }
 
                         override fun onRmsChanged(rmsdB: Float) {
-                            if (rmsdB > 2.0f && isSpeaking) {
-                                triggerBargeIn()
-                            }
+                            // Ne pas déclencher de barge-in sur sa propre voix
                         }
 
                         override fun onBufferReceived(buffer: ByteArray?) {}
 
                         override fun onEndOfSpeech() {
-                            onStatusUpdate("🧠 Traitement...")
+                            if (!isSpeaking) {
+                                onStatusUpdate("🧠 Traitement...")
+                            }
                         }
 
                         override fun onError(error: Int) {
                             Log.w(TAG, "SpeechRecognizer Code: $error")
                             isListening = false
                             if (shouldKeepListening && !isSpeaking) {
-                                restartListeningWithDelay(400)
+                                val delay = if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) 800L else 300L
+                                restartListeningWithDelay(delay)
                             }
                         }
 
@@ -175,24 +194,25 @@ class VoiceManager(
                             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             if (!matches.isNullOrEmpty()) {
                                 val userText = matches[0]
-                                Log.d(TAG, "Transcription: $userText")
+                                Log.d(TAG, "Transcription utilisateur: $userText")
                                 onLiveTranscription("« $userText »")
                                 
                                 brain.getAnswerAsync(userText) { reply ->
-                                    mainHandler.postDelayed({
+                                    mainHandler.post {
                                         speak(reply)
-                                    }, 150)
+                                    }
                                 }
                             } else {
-                                restartListeningWithDelay(300)
+                                if (shouldKeepListening && !isSpeaking) {
+                                    restartListeningWithDelay(300)
+                                }
                             }
                         }
 
                         override fun onPartialResults(partialResults: Bundle?) {
                             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                            if (!matches.isNullOrEmpty()) {
+                            if (!matches.isNullOrEmpty() && !isSpeaking) {
                                 val partial = matches[0]
-                                triggerBargeIn()
                                 onLiveTranscription("« $partial... »")
                             }
                         }
@@ -208,7 +228,7 @@ class VoiceManager(
                         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                         putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
                     }
-                    Log.d(TAG, "✅ SpeechRecognizer configuré.")
+                    Log.d(TAG, "✅ SpeechRecognizer prêt.")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Erreur SpeechRecognizer: ${e.message}")
@@ -241,27 +261,43 @@ class VoiceManager(
                 isListening = false
                 speechRecognizer?.stopListening()
                 speechRecognizer?.cancel()
-            } catch (e: Exception) {
-                Log.e(TAG, "Erreur stopListening: ${e.message}")
-            }
+            } catch (e: Exception) {}
         }
     }
 
     public fun speak(text: String) {
+        val cleanText = text.trim()
+        if (cleanText.isEmpty()) return
+
         mainHandler.post {
             try {
-                if (isListening) {
+                // 1. Stopper l'écoute pour éviter que le micro n'entende les haut-parleurs
+                isListening = false
+                try {
                     speechRecognizer?.cancel()
-                    isListening = false
-                }
-                tts?.setPitch(1.38f)
-                tts?.setSpeechRate(1.08f)
+                } catch (e: Exception) {}
+
+                // 2. Réappliquer systématiquement la voix féminine jeune et le pitch cristallin
+                applyYoungFemaleVoice()
+
+                val utteranceId = "sarah_${System.currentTimeMillis()}"
                 val params = Bundle().apply {
-                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sarah_${System.currentTimeMillis()}")
+                    putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
                 }
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "sarah_utterance")
+
+                isSpeaking = true
+                onSpeakingStateChanged(true)
+                onStatusUpdate("🗣️ Sarah parle...")
+
+                tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
+                Log.d(TAG, "TTS en cours: $cleanText")
             } catch (e: Exception) {
                 Log.e(TAG, "Erreur speak: ${e.message}")
+                isSpeaking = false
+                onSpeakingStateChanged(false)
+                if (shouldKeepListening) {
+                    startContinuousListening()
+                }
             }
         }
     }
@@ -273,19 +309,12 @@ class VoiceManager(
                     tts?.stop()
                     isSpeaking = false
                     onSpeakingStateChanged(false)
+                    onStatusUpdate("Sarah vous écoute en continu")
+                    if (shouldKeepListening) {
+                        restartListeningWithDelay(300)
+                    }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Erreur stopSpeaking: ${e.message}")
-            }
-        }
-    }
-
-    // --- BARGE-IN INTERRUPTION ---
-    private fun triggerBargeIn() {
-        if (isSpeaking) {
-            Log.d(TAG, "⚡ [Barge-In] Interruption immédiate de Sarah !")
-            stopSpeaking()
-            onStatusUpdate("🎙️ Sarah vous écoute...")
+            } catch (e: Exception) {}
         }
     }
 
@@ -298,18 +327,14 @@ class VoiceManager(
         }, delayMs)
     }
 
-    private val brain = SarahBrain(context)
-
-    // MARK: - RecognitionListener Callbacks
-
-    // [suite des callbacks avec SarahBrain]
-
     public fun destroy() {
         shouldKeepListening = false
-        speechRecognizer?.destroy()
-        speechRecognizer = null
-        tts?.stop()
-        tts?.shutdown()
-        tts = null
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            tts?.stop()
+            tts?.shutdown()
+            tts = null
+        } catch (e: Exception) {}
     }
 }

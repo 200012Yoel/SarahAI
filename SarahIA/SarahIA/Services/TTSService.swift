@@ -97,7 +97,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         utterance.voice = bestVoice
         utterance.rate = 0.53
-        utterance.pitchMultiplier = 1.22 // Timbre jeune fille clair et naturel
+        utterance.pitchMultiplier = 1.38 // Timbre jeune fille clair, brillant et naturel
         utterance.volume = 1.0
         utterance.preUtteranceDelay = 0.0
         utterance.postUtteranceDelay = 0.0

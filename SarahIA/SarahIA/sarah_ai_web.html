@@ -819,15 +819,58 @@ function startContinuousRecognition() {
   }
 }
 
-function restartWebRecognition() {
-  if (!isListeningActive && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-    startContinuousRecognition();
+window.speakText = function(text) {
+  if (!text || !text.trim()) return;
+  
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.speak) {
+    window.webkit.messageHandlers.speak.postMessage(text);
+    return;
   }
-}
-window.restartWebRecognition = restartWebRecognition;
+  
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'fr-FR';
+    utterance.pitch = 1.38; // Timbre jeune fille
+    utterance.rate = 1.08;
+
+    const voices = window.speechSynthesis.getVoices();
+    const frVoices = voices.filter(v => v.lang.startsWith('fr'));
+    const femaleVoice = frVoices.find(v => /female|audrey|hortense|amelie|amélie|chloé|chloe|celine|julie|virginie/i.test(v.name)) || frVoices[0];
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    utterance.onstart = () => {
+      window.setSpeaking(true);
+      window.updateStatus("🗣️ Sarah parle...");
+    };
+
+    utterance.onend = () => {
+      window.setSpeaking(false);
+      window.updateStatus("Sarah vous écoute en continu");
+      setTimeout(restartWebRecognition, 400);
+    };
+
+    utterance.onerror = () => {
+      window.setSpeaking(false);
+      window.updateStatus("Sarah vous écoute en continu");
+      setTimeout(restartWebRecognition, 400);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+};
 
 // Démarrage automatique continu au chargement
 window.addEventListener('DOMContentLoaded', () => {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+  }
+  setTimeout(() => {
+    startContinuousRecognition();
+  }, 1000);
+});
   setTimeout(() => {
     startContinuousRecognition();
   }, 1000);
