@@ -33,9 +33,16 @@ dist/
 Thumbs.db
 Desktop.ini
 
-# IDE
-.vscode/
-.idea/
+# Gradle & Android Build
+.gradle/
+build/
+android/.gradle/
+android/build/
+android/app/build/
+*.hprof
+local.properties
 
-# Test file
+# Test & Temp files
 test.txt
+*.tmp
+*.log
