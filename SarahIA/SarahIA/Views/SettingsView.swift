@@ -83,10 +83,10 @@ public struct SettingsView: View {
                                     stats: WidgetStatsData(
                                         totalConversations: max(1, viewModel.conversations.count),
                                         totalMessages: max(4, viewModel.messages.count),
-                                        usagePercentage: 84,
                                         activeMinutesToday: 32,
-                                        learnedMemoriesCount: viewModel.learnedMemories.count,
-                                        weeklyActivity: [3, 7, 5, 12, 8, 15, 18]
+                                        usagePercentage: 84,
+                                        weeklyActivity: [3, 7, 5, 12, 8, 15, 18],
+                                        learnedMemoriesCount: viewModel.learnedMemories.count
                                     )
                                 )
                             )
