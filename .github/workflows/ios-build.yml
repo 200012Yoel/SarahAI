@@ -210,39 +210,28 @@ jobs:
           mkdir -p "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex"
           
           # Info.plist officiel de l'extension WidgetKit
-          cat << 'EOF' > "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>fr</string>
-    <key>CFBundleDisplayName</key>
-    <string>Sarah IA Widgets</string>
-    <key>CFBundleExecutable</key>
-    <string>SarahIAWidgets</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.sarahia.app.widgets</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>SarahIAWidgets</string>
-    <key>CFBundlePackageType</key>
-    <string>XPC!</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>MinimumOSVersion</key>
-    <string>15.0</string>
-    <key>NSExtension</key>
-    <dict>
-        <key>NSExtensionPointIdentifier</key>
-        <string>com.apple.widgetkit-extension</string>
-    </dict>
-</dict>
-</plist>
-EOF
+          WIDGET_PLIST="/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > "$WIDGET_PLIST"
+          echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> "$WIDGET_PLIST"
+          echo '<plist version="1.0">' >> "$WIDGET_PLIST"
+          echo '<dict>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleDevelopmentRegion</key><string>fr</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleDisplayName</key><string>Sarah IA Widgets</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleExecutable</key><string>SarahIAWidgets</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleIdentifier</key><string>com.sarahia.app.widgets</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleName</key><string>SarahIAWidgets</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundlePackageType</key><string>XPC!</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleShortVersionString</key><string>1.0</string>' >> "$WIDGET_PLIST"
+          echo '    <key>CFBundleVersion</key><string>1</string>' >> "$WIDGET_PLIST"
+          echo '    <key>MinimumOSVersion</key><string>15.0</string>' >> "$WIDGET_PLIST"
+          echo '    <key>NSExtension</key>' >> "$WIDGET_PLIST"
+          echo '    <dict>' >> "$WIDGET_PLIST"
+          echo '        <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>' >> "$WIDGET_PLIST"
+          echo '    </dict>' >> "$WIDGET_PLIST"
+          echo '</dict>' >> "$WIDGET_PLIST"
+          echo '</plist>' >> "$WIDGET_PLIST"
+
           # Copie de l'exécutable Mach-O pour l'extension
           cp "/tmp/Payload/$APP_NAME/SarahIA" "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
           chmod +x "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
