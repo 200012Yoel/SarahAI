@@ -735,12 +735,13 @@ function triggerBargeIn() {
     window.setSpeaking(false);
   }
 }
-window.triggerBargeIn = triggerBargeIn;
-
 function startContinuousRecognition() {
+  if (window.SarahBridge || (window.webkit && window.webkit.messageHandlers)) {
+    // Le conteneur natif (Android / iOS) gère la reconnaissance audio de manière fluide et exclusive
+    return;
+  }
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRec) {
-    // Si exécuté dans une WebView sans web-speech natif, Android/iOS gère la voix via Bridge
     return;
   }
 

@@ -35,7 +35,7 @@ class SarahVoiceForegroundService : Service() {
         wakeWordDetector = WakeWordDetector(this) {
             Log.d(TAG, "Mot-clé 'Hey Sarah' détecté en arrière-plan !")
             SarahAppWidgetProvider.updateAllWidgets(this, "Hey Sarah détecté !", "● Écoute en cours")
-        }.apply { startListening() }
+        }
 
         backTapDetector = BackTapGestureDetector(this) {
             Log.d(TAG, "Back-Tap détecté en arrière-plan !")
