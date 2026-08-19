@@ -356,16 +356,10 @@ public struct SarahStatusWidget: Widget {
     }
 }
 
-#if WIDGET_EXTENSION
-@main
-public struct SarahIAWidgetsBundle: WidgetBundle {
-    public init() {}
-    
-    public var body: some Widget {
-        SarahUsageStatsWidget()
-        SarahMemoryWidget()
-        SarahStatusWidget()
-    }
+public struct SarahIAWidgetsPreviewBundle {
+    // Prévisualisation des widgets (sans @main, géré par SarahIAWidgetsEntryPoint.swift)
+    public static let usageStats = SarahUsageStatsWidget()
+    public static let memory = SarahMemoryWidget()
+    public static let status = SarahStatusWidget()
 }
-#endif
 #endif
