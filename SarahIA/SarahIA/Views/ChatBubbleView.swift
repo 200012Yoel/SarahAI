@@ -9,11 +9,13 @@ public struct ChatBubbleView: View {
     public init(
         message: Message,
         isSpeaking: Bool = false,
-        onSpeak: (() -> Void)? = nil
+        isPlayingAudio: Bool = false,
+        onSpeak: (() -> Void)? = nil,
+        onPlayTapped: (() -> Void)? = nil
     ) {
         self.message = message
-        self.isSpeaking = isSpeaking
-        self.onSpeak = onSpeak
+        self.isSpeaking = isSpeaking || isPlayingAudio
+        self.onSpeak = onSpeak ?? onPlayTapped
     }
     
     public var body: some View {

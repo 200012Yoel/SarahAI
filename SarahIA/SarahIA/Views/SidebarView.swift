@@ -143,7 +143,7 @@ public struct SidebarView: View {
                         // Bouton Pill Bleu "Chat" (#btnNewChat)
                         Button(action: {
                             HapticService.shared.buttonTap()
-                            viewModel.createNewConversation()
+                            viewModel.startNewChat()
                             viewModel.switchToChat()
                         }) {
                             HStack(spacing: 12) {
@@ -252,7 +252,7 @@ public struct SidebarView: View {
         .contextMenu {
             Button {
                 HapticService.shared.buttonTap()
-                viewModel.togglePin(conv)
+                viewModel.togglePinConversation(conv)
             } label: {
                 Label(conv.isPinned ? "Détacher" : "Épingler", systemImage: conv.isPinned ? "pin.slash" : "pin")
             }
