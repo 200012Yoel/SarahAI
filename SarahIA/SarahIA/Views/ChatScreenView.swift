@@ -49,7 +49,7 @@ public struct ChatScreenView: View {
                 .buttonStyle(ScaleBounceButtonStyle())
             }
             .padding(.horizontal, 16)
-            .padding(.top, 10)
+            .padding(.top, 50)
             .padding(.bottom, 6)
             
             // Fil de Discussion (.thread)
@@ -130,7 +130,7 @@ public struct ChatScreenView: View {
                     viewModel.toggleMicrophone()
                 }
             )
-            .padding(.bottom, 8)
+            .padding(.bottom, 20)
         }
         .background(Color.black)
     }

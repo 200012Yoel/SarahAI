@@ -55,7 +55,7 @@ public struct SidebarView: View {
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
                     .padding(.horizontal, 22)
-                    .padding(.top, 14)
+                    .padding(.top, 50)
                     .padding(.bottom, 6)
                     
                     // Barre de Recherche Animée (.sb-search.on)
@@ -183,7 +183,7 @@ public struct SidebarView: View {
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 14)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 34)
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [

@@ -18,7 +18,8 @@ public struct ContentView: View {
                     isShowingSettings: $isShowingSettings
                 )
                 .frame(width: sidebarWidth)
-                .opacity(0.35 + Double(viewModel.drawerProgress) * 0.65)
+                .opacity(Double(viewModel.drawerProgress))
+                .allowsHitTesting(viewModel.drawerProgress > 0.05)
                 
                 // 2. CALQUE DU PREMIER PLAN : Application Principale (#app)
                 ZStack {
@@ -138,7 +139,7 @@ public struct ContentView: View {
                     .buttonStyle(ScaleBounceButtonStyle())
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 50)
                 .padding(.bottom, 6)
                 
                 Spacer()
@@ -162,7 +163,7 @@ public struct ContentView: View {
                     }
                 }
                 .buttonStyle(ScaleBounceButtonStyle())
-                .padding(.bottom, 28)
+                .padding(.bottom, 36)
             }
         }
     }
