@@ -43,19 +43,23 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle assembleDebug --stacktrace --no-daemon || gradle assembleRelease --stacktrace --no-daemon
+          gradle assembleRelease assembleDebug --stacktrace --no-daemon
 
       - name: Prepare APK deliverables
         run: |
           mkdir -p dist
           mkdir -p build
           
-          # Trouver le binaire APK compilé
-          APK_FILE=$(find android/app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          # Trouver le binaire APK release signé ou debug
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find android/app/build/outputs/apk -name "*.apk" -type f | head -n 1)
+          fi
+          
           if [ -n "$APK_FILE" ]; then
             cp "$APK_FILE" dist/SarahIA.apk
             cp "$APK_FILE" build/SarahIA.apk
-            echo "✅ APK généré avec succès : $APK_FILE"
+            echo "✅ APK signé généré avec succès : $APK_FILE"
           else
             echo "❌ Erreur: Aucun APK trouvé !"
             exit 1

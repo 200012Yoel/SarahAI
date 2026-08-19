@@ -18,11 +18,19 @@ android {
     }
 
     signingConfigs {
-        debug {
+        release {
+            storeFile file("sarah_keystore.jks")
+            storePassword "sarah123456"
+            keyAlias "sarahkey"
+            keyPassword "sarah123456"
             v1SigningEnabled true
             v2SigningEnabled true
         }
-        release {
+        debug {
+            storeFile file("sarah_keystore.jks")
+            storePassword "sarah123456"
+            keyAlias "sarahkey"
+            keyPassword "sarah123456"
             v1SigningEnabled true
             v2SigningEnabled true
         }
@@ -32,7 +40,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
         debug {
             applicationIdSuffix ""
