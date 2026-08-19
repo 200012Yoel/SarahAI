@@ -66,7 +66,7 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Liaison des Services
     
     private func bindServices() {
-        ttsService.$isSpeaking
+        SpeechManager.shared.$isSpeaking
             .receive(on: DispatchQueue.main)
             .sink { [weak self] speaking in
                 self?.isSpeaking = speaking
@@ -78,17 +78,20 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
-        ttsService.$currentSpokenText
+        SpeechManager.shared.$currentSpokenText
             .receive(on: DispatchQueue.main)
             .sink { [weak self] text in
                 self?.currentSpeakingText = text
             }
             .store(in: &cancellables)
             
-        audioEngine.$isRunning
+        AppleSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] running in
-                self?.isMicRunning = running
+            .sink { [weak self] listening in
+                self?.isMicRunning = listening
+                if listening {
+                    self?.voiceStatus = .listening(level: 0.5)
+                }
             }
             .store(in: &cancellables)
     }
@@ -510,7 +513,7 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             
             self.sendNotificationIfNeeded(message: response)
-            self.ttsService.speak(text: response)
+            SpeechManager.shared.speak(text: response)
             self.endAIBgTask()
         }
     }
@@ -535,7 +538,7 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             
             self.sendNotificationIfNeeded(message: response)
-            self.ttsService.speak(text: response)
+            SpeechManager.shared.speak(text: response)
             self.endAIBgTask()
         }
     }

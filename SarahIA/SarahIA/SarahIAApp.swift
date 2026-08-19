@@ -12,20 +12,17 @@ struct SarahIAApp: App {
             ContentView()
                 .preferredColorScheme(.dark)
                 .onAppear {
-                    // Initialiser la session audio full-duplex
-                    AudioEngineManager.shared.setupAudioSession()
-                    // Demander la permission de notification
-                    NotificationService.shared.requestPermission()
-                    // Réinitialiser le badge
+                    // Configuration initiale de la session audio
+                    AudioSessionManager.shared.configurePlaybackSession()
+                    // Réinitialiser le badge de notification
                     NotificationService.shared.clearBadge()
                 }
         }
     }
 }
 
-// MARK: - AppDelegate pour gérer les notifications et l'audio en arrière-plan
+// MARK: - AppDelegate pour gérer les notifications et le cycle de vie propre
 
-/// AppDelegate nécessaire pour afficher les notifications même quand l'app est active.
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     
     func application(
@@ -33,11 +30,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        AudioEngineManager.shared.setupAudioSession()
+        AudioSessionManager.shared.configurePlaybackSession()
         return true
     }
     
-    /// Permet d'afficher les notifications même quand l'app est au premier plan.
+    /// Permet d'afficher les notifications quand l'app est active.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -46,7 +43,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound, .badge])
     }
     
-    /// Gère le tap sur une notification.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -57,13 +53,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
     
     func applicationDidEnterBackground(_ application: UIApplication) {
-        // Maintenir la session audio active pour la synthèse et l'écoute en arrière-plan
-        AudioEngineManager.shared.setupAudioSession()
+        // Arrêter l'écoute pour libérer les ressources et éviter les blocages
+        AppleSpeechRecognizer.shared.stopListening()
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {
-        // Rafraîchir la session au retour au premier plan
-        AudioEngineManager.shared.setupAudioSession()
+        AudioSessionManager.shared.configurePlaybackSession()
     }
 }
 

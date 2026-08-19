@@ -37,7 +37,6 @@ public final class AppleSpeechRecognizer: NSObject, ObservableObject, SFSpeechRe
     private override init() {
         super.init()
         speechRecognizer?.delegate = self
-        requestPermissions()
     }
     
     public func requestPermissions(completion: ((Bool) -> Void)? = nil) {
@@ -55,6 +54,22 @@ public final class AppleSpeechRecognizer: NSObject, ObservableObject, SFSpeechRe
     
     /// Démarre l'écoute microphone et la transcription en direct
     public func startListening() {
+        guard !isListening else { return }
+        
+        let authStatus = SFSpeechRecognizer.authorizationStatus()
+        let micStatus = AVAudioSession.sharedInstance().recordPermission
+        
+        if authStatus != .authorized || micStatus != .granted {
+            requestPermissions { [weak self] ready in
+                if ready {
+                    self?.startListening()
+                } else {
+                    self?.state = .error("Permissions microphone ou vocale non accordées")
+                }
+            }
+            return
+        }
+        
         stopListening()
         
         guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {

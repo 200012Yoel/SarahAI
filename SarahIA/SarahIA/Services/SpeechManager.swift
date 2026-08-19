@@ -35,10 +35,11 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
     /// Prononce un texte à voix haute avec voix féminine fr-FR naturelle et animation labiale 3D synchronisée.
     public func speak(
         text: String,
-        pitch: Float = 1.1,
-        rate: Float = 0.52
+        pitch: Float = 1.05,
+        rate: Float = 0.50
     ) {
         stopSpeaking()
+        AppleSpeechRecognizer.shared.stopListening()
         
         let cleaned = text
             .replacingOccurrences(of: "*", with: "")
@@ -47,14 +48,14 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         
         guard !cleaned.isEmpty else { return }
         
-        // 1. Forcer la session audio en mode lecture (.playback) pour contourner le bouton silencieux
+        // 1. Forcer la session audio en mode haut-parleur principal
         AudioSessionManager.shared.configurePlaybackSession()
         
         let utterance = AVSpeechUtterance(string: cleaned)
         
-        // 2. Sélection de la voix féminine française de haute qualité
+        // 2. Sélection de la voix féminine française
         utterance.voice = selectBestFrenchFemaleVoice()
-        utterance.pitchMultiplier = pitch // 1.1 pour un timbre féminin naturel et chaleureux
+        utterance.pitchMultiplier = pitch
         utterance.rate = rate
         utterance.volume = 1.0
         
@@ -65,7 +66,9 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         startVisemeLoop()
         onSpeechStarted?()
         
-        synthesizer.speak(utterance)
+        DispatchQueue.main.async {
+            self.synthesizer.speak(utterance)
+        }
     }
     
     /// Interrompt immédiatement l'élocution (Barge-in)

@@ -19,41 +19,42 @@ public final class AudioSessionManager {
     
     // MARK: - Configuration des Sessions Audio
     
-    /// Active la session audio en mode lecture média prioritaire pour contourner le bouton silencieux de l'iPhone.
+    /// Active la session audio avec routage forcé vers le haut-parleur principal (Loudspeaker).
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
-                .playback,
-                mode: .spokenAudio,
-                options: [.duckOthers]
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
             )
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            print("🔊 [AudioSessionManager] Session .playback configurée (Mode silencieux contourné).")
+            try session.overrideOutputAudioPort(.speaker)
+            print("🔊 [AudioSessionManager] Haut-parleur principal forcé (Mode silencieux contourné).")
         } catch {
-            print("⚠️ [AudioSessionManager] Erreur configuration .playback: \(error.localizedDescription)")
+            print("⚠️ [AudioSessionManager] Erreur configuration haut-parleur: \(error.localizedDescription)")
         }
     }
     
-    /// Configure la session audio pour l'enregistrement micro natif.
+    /// Configure la session audio pour l'enregistrement micro natif sans déclencher de mode appel téléphonique.
     public func configureRecordingSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: .measurement,
                 options: [
                     .defaultToSpeaker,
-                    .allowBluetoothHFP,
-                    .allowBluetoothA2DP,
-                    .allowAirPlay
+                    .allowBluetooth,
+                    .allowBluetoothA2DP
                 ]
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            print("🎙️ [AudioSessionManager] Session .playAndRecord activée.")
+            try session.overrideOutputAudioPort(.speaker)
+            print("🎙️ [AudioSessionManager] Session micro active.")
         } catch {
-            print("⚠️ [AudioSessionManager] Erreur configuration .playAndRecord: \(error.localizedDescription)")
+            print("⚠️ [AudioSessionManager] Erreur configuration micro: \(error.localizedDescription)")
         }
     }
     

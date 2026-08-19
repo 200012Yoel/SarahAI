@@ -70,6 +70,41 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
+                    Section(header: Text("Widgets Sarah IA (iOS 15 & 16+)").foregroundColor(.cyan)) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Aperçu du Widget Statistiques & Graphique :")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white)
+                            
+                            // Prévisualisation du Widget Largeur Moyenne
+                            SarahUsageStatsWidgetView(
+                                entry: SarahWidgetEntry(
+                                    date: Date(),
+                                    stats: WidgetStatsData(
+                                        totalConversations: max(1, viewModel.conversations.count),
+                                        totalMessages: max(4, viewModel.messages.count),
+                                        usagePercentage: 84,
+                                        activeMinutesToday: 32,
+                                        learnedMemoriesCount: viewModel.learnedMemories.count,
+                                        weeklyActivity: [3, 7, 5, 12, 8, 15, 18]
+                                    )
+                                )
+                            )
+                            .frame(height: 120)
+                            .padding(12)
+                            .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                            .cornerRadius(16)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            
+                            Text("💡 Pour l'ajouter à votre écran d'accueil : maintenez votre doigt sur l'écran d'accueil de l'iPhone, appuyez sur « + » en haut à gauche et choisissez « Sarah IA ».")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                                .lineSpacing(3)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
                     Section(header: Text("Historique & Réinitialisation").foregroundColor(.cyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
