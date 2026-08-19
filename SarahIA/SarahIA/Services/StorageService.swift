@@ -3,7 +3,9 @@ import Foundation
 /// Modèle d'état persisté complet de l'application Sarah AI.
 public struct AppPersistedState: Codable {
     public var activeMode: String // "text" ou "avatar"
-    public var messages: [Message]
+    public var conversations: [Conversation]
+    public var currentConversationId: UUID?
+    public var messages: [Message] // Fallback historique
     public var lastActiveTimestamp: Date
     public var voiceSettings: VoiceSettings
     public var learnedMemories: [String: String] // Associations apprises [trigger: response]
@@ -11,6 +13,8 @@ public struct AppPersistedState: Codable {
     
     public init(
         activeMode: String = "avatar",
+        conversations: [Conversation] = [],
+        currentConversationId: UUID? = nil,
         messages: [Message] = [],
         lastActiveTimestamp: Date = Date(),
         voiceSettings: VoiceSettings = VoiceSettings(),
@@ -18,6 +22,8 @@ public struct AppPersistedState: Codable {
         pendingLearningTrigger: String? = nil
     ) {
         self.activeMode = activeMode
+        self.conversations = conversations
+        self.currentConversationId = currentConversationId
         self.messages = messages
         self.lastActiveTimestamp = lastActiveTimestamp
         self.voiceSettings = voiceSettings

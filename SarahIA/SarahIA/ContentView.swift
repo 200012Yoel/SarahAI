@@ -1,94 +1,157 @@
 import SwiftUI
 
-/// Vue principale de l'application Sarah AI — Mode Avatar 3D Plein Écran & Mode Conversation Texte.
+/// Vue racine de l'application Sarah AI reproduisant l'architecture native avec tiroir latéral 3D (Sidebar Drawer).
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
-    @Namespace private var bottomAnchor
-    @State private var isHeaderExpanded: Bool = false
-    @State private var isShowingMemoryVault: Bool = false
     @State private var isShowingSettings: Bool = false
+    @State private var isShowingMemoryVault: Bool = false
+    @GestureState private var dragOffset: CGFloat = 0.0
     
     public init() {}
     
     public var body: some View {
-        ZStack {
-            // Fond noir absolu (#000000) pour le mode Avatar ou dégradé sombre iMessage pour le mode Texte
-            if viewModel.appMode == .avatar {
-                Color.black
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-            } else {
-                Color(red: 0.05, green: 0.05, blue: 0.07)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-            }
+        GeometryReader { geometry in
+            let screenWidth = geometry.size.width
+            let drawerWidth = screenWidth * 0.78
             
-            // CONTENU SELON LE MODE ACTIF
-            if viewModel.appMode == .avatar {
-                // ==========================================
-                // 1. CLEAN FULL-SCREEN AVATAR MODE
-                // ==========================================
-                avatarFullScreenLayout
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.95).combined(with: .opacity),
-                        removal: .scale(scale: 1.05).combined(with: .opacity)
-                    ))
-            } else {
-                // ==========================================
-                // 2. TEXT THREAD MODE (iMessage Style)
-                // ==========================================
-                textConversationLayout
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .bottom).combined(with: .opacity)
-                    ))
+            ZStack(alignment: .leading) {
+                // Fond noir absolu
+                Color.black.ignoresSafeArea()
+                
+                // 1. TIROIR LATÉRAL (SIDEBAR)
+                SidebarView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
+                    .frame(width: drawerWidth)
+                    .offset(x: 0)
+                    .opacity(0.35 + Double(viewModel.drawerProgress) * 0.65)
+                
+                // 2. CONTENEUR PRINCIPAL DE L'APPLICATION (APP)
+                ZStack {
+                    // Contenu selon le mode actif (Avatar 3D ou Chat)
+                    if viewModel.appMode == .avatar {
+                        avatarScreen
+                            .transition(.opacity)
+                    } else {
+                        ChatScreenView(viewModel: viewModel)
+                            .transition(.opacity)
+                    }
+                    
+                    // Scrim assombrissant quand le tiroir est ouvert
+                    if viewModel.drawerProgress > 0.01 {
+                        Color.black
+                            .opacity(Double(viewModel.drawerProgress) * 0.35)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                viewModel.closeDrawer()
+                            }
+                    }
+                }
+                .frame(width: screenWidth, height: geometry.size.height)
+                .background(Color.black)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0,
+                        style: .continuous
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0,
+                        style: .continuous
+                    )
+                    .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
+                )
+                .shadow(
+                    color: Color.black.opacity(Double(viewModel.drawerProgress) * 0.6),
+                    radius: 30,
+                    x: -20,
+                    y: 0
+                )
+                .scaleEffect(1.0 - (viewModel.drawerProgress * 0.08), anchor: .leading)
+                .offset(x: viewModel.drawerProgress * drawerWidth)
+                // Geste de glissement pour ouvrir/fermer le tiroir
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            let translation = value.translation.width
+                            if viewModel.isDrawerOpen {
+                                let newProgress = max(0.0, min(1.0, 1.0 + (translation / drawerWidth)))
+                                viewModel.drawerProgress = newProgress
+                            } else if value.startLocation.x < 45 {
+                                let newProgress = max(0.0, min(1.0, translation / drawerWidth))
+                                viewModel.drawerProgress = newProgress
+                            }
+                        }
+                        .onEnded { value in
+                            let translation = value.translation.width
+                            let velocity = value.predictedEndTranslation.width
+                            if viewModel.isDrawerOpen {
+                                if translation < -drawerWidth * 0.3 || velocity < -200 {
+                                    viewModel.closeDrawer()
+                                } else {
+                                    viewModel.openDrawer()
+                                }
+                            } else {
+                                if translation > drawerWidth * 0.3 || velocity > 200 {
+                                    viewModel.openDrawer()
+                                } else {
+                                    viewModel.closeDrawer()
+                                }
+                            }
+                        }
+                )
             }
-            
-            // BOUTON FLOTTANT DE BASCULEMENT DE MODE (Toujours accessible et fluide)
-            floatingModeToggleBar
         }
-        .statusBarHidden(viewModel.appMode == .avatar)
-        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: viewModel.appMode)
-        .sheet(isPresented: $isShowingMemoryVault) {
-            MemoryVaultView(viewModel: viewModel)
-        }
+        .statusBarHidden(viewModel.appMode == .avatar && !viewModel.isDrawerOpen)
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .sheet(isPresented: $isShowingMemoryVault) {
+            MemoryVaultView(viewModel: viewModel)
+        }
     }
     
-    // MARK: - 1. Disposition Mode Avatar Plein Écran
+    // MARK: - Écran Avatar Plein Écran
     
-    private var avatarFullScreenLayout: some View {
+    private var avatarScreen: some View {
         ZStack {
-            // Fond noir absolu pitch black (#000000)
-            Color.black
-                .ignoresSafeArea()
+            Color.black.ignoresSafeArea()
             
-            // Rendu 3D Avatar Centré en Plein Écran
+            // Rendu 3D VRM
             Avatar3DView(isSpeaking: viewModel.voiceStatus == .speaking)
                 .ignoresSafeArea()
             
-            // Interface vocale épurée et indicateurs flottants
             VStack {
-                // Barre supérieure discrète
-                HStack(spacing: 8) {
-                    statusPillBadge
+                // Top bar de l'écran Avatar
+                HStack {
+                    // Bouton Menu latéral (Tiroir)
+                    Button(action: {
+                        viewModel.openDrawer()
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    
                     Spacer()
                     
-                    // Bouton Présentation Sarah
+                    // Bouton Présentation
                     Button(action: {
                         viewModel.introduceSarah()
                     }) {
                         HStack(spacing: 4) {
                             Text("✨")
-                                .font(.system(size: 13))
                             Text("Présentation")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(.cyan)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
                         .background(
                             Capsule()
                                 .fill(Color.white.opacity(0.12))
@@ -96,59 +159,37 @@ public struct ContentView: View {
                         )
                     }
                     
-                    // Bouton Cerveau Permanent / Mémoire
+                    // Bouton Bascule vers le mode Chat Texte
                     Button(action: {
-                        HapticService.shared.buttonTap()
-                        isShowingMemoryVault = true
+                        viewModel.switchToChat()
                     }) {
-                        HStack(spacing: 4) {
-                            Text("🧠")
-                                .font(.system(size: 13))
-                            if !viewModel.learnedMemories.isEmpty {
-                                Text("\(viewModel.learnedMemories.count)")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundColor(.cyan)
-                            }
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "bubble.left.and.bubble.right.fill")
+                                .font(.system(size: 17))
+                                .foregroundColor(.white)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.12))
-                                .overlay(Capsule().stroke(Color.cyan.opacity(0.35), lineWidth: 1))
-                        )
                     }
-                    
-                    // Bouton Réglages
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        isShowingSettings = true
-                    }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.85))
-                            .padding(8)
-                            .background(Circle().fill(Color.white.opacity(0.12)))
-                    }
-                    
-                    testNotificationPill
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 14)
+                .padding(.top, 10)
                 
                 Spacer()
                 
-                // Transcription vocale en direct, contrôle micro et ondelettes audio
-                liveVoiceOverlay
-                    .padding(.bottom, 95) // Espace pour la barre de contrôle flottante
+                // Contrôles vocaux et ondelettes
+                liveVoiceAvatarControls
+                    .padding(.bottom, 36)
             }
         }
     }
     
-    /// Overlay vocal affichant l'état en direct, le bouton micro tactile et les ondes
-    private var liveVoiceOverlay: some View {
-        VStack(spacing: 14) {
-            // Bouton Micro Tactile & Interactif
+    /// Contrôles vocaux interactifs de l'Avatar
+    private var liveVoiceAvatarControls: some View {
+        VStack(spacing: 12) {
+            // Bouton Micro Tactile
             Button(action: {
                 viewModel.toggleMicrophone()
             }) {
@@ -161,8 +202,8 @@ public struct ContentView: View {
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 9)
                 .background(
                     Capsule()
                         .fill(viewModel.isMicRunning ? Color.cyan.opacity(0.22) : Color.white.opacity(0.12))
@@ -174,7 +215,7 @@ public struct ContentView: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            // Ondes d'énergie vocale (16 barres harmoniques)
+            // Ondelettes audio harmoniques
             HStack(spacing: 4) {
                 ForEach(0..<16) { index in
                     let height = voiceWaveHeight(for: index)
@@ -195,7 +236,7 @@ public struct ContentView: View {
             .frame(height: 36)
             .animation(.spring(response: 0.15, dampingFraction: 0.5), value: viewModel.micInputLevel)
             
-            // Transcription partielle en direct ou état
+            // Transcription en direct
             if !viewModel.liveTranscriptionText.isEmpty {
                 Text(viewModel.liveTranscriptionText)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
@@ -206,38 +247,9 @@ public struct ContentView: View {
                     .background(
                         Capsule()
                             .fill(Color.black.opacity(0.7))
-                            .overlay(
-                                Capsule().stroke(Color.cyan.opacity(0.3), lineWidth: 1)
-                            )
-                    )
-                    .transition(.opacity)
-            } else {
-                Text(voiceStatusText)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.85))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.12))
-                            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                            .overlay(Capsule().stroke(Color.cyan.opacity(0.3), lineWidth: 1))
                     )
             }
-        }
-    }
-    
-    private var voiceStatusText: String {
-        switch viewModel.voiceStatus {
-        case .idle:
-            return viewModel.isMicRunning ? "Sarah écoute en continu • Parlez librement" : "Touchez le micro pour parler"
-        case .listening:
-            return "🎙️ Sarah vous écoute..."
-        case .processing:
-            return "💭 Réflexion..."
-        case .speaking:
-            return "🗣️ Sarah parle • Interrompez à tout moment"
-        case .error(let msg):
-            return msg
         }
     }
     
@@ -246,306 +258,6 @@ public struct ContentView: View {
         let multiplier = CGFloat(viewModel.micInputLevel) * 40.0
         let harmonic = sin(Double(index) * 0.5 + Double(viewModel.micInputLevel * 5.0)) * Double(multiplier)
         return max(baseHeight, min(36.0, baseHeight + CGFloat(abs(harmonic))))
-    }
-    
-    // MARK: - 2. Disposition Mode Conversation Texte (iMessage Style)
-    
-    private var textConversationLayout: some View {
-        VStack(spacing: 0) {
-            // En-tête iMessage Dark
-            textModeHeader
-            
-            // Liste scrollable des bulles de messages avec bouton écoute
-            messagesScrollView
-            
-            // Chips de suggestions d'actions rapides
-            quickSuggestionsChips
-            
-            // Barre de saisie fluide avec microphone intégré (MessageInputView)
-            MessageInputView(
-                text: $viewModel.inputText,
-                isTyping: viewModel.isTyping,
-                isMicActive: viewModel.isMicRunning,
-                onSend: viewModel.sendMessage,
-                onMicTap: viewModel.toggleMicrophone
-            )
-        }
-    }
-    
-    /// Suggestions rapides en chips défilants
-    private var quickSuggestionsChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                suggestionChip("✨ Présente-toi", query: "Présente-toi")
-                suggestionChip("💡 Apprendre un mot", query: "Apprends ")
-                suggestionChip("🧠 Que sais-tu ?", query: "Qu'est-ce que tu as appris ?")
-                suggestionChip("👋 Bonjour Sarah", query: "Bonjour")
-                suggestionChip("😄 Raconte une blague", query: "Raconte-moi une blague")
-                suggestionChip("⏰ Quelle heure ?", query: "Quelle heure est-il ?")
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-        }
-        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
-    }
-    
-    private func suggestionChip(_ label: String, query: String) -> some View {
-        Button(action: {
-            HapticService.shared.buttonTap()
-            viewModel.sendQuickSuggestion(query)
-        }) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.9))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-                )
-        }
-    }
-    
-    /// En-tête supérieur en mode texte
-    private var textModeHeader: some View {
-        HStack(spacing: 12) {
-            // Avatar miniature
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.35, green: 0.55, blue: 1.0),
-                                Color(red: 0.70, green: 0.30, blue: 0.95)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 38, height: 38)
-                
-                Text("👩🏻‍💼")
-                    .font(.system(size: 20))
-            }
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Sarah AI")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 7, height: 7)
-                    Text("VRoid 3D • Vocal & Texte")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.green)
-                }
-            }
-            
-            Spacer()
-            
-            // Bouton Mémoire
-            Button(action: {
-                HapticService.shared.buttonTap()
-                isShowingMemoryVault = true
-            }) {
-                HStack(spacing: 4) {
-                    Text("🧠")
-                    if !viewModel.learnedMemories.isEmpty {
-                        Text("\(viewModel.learnedMemories.count)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.cyan)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.1))
-                .cornerRadius(8)
-            }
-            
-            // Bouton Réglages
-            Button(action: {
-                HapticService.shared.buttonTap()
-                isShowingSettings = true
-            }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.75))
-                    .padding(7)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(Circle())
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            Color(red: 0.10, green: 0.10, blue: 0.12)
-                .ignoresSafeArea(edges: .top)
-        )
-    }
-    
-    /// Liste scrollable des messages avec bouton écoute et auto-scroll
-    private var messagesScrollView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 14) {
-                    ForEach(viewModel.messages) { message in
-                        ChatBubbleView(
-                            message: message,
-                            isSpeaking: (viewModel.isSpeaking && viewModel.currentSpeakingText == message.content),
-                            onSpeak: {
-                                viewModel.toggleSpeechForMessage(message.content)
-                            }
-                        )
-                        .id(message.id)
-                    }
-                    
-                    if viewModel.isTyping {
-                        TypingIndicatorView()
-                            .id("typingIndicator")
-                    }
-                    
-                    Color.clear
-                        .frame(height: 1)
-                        .id("bottomAnchor")
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 14)
-                .padding(.bottom, 20)
-            }
-            .onChange(of: viewModel.messages.count) { _ in
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    proxy.scrollTo("bottomAnchor", anchor: .bottom)
-                }
-            }
-            .onChange(of: viewModel.isTyping) { isTyping in
-                if isTyping {
-                    withAnimation {
-                        proxy.scrollTo("typingIndicator", anchor: .bottom)
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - 3. Composants et Badges
-    
-    private var statusPillBadge: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusIndicatorColor)
-                .frame(width: 8, height: 8)
-            
-            Text(statusIndicatorLabel)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            Capsule()
-                .fill(Color.black.opacity(0.6))
-                .overlay(
-                    Capsule().stroke(statusIndicatorColor.opacity(0.4), lineWidth: 1)
-                )
-        )
-    }
-    
-    private var statusIndicatorColor: Color {
-        switch viewModel.voiceStatus {
-        case .idle:
-            return viewModel.isMicRunning ? .green : .gray
-        case .listening:
-            return .cyan
-        case .processing:
-            return .purple
-        case .speaking:
-            return .blue
-        case .error:
-            return .red
-        }
-    }
-    
-    private var statusIndicatorLabel: String {
-        switch viewModel.voiceStatus {
-        case .idle:
-            return viewModel.isMicRunning ? "Sarah Prête" : "Micro Veille"
-        case .listening:
-            return "Écoute Active"
-        case .processing:
-            return "Réflexion..."
-        case .speaking:
-            return "Sarah Parle"
-        case .error:
-            return "Erreur"
-        }
-    }
-    
-    /// Bouton de test rapide en arrière-plan
-    private var testNotificationPill: some View {
-        Button {
-            viewModel.sendBackgroundTest()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "bell.badge.fill")
-                    .font(.system(size: 11))
-                Text("Bg Test")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-            }
-            .foregroundColor(.white.opacity(0.85))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color.blue.opacity(0.25))
-                    .overlay(
-                        Capsule().stroke(Color.blue.opacity(0.4), lineWidth: 0.5)
-                    )
-            )
-        }
-    }
-    
-    /// Barre flottante de basculement de mode (Avatar 3D <-> Texte)
-    private var floatingModeToggleBar: some View {
-        VStack {
-            Spacer()
-            
-            HStack(spacing: 16) {
-                // Bouton Bascule Mode
-                Button(action: viewModel.toggleMode) {
-                    HStack(spacing: 8) {
-                        Image(systemName: viewModel.appMode == .avatar ? "bubble.left.and.bubble.right.fill" : "person.crop.circle.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                        
-                        Text(viewModel.appMode == .avatar ? "Mode Conversation" : "Mode Avatar 3D")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .background(
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(red: 0.25, green: 0.45, blue: 0.95),
-                                        Color(red: 0.65, green: 0.25, blue: 0.85)
-                                    ]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 5)
-                            .overlay(
-                                Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1)
-                            )
-                    )
-                }
-            }
-            .padding(.bottom, viewModel.appMode == .avatar ? 24 : 80)
-        }
     }
 }
 

@@ -863,18 +863,17 @@ window.speakText = function(text) {
   }
 };
 
-// Démarrage automatique continu au chargement
+// Initialisation au chargement
 window.addEventListener('DOMContentLoaded', () => {
   if (window.speechSynthesis) {
-    window.speechSynthesis.getVoices();
+    try { window.speechSynthesis.getVoices(); } catch(_) {}
   }
-  setTimeout(() => {
-    startContinuousRecognition();
-  }, 1000);
-});
-  setTimeout(() => {
-    startContinuousRecognition();
-  }, 1000);
+  const isNativeApp = !!(window.SarahBridge || (window.webkit && window.webkit.messageHandlers));
+  if (!isNativeApp) {
+    setTimeout(() => {
+      startContinuousRecognition();
+    }, 1000);
+  }
 });
 </script>
 

@@ -18,12 +18,14 @@ public enum VoiceInteractionStatus: Equatable {
     case error(String)
 }
 
-/// ViewModel principal orchestrant le mode Avatar 3D, le mode Texte, le Whisper VAD, le TTS et la persistance.
+/// ViewModel principal orchestrant le mode Avatar 3D, le mode Texte, le tiroir de discussions multiples, le Whisper VAD, le TTS et la persistance.
 @MainActor
 public final class ChatViewModel: ObservableObject {
     
     // MARK: - Published UI State
     @Published public var appMode: AppMode = .avatar
+    @Published public var conversations: [Conversation] = []
+    @Published public var currentConversationId: UUID? = nil
     @Published public var messages: [Message] = []
     @Published public var inputText: String = ""
     @Published public var isTyping: Bool = false
@@ -34,6 +36,12 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    
+    // MARK: - Navigation Tiroir & Recherche
+    @Published public var isDrawerOpen: Bool = false
+    @Published public var drawerProgress: CGFloat = 0.0 // 0.0 à 1.0 pour animation fluide au geste
+    @Published public var searchQuery: String = ""
+    @Published public var isSearchActive: Bool = false
     
     // MARK: - Services
     private let aiService = AIService.shared
@@ -86,11 +94,12 @@ public final class ChatViewModel: ObservableObject {
     
     // MARK: - Persistance des Données & Restauration
     
-    /// Restaure la conversation et le mode actif depuis le stockage local
+    /// Restaure l'ensemble des discussions et l'état depuis le stockage local
     private func restorePersistedState() {
         let savedState = storageService.loadState()
         
         self.learnedMemories = savedState.learnedMemories
+        self.conversations = savedState.conversations
         
         if let mode = AppMode(rawValue: savedState.activeMode) {
             self.appMode = mode
@@ -98,24 +107,40 @@ public final class ChatViewModel: ObservableObject {
             self.appMode = .avatar
         }
         
-        if !savedState.messages.isEmpty {
-            self.messages = savedState.messages
+        if let currentId = savedState.currentConversationId,
+           let existing = self.conversations.first(where: { $0.id == currentId }) {
+            self.currentConversationId = existing.id
+            self.messages = existing.messages
+        } else if let first = self.conversations.first {
+            self.currentConversationId = first.id
+            self.messages = first.messages
+        } else if !savedState.messages.isEmpty {
+            let initialConv = Conversation(title: "Nouvelle discussion", messages: savedState.messages)
+            self.conversations = [initialConv]
+            self.currentConversationId = initialConv.id
+            self.messages = initialConv.messages
         } else {
-            // Premier lancement : message de bienvenue de Sarah
-            let welcome = Message(
-                content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA 3D en temps réel. Parlez-moi ou écrivez-moi !",
-                isFromUser: false
-            )
-            self.messages = [welcome]
-            persistCurrentState()
+            // Aucun message -> Liste vierge prête
+            self.conversations = []
+            self.currentConversationId = nil
+            self.messages = []
         }
     }
     
     /// Sauvegarde l'état courant de l'application
     public func persistCurrentState() {
+        // Mettre à jour la conversation active si existante
+        if let currentId = currentConversationId,
+           let index = conversations.firstIndex(where: { $0.id == currentId }) {
+            conversations[index].messages = messages
+            conversations[index].updatedAt = Date()
+        }
+        
         let existing = storageService.loadState()
         let state = AppPersistedState(
             activeMode: appMode.rawValue,
+            conversations: conversations,
+            currentConversationId: currentConversationId,
             messages: messages,
             lastActiveTimestamp: Date(),
             voiceSettings: existing.voiceSettings,
@@ -123,20 +148,118 @@ public final class ChatViewModel: ObservableObject {
             pendingLearningTrigger: existing.pendingLearningTrigger
         )
         storageService.saveState(state)
+        
+        // Synchronisation en temps réel des statistiques vers les Widgets iOS
+        let lastMemoryTuple: (trigger: String, response: String)? = self.learnedMemories.first.map { ($0.key, $0.value) }
+        SarahWidgetBridge.shared.syncStats(
+            conversationsCount: self.conversations.count,
+            messagesCount: self.messages.count,
+            memoriesCount: self.learnedMemories.count,
+            lastMemory: lastMemoryTuple,
+            lastMessage: self.messages.last?.content
+        )
     }
     
-    /// Efface l'historique et réinitialise la conversation
-    public func resetConversation() {
+    // MARK: - Gestion des Discussions (Sidebar)
+    
+    public var filteredPinnedConversations: [Conversation] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return conversations.filter { $0.isPinned && !$0.isArchived }
+            .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+    }
+    
+    public var filteredRecentConversations: [Conversation] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return conversations.filter { !$0.isPinned && !$0.isArchived }
+            .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+    }
+    
+    public func startNewChat() {
+        haptics.buttonTap()
         ttsService.stopSpeaking()
-        whisperService.reset()
-        messages = [
-            Message(
-                content: "Bonjour ! Je suis Sarah. Comment puis-je vous aider ?",
-                isFromUser: false
-            )
-        ]
+        currentConversationId = nil
+        messages = []
+        inputText = ""
+        appMode = .text
+        isDrawerOpen = false
+        drawerProgress = 0.0
+    }
+    
+    public func selectConversation(_ conv: Conversation) {
+        haptics.buttonTap()
+        ttsService.stopSpeaking()
+        currentConversationId = conv.id
+        messages = conv.messages
+        appMode = .text
+        isDrawerOpen = false
+        drawerProgress = 0.0
         persistCurrentState()
+    }
+    
+    public func togglePinConversation(_ conv: Conversation) {
+        haptics.buttonTap()
+        if let index = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[index].isPinned.toggle()
+            persistCurrentState()
+        }
+    }
+    
+    public func renameConversation(_ conv: Conversation, newTitle: String) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        haptics.buttonTap()
+        if let index = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[index].title = trimmed
+            persistCurrentState()
+        }
+    }
+    
+    public func deleteConversation(_ conv: Conversation) {
         haptics.memoryDeleted()
+        conversations.removeAll(where: { $0.id == conv.id })
+        if currentConversationId == conv.id {
+            if let next = conversations.first {
+                selectConversation(next)
+            } else {
+                startNewChat()
+            }
+        }
+        persistCurrentState()
+    }
+    
+    public func archiveConversation(_ conv: Conversation) {
+        haptics.buttonTap()
+        if let index = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[index].isArchived = true
+            if currentConversationId == conv.id {
+                startNewChat()
+            }
+            persistCurrentState()
+        }
+    }
+    
+    // MARK: - Tiroir Latéral (Drawer)
+    
+    public func toggleDrawer() {
+        haptics.buttonTap()
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            isDrawerOpen.toggle()
+            drawerProgress = isDrawerOpen ? 1.0 : 0.0
+        }
+    }
+    
+    public func openDrawer() {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            isDrawerOpen = true
+            drawerProgress = 1.0
+        }
+    }
+    
+    public func closeDrawer() {
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            isDrawerOpen = false
+            drawerProgress = 0.0
+        }
     }
     
     // MARK: - Gestion des Modes d'Affichage
@@ -149,7 +272,6 @@ public final class ChatViewModel: ObservableObject {
                 self.haptics.modeToggled()
                 
                 if newMode == .avatar {
-                    // Démarrage doux de l'audio si permission déjà accordée
                     self.audioEngine.requestPermissionAndStart { granted in
                         if granted {
                             self.whisperService.startTranscription()
@@ -160,7 +282,24 @@ public final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    /// Bascule entre le mode Avatar plein écran et le mode Texte
+    public func switchToAvatar() {
+        haptics.buttonTap()
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+            appMode = .avatar
+            isDrawerOpen = false
+            drawerProgress = 0.0
+        }
+    }
+    
+    public func switchToChat() {
+        haptics.buttonTap()
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+            appMode = .text
+            isDrawerOpen = false
+            drawerProgress = 0.0
+        }
+    }
+    
     public func toggleMode() {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
             appMode = (appMode == .avatar) ? .text : .avatar
@@ -170,12 +309,10 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Pipeline Vocal Full-Duplex & Barge-In
     
     private func setupVoicePipeline() {
-        // 1. Liaison des buffers audio du micro vers Whisper
         audioEngine.onAudioBufferCaptured = { [weak self] buffer in
             self?.whisperService.appendAudioBuffer(buffer)
         }
         
-        // 2. Gestion des événements VAD (Voice Activity Detection)
         audioEngine.onVoiceActivityChanged = { [weak self] state in
             guard let self = self else { return }
             switch state {
@@ -193,26 +330,22 @@ public final class ChatViewModel: ObservableObject {
                     self.voiceStatus = .listening(level: amplitude)
                 }
             case .bargeInDetected:
-                // --- BARGE-IN INTERRUPTION ---
                 print("⚡ [ChatViewModel] Interruption détectée! Arrêt immédiat de la parole de Sarah.")
                 self.haptics.bargeIn()
                 self.ttsService.stopSpeaking()
                 self.whisperService.startTranscription()
                 self.voiceStatus = .listening(level: self.micInputLevel)
             case .silenceDetected:
-                // Fin de prise de parole -> Finaliser la transcription
                 if self.whisperService.status == .listening {
                     self.whisperService.stopTranscription()
                 }
             }
         }
         
-        // 3. Transcription partielle en direct pour affichage dans la vue Avatar
         whisperService.onPartialTranscription = { [weak self] partial in
             self?.liveTranscriptionText = partial
         }
         
-        // 4. Transcription finale terminée -> Envoyer au modèle d'IA
         whisperService.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -225,7 +358,6 @@ public final class ChatViewModel: ObservableObject {
             self.handleUserSpeechInput(cleaned)
         }
         
-        // 5. Événements TTS
         ttsService.onSpeechStarted = { [weak self] in
             self?.voiceStatus = .speaking
             self?.haptics.speechStarted()
@@ -245,7 +377,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Démarre ou bascule l'écoute vocale
     public func toggleMicrophone() {
         haptics.buttonTap()
         if audioEngine.isRunning {
@@ -261,7 +392,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Démarre l'écoute vocale continue pour le mode Avatar
     public func startFullDuplexVoiceMode() {
         audioEngine.requestPermissionAndStart { [weak self] granted in
             guard let self = self, granted else { return }
@@ -270,7 +400,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Arrête l'écoute vocale
     public func stopVoiceMode() {
         whisperService.stopTranscription()
         audioEngine.stopAudioEngine()
@@ -280,13 +409,11 @@ public final class ChatViewModel: ObservableObject {
     
     // MARK: - Écoute et Lecture Vocale des Messages (TTS)
     
-    /// Lit un message spécifique à voix haute
     public func speakMessage(_ text: String) {
         haptics.buttonTap()
         ttsService.speak(text: text)
     }
     
-    /// Bascule la lecture d'un message spécifique (lecture ou arrêt)
     public func toggleSpeechForMessage(_ text: String) {
         haptics.buttonTap()
         let cleaned = text
@@ -301,17 +428,38 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Présentation complète et chaleureuse de Sarah (Voix + Texte)
     public func introduceSarah() {
         haptics.buttonTap()
         let introText = "Bonjour ! 👋 Je m'appelle Sarah, votre assistante IA 3D en temps réel. Je suis conçue pour converser avec vous par la voix ou par écrit, répondre à vos questions, et mémoriser nos échanges. N'hésitez pas à me parler librement !"
         let aiMessage = Message(content: introText, isFromUser: false)
-        messages.append(aiMessage)
-        persistCurrentState()
+        appendMessage(aiMessage)
         ttsService.speak(text: introText)
     }
     
-    // MARK: - Traitement des Messages (Texte & Voix)
+    // MARK: - Traitement des Messages
+    
+    private func generateTitle(from text: String) -> String {
+        let cleaned = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.count > 34 {
+            return String(cleaned.prefix(34)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        }
+        return cleaned.isEmpty ? "Nouvelle discussion" : cleaned
+    }
+    
+    private func ensureConversation(withFirstMessage text: String) {
+        if currentConversationId == nil || !conversations.contains(where: { $0.id == currentConversationId }) {
+            let title = generateTitle(from: text)
+            let newConv = Conversation(title: title)
+            conversations.insert(newConv, at: 0)
+            currentConversationId = newConv.id
+        }
+    }
+    
+    private func appendMessage(_ msg: Message) {
+        ensureConversation(withFirstMessage: msg.content)
+        messages.append(msg)
+        persistCurrentState()
+    }
     
     private var aiProcessingBgTask: UIBackgroundTaskIdentifier = .invalid
     
@@ -334,11 +482,9 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    /// Traite une entrée vocale transcrite par Whisper
     private func handleUserSpeechInput(_ transcription: String) {
         let userMessage = Message(content: transcription, isFromUser: true)
-        messages.append(userMessage)
-        persistCurrentState()
+        appendMessage(userMessage)
         
         voiceStatus = .processing
         isTyping = true
@@ -349,28 +495,22 @@ public final class ChatViewModel: ObservableObject {
             self.refreshLearnedMemories()
             
             let aiMessage = Message(content: response, isFromUser: false)
-            self.messages.append(aiMessage)
+            self.appendMessage(aiMessage)
             self.isTyping = false
-            self.persistCurrentState()
             
-            // Envoyer une notification locale si l'app est en arrière-plan
             self.sendNotificationIfNeeded(message: response)
-            
-            // Prononcer la réponse à voix haute et animer l'avatar 3D
             self.ttsService.speak(text: response)
             self.endAIBgTask()
         }
     }
     
-    /// Envoie un message saisi manuellement au clavier
     public func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
         let userMessage = Message(content: text, isFromUser: true)
-        messages.append(userMessage)
+        appendMessage(userMessage)
         inputText = ""
-        persistCurrentState()
         
         isTyping = true
         beginAIBgTask()
@@ -380,31 +520,25 @@ public final class ChatViewModel: ObservableObject {
             self.refreshLearnedMemories()
             
             let aiMessage = Message(content: response, isFromUser: false)
-            self.messages.append(aiMessage)
+            self.appendMessage(aiMessage)
             self.isTyping = false
-            self.persistCurrentState()
             
-            // Envoyer une notification locale si l'app est en arrière-plan
             self.sendNotificationIfNeeded(message: response)
-            
-            // Synthèse vocale fluide et synchronisée à voix haute
             self.ttsService.speak(text: response)
             self.endAIBgTask()
         }
     }
     
-    /// Envoie une suggestion rapide (chips)
     public func sendQuickSuggestion(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed == "Présente-toi" || trimmed == "Qui es-tu ?" || trimmed.contains("présentation") {
             introduceSarah()
         } else {
             inputText = text
-            sendMessage()
         }
     }
     
-    // MARK: - Gestion de la Mémoire Apprise ("Brain Vault")
+    // MARK: - Mémoire Apprise
     
     public func refreshLearnedMemories() {
         self.learnedMemories = storageService.loadState().learnedMemories
@@ -453,23 +587,19 @@ public final class ChatViewModel: ObservableObject {
         )
     }
     
-    /// Test de notification locale en arrière-plan
     public func sendBackgroundTest() {
         let testMessage = Message(
             content: "🔔 Test en arrière-plan lancé ! Minimisez l'app maintenant pour tester la voix et les notifications.",
             isFromUser: false
         )
-        messages.append(testMessage)
-        persistCurrentState()
-        
+        appendMessage(testMessage)
         isTyping = true
         
         Task {
             let response = await aiService.generateBackgroundTestResponse()
             let aiMessage = Message(content: response, isFromUser: false)
-            self.messages.append(aiMessage)
+            self.appendMessage(aiMessage)
             self.isTyping = false
-            self.persistCurrentState()
             
             self.notificationService.sendResponseNotification(message: response)
             self.ttsService.speak(text: response)
