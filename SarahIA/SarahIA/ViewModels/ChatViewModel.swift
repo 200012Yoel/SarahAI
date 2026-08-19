@@ -36,6 +36,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var isContinuousConversationActive: Bool = false
     
     // MARK: - Navigation Tiroir & Recherche
     @Published public var isDrawerOpen: Bool = false
