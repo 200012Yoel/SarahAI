@@ -117,7 +117,7 @@ public struct ContentView: View {
             Color.black.ignoresSafeArea()
             
             // Rendu 3D VRM
-            Avatar3DView(isSpeaking: viewModel.voiceStatus == .speaking)
+            Avatar3DView(isSpeaking: viewModel.voiceStatus == .speaking || SpeechManager.shared.isSpeaking)
                 .ignoresSafeArea()
             
             VStack {

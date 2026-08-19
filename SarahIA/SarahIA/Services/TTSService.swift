@@ -62,6 +62,9 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         guard !cleanedText.isEmpty else { return }
         
+        // 1. Activer la session audio .playback pour contourner le commutateur silencieux de l'iPhone
+        AudioSessionManager.shared.configurePlaybackSession()
+        
         currentUtteranceWords = cleanedText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         currentWordIndex = 0
         
@@ -80,25 +83,25 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         var selectedVoice: AVSpeechSynthesisVoice?
         
         if #available(iOS 16.0, *) {
-            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .premium && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Chantal")) })
-                ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Chantal")) })
+            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .premium && ($0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Chantal")) })
+                ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Chantal")) })
                 ?? femaleFrenchVoices.first(where: { $0.quality == .premium && $0.gender == .female })
                 ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && $0.gender == .female })
         } else {
-            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie")) })
+            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Audrey") || $0.name.contains("Hortense")) })
                 ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && $0.gender == .female })
         }
         
         let bestVoice = selectedVoice
-            ?? femaleFrenchVoices.first(where: { $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") })
+            ?? femaleFrenchVoices.first(where: { $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Audrey") || $0.name.contains("Hortense") })
             ?? femaleFrenchVoices.first(where: { $0.gender == .female })
             ?? femaleFrenchVoices.first
             ?? AVSpeechSynthesisVoice(language: "fr-FR")
             ?? AVSpeechSynthesisVoice(language: language)
         
         utterance.voice = bestVoice
-        utterance.rate = 0.53
-        utterance.pitchMultiplier = 1.38 // Timbre jeune fille clair, brillant et naturel
+        utterance.rate = 0.52
+        utterance.pitchMultiplier = 1.1 // Rendu chaleureux et féminin
         utterance.volume = 1.0
         utterance.preUtteranceDelay = 0.0
         utterance.postUtteranceDelay = 0.0

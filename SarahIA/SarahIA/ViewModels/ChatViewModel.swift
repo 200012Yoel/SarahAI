@@ -306,47 +306,17 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Pipeline Vocal Full-Duplex & Barge-In
+    // MARK: - Mode Conversationnel Continu (100% Gratuit & Local Apple Speech)
+    @Published public var isContinuousConversationActive: Bool = false
     
     private func setupVoicePipeline() {
-        audioEngine.onAudioBufferCaptured = { [weak self] buffer in
-            self?.whisperService.appendAudioBuffer(buffer)
-        }
-        
-        audioEngine.onVoiceActivityChanged = { [weak self] state in
-            guard let self = self else { return }
-            switch state {
-            case .idle:
-                self.voiceStatus = .idle
-                self.micInputLevel = 0.0
-            case .listening(let amplitude):
-                self.micInputLevel = amplitude
-                if !self.ttsService.isSpeaking && self.voiceStatus != .processing {
-                    self.voiceStatus = .listening(level: amplitude)
-                }
-            case .userSpeaking(let amplitude):
-                self.micInputLevel = amplitude
-                if self.voiceStatus != .processing {
-                    self.voiceStatus = .listening(level: amplitude)
-                }
-            case .bargeInDetected:
-                print("⚡ [ChatViewModel] Interruption détectée! Arrêt immédiat de la parole de Sarah.")
-                self.haptics.bargeIn()
-                self.ttsService.stopSpeaking()
-                self.whisperService.startTranscription()
-                self.voiceStatus = .listening(level: self.micInputLevel)
-            case .silenceDetected:
-                if self.whisperService.status == .listening {
-                    self.whisperService.stopTranscription()
-                }
-            }
-        }
-        
-        whisperService.onPartialTranscription = { [weak self] partial in
+        // 1. Liaison de la transcription en direct
+        AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
             self?.liveTranscriptionText = partial
         }
         
-        whisperService.onFinalTranscription = { [weak self] finalTranscription in
+        // 2. Validation automatique de la phrase par détection de silence
+        AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else {
@@ -358,52 +328,87 @@ public final class ChatViewModel: ObservableObject {
             self.handleUserSpeechInput(cleaned)
         }
         
-        ttsService.onSpeechStarted = { [weak self] in
+        // 3. Liaison de l'énergie micro pour ondelettes audio
+        AppleSpeechRecognizer.shared.$micEnergyLevel
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] level in
+                self?.micInputLevel = level
+            }
+            .store(in: &cancellables)
+            
+        AppleSpeechRecognizer.shared.$isListening
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] listening in
+                self?.isMicRunning = listening
+                if listening {
+                    self?.voiceStatus = .listening(level: 0.5)
+                } else if self?.voiceStatus != .speaking && self?.voiceStatus != .processing {
+                    self?.voiceStatus = .idle
+                }
+            }
+            .store(in: &cancellables)
+        
+        // 4. Événements SpeechManager (Synthèse Vocale Sarah)
+        SpeechManager.shared.onSpeechStarted = { [weak self] in
             self?.voiceStatus = .speaking
             self?.haptics.speechStarted()
         }
         
-        ttsService.onSpeechFinished = { [weak self] in
+        SpeechManager.shared.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.voiceStatus = .idle
             self.haptics.speechFinished()
-            if self.appMode == .avatar {
-                self.whisperService.startTranscription()
+            
+            // 🔄 BOUCLE CONVERSATIONNELLE CONTINUE : Réactivation automatique du micro
+            if self.isContinuousConversationActive || self.appMode == .avatar {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    if !SpeechManager.shared.isSpeaking {
+                        AppleSpeechRecognizer.shared.startListening()
+                        self.isMicRunning = true
+                        self.voiceStatus = .listening(level: 0.0)
+                    }
+                }
             }
         }
         
-        ttsService.onSpeechInterrupted = { [weak self] in
+        SpeechManager.shared.onSpeechInterrupted = { [weak self] in
             self?.voiceStatus = .idle
         }
     }
     
+    /// Bascule le microphone / mode conversationnel continu (1 seul appui pour converser librement)
     public func toggleMicrophone() {
         haptics.buttonTap()
-        if audioEngine.isRunning {
-            audioEngine.stopAudioEngine()
-            whisperService.stopTranscription()
+        if isMicRunning || AppleSpeechRecognizer.shared.isListening {
+            isContinuousConversationActive = false
+            AppleSpeechRecognizer.shared.stopListening()
+            isMicRunning = false
             voiceStatus = .idle
         } else {
-            audioEngine.requestPermissionAndStart { [weak self] granted in
-                guard let self = self, granted else { return }
-                self.whisperService.startTranscription()
-                self.voiceStatus = .listening(level: 0.0)
+            SpeechManager.shared.stopSpeaking()
+            isContinuousConversationActive = true
+            AppleSpeechRecognizer.shared.requestPermissions { [weak self] ready in
+                guard let self = self, ready else { return }
+                AppleSpeechRecognizer.shared.startListening()
+                self.isMicRunning = true
+                self.voiceStatus = .listening(level: 0.5)
+                self.haptics.speechStarted()
             }
         }
     }
     
     public func startFullDuplexVoiceMode() {
-        audioEngine.requestPermissionAndStart { [weak self] granted in
-            guard let self = self, granted else { return }
-            self.whisperService.startTranscription()
-            self.voiceStatus = .listening(level: 0.0)
-        }
+        isContinuousConversationActive = true
+        AppleSpeechRecognizer.shared.startListening()
+        isMicRunning = true
+        voiceStatus = .listening(level: 0.5)
     }
     
     public func stopVoiceMode() {
-        whisperService.stopTranscription()
-        audioEngine.stopAudioEngine()
-        ttsService.stopSpeaking()
+        isContinuousConversationActive = false
+        AppleSpeechRecognizer.shared.stopListening()
+        SpeechManager.shared.stopSpeaking()
+        isMicRunning = false
         voiceStatus = .idle
     }
     
@@ -411,7 +416,7 @@ public final class ChatViewModel: ObservableObject {
     
     public func speakMessage(_ text: String) {
         haptics.buttonTap()
-        ttsService.speak(text: text)
+        SpeechManager.shared.speak(text: text)
     }
     
     public func toggleSpeechForMessage(_ text: String) {
@@ -421,10 +426,10 @@ public final class ChatViewModel: ObservableObject {
             .replacingOccurrences(of: "#", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             
-        if ttsService.isSpeaking && ttsService.currentSpokenText == cleaned {
-            ttsService.stopSpeaking()
+        if SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == cleaned {
+            SpeechManager.shared.stopSpeaking()
         } else {
-            ttsService.speak(text: text)
+            SpeechManager.shared.speak(text: text)
         }
     }
     
@@ -433,7 +438,7 @@ public final class ChatViewModel: ObservableObject {
         let introText = "Bonjour ! 👋 Je m'appelle Sarah, votre assistante IA 3D en temps réel. Je suis conçue pour converser avec vous par la voix ou par écrit, répondre à vos questions, et mémoriser nos échanges. N'hésitez pas à me parler librement !"
         let aiMessage = Message(content: introText, isFromUser: false)
         appendMessage(aiMessage)
-        ttsService.speak(text: introText)
+        SpeechManager.shared.speak(text: introText)
     }
     
     // MARK: - Traitement des Messages

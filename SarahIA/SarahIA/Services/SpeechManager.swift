@@ -1,0 +1,208 @@
+import Foundation
+import AVFoundation
+import UIKit
+import Combine
+
+/// Gestionnaire de synthèse vocale haute fidélité pour Sarah IA :
+/// - Voix féminine française naturelle (recherche prioritaire sur Amélie / Audrey / Hortense)
+/// - Contournement du mode silencieux via AudioSessionManager
+/// - Synchronisation labiale en temps réel (visèmes et morphs pour Avatar 3D)
+public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+    
+    public static let shared = SpeechManager()
+    
+    @Published public private(set) var isSpeaking: Bool = false
+    @Published public private(set) var currentSpokenText: String? = nil
+    @Published public private(set) var currentJawOpen: Float = 0.0
+    
+    public var onSpeechStarted: (() -> Void)?
+    public var onSpeechFinished: (() -> Void)?
+    public var onSpeechInterrupted: (() -> Void)?
+    public var onVisemeChanged: ((Float) -> Void)?
+    
+    private let synthesizer = AVSpeechSynthesizer()
+    private var visemeTimer: Timer?
+    private var targetJawOpen: Float = 0.0
+    private var speechBgTask: UIBackgroundTaskIdentifier = .invalid
+    
+    private override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
+    
+    // MARK: - Synthèse Vocale avec Contournement Silencieux
+    
+    /// Prononce un texte à voix haute avec voix féminine fr-FR naturelle et animation labiale 3D synchronisée.
+    public func speak(
+        text: String,
+        pitch: Float = 1.1,
+        rate: Float = 0.52
+    ) {
+        stopSpeaking()
+        
+        let cleaned = text
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !cleaned.isEmpty else { return }
+        
+        // 1. Forcer la session audio en mode lecture (.playback) pour contourner le bouton silencieux
+        AudioSessionManager.shared.configurePlaybackSession()
+        
+        let utterance = AVSpeechUtterance(string: cleaned)
+        
+        // 2. Sélection de la voix féminine française de haute qualité
+        utterance.voice = selectBestFrenchFemaleVoice()
+        utterance.pitchMultiplier = pitch // 1.1 pour un timbre féminin naturel et chaleureux
+        utterance.rate = rate
+        utterance.volume = 1.0
+        
+        currentSpokenText = cleaned
+        isSpeaking = true
+        
+        beginBackgroundTask()
+        startVisemeLoop()
+        onSpeechStarted?()
+        
+        synthesizer.speak(utterance)
+    }
+    
+    /// Interrompt immédiatement l'élocution (Barge-in)
+    public func stopSpeaking() {
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        
+        stopVisemeLoop()
+        isSpeaking = false
+        currentSpokenText = nil
+        currentJawOpen = 0.0
+        onVisemeChanged?(0.0)
+        endBackgroundTask()
+        onSpeechInterrupted?()
+    }
+    
+    // MARK: - Recherche Prioritaire de Voix Féminine Française
+    
+    private func selectBestFrenchFemaleVoice() -> AVSpeechSynthesisVoice {
+        let allVoices = AVSpeechSynthesisVoice.speechVoices()
+        let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
+        
+        let maleNames = ["thomas", "nicolas", "paul", "aurelien", "aurélien", "antoine", "remi", "alain", "guy", "pierre", "bernard"]
+        let femaleFrench = frenchVoices.filter { voice in
+            let lower = voice.name.lowercased()
+            return !maleNames.contains(where: { lower.contains($0) })
+        }
+        
+        // Priorité 1 : Voix Premium/Enhanced Amélie, Audrey, Hortense, Chantal
+        if #available(iOS 16.0, *) {
+            if let premium = femaleFrench.first(where: { $0.quality == .premium && ($0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") || $0.name.localizedCaseInsensitiveContains("Hortense")) }) {
+                return premium
+            }
+            if let enhanced = femaleFrench.first(where: { $0.quality == .enhanced && ($0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") || $0.name.localizedCaseInsensitiveContains("Hortense")) }) {
+                return enhanced
+            }
+            if let female = femaleFrench.first(where: { $0.gender == .female }) {
+                return female
+            }
+        }
+        
+        return femaleFrench.first(where: { $0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") })
+            ?? femaleFrench.first
+            ?? AVSpeechSynthesisVoice(language: "fr-FR")
+            ?? AVSpeechSynthesisVoice(language: "fr")
+            ?? AVSpeechSynthesisVoice.speechVoices().first!
+    }
+    
+    // MARK: - Animation Labiale (Visèmes / Morphs)
+    
+    private func startVisemeLoop() {
+        stopVisemeLoop()
+        targetJawOpen = 0.6
+        
+        // Boucle 60 FPS pour animer les lèvres
+        visemeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isSpeaking else { return }
+            let noise = Float.random(in: 0.85...1.15)
+            let smooth = self.currentJawOpen + (self.targetJawOpen * noise - self.currentJawOpen) * 0.35
+            self.currentJawOpen = min(1.0, max(0.0, smooth))
+            self.onVisemeChanged?(self.currentJawOpen)
+            self.targetJawOpen *= 0.90
+        }
+    }
+    
+    private func stopVisemeLoop() {
+        visemeTimer?.invalidate()
+        visemeTimer = nil
+    }
+    
+    // MARK: - AVSpeechSynthesizerDelegate
+    
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.isSpeaking = true
+            self.onSpeechStarted?()
+        }
+    }
+    
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.stopVisemeLoop()
+            self.isSpeaking = false
+            self.currentSpokenText = nil
+            self.currentJawOpen = 0.0
+            self.onVisemeChanged?(0.0)
+            self.endBackgroundTask()
+            self.onSpeechFinished?()
+        }
+    }
+    
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async {
+            self.stopVisemeLoop()
+            self.isSpeaking = false
+            self.currentSpokenText = nil
+            self.currentJawOpen = 0.0
+            self.onVisemeChanged?(0.0)
+            self.endBackgroundTask()
+            self.onSpeechInterrupted?()
+        }
+    }
+    
+    public func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        let full = utterance.speechString as NSString
+        guard characterRange.location + characterRange.length <= full.length else { return }
+        let sub = full.substring(with: characterRange).lowercased()
+        
+        if sub.contains("a") || sub.contains("o") || sub.contains("é") || sub.contains("e") {
+            targetJawOpen = 0.85
+        } else if sub.contains("i") || sub.contains("u") {
+            targetJawOpen = 0.50
+        } else {
+            targetJawOpen = 0.35
+        }
+    }
+    
+    // MARK: - Background Task
+    
+    private func beginBackgroundTask() {
+        if speechBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(speechBgTask)
+        }
+        speechBgTask = UIApplication.shared.beginBackgroundTask(withName: "Sarah_Speech") { [weak self] in
+            self?.endBackgroundTask()
+        }
+    }
+    
+    private func endBackgroundTask() {
+        if speechBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(speechBgTask)
+            speechBgTask = .invalid
+        }
+    }
+}
