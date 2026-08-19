@@ -35,6 +35,8 @@
 		A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001F /* TranslationEngine.swift */; };
 		A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000020 /* ModelDownloader.swift */; };
 		A1B2C3D40001000100000021 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000021 /* NetworkMonitor.swift */; };
+		A1B2C3D40001000100000022 /* LocalVisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000022 /* LocalVisionEngine.swift */; };
+		A1B2C3D40001000100000023 /* SemanticMemoryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000023 /* SemanticMemoryIndex.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +70,8 @@
 		A1B2C3D4000200010000001F /* TranslationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000020 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000021 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000022 /* LocalVisionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalVisionEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000023 /* SemanticMemoryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticMemoryIndex.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +136,8 @@
 				A1B2C3D4000200010000001F /* TranslationEngine.swift */,
 				A1B2C3D40002000100000020 /* ModelDownloader.swift */,
 				A1B2C3D40002000100000021 /* NetworkMonitor.swift */,
+				A1B2C3D40002000100000022 /* LocalVisionEngine.swift */,
+				A1B2C3D40002000100000023 /* SemanticMemoryIndex.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -262,6 +268,8 @@
 				A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */,
 				A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */,
 				A1B2C3D40001000100000021 /* NetworkMonitor.swift in Sources */,
+				A1B2C3D40001000100000022 /* LocalVisionEngine.swift in Sources */,
+				A1B2C3D40001000100000023 /* SemanticMemoryIndex.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -282,6 +282,8 @@ class SarahBrain(private val context: Context) {
     private val openAIService = OpenAIService(context)
     private val translationEngine = TranslationEngine(context)
     private val modelDownloader = ModelDownloader(context)
+    private val semanticMemoryIndex = SemanticMemoryIndex(context)
+    private val localVisionEngine = LocalVisionEngine(context)
 
     init {
         // Préchargement des modèles IA légers hors-ligne
@@ -291,6 +293,8 @@ class SarahBrain(private val context: Context) {
     public fun getOpenAIService(): OpenAIService = openAIService
     public fun getTranslationEngine(): TranslationEngine = translationEngine
     public fun getModelDownloader(): ModelDownloader = modelDownloader
+    public fun getSemanticMemoryIndex(): SemanticMemoryIndex = semanticMemoryIndex
+    public fun getLocalVisionEngine(): LocalVisionEngine = localVisionEngine
 
     public fun learn(question: String, answer: String) {
         val nq = normalize(question)
@@ -309,59 +313,75 @@ class SarahBrain(private val context: Context) {
                 translationReq.targetLanguage
             ) { result ->
                 result.onSuccess { translated ->
-                    callback("En ${translationReq.targetLanguage.displayNameFr} : $translated")
+                    val resp = "En ${translationReq.targetLanguage.displayNameFr} : $translated"
+                    semanticMemoryIndex.indexExchange(userText, resp, "translation")
+                    callback(resp)
                 }.onFailure {
-                    callback("Voici la traduction : ${translationReq.textToTranslate}")
+                    val fallbackResp = "Voici la traduction : ${translationReq.textToTranslate}"
+                    callback(fallbackResp)
                 }
             }
             return
         }
 
-        // 2. Recherche dans la mémoire apprise locale
+        // 2. Recherche dans la mémoire sémantique locale (Local RAG)
+        val pastContext = semanticMemoryIndex.findRelevantContext(userText)
+
+        // 3. Recherche dans la mémoire apprise locale
         val learnedKey = "learned_$norm"
         if (prefs.contains(learnedKey)) {
             val learnedAnswer = prefs.getString(learnedKey, "") ?: ""
             if (learnedAnswer.isNotEmpty()) {
+                semanticMemoryIndex.indexExchange(userText, learnedAnswer, "learned")
                 callback(learnedAnswer)
                 return
             }
         }
 
-        // 3. Recherche dans la base de connaissances instantanée (météo, heure, créateur, etc.)
+        // 4. Recherche dans la base de connaissances instantanée (météo, heure, créateur, etc.)
         for ((keywords, answer) in QA) {
             val keys = keywords.split("|")
             for (k in keys) {
                 if (norm.contains(normalize(k))) {
-                    handleSpecialAnswer(answer, callback)
+                    handleSpecialAnswer(answer) { finalAnswer ->
+                        semanticMemoryIndex.indexExchange(userText, finalAnswer, "faq")
+                        callback(finalAnswer)
+                    }
                     return
                 }
             }
         }
 
-        // 4. Intelligence Conversationnelle Approfondie OpenAI (Multi-tours & raisonnement)
+        // 5. Intelligence Conversationnelle Approfondie OpenAI (Multi-tours & raisonnement)
         if (openAIService.isConfigured()) {
-            openAIService.askAsync(userText) { result ->
+            val augmentedPrompt = if (pastContext != null) "$userText (Contexte récent : $pastContext)" else userText
+            openAIService.askAsync(augmentedPrompt) { result ->
                 result.onSuccess { aiResponse ->
+                    semanticMemoryIndex.indexExchange(userText, aiResponse, "conversation")
                     callback(aiResponse)
                 }.onFailure {
                     // Fallback intelligent hors-ligne
-                    fallbackOfflineResponse(userText, callback)
+                    fallbackOfflineResponse(userText, pastContext, callback)
                 }
             }
             return
         }
 
-        // 5. Moteur Hors-Ligne Résilient
-        fallbackOfflineResponse(userText, callback)
+        // 6. Moteur Hors-Ligne Résilient
+        fallbackOfflineResponse(userText, pastContext, callback)
     }
 
-    private fun fallbackOfflineResponse(userText: String, callback: (String) -> Unit) {
+    private fun fallbackOfflineResponse(userText: String, pastContext: String?, callback: (String) -> Unit) {
         val detectedLang = translationEngine.detectLanguage(userText)
-        if (detectedLang == "he") {
-            callback("שלום ! שמעתי אותך מצוין : « $userText ». איך אני יכולה לעזור לך ?")
+        val response = if (detectedLang == "he") {
+            "שלום ! שמעתי אותך מצוין : « $userText ». איך אני יכולה לעזור לך ?"
+        } else if (pastContext != null) {
+            "Concernant notre discussion précédente, j'ai bien noté votre demande : « $userText »."
         } else {
-            callback("J'ai bien compris votre demande : « $userText ». Je suis à votre entière disposition !")
+            "J'ai bien compris votre demande : « $userText ». Je suis à votre entière disposition !"
         }
+        semanticMemoryIndex.indexExchange(userText, response, "offline")
+        callback(response)
     }
 
     private fun handleSpecialAnswer(answer: String, callback: (String) -> Unit) {

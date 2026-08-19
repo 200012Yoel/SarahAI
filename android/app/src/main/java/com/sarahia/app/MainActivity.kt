@@ -230,6 +230,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun onAvatarTapped(zone: String) {
+            Log.d(TAG, "Avatar touché: $zone")
+            val quips = if (zone == "head") {
+                listOf("Oui ? Je suis là !", "Coucou !", "Je t'écoute attentivement !", "Comment puis-je t'aider ?")
+            } else {
+                listOf("Bonjour !", "Je suis prête !", "Tout va bien !")
+            }
+            val randomQuip = quips.random()
+            mainHandler.post {
+                voiceManager?.speak(randomQuip)
+            }
+        }
+
+        @JavascriptInterface
         fun getChatHistoryJson(): String {
             val list = chatDatabase?.getRecentMessages(100) ?: emptyList()
             val arr = org.json.JSONArray()

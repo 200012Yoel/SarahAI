@@ -158,9 +158,12 @@ final class AIService {
         // -----------------------------------------------------------------
         // 5. RAISONNEMENT PROFOND OPENAI (Multi-tours & intelligence poussée)
         // -----------------------------------------------------------------
+        let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
         if openAI.isConfigured {
             do {
-                let aiResponse = try await openAI.ask(prompt: trimmed)
+                let promptWithContext = pastContext != nil ? "\(trimmed) (Contexte récent : \(pastContext!))" : trimmed
+                let aiResponse = try await openAI.ask(prompt: promptWithContext)
+                SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: aiResponse, topicType: "conversation")
                 return aiResponse
             } catch {
                 print("⚠️ [AIService] OpenAI indisponible, bascule sur le modèle hors-ligne.")
@@ -168,14 +171,20 @@ final class AIService {
         }
         
         // -----------------------------------------------------------------
-        // 6. MODÈLE HORS-LIGNE & BASE LOCALE RÉSILIENTE
+        // 6. MODÈLE HORS-LIGNE & BASE LOCALE RÉSILIENTE (AVEC CONTEXTE LOCAL RAG)
         // -----------------------------------------------------------------
         let detected = translation.detectLanguage(text: trimmed)
+        let response: String
         if detected == "he" {
-            return "שלום ! שמעתי אותך מצוין : « \(trimmed) ». איך אני יכולה לעזור לך ?"
+            response = "שלום ! שמעתי אותך מצוין : « \(trimmed) ». איך אני יכולה לעזור לך ?"
+        } else if let ctx = pastContext {
+            response = "Concernant notre échange précédent, j'ai bien noté : « \(trimmed) »."
+        } else {
+            response = pickRandom(from: defaultResponses)
         }
         
-        return pickRandom(from: defaultResponses)
+        SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: response, topicType: "offline")
+        return response
     }
     
     /// Réponse pour le test de notification d'arrière-plan
