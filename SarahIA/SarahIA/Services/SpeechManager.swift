@@ -86,35 +86,17 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         onSpeechInterrupted?()
     }
     
-    // MARK: - Recherche Prioritaire de Voix Féminine Française
+    // MARK: - Recherche de Voix Française Standard Garantie
     
     private func selectBestFrenchFemaleVoice() -> AVSpeechSynthesisVoice {
-        let allVoices = AVSpeechSynthesisVoice.speechVoices()
-        let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
-        
-        let maleNames = ["thomas", "nicolas", "paul", "aurelien", "aurélien", "antoine", "remi", "alain", "guy", "pierre", "bernard"]
-        let femaleFrench = frenchVoices.filter { voice in
-            let lower = voice.name.lowercased()
-            return !maleNames.contains(where: { lower.contains($0) })
+        if let frFR = AVSpeechSynthesisVoice(language: "fr-FR") {
+            return frFR
         }
-        
-        // Priorité 1 : Voix Premium/Enhanced Amélie, Audrey, Hortense, Chantal
-        if #available(iOS 16.0, *) {
-            if let premium = femaleFrench.first(where: { $0.quality == .premium && ($0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") || $0.name.localizedCaseInsensitiveContains("Hortense")) }) {
-                return premium
-            }
-            if let enhanced = femaleFrench.first(where: { $0.quality == .enhanced && ($0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") || $0.name.localizedCaseInsensitiveContains("Hortense")) }) {
-                return enhanced
-            }
-            if let female = femaleFrench.first(where: { $0.gender == .female }) {
-                return female
-            }
+        if let fr = AVSpeechSynthesisVoice(language: "fr") {
+            return fr
         }
-        
-        return femaleFrench.first(where: { $0.name.localizedCaseInsensitiveContains("Amélie") || $0.name.localizedCaseInsensitiveContains("Amelie") || $0.name.localizedCaseInsensitiveContains("Audrey") })
-            ?? femaleFrench.first
-            ?? AVSpeechSynthesisVoice(language: "fr-FR")
-            ?? AVSpeechSynthesisVoice(language: "fr")
+        return AVSpeechSynthesisVoice.speechVoices().first(where: { $0.language.starts(with: "fr") })
+            ?? AVSpeechSynthesisVoice(language: Locale.current.identifier)
             ?? AVSpeechSynthesisVoice.speechVoices().first!
     }
     

@@ -181,59 +181,96 @@ public struct SarahCompactStatsWidgetView: View {
     }
 }
 
-// MARK: - 3. Widget Mémoire & Brain Vault (Medium)
+// MARK: - Intégration WidgetKit Officielle iOS (TimelineProvider & Widgets)
 
-public struct SarahMemoryWidgetView: View {
-    public let entry: SarahWidgetEntry
+#if canImport(WidgetKit)
+import WidgetKit
+
+public struct SarahTimelineEntry: TimelineEntry {
+    public let date: Date
+    public let stats: WidgetStatsData
     
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                HStack(spacing: 6) {
-                    Text("🧠")
-                    Text("Mémoire de Sarah")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                
-                Spacer()
-                
-                Text("\(entry.stats.learnedMemoriesCount) souvenirs")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.purple.opacity(0.2)))
-            }
-            
-            Divider()
-                .background(Color.white.opacity(0.1))
-            
-            if let trigger = entry.stats.lastMemoryTrigger, let resp = entry.stats.lastMemoryResponse {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Dernier apprentissage :")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
-                    
-                    Text("« \(trigger) » ➔ « \(resp) »")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.cyan)
-                        .lineLimit(2)
-                }
-            } else {
-                Text("Dites « Apprends [mot] » à Sarah pour lui enseigner des souvenirs personnalisés !")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray)
-                    .lineLimit(2)
-            }
-            
-            Spacer()
-        }
-        .padding(14)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+    public init(date: Date = Date(), stats: WidgetStatsData = WidgetStatsData()) {
+        self.date = date
+        self.stats = stats
     }
 }
+
+public struct SarahWidgetProvider: TimelineProvider {
+    public typealias Entry = SarahTimelineEntry
+    
+    public init() {}
+    
+    public func placeholder(in context: Context) -> SarahTimelineEntry {
+        SarahTimelineEntry(date: Date(), stats: WidgetStatsData())
+    }
+    
+    public func getSnapshot(in context: Context, completion: @escaping (SarahTimelineEntry) -> Void) {
+        let stats = SarahWidgetBridge.shared.readStats()
+        completion(SarahTimelineEntry(date: Date(), stats: stats))
+    }
+    
+    public func getTimeline(in context: Context, completion: @escaping (Timeline<SarahTimelineEntry>) -> Void) {
+        let stats = SarahWidgetBridge.shared.readStats()
+        let entry = SarahTimelineEntry(date: Date(), stats: stats)
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
+        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        completion(timeline)
+    }
+}
+
+public struct SarahUsageStatsWidget: Widget {
+    public let kind: String = "SarahUsageStatsWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahUsageStatsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("Statistiques Sarah IA")
+        .description("Suivez vos discussions, pourcentages d'usage et graphiques d'activité.")
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
+
+public struct SarahMemoryWidget: Widget {
+    public let kind: String = "SarahMemoryWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahMemoryWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("Mémoire Sarah IA")
+        .description("Visualisez les derniers souvenirs appris par Sarah.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+public struct SarahStatusWidget: Widget {
+    public let kind: String = "SarahStatusWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahStatusWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("Avatar & Humeur Sarah IA")
+        .description("Consultez l'état et lancez une conversation avec Sarah.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+public struct SarahIAWidgetsBundle: WidgetBundle {
+    public init() {}
+    
+    public var body: some Widget {
+        SarahUsageStatsWidget()
+        SarahMemoryWidget()
+        SarahStatusWidget()
+    }
+}
+#endif

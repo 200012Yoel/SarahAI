@@ -205,8 +205,51 @@ jobs:
             chmod +x "/tmp/Payload/$APP_NAME/SarahIA"
           fi
 
+          # Creation et intégration du bundle App Extension WidgetKit pour l'écran d'accueil iOS
+          echo "=== Creation de l'App Extension SarahIAWidgets.appex ==="
+          mkdir -p "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex"
+          
+          # Info.plist officiel de l'extension WidgetKit
+          cat << 'EOF' > "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>fr</string>
+    <key>CFBundleDisplayName</key>
+    <string>Sarah IA Widgets</string>
+    <key>CFBundleExecutable</key>
+    <string>SarahIAWidgets</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.sarahia.app.widgets</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>SarahIAWidgets</string>
+    <key>CFBundlePackageType</key>
+    <string>XPC!</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>MinimumOSVersion</key>
+    <string>15.0</string>
+    <key>NSExtension</key>
+    <dict>
+        <key>NSExtensionPointIdentifier</key>
+        <string>com.apple.widgetkit-extension</string>
+    </dict>
+</dict>
+</plist>
+EOF
+          # Copie de l'exécutable Mach-O pour l'extension
+          cp "/tmp/Payload/$APP_NAME/SarahIA" "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
+          chmod +x "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/SarahIAWidgets"
+
           echo "=== Structure interne de Payload/$APP_NAME/ ==="
           ls -la "/tmp/Payload/$APP_NAME/"
+          ls -la "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/"
 
           if [ ! -f "$INFOPLIST_TARGET" ]; then
             echo "❌ ERREUR CRITIQUE: Info.plist est manquant dans Payload/$APP_NAME/Info.plist !"

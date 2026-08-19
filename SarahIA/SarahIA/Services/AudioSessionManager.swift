@@ -23,16 +23,11 @@ public final class AudioSessionManager {
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
-            )
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🔊 [AudioSessionManager] Haut-parleur principal forcé (Mode silencieux contourné).")
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
+            print("🔊 [AudioSessionManager] Mode .playback activé (Mode silencieux contourné, haut-parleur garanti).")
         } catch {
-            print("⚠️ [AudioSessionManager] Erreur configuration haut-parleur: \(error.localizedDescription)")
+            print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }
     }
     
