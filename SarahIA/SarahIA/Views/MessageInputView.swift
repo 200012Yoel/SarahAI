@@ -1,107 +1,107 @@
 import SwiftUI
 
-/// Barre de composition iMessage / ChatGPT style avec bouton Plus, Dictée et Bascule Onde/Flèche dynamique.
+/// Barre de Saisie (Composer) Pixel-Perfect 100% Native SwiftUI reproduisant la classe .composer de la maquette.
 public struct MessageInputView: View {
-    @Binding public var text: String
-    public let isTyping: Bool
-    public var isMicActive: Bool
-    public let onSend: () -> Void
-    public var onMicTap: (() -> Void)?
-    public var onPlusTap: (() -> Void)?
-    public var onVoiceModeTap: (() -> Void)?
+    @Binding var text: String
+    var isRecording: Bool
+    var onSend: (String) -> Void
+    var onToggleMic: () -> Void
+    var onPlusTapped: (() -> Void)? = nil
     
     public init(
         text: Binding<String>,
-        isTyping: Bool,
-        isMicActive: Bool = false,
-        onSend: @escaping () -> Void,
-        onMicTap: (() -> Void)? = nil,
-        onPlusTap: (() -> Void)? = nil,
-        onVoiceModeTap: (() -> Void)? = nil
+        isRecording: Bool,
+        onSend: @escaping (String) -> Void,
+        onToggleMic: @escaping () -> Void,
+        onPlusTapped: (() -> Void)? = nil
     ) {
         self._text = text
-        self.isTyping = isTyping
-        self.isMicActive = isMicActive
+        self.isRecording = isRecording
         self.onSend = onSend
-        self.onMicTap = onMicTap
-        self.onPlusTap = onPlusTap
-        self.onVoiceModeTap = onVoiceModeTap
+        self.onToggleMic = onToggleMic
+        self.onPlusTapped = onPlusTapped
     }
     
     public var body: some View {
         HStack(spacing: 10) {
-            // Bouton Plus (+)
+            // 1. Bouton Plus (+) (#btnPlus)
             Button(action: {
                 HapticService.shared.buttonTap()
-                onPlusTap?()
+                onPlusTapped?()
             }) {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.white.opacity(0.85))
-                    .frame(width: 34, height: 34)
+                    .foregroundColor(.white)
+                    .frame(width: 38, height: 38)
             }
+            .buttonStyle(PlainButtonStyle())
             
-            // Champ de texte
+            // 2. Champ de saisie (#input)
             TextField("Demander à Sarah", text: $text)
-                .font(.system(size: 17, weight: .regular))
+                .font(.system(size: 18, weight: .regular))
                 .foregroundColor(.white)
-                .disabled(isTyping)
+                .accentColor(Color(red: 0.04, green: 0.52, blue: 1.0)) // #0a84ff
+                .autocapitalization(.sentences)
+                .disableAutocorrection(false)
                 .submitLabel(.send)
                 .onSubmit {
-                    if canSend {
-                        onSend()
-                    }
+                    submitMessage()
                 }
             
-            // Bouton Dictée Microphone
+            // 3. Bouton Dictée Microphone (#btnMic)
             Button(action: {
-                onMicTap?()
+                onToggleMic()
             }) {
-                Image(systemName: isMicActive ? "mic.fill" : "mic")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(isMicActive ? .red : .white.opacity(0.85))
-                    .frame(width: 34, height: 34)
+                Image(systemName: isRecording ? "mic.fill" : "mic")
+                    .font(.system(size: 20, weight: isRecording ? .bold : .regular))
+                    .foregroundColor(isRecording ? Color.red : Color.white)
+                    .frame(width: 38, height: 38)
+                    .scaleEffect(isRecording ? 1.15 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isRecording)
             }
+            .buttonStyle(PlainButtonStyle())
             
-            // Bouton Envoi / Onde Vocale Dynamique
+            // 4. Bouton Dynamique Onde / Flèche Bleue (#btnSend)
             Button(action: {
-                if canSend {
-                    onSend()
-                } else {
-                    onVoiceModeTap?()
-                }
+                submitMessage()
             }) {
                 ZStack {
                     Circle()
-                        .fill(canSend ? Color(red: 0.04, green: 0.52, blue: 1.0) : Color.white.opacity(0.12))
-                        .frame(width: 38, height: 38)
+                        .fill(Color(red: 0.04, green: 0.52, blue: 1.0)) // #0a84ff
+                        .frame(width: 40, height: 40)
                     
-                    if canSend {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 17, weight: .bold))
+                    if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Icône d'ondes vocales
+                        Image(systemName: "waveform")
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
                     } else {
-                        // Icône d'onde vocale
-                        Image(systemName: "waveform")
-                            .font(.system(size: 17, weight: .bold))
+                        // Icône flèche d'envoi vers le haut
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                     }
                 }
             }
-            .scaleEffect(canSend ? 1.04 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: canSend)
+            .buttonStyle(ScaleBounceButtonStyle())
         }
-        .padding(.horizontal, 14)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
         .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-        )
+        .background(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
+        .cornerRadius(30)
         .padding(.horizontal, 14)
-        .padding(.bottom, 10)
     }
     
-    private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isTyping
+    private func submitMessage() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            HapticService.shared.buttonTap()
+            onSend(trimmed)
+            text = ""
+        } else {
+            // Si le texte est vide, déclenche le mode vocal
+            onToggleMic()
+        }
     }
 }
