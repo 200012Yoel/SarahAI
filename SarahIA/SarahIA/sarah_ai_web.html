@@ -67,23 +67,44 @@
       transition: all 0.3s ease;
     }
   </style>
-  <script src="vrm_data.js" defer></script>
+  <script src="vrm_data.js"></script>
   <script>
-    // Initialisation immédiate pour 0 ReferenceError
+    // 🎙️ SÉLECTEUR DE VOIX FÉMININE JEUNE ET NATURELLE (100% GARANTI SANS VOIX D'HOMME)
+    window.getFrenchFemaleVoice = function() {
+      if (!window.speechSynthesis) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      const maleKeywords = ['male', 'homme', 'masculin', 'fra', 'frb', 'fre', 'frf', 'thomas', 'nicolas', 'paul', 'antoine', 'remi', 'alain', 'guy', 'jean', 'bernard', 'pierre', 'garcon', 'garçon'];
+      const femaleKeywords = ['female', 'feminin', 'féminin', 'frc', 'frd', 'frg', 'frh', 'audrey', 'hortense', 'amelie', 'amélie', 'celine', 'julie', 'lea', 'clara', 'chloe', 'camille', 'sarah', 'alice', 'virginie', 'denise'];
+
+      const frVoices = voices.filter(v => v.lang && (v.lang.startsWith('fr') || v.lang.includes('FR')));
+      const nonMale = frVoices.filter(v => {
+        const name = (v.name || '').toLowerCase();
+        return !maleKeywords.some(k => name.includes(k));
+      });
+
+      return nonMale.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k))) ||
+             nonMale[0] ||
+             frVoices.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k))) ||
+             frVoices[0] ||
+             null;
+    };
+
     window.updateStatus = function(text) {
       const el = document.getElementById('status-badge');
       if (el) el.textContent = text;
     };
+
     window.speakText = function(text) {
       if (!window.speechSynthesis) return;
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'fr-FR';
-      utter.rate = 1.0;
-      utter.pitch = 1.08;
-      const voices = window.speechSynthesis.getVoices();
-      const fr = voices.find(v => v.lang.startsWith('fr'));
-      if (fr) utter.voice = fr;
+      utter.rate = 1.06;
+      utter.pitch = 1.22; // Ton plus élevé pour une voix de jeune fille fraîche et claire
+
+      const femaleVoice = window.getFrenchFemaleVoice();
+      if (femaleVoice) utter.voice = femaleVoice;
+
       utter.onstart = () => {
         window.updateStatus("🗣️ Sarah parle...");
         if (window.setSpeaking) window.setSpeaking(true);
@@ -100,6 +121,12 @@
       };
       window.speechSynthesis.speak(utter);
     };
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.getFrenchFemaleVoice();
+      };
+    }
   </script>
 </head>
 <body>
@@ -190,12 +217,11 @@ function speakText(text) {
 
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'fr-FR';
-  utter.rate = 1.0;
-  utter.pitch = 1.08;
+  utter.rate = 1.06;
+  utter.pitch = 1.22;
 
-  const voices = window.speechSynthesis.getVoices();
-  const fr = voices.find(v => v.lang.startsWith('fr') || v.lang.includes('FR'));
-  if (fr) utter.voice = fr;
+  const femaleVoice = (window.getFrenchFemaleVoice && window.getFrenchFemaleVoice()) || null;
+  if (femaleVoice) utter.voice = femaleVoice;
 
   utter.onstart = () => {
     updateStatus("🗣️ Sarah parle...");
@@ -204,7 +230,7 @@ function speakText(text) {
   };
 
   utter.onend = () => {
-    updateStatus("Sarah est prête • Touchez le micro");
+    updateStatus("Sarah vous écoute en continu");
     isSpeaking = false;
     window.isSpeaking = false;
     setExpression('aa', 0);
@@ -215,7 +241,7 @@ function speakText(text) {
   };
 
   utter.onerror = () => {
-    updateStatus("Sarah est prête • Touchez le micro");
+    updateStatus("Sarah vous écoute en continu");
     isSpeaking = false;
     window.isSpeaking = false;
     setExpression('aa', 0);
@@ -267,10 +293,12 @@ function setupAvatarModel(vrm) {
   updateCameraFraming();
 
   // Apparaître directe & saluer vocalement
-  updateStatus("Sarah est prête • Touchez le micro");
-  setTimeout(() => {
-    speakText("Bonjour, je m'appelle Sarah !");
-  }, 200);
+  updateStatus("Sarah vous écoute en continu");
+  if (!window.SarahBridge) {
+    setTimeout(() => {
+      speakText("Bonjour, je m'appelle Sarah !");
+    }, 200);
+  }
 }
 
 function updateCameraFraming() {
@@ -392,17 +420,8 @@ async function base64ToArrayBuffer(base64) {
 }
 
 async function initLoader() {
-  // 1. Priorité 1 : Cache binaire direct IndexedDB (~3 à 5ms, 0 décodage)
-  try {
-    const cached = await loadFromIndexedDB();
-    if (cached) {
-      parseAndApplyVRM(cached);
-      return;
-    }
-  } catch(_) {}
-
-  // 2. Priorité 2 : Fichier binaire local direct (AA.vrm)
-  const candidates = ['AA.vrm', 'aa.vrm', 'Sarah.vrm'];
+  // 1. Priorité 1 : Fichier binaire local direct (Sarah.vrm / AA.vrm) intercepté ultra-vite
+  const candidates = ['Sarah.vrm', 'AA.vrm', 'aa.vrm'];
   for (const path of candidates) {
     try {
       const res = await fetch(path);
@@ -414,7 +433,7 @@ async function initLoader() {
     } catch(_) {}
   }
 
-  // 3. Priorité 3 : Données embarquées base64 décodées à la vitesse native
+  // 2. Priorité 2 : Données embarquées base64 synchrones décodées immédiatement
   if (window.EMBEDDED_VRM_BASE64) {
     try {
       const buf = await base64ToArrayBuffer(window.EMBEDDED_VRM_BASE64);
@@ -425,15 +444,14 @@ async function initLoader() {
     }
   }
 
-  // Si vrm_data.js est encore en cours de chargement asynchrone (defer)
-  window.addEventListener('load', async () => {
-    if (!currentVRM && window.EMBEDDED_VRM_BASE64) {
-      try {
-        const buf = await base64ToArrayBuffer(window.EMBEDDED_VRM_BASE64);
-        parseAndApplyVRM(buf);
-      } catch(_) {}
+  // 3. Priorité 3 : Cache IndexedDB
+  try {
+    const cached = await loadFromIndexedDB();
+    if (cached) {
+      parseAndApplyVRM(cached);
+      return;
     }
-  });
+  } catch(_) {}
 }
 initLoader();
 

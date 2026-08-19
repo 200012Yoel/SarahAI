@@ -43,33 +43,53 @@ class VoiceManager(
                         tts?.setLanguage(Locale.getDefault())
                     }
                     
-                    // Sélection d'une voix féminine jeune et naturelle (Neural/HQ)
+                    // 🎙️ SÉLECTION D'UNE VRAIE VOIX FÉMININE JEUNE ET NATURELLE (Exclusion stricte des voix d'homme)
                     try {
                         val availableVoices = tts?.voices
-                        val frenchFemaleVoice = availableVoices?.firstOrNull { voice ->
-                            voice.locale.language.equals("fr", ignoreCase = true) &&
-                            (voice.name.contains("female", ignoreCase = true) ||
-                             voice.name.contains("fr-fr-x-fra-network", ignoreCase = true) ||
-                             voice.name.contains("fr-fr-x-frd-network", ignoreCase = true) ||
-                             voice.name.contains("fr-fr-x-fre-network", ignoreCase = true) ||
-                             voice.name.contains("fr-fr-x-frb-network", ignoreCase = true) ||
-                             voice.name.contains("audrey", ignoreCase = true) ||
-                             voice.name.contains("hortense", ignoreCase = true))
-                        } ?: availableVoices?.firstOrNull { voice ->
-                            voice.locale.language.equals("fr", ignoreCase = true) && !voice.isNetworkConnectionRequired
+                        val frVoices = availableVoices?.filter { voice ->
+                            voice.locale.language.equals("fr", ignoreCase = true) ||
+                            voice.locale == Locale.FRENCH ||
+                            voice.locale == Locale.FRANCE ||
+                            voice.locale.language.startsWith("fr")
+                        } ?: emptyList()
+
+                        // Mots-clés masculins à bannir absolument
+                        val maleKeywords = listOf("male", "homme", "masculin", "fra", "frb", "fre", "frf", "thomas", "nicolas", "paul", "antoine", "remi", "alain", "guy", "jean", "bernard", "pierre", "garcon", "garçon")
+                        val nonMaleFrVoices = frVoices.filter { voice ->
+                            val lowerName = voice.name.lowercase()
+                            !maleKeywords.any { lowerName.contains(it) }
                         }
+
+                        // Mots-clés féminins connus (Google TTS, Samsung, Xiaomi, etc.)
+                        val femaleKeywords = listOf(
+                            "female", "feminin", "féminin",
+                            "fr-fr-x-frc", "fr-fr-x-frd", "fr-fr-x-frg", "fr-fr-x-frh",
+                            "fr-ca-x-cac", "fr-ca-x-cad",
+                            "audrey", "hortense", "amelie", "amélie", "celine", "julie", "lea", "clara", "chloe", "chloé", "manon", "camille", "sarah", "virginie", "alice", "siwis"
+                        )
+
+                        val frenchFemaleVoice = nonMaleFrVoices.firstOrNull { voice ->
+                            val lowerName = voice.name.lowercase()
+                            femaleKeywords.any { lowerName.contains(it) }
+                        } ?: nonMaleFrVoices.firstOrNull { voice ->
+                            voice.features?.any { it.contains("female", ignoreCase = true) || it.contains("gender=2") || it.contains("gender=female") } == true
+                        } ?: nonMaleFrVoices.firstOrNull()
+                          ?: frVoices.firstOrNull { voice ->
+                              val lowerName = voice.name.lowercase()
+                              femaleKeywords.any { lowerName.contains(it) }
+                          }
                         
                         if (frenchFemaleVoice != null) {
                             tts?.voice = frenchFemaleVoice
-                            Log.d(TAG, "🎙️ Voix sélectionnée : ${frenchFemaleVoice.name}")
+                            Log.d(TAG, "🎙️ Voix féminine sélectionnée : ${frenchFemaleVoice.name}")
                         }
                     } catch (e: Exception) {
                         Log.w(TAG, "Sélection personnalisée voix: ${e.message}")
                     }
 
-                    // Réglage pour voix de jeune fille : ton cristallin, dynamique et chaleureux
-                    tts?.setSpeechRate(1.02f)
-                    tts?.setPitch(1.14f)
+                    // Réglage pour voix de jeune fille : ton cristallin, dynamique, pétillant et chaleureux
+                    tts?.setSpeechRate(1.06f)
+                    tts?.setPitch(1.24f)
 
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {

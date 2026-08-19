@@ -66,31 +66,38 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         let utterance = AVSpeechUtterance(string: cleanedText)
         
-        // 🎙️ SÉLECTION D'UNE VOIX NEURALE ULTRA-RÉALISTE (Compatible iOS 15 à iOS 18+ / iPhone 7 à iPhone 17 Pro Max)
+        // 🎙️ SÉLECTION D'UNE VOIX FÉMININE JEUNE ET NATURELLE (100% SANS VOIX D'HOMME)
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
+        
+        let maleNames = ["thomas", "nicolas", "paul", "aurelien", "aurélien", "antoine", "remi", "alain"]
+        let femaleFrenchVoices = frenchVoices.filter { voice in
+            let lower = voice.name.lowercased()
+            return !maleNames.contains(where: { lower.contains($0) })
+        }
         
         var selectedVoice: AVSpeechSynthesisVoice?
         
         if #available(iOS 16.0, *) {
-            selectedVoice = frenchVoices.first(where: { $0.quality == .premium && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Siri") || $0.name.contains("Thomas")) })
-                ?? frenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Siri") || $0.name.contains("Thomas")) })
-                ?? frenchVoices.first(where: { $0.quality == .premium })
-                ?? frenchVoices.first(where: { $0.quality == .enhanced })
+            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .premium && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Chantal")) })
+                ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Chantal")) })
+                ?? femaleFrenchVoices.first(where: { $0.quality == .premium && $0.gender == .female })
+                ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && $0.gender == .female })
         } else {
-            selectedVoice = frenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Thomas")) })
-                ?? frenchVoices.first(where: { $0.quality == .enhanced })
+            selectedVoice = femaleFrenchVoices.first(where: { $0.quality == .enhanced && ($0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie")) })
+                ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && $0.gender == .female })
         }
         
         let bestVoice = selectedVoice
-            ?? frenchVoices.first(where: { $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Thomas") })
-            ?? frenchVoices.first
+            ?? femaleFrenchVoices.first(where: { $0.name.contains("Audrey") || $0.name.contains("Hortense") || $0.name.contains("Amélie") || $0.name.contains("Amelie") })
+            ?? femaleFrenchVoices.first(where: { $0.gender == .female })
+            ?? femaleFrenchVoices.first
             ?? AVSpeechSynthesisVoice(language: "fr-FR")
             ?? AVSpeechSynthesisVoice(language: language)
         
         utterance.voice = bestVoice
-        utterance.rate = rate
-        utterance.pitchMultiplier = pitch
+        utterance.rate = 0.53
+        utterance.pitchMultiplier = 1.22 // Timbre jeune fille clair et naturel
         utterance.volume = 1.0
         utterance.preUtteranceDelay = 0.0
         utterance.postUtteranceDelay = 0.0
