@@ -41,6 +41,9 @@
 		A1B2C3D40001000100000025 /* ShortcutGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000025 /* ShortcutGenerator.swift */; };
 		A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */; };
 		A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000027 /* ClipboardCompanion.swift */; };
+		A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000028 /* WakeWordDetector.swift */; };
+		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
+		A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +83,9 @@
 		A1B2C3D40002000100000025 /* ShortcutGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutGenerator.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalScriptSandbox.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000027 /* ClipboardCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCompanion.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000028 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWidgetBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -150,6 +156,9 @@
 				A1B2C3D40002000100000025 /* ShortcutGenerator.swift */,
 				A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */,
 				A1B2C3D40002000100000027 /* ClipboardCompanion.swift */,
+				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
+				A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */,
+				A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -286,6 +295,9 @@
 				A1B2C3D40001000100000025 /* ShortcutGenerator.swift in Sources */,
 				A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */,
 				A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */,
+				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
+				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
+				A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

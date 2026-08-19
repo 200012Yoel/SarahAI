@@ -24,15 +24,27 @@ class SarahVoiceForegroundService : Service() {
     private val CHANNEL_ID = "sarah_voice_channel"
     private val NOTIFICATION_ID = 1001
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wakeWordDetector: WakeWordDetector? = null
+    private var backTapDetector: BackTapGestureDetector? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         acquireWakeLock()
+
+        wakeWordDetector = WakeWordDetector(this) {
+            Log.d(TAG, "Mot-clé 'Hey Sarah' détecté en arrière-plan !")
+            SarahAppWidgetProvider.updateAllWidgets(this, "Hey Sarah détecté !", "● Écoute en cours")
+        }.apply { startListening() }
+
+        backTapDetector = BackTapGestureDetector(this) {
+            Log.d(TAG, "Back-Tap détecté en arrière-plan !")
+            SarahAppWidgetProvider.updateAllWidgets(this, "Double-tap détecté !", "● Écoute en cours")
+        }.apply { start() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notification = buildNotification("Sarah est prête et à votre écoute en continu")
+        val notification = buildNotification("Sarah est prête et à votre écoute en continu (Hey Sarah & Back-Tap actifs)")
         startForeground(NOTIFICATION_ID, notification)
         Log.d(TAG, "🟢 Service audio d'arrière-plan démarré.")
         return START_STICKY
