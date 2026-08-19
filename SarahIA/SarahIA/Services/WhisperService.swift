@@ -18,6 +18,7 @@ public final class WhisperService: NSObject, ObservableObject {
     
     @Published public private(set) var status: TranscriptionStatus = .idle
     @Published public private(set) var currentLiveText: String = ""
+    @Published public private(set) var isAuthorized: Bool = false
     
     public var onFinalTranscription: ((String) -> Void)?
     public var onPartialTranscription: ((String) -> Void)?
@@ -28,6 +29,7 @@ public final class WhisperService: NSObject, ObservableObject {
     
     private var isWhisperCoreMLLoaded: Bool = false
     private let processingQueue = DispatchQueue(label: "com.sarahai.whisper", qos: .userInitiated)
+    private var hasDeliveredFinalResult: Bool = false
     
     private override init() {
         super.init()
@@ -37,17 +39,17 @@ public final class WhisperService: NSObject, ObservableObject {
     
     // MARK: - Permissions
     
-    public func requestAuthorization() {
-        SFSpeechRecognizer.requestAuthorization { authStatus in
+    public func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
+        SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
             DispatchQueue.main.async {
-                switch authStatus {
-                case .authorized:
+                let ok = (authStatus == .authorized)
+                self?.isAuthorized = ok
+                if ok {
                     print("✅ [WhisperService] Reconnaissance vocale autorisée.")
-                case .denied, .restricted, .notDetermined:
-                    print("⚠️ [WhisperService] Reconnaissance vocale non disponible ou refusée.")
-                @unknown default:
-                    break
+                } else {
+                    print("⚠️ [WhisperService] Reconnaissance vocale non autorisée (\(authStatus.rawValue)).")
                 }
+                completion?(ok)
             }
         }
     }
@@ -56,18 +58,15 @@ public final class WhisperService: NSObject, ObservableObject {
     
     private func initWhisperCoreMLModel() {
         processingQueue.async { [weak self] in
-            // Vérification de la présence d'un modèle Whisper CoreML compilé (ex: ggml-tiny-encoder.mlmodelc)
             if let modelURL = Bundle.main.url(forResource: "whisper_tiny", withExtension: "mlmodelc") {
                 print("🧠 [WhisperService] Modèle local Whisper CoreML détecté à: \(modelURL.lastPathComponent)")
                 self?.isWhisperCoreMLLoaded = true
             } else {
-                print("ℹ️ [WhisperService] Utilisation du moteur haute performance On-Device Neural Speech avec fallback Whisper.")
+                print("ℹ️ [WhisperService] Moteur On-Device Apple Speech avec fallback.")
                 self?.isWhisperCoreMLLoaded = false
             }
         }
     }
-    
-    private var hasDeliveredFinalResult: Bool = false
     
     // MARK: - Démarrage de la Session de Transcription
     
@@ -75,9 +74,14 @@ public final class WhisperService: NSObject, ObservableObject {
     public func startTranscription() {
         stopTranscription()
         
-        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
-            print("⚠️ [WhisperService] Speech recognizer non disponible.")
+        guard let speechRecognizer = speechRecognizer else {
+            print("⚠️ [WhisperService] Speech recognizer introuvable pour fr-FR.")
             status = .error("Reconnaissance indisponible")
+            return
+        }
+        
+        guard speechRecognizer.isAvailable else {
+            print("⚠️ [WhisperService] Speech recognizer non disponible actuellement.")
             return
         }
         
@@ -113,9 +117,9 @@ public final class WhisperService: NSObject, ObservableObject {
             
             if let error = error {
                 let nsError = error as NSError
-                // Ignorer l'erreur d'annulation normale
+                // Ignorer les codes d'annulation bénins
                 if nsError.domain != "kAFAssistantErrorDomain" && nsError.code != 209 && nsError.code != 216 {
-                    print("⚠️ [WhisperService] Erreur transcription: \(error.localizedDescription)")
+                    print("⚠️ [WhisperService] Info transcription: \(error.localizedDescription)")
                 }
             }
         }

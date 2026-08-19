@@ -31,6 +31,9 @@ public final class ChatViewModel: ObservableObject {
     @Published public var liveTranscriptionText: String = ""
     @Published public var micInputLevel: Float = 0.0
     @Published public var learnedMemories: [String: String] = [:]
+    @Published public var isSpeaking: Bool = false
+    @Published public var currentSpeakingText: String? = nil
+    @Published public var isMicRunning: Bool = false
     
     // MARK: - Services
     private let aiService = AIService.shared
@@ -48,6 +51,37 @@ public final class ChatViewModel: ObservableObject {
         restorePersistedState()
         setupVoicePipeline()
         setupModeObserver()
+        bindServices()
+    }
+    
+    // MARK: - Liaison des Services
+    
+    private func bindServices() {
+        ttsService.$isSpeaking
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] speaking in
+                self?.isSpeaking = speaking
+                if speaking {
+                    self?.voiceStatus = .speaking
+                } else if self?.voiceStatus == .speaking {
+                    self?.voiceStatus = .idle
+                }
+            }
+            .store(in: &cancellables)
+            
+        ttsService.$currentSpokenText
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] text in
+                self?.currentSpeakingText = text
+            }
+            .store(in: &cancellables)
+            
+        audioEngine.$isRunning
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] running in
+                self?.isMicRunning = running
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -69,7 +103,7 @@ public final class ChatViewModel: ObservableObject {
         } else {
             // Premier lancement : message de bienvenue de Sarah
             let welcome = Message(
-                content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA en temps réel. Parlez-moi ou écrivez-moi !",
+                content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA 3D en temps réel. Parlez-moi ou écrivez-moi !",
                 isFromUser: false
             )
             self.messages = [welcome]
@@ -115,7 +149,12 @@ public final class ChatViewModel: ObservableObject {
                 self.haptics.modeToggled()
                 
                 if newMode == .avatar {
-                    self.startFullDuplexVoiceMode()
+                    // Démarrage doux de l'audio si permission déjà accordée
+                    self.audioEngine.requestPermissionAndStart { granted in
+                        if granted {
+                            self.whisperService.startTranscription()
+                        }
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -197,7 +236,6 @@ public final class ChatViewModel: ObservableObject {
             self.voiceStatus = .idle
             self.haptics.speechFinished()
             if self.appMode == .avatar {
-                // Se remettre en écoute automatiquement
                 self.whisperService.startTranscription()
             }
         }
@@ -207,11 +245,29 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    /// Démarre ou bascule l'écoute vocale
+    public func toggleMicrophone() {
+        haptics.buttonTap()
+        if audioEngine.isRunning {
+            audioEngine.stopAudioEngine()
+            whisperService.stopTranscription()
+            voiceStatus = .idle
+        } else {
+            audioEngine.requestPermissionAndStart { [weak self] granted in
+                guard let self = self, granted else { return }
+                self.whisperService.startTranscription()
+                self.voiceStatus = .listening(level: 0.0)
+            }
+        }
+    }
+    
     /// Démarre l'écoute vocale continue pour le mode Avatar
     public func startFullDuplexVoiceMode() {
-        audioEngine.startAudioEngine()
-        whisperService.startTranscription()
-        voiceStatus = .listening(level: 0.0)
+        audioEngine.requestPermissionAndStart { [weak self] granted in
+            guard let self = self, granted else { return }
+            self.whisperService.startTranscription()
+            self.voiceStatus = .listening(level: 0.0)
+        }
     }
     
     /// Arrête l'écoute vocale
@@ -220,6 +276,39 @@ public final class ChatViewModel: ObservableObject {
         audioEngine.stopAudioEngine()
         ttsService.stopSpeaking()
         voiceStatus = .idle
+    }
+    
+    // MARK: - Écoute et Lecture Vocale des Messages (TTS)
+    
+    /// Lit un message spécifique à voix haute
+    public func speakMessage(_ text: String) {
+        haptics.buttonTap()
+        ttsService.speak(text: text)
+    }
+    
+    /// Bascule la lecture d'un message spécifique (lecture ou arrêt)
+    public func toggleSpeechForMessage(_ text: String) {
+        haptics.buttonTap()
+        let cleaned = text
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+        if ttsService.isSpeaking && ttsService.currentSpokenText == cleaned {
+            ttsService.stopSpeaking()
+        } else {
+            ttsService.speak(text: text)
+        }
+    }
+    
+    /// Présentation complète et chaleureuse de Sarah (Voix + Texte)
+    public func introduceSarah() {
+        haptics.buttonTap()
+        let introText = "Bonjour ! 👋 Je m'appelle Sarah, votre assistante IA 3D en temps réel. Je suis conçue pour converser avec vous par la voix ou par écrit, répondre à vos questions, et mémoriser nos échanges. N'hésitez pas à me parler librement !"
+        let aiMessage = Message(content: introText, isFromUser: false)
+        messages.append(aiMessage)
+        persistCurrentState()
+        ttsService.speak(text: introText)
     }
     
     // MARK: - Traitement des Messages (Texte & Voix)
@@ -306,8 +395,13 @@ public final class ChatViewModel: ObservableObject {
     
     /// Envoie une suggestion rapide (chips)
     public func sendQuickSuggestion(_ text: String) {
-        inputText = text
-        sendMessage()
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "Présente-toi" || trimmed == "Qui es-tu ?" || trimmed.contains("présentation") {
+            introduceSarah()
+        } else {
+            inputText = text
+            sendMessage()
+        }
     }
     
     // MARK: - Gestion de la Mémoire Apprise ("Brain Vault")
@@ -389,4 +483,3 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 }
-

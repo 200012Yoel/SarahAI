@@ -20,10 +20,11 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     @Published public private(set) var isRunning: Bool = false
     @Published public private(set) var currentInputLevel: Float = 0.0
     @Published public private(set) var isUserSpeaking: Bool = false
+    @Published public private(set) var hasMicrophonePermission: Bool = false
     
     // MARK: - Configuration & Thresholds
-    public var vadEnergyThreshold: Float = 0.045 // Seuil RMS de détection de voix
-    public var silenceDurationThreshold: TimeInterval = 1.4 // Secondes de silence pour fin de phrase
+    public var vadEnergyThreshold: Float = 0.040 // Seuil RMS de détection de voix optimisé
+    public var silenceDurationThreshold: TimeInterval = 1.2 // Secondes de silence pour fin de phrase
     public var isTTSCurrentlyActive: Bool = false // Marqueur quand Sarah parle
     
     // MARK: - Callbacks
@@ -41,16 +42,25 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     private var speechStartTime: Date?
     private var lastSpeechTime: Date?
     private var consecutiveVoiceFrames: Int = 0
-    private let requiredConsecutiveFramesForOnset: Int = 3
+    private let requiredConsecutiveFramesForOnset: Int = 2
+    
+    // Throttling pour éviter de saturer le thread principal à chaque buffer
+    private var lastLevelUpdateTime: TimeInterval = 0
+    private let audioProcessingQueue = DispatchQueue(label: "com.sarahia.audioprocessing", qos: .userInteractive)
     
     private override init() {
         super.init()
-        setupAudioSession()
+        checkInitialPermission()
         setupNotifications()
     }
     
     deinit {
         stopAudioEngine()
+    }
+    
+    private func checkInitialPermission() {
+        let status = AVAudioSession.sharedInstance().recordPermission
+        self.hasMicrophonePermission = (status == .granted)
     }
     
     // MARK: - Configuration de la Session Audio
@@ -76,7 +86,34 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Démarrage et Arrêt du Moteur Audio
+    // MARK: - Gestion des Permissions & Démarrage
+    
+    /// Demande la permission microphone puis démarre le moteur audio si accordée
+    public func requestPermissionAndStart(completion: ((Bool) -> Void)? = nil) {
+        let session = AVAudioSession.sharedInstance()
+        switch session.recordPermission {
+        case .granted:
+            self.hasMicrophonePermission = true
+            self.startAudioEngine()
+            completion?(true)
+        case .denied:
+            self.hasMicrophonePermission = false
+            print("⚠️ [AudioEngineManager] Permission microphone refusée par l'utilisateur.")
+            completion?(false)
+        case .undetermined:
+            session.requestRecordPermission { [weak self] granted in
+                DispatchQueue.main.async {
+                    self?.hasMicrophonePermission = granted
+                    if granted {
+                        self?.startAudioEngine()
+                    }
+                    completion?(granted)
+                }
+            }
+        @unknown default:
+            completion?(false)
+        }
+    }
     
     /// Démarre la capture micro et l'analyse VAD en temps réel
     public func startAudioEngine() {
@@ -98,10 +135,12 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
         self.audioFormat = recordingFormat
         
-        // Installer le Tap audio (buffer size 1024 frames = ~23ms à 44.1kHz)
+        // Installer le Tap audio
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, time) in
-            self?.processAudioBuffer(buffer)
+            self?.audioProcessingQueue.async {
+                self?.processAudioBuffer(buffer)
+            }
         }
         
         do {
@@ -129,27 +168,41 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Traitement du Signal Audio & VAD
+    /// Bascule le statut d'enregistrement du micro
+    public func toggleAudioEngine() {
+        if isRunning {
+            stopAudioEngine()
+        } else {
+            requestPermissionAndStart()
+        }
+    }
+    
+    // MARK: - Traitement du Signal Audio & VAD (Exécuté sur queue dédiée, UI throttled)
     
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let frameLength = Int(buffer.frameLength)
         guard frameLength > 0 else { return }
         
-        // Calcul du RMS (Root Mean Square) pour l'énergie sonore
+        // Calcul du RMS (Root Mean Square)
         var sumSquares: Float = 0.0
         for i in 0..<frameLength {
             let sample = channelData[i]
             sumSquares += sample * sample
         }
         let rms = sqrt(sumSquares / Float(frameLength))
-        let normalizedLevel = min(1.0, max(0.0, rms * 8.0))
+        let normalizedLevel = min(1.0, max(0.0, rms * 9.0))
         
-        DispatchQueue.main.async {
-            self.currentInputLevel = normalizedLevel
+        // Throttling UI : mise à jour du niveau sonore à max 30 FPS pour préserver la fluidité
+        let now = CACurrentMediaTime()
+        if now - lastLevelUpdateTime > 0.033 {
+            lastLevelUpdateTime = now
+            DispatchQueue.main.async {
+                self.currentInputLevel = normalizedLevel
+            }
         }
         
-        // Transmettre le buffer brut pour le streaming Whisper
+        // Transmettre le buffer brut pour la transcription Whisper / SFSpeechRecognizer
         onAudioBufferCaptured?(buffer)
         
         // Évaluation VAD
@@ -168,7 +221,6 @@ public final class AudioEngineManager: NSObject, ObservableObject {
                     }
                     
                     // --- BARGE-IN INTERRUPTION ---
-                    // Si l'utilisateur parle pendant que Sarah est en train de parler
                     if isTTSCurrentlyActive {
                         print("⚡ [AudioEngineManager] BARGE-IN! L'utilisateur a interrompu Sarah.")
                         DispatchQueue.main.async {

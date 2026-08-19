@@ -76,6 +76,26 @@ public struct ContentView: View {
                     statusPillBadge
                     Spacer()
                     
+                    // Bouton Présentation Sarah
+                    Button(action: {
+                        viewModel.introduceSarah()
+                    }) {
+                        HStack(spacing: 4) {
+                            Text("✨")
+                                .font(.system(size: 13))
+                            Text("Présentation")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundColor(.cyan)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.12))
+                                .overlay(Capsule().stroke(Color.cyan.opacity(0.35), lineWidth: 1))
+                        )
+                    }
+                    
                     // Bouton Cerveau Permanent / Mémoire
                     Button(action: {
                         HapticService.shared.buttonTap()
@@ -118,16 +138,42 @@ public struct ContentView: View {
                 
                 Spacer()
                 
-                // Transcription vocale en direct et ondelettes audio
+                // Transcription vocale en direct, contrôle micro et ondelettes audio
                 liveVoiceOverlay
-                    .padding(.bottom, 90) // Espace pour la barre de contrôle flottante
+                    .padding(.bottom, 95) // Espace pour la barre de contrôle flottante
             }
         }
     }
     
-    /// Overlay vocal affichant l'état en direct et les ondes
+    /// Overlay vocal affichant l'état en direct, le bouton micro tactile et les ondes
     private var liveVoiceOverlay: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
+            // Bouton Micro Tactile & Interactif
+            Button(action: {
+                viewModel.toggleMicrophone()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(viewModel.isMicRunning ? .cyan : .white.opacity(0.6))
+                    
+                    Text(viewModel.isMicRunning ? "Écoute Active • Touchez pour couper" : "Micro en veille • Touchez pour parler")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(viewModel.isMicRunning ? Color.cyan.opacity(0.22) : Color.white.opacity(0.12))
+                        .overlay(
+                            Capsule().stroke(viewModel.isMicRunning ? Color.cyan.opacity(0.6) : Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                )
+                .shadow(color: viewModel.isMicRunning ? Color.cyan.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 0)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
             // Ondes d'énergie vocale (16 barres harmoniques)
             HStack(spacing: 4) {
                 ForEach(0..<16) { index in
@@ -183,7 +229,7 @@ public struct ContentView: View {
     private var voiceStatusText: String {
         switch viewModel.voiceStatus {
         case .idle:
-            return "Sarah écoute en continu • Parlez librement"
+            return viewModel.isMicRunning ? "Sarah écoute en continu • Parlez librement" : "Touchez le micro pour parler"
         case .listening:
             return "🎙️ Sarah vous écoute..."
         case .processing:
@@ -209,17 +255,19 @@ public struct ContentView: View {
             // En-tête iMessage Dark
             textModeHeader
             
-            // Liste scrollable des bulles de messages
+            // Liste scrollable des bulles de messages avec bouton écoute
             messagesScrollView
             
             // Chips de suggestions d'actions rapides
             quickSuggestionsChips
             
-            // Barre de saisie fluide (MessageInputView)
+            // Barre de saisie fluide avec microphone intégré (MessageInputView)
             MessageInputView(
                 text: $viewModel.inputText,
                 isTyping: viewModel.isTyping,
-                onSend: viewModel.sendMessage
+                isMicActive: viewModel.isMicRunning,
+                onSend: viewModel.sendMessage,
+                onMicTap: viewModel.toggleMicrophone
             )
         }
     }
@@ -228,12 +276,12 @@ public struct ContentView: View {
     private var quickSuggestionsChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                suggestionChip("✨ Présente-toi", query: "Présente-toi")
                 suggestionChip("💡 Apprendre un mot", query: "Apprends ")
                 suggestionChip("🧠 Que sais-tu ?", query: "Qu'est-ce que tu as appris ?")
                 suggestionChip("👋 Bonjour Sarah", query: "Bonjour")
                 suggestionChip("😄 Raconte une blague", query: "Raconte-moi une blague")
                 suggestionChip("⏰ Quelle heure ?", query: "Quelle heure est-il ?")
-                suggestionChip("✨ Qui es-tu ?", query: "Qui es-tu ?")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
@@ -338,14 +386,20 @@ public struct ContentView: View {
         )
     }
     
-    /// Liste scrollable des messages avec auto-scroll
+    /// Liste scrollable des messages avec bouton écoute et auto-scroll
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 14) {
                     ForEach(viewModel.messages) { message in
-                        ChatBubbleView(message: message)
-                            .id(message.id)
+                        ChatBubbleView(
+                            message: message,
+                            isSpeaking: (viewModel.isSpeaking && viewModel.currentSpeakingText == message.content),
+                            onSpeak: {
+                                viewModel.toggleSpeechForMessage(message.content)
+                            }
+                        )
+                        .id(message.id)
                     }
                     
                     if viewModel.isTyping {
@@ -402,7 +456,7 @@ public struct ContentView: View {
     private var statusIndicatorColor: Color {
         switch viewModel.voiceStatus {
         case .idle:
-            return .green
+            return viewModel.isMicRunning ? .green : .gray
         case .listening:
             return .cyan
         case .processing:
@@ -417,7 +471,7 @@ public struct ContentView: View {
     private var statusIndicatorLabel: String {
         switch viewModel.voiceStatus {
         case .idle:
-            return "Sarah Prête"
+            return viewModel.isMicRunning ? "Sarah Prête" : "Micro Veille"
         case .listening:
             return "Écoute Active"
         case .processing:
@@ -503,4 +557,3 @@ struct ContentView_Previews: PreviewProvider {
             .preferredColorScheme(.dark)
     }
 }
-

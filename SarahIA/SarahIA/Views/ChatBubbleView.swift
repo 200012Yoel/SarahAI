@@ -1,21 +1,29 @@
 import SwiftUI
 
-/// Bulle de message stylisée au format natif iMessage Dark Mode.
+/// Bulle de message stylisée au format natif iMessage Dark Mode avec bouton de lecture vocale TTS.
 public struct ChatBubbleView: View {
     public let message: Message
+    public var isSpeaking: Bool
+    public var onSpeak: (() -> Void)?
     
-    public init(message: Message) {
+    public init(
+        message: Message,
+        isSpeaking: Bool = false,
+        onSpeak: (() -> Void)? = nil
+    ) {
         self.message = message
+        self.isSpeaking = isSpeaking
+        self.onSpeak = onSpeak
     }
     
     public var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             if message.isFromUser {
-                Spacer(minLength: 50)
+                Spacer(minLength: 40)
                 userBubble
             } else {
                 aiBubble
-                Spacer(minLength: 50)
+                Spacer(minLength: 40)
             }
         }
         .padding(.horizontal, 4)
@@ -51,7 +59,7 @@ public struct ChatBubbleView: View {
         }
     }
     
-    // MARK: - Bulle Sarah AI (Gris Charcoal Sombre Haute Lisibilité)
+    // MARK: - Bulle Sarah AI (Gris Charcoal Sombre Haute Lisibilité + Bouton Écouter)
     
     private var aiBubble: some View {
         HStack(alignment: .bottom, spacing: 8) {
@@ -74,25 +82,59 @@ public struct ChatBubbleView: View {
                     .font(.system(size: 14))
             }
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
+                // Contenu du message
                 Text(message.content)
                     .font(.system(size: 16, weight: .regular, design: .rounded))
                     .foregroundColor(.white)
+                    .lineSpacing(3)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .background(
                         Color(red: 0.16, green: 0.16, blue: 0.18) // Apple Dark Bubble Gray
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 19, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                            .stroke(
+                                isSpeaking ? Color.cyan.opacity(0.6) : Color.white.opacity(0.08),
+                                lineWidth: isSpeaking ? 1.5 : 0.5
+                            )
                     )
+                    .shadow(color: isSpeaking ? Color.cyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
                 
-                Text(message.formattedTime)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundColor(Color.white.opacity(0.4))
-                    .padding(.leading, 4)
+                // Barre d'action inférieure : Heure + Bouton Écouter la réponse
+                HStack(spacing: 8) {
+                    Text(message.formattedTime)
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundColor(Color.white.opacity(0.4))
+                        .padding(.leading, 4)
+                    
+                    // 🔊 Bouton Écouter / Relire la réponse de Sarah
+                    Button(action: {
+                        onSpeak?()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(isSpeaking ? .cyan : .white.opacity(0.8))
+                            
+                            Text(isSpeaking ? "En lecture..." : "Écouter")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundColor(isSpeaking ? .cyan : .white.opacity(0.8))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(isSpeaking ? Color.cyan.opacity(0.2) : Color.white.opacity(0.08))
+                                .overlay(
+                                    Capsule().stroke(isSpeaking ? Color.cyan.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
+                                )
+                        )
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                }
             }
         }
     }
@@ -102,13 +144,19 @@ public struct ChatBubbleView: View {
 
 struct ChatBubbleView_Previews: PreviewProvider {
     static var previews: some View {
-        VStack {
+        VStack(spacing: 12) {
             ChatBubbleView(message: Message(content: "Bonjour Sarah !", isFromUser: true))
-            ChatBubbleView(message: Message(content: "Bonjour ! Comment puis-je vous aider ?", isFromUser: false))
+            ChatBubbleView(
+                message: Message(content: "Bonjour ! Je suis Sarah, comment puis-je vous aider ?", isFromUser: false),
+                isSpeaking: true
+            )
+            ChatBubbleView(
+                message: Message(content: "Voici votre réponse personnalisée.", isFromUser: false),
+                isSpeaking: false
+            )
         }
         .padding()
         .background(Color.black)
         .preferredColorScheme(.dark)
     }
 }
-

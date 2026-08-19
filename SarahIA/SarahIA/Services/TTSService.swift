@@ -20,6 +20,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
     public static let shared = TTSService()
     
     @Published public private(set) var isSpeaking: Bool = false
+    @Published public private(set) var currentSpokenText: String? = nil
     @Published public private(set) var currentViseme: VisemeFrame = .zero
     
     public var onSpeechStarted: (() -> Void)?
@@ -103,6 +104,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         utterance.postUtteranceDelay = 0.0
         
         isSpeaking = true
+        currentSpokenText = cleanedText
         AudioEngineManager.shared.isTTSCurrentlyActive = true
         
         // Démarrer une assertion de tâche d'arrière-plan pour garantir la parole même écran verrouillé
@@ -122,6 +124,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         stopVisemeAnimationLoop()
         isSpeaking = false
+        currentSpokenText = nil
         AudioEngineManager.shared.isTTSCurrentlyActive = false
         currentViseme = .zero
         onVisemeUpdated?(.zero)
@@ -160,6 +163,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         DispatchQueue.main.async {
             self.stopVisemeAnimationLoop()
             self.isSpeaking = false
+            self.currentSpokenText = nil
             AudioEngineManager.shared.isTTSCurrentlyActive = false
             self.currentViseme = .zero
             self.onVisemeUpdated?(.zero)
@@ -172,6 +176,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         DispatchQueue.main.async {
             self.stopVisemeAnimationLoop()
             self.isSpeaking = false
+            self.currentSpokenText = nil
             AudioEngineManager.shared.isTTSCurrentlyActive = false
             self.currentViseme = .zero
             self.onVisemeUpdated?(.zero)
