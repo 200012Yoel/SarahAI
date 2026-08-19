@@ -308,7 +308,6 @@ public final class ChatViewModel: ObservableObject {
     }
     
     // MARK: - Mode Conversationnel Continu (100% Gratuit & Local Apple Speech)
-    @Published public var isContinuousConversationActive: Bool = false
     
     private func setupVoicePipeline() {
         // 1. Liaison de la transcription en direct
@@ -516,8 +515,8 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    public func sendMessage() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    public func sendMessage(_ explicitText: String? = nil) {
+        let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
         let userMessage = Message(content: text, isFromUser: true)

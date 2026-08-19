@@ -73,7 +73,7 @@ public struct SettingsView: View {
                     Section(header: Text("Historique & Réinitialisation").foregroundColor(.cyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
-                            viewModel.resetConversation()
+                            viewModel.startNewChat()
                             presentationMode.wrappedValue.dismiss()
                         }) {
                             HStack {

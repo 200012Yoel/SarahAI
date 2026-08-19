@@ -226,7 +226,6 @@ public struct ContentView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
     }
     
     @ViewBuilder
