@@ -224,6 +224,27 @@ public final class ChatViewModel: ObservableObject {
     
     // MARK: - Traitement des Messages (Texte & Voix)
     
+    private var aiProcessingBgTask: UIBackgroundTaskIdentifier = .invalid
+    
+    private func beginAIBgTask() {
+        if aiProcessingBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(aiProcessingBgTask)
+        }
+        aiProcessingBgTask = UIApplication.shared.beginBackgroundTask(withName: "SarahAI_Processing") { [weak self] in
+            if let task = self?.aiProcessingBgTask, task != .invalid {
+                UIApplication.shared.endBackgroundTask(task)
+                self?.aiProcessingBgTask = .invalid
+            }
+        }
+    }
+    
+    private func endAIBgTask() {
+        if aiProcessingBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(aiProcessingBgTask)
+            aiProcessingBgTask = .invalid
+        }
+    }
+    
     /// Traite une entrée vocale transcrite par Whisper
     private func handleUserSpeechInput(_ transcription: String) {
         let userMessage = Message(content: transcription, isFromUser: true)
@@ -232,6 +253,7 @@ public final class ChatViewModel: ObservableObject {
         
         voiceStatus = .processing
         isTyping = true
+        beginAIBgTask()
         
         Task {
             let response = await aiService.generateResponse(for: transcription)
@@ -242,10 +264,12 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             self.persistCurrentState()
             
+            // Envoyer une notification locale si l'app est en arrière-plan
+            self.sendNotificationIfNeeded(message: response)
+            
             // Prononcer la réponse à voix haute et animer l'avatar 3D
             self.ttsService.speak(text: response)
-            
-            self.sendNotificationIfNeeded(message: response)
+            self.endAIBgTask()
         }
     }
     
@@ -260,6 +284,7 @@ public final class ChatViewModel: ObservableObject {
         persistCurrentState()
         
         isTyping = true
+        beginAIBgTask()
         
         Task {
             let response = await aiService.generateResponse(for: text)
@@ -270,10 +295,12 @@ public final class ChatViewModel: ObservableObject {
             self.isTyping = false
             self.persistCurrentState()
             
+            // Envoyer une notification locale si l'app est en arrière-plan
+            self.sendNotificationIfNeeded(message: response)
+            
             // Synthèse vocale fluide et synchronisée à voix haute
             self.ttsService.speak(text: response)
-            
-            self.sendNotificationIfNeeded(message: response)
+            self.endAIBgTask()
         }
     }
     

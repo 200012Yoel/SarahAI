@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import UIKit
 import Combine
 
 /// Événement de visème émis pour animer le morphing facial 3D
@@ -34,6 +35,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
     private var targetPucker: Float = 0.0
     private var targetFunnel: Float = 0.0
     private var targetSmile: Float = 0.0
+    private var speechBgTask: UIBackgroundTaskIdentifier = .invalid
     
     private override init() {
         super.init()
@@ -95,6 +97,10 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         
         isSpeaking = true
         AudioEngineManager.shared.isTTSCurrentlyActive = true
+        
+        // Démarrer une assertion de tâche d'arrière-plan pour garantir la parole même écran verrouillé
+        beginSpeechBackgroundTask()
+        
         startVisemeAnimationLoop()
         onSpeechStarted?()
         
@@ -112,7 +118,26 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         AudioEngineManager.shared.isTTSCurrentlyActive = false
         currentViseme = .zero
         onVisemeUpdated?(.zero)
+        endSpeechBackgroundTask()
         onSpeechInterrupted?()
+    }
+    
+    // MARK: - Gestion des Tâches d'Arrière-Plan
+    
+    private func beginSpeechBackgroundTask() {
+        if speechBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(speechBgTask)
+        }
+        speechBgTask = UIApplication.shared.beginBackgroundTask(withName: "SarahAI_TTS") { [weak self] in
+            self?.endSpeechBackgroundTask()
+        }
+    }
+    
+    private func endSpeechBackgroundTask() {
+        if speechBgTask != .invalid {
+            UIApplication.shared.endBackgroundTask(speechBgTask)
+            speechBgTask = .invalid
+        }
     }
     
     // MARK: - AVSpeechSynthesizerDelegate
@@ -131,6 +156,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
             AudioEngineManager.shared.isTTSCurrentlyActive = false
             self.currentViseme = .zero
             self.onVisemeUpdated?(.zero)
+            self.endSpeechBackgroundTask()
             self.onSpeechFinished?()
         }
     }
@@ -142,6 +168,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
             AudioEngineManager.shared.isTTSCurrentlyActive = false
             self.currentViseme = .zero
             self.onVisemeUpdated?(.zero)
+            self.endSpeechBackgroundTask()
             self.onSpeechInterrupted?()
         }
     }

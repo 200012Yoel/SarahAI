@@ -55,5 +55,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         NotificationService.shared.clearBadge()
         completionHandler()
     }
+    
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        // Maintenir la session audio active pour la synthèse et l'écoute en arrière-plan
+        AudioEngineManager.shared.setupAudioSession()
+    }
+    
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        // Rafraîchir la session au retour au premier plan
+        AudioEngineManager.shared.setupAudioSession()
+    }
 }
 
