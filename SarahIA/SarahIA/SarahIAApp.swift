@@ -12,8 +12,6 @@ struct SarahIAApp: App {
             ContentView()
                 .preferredColorScheme(.dark)
                 .onAppear {
-                    // Configuration initiale de la session audio
-                    AudioSessionManager.shared.configurePlaybackSession()
                     // Réinitialiser le badge de notification
                     NotificationService.shared.clearBadge()
                 }
@@ -30,7 +28,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
-        AudioSessionManager.shared.configurePlaybackSession()
         return true
     }
     
@@ -58,7 +55,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {
-        AudioSessionManager.shared.configurePlaybackSession()
+        // Retour au premier plan fluide
     }
 }
 

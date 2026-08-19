@@ -1,84 +1,100 @@
-import SwiftUI
-import WebKit
+//
+//  Avatar3DView.swift
+//  SarahIA
+//
+//  Rendu 3D natif SceneKit / Metal pour Sarah IA
+//  100% Natif SwiftUI - ZÉRO WebView, ZÉRO HTML/JS
+//
 
-/// Vue SwiftUI intégrant l'avatar 3D complet avec Three.js, VRM, shaders MToon, gestuelle et lipsync temps réel.
+import SwiftUI
+import SceneKit
+
+/// Vue 3D native représentant l'avatar de Sarah avec rendu Metal SceneKit temps réel
 public struct Avatar3DView: View {
     @ObservedObject var avatarEngine = AvatarEngine.shared
+    @ObservedObject var speechManager = SpeechManager.shared
     public var isSpeaking: Bool = false
+    
+    @State private var dragOffset: CGSize = .zero
     
     public init(isSpeaking: Bool = false) {
         self.isSpeaking = isSpeaking
     }
     
     public var body: some View {
-        AvatarVRMWebContainerView(isSpeaking: isSpeaking)
-            .background(Color.black)
-            .edgesIgnoringSafeArea(.all)
+        GeometryReader { geometry in
+            ZStack {
+                // Fond sombre texturé pour faire ressortir l'éclairage 3D
+                Color.black.edgesIgnoringSafeArea(.all)
+                
+                // Rendu SceneKit Natif Haute Performance (Metal)
+                NativeSceneKitContainerView(scene: avatarEngine.scene)
+                    .edgesIgnoringSafeArea(.all)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragOffset = value.translation
+                                // Ajuster le regard de l'avatar au toucher de l'utilisateur
+                                let normalizedX = Float(value.translation.width / (geometry.size.width / 2.0))
+                                let normalizedY = Float(-value.translation.height / (geometry.size.height / 2.0))
+                                avatarEngine.setLookAtTarget(
+                                    x: max(-1.0, min(1.0, normalizedX)),
+                                    y: max(-1.0, min(1.0, normalizedY))
+                                )
+                            }
+                            .onEnded { _ in
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                    dragOffset = .zero
+                                }
+                                avatarEngine.setLookAtTarget(x: 0, y: 0)
+                            }
+                    )
+                
+                // Effet de halo ambiant réactif à l'élocution de Sarah
+                if isSpeaking || speechManager.isSpeaking {
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color.cyan.opacity(0.12),
+                            Color.purple.opacity(0.06),
+                            Color.clear
+                        ]),
+                        center: .center,
+                        startRadius: 50,
+                        endRadius: 350
+                    )
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
+            }
+        }
     }
 }
 
-/// Conteneur WKWebView haute performance pour le rendu 3D VRM 60/120 FPS avec Metal
-struct AvatarVRMWebContainerView: UIViewRepresentable {
-    var isSpeaking: Bool
+/// Conteneur UIViewRepresentable encapsulant un SCNView natif configuré pour Metal
+struct NativeSceneKitContainerView: UIViewRepresentable {
+    let scene: SCNScene
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func makeUIView(context: Context) -> SCNView {
+        let scnView = SCNView(frame: .zero, options: [
+            SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
+        ])
+        
+        scnView.scene = scene
+        scnView.backgroundColor = .black
+        scnView.antialiasingMode = .multisampling4X
+        scnView.preferredFramesPerSecond = 60
+        scnView.autoenablesDefaultLighting = false
+        scnView.allowsCameraControl = false
+        scnView.rendersContinuously = true
+        scnView.isOpaque = true
+        
+        return scnView
     }
     
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.allowsInlineMediaPlayback = true
-        config.mediaTypesRequiringUserActionForPlayback = []
-        
-        // Autoriser l'accès aux fichiers locaux (VRM, textures, scripts JS)
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
-        
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.scrollView.isScrollEnabled = false
-        webView.scrollView.bounces = false
-        webView.navigationDelegate = context.coordinator
-        
-        // 1. Recherche du fichier HTML dans le Bundle principal
-        if let htmlUrl = Bundle.main.url(forResource: "sarah_ai_web", withExtension: "html") {
-            webView.loadFileURL(htmlUrl, allowingReadAccessTo: Bundle.main.bundleURL)
-        } else if let path = Bundle.main.path(forResource: "sarah_ai_web", ofType: "html"),
-                  let htmlString = try? String(contentsOfFile: path, encoding: .utf8) {
-            webView.loadHTMLString(htmlString, baseURL: Bundle.main.bundleURL)
-        } else {
-            // 2. Recherche dans Documents ou Application Support
-            let fileManager = FileManager.default
-            let docUrls = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
-            if let docUrl = docUrls.first?.appendingPathComponent("sarah_ai_web.html"), fileManager.fileExists(atPath: docUrl.path) {
-                webView.loadFileURL(docUrl, allowingReadAccessTo: docUrl.deletingLastPathComponent())
-            }
-        }
-        
-        context.coordinator.webView = webView
-        return webView
-    }
-    
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        // Synchronisation temps réel de la voix et du mouvement des lèvres
-        let js = "if (window.setSpeaking) { window.setSpeaking(\(isSpeaking ? "true" : "false")); }"
-        webView.evaluateJavaScript(js, completionHandler: nil)
-    }
-    
-    class Coordinator: NSObject, WKNavigationDelegate {
-        weak var webView: WKWebView?
-        
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            print("✅ [Avatar3DView] Avatar 3D VRM chargé avec succès dans l'application iOS.")
-        }
-        
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            print("⚠️ [Avatar3DView] Erreur navigation WKWebView: \(error.localizedDescription)")
-        }
-        
-        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-            print("⚠️ [Avatar3DView] Erreur navigation provisoire WKWebView: \(error.localizedDescription)")
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        if uiView.scene != scene {
+            uiView.scene = scene
         }
     }
 }
