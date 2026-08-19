@@ -1,17 +1,25 @@
 import Foundation
 import AVFoundation
+import UIKit
 
-/// Gestionnaire de session audio dédié garantissant le contournement absolu du mode silencieux de l'iPhone.
+/// Gestionnaire de session audio dédié garantissant :
+/// - Le contournement absolu du mode silencieux de l'iPhone (.playback)
+/// - La coupure automatique et instantanée du micro de Sarah dès que Siri, un appel ou une alarme se déclenche
 public final class AudioSessionManager {
     
     public static let shared = AudioSessionManager()
     
+    public var onInterruptionBegan: (() -> Void)?
+    public var onInterruptionEnded: (() -> Void)?
+    
     private init() {
         configurePlaybackSession()
+        setupInterruptionObservers()
     }
     
+    // MARK: - Configuration des Sessions Audio
+    
     /// Active la session audio en mode lecture média prioritaire pour contourner le bouton silencieux de l'iPhone.
-    /// Utilise la catégorie .playback avec le mode .spokenAudio et l'option .duckOthers.
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
@@ -27,7 +35,7 @@ public final class AudioSessionManager {
         }
     }
     
-    /// Configure la session audio pour l'enregistrement micro (dictée vocale Whisper / VAD).
+    /// Configure la session audio pour l'enregistrement micro natif.
     public func configureRecordingSession() {
         let session = AVAudioSession.sharedInstance()
         do {
@@ -43,18 +51,96 @@ public final class AudioSessionManager {
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            print("🎙️ [AudioSessionManager] Session .playAndRecord activée pour enregistrement.")
+            print("🎙️ [AudioSessionManager] Session .playAndRecord activée.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration .playAndRecord: \(error.localizedDescription)")
         }
     }
     
-    /// Désactive temporairement la session si nécessaire
+    /// Désactive la session audio proprement
     public func deactivateSession() {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {
             print("⚠️ [AudioSessionManager] Erreur désactivation: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Gestion de Siri, Appels Téléphoniques et Interruptions Système
+    
+    private func setupInterruptionObservers() {
+        // 1. Détection des interruptions audio iOS (Siri, Appel, Alarme, etc.)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        
+        // 2. Détection de l'apparition de Siri / Perte de focus de l'application
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        
+        // 3. Détection de l'indice audio secondaire (quand Siri prend la parole)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSecondaryAudioHint(_:)),
+            name: AVAudioSession.silenceSecondaryAudioHintNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleAudioInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            print("⚡ [AudioSessionManager] Interruption système débutée (Siri / Appel / Alarme). Coupure immédiate du micro.")
+            DispatchQueue.main.async {
+                self.onInterruptionBegan?()
+            }
+        case .ended:
+            print("🔄 [AudioSessionManager] Interruption système terminée.")
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) {
+                    DispatchQueue.main.async {
+                        self.onInterruptionEnded?()
+                    }
+                }
+            }
+        @unknown default:
+            break
+        }
+    }
+    
+    @objc private func handleAppWillResignActive() {
+        print("⚡ [AudioSessionManager] App en arrière-plan / Siri activé -> Coupure du micro.")
+        DispatchQueue.main.async {
+            self.onInterruptionBegan?()
+        }
+    }
+    
+    @objc private func handleSecondaryAudioHint(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
+              let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue) else {
+            return
+        }
+        
+        if type == .begin {
+            print("⚡ [AudioSessionManager] Audio externe prioritaire détecté (Siri parle) -> Coupure du micro de Sarah.")
+            DispatchQueue.main.async {
+                self.onInterruptionBegan?()
+            }
         }
     }
 }

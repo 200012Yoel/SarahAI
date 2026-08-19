@@ -374,6 +374,12 @@ public final class ChatViewModel: ObservableObject {
         SpeechManager.shared.onSpeechInterrupted = { [weak self] in
             self?.voiceStatus = .idle
         }
+        
+        // 5. Coupure automatique du micro et de la voix si Siri ou un appel se déclenche
+        AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
+            print("🔇 [ChatViewModel] Siri ou appel détecté : Coupure immédiate du micro et de la parole de Sarah.")
+            self?.stopVoiceMode()
+        }
     }
     
     /// Bascule le microphone / mode conversationnel continu (1 seul appui pour converser librement)

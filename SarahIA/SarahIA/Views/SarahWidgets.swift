@@ -247,4 +247,61 @@ public struct SarahMemoryWidgetView: View {
         .background(Color(red: 0.07, green: 0.07, blue: 0.10))
     }
 }
+
+// MARK: - Déclarations Officielles des Widgets iOS (WidgetKit)
+
+public struct SarahUsageStatsWidget: Widget {
+    public let kind: String = "SarahUsageStatsWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahUsageStatsWidgetView(entry: entry)
+        }
+        .configurationDisplayName("Sarah IA • Statistiques & Graphique")
+        .description("Affiche vos statistiques de discussion et le graphique d'activité.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+public struct SarahCompactStatsWidget: Widget {
+    public let kind: String = "SarahCompactStatsWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahCompactStatsWidgetView(entry: entry)
+        }
+        .configurationDisplayName("Sarah IA • Statut Rapide")
+        .description("Accès rapide et compteur de discussions.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+public struct SarahMemoryWidget: Widget {
+    public let kind: String = "SarahMemoryWidget"
+    
+    public init() {}
+    
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
+            SarahMemoryWidgetView(entry: entry)
+        }
+        .configurationDisplayName("Sarah IA • Mémoire")
+        .description("Vos derniers souvenirs appris avec Sarah.")
+        .supportedFamilies([.systemMedium])
+    }
+}
+
+public struct SarahWidgetBundle: WidgetBundle {
+    public init() {}
+    
+    public var body: some Widget {
+        SarahUsageStatsWidget()
+        SarahCompactStatsWidget()
+        SarahMemoryWidget()
+    }
+}
 #endif
