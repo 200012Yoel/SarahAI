@@ -284,6 +284,10 @@ class SarahBrain(private val context: Context) {
     private val modelDownloader = ModelDownloader(context)
     private val semanticMemoryIndex = SemanticMemoryIndex(context)
     private val localVisionEngine = LocalVisionEngine(context)
+    private val deviceController = DeviceController(context)
+    private val shortcutGenerator = ShortcutGenerator(context)
+    private val scriptSandbox = LocalScriptSandbox(context)
+    private val clipboardCompanion = ClipboardCompanion(context)
 
     init {
         // Préchargement des modèles IA légers hors-ligne
@@ -295,6 +299,10 @@ class SarahBrain(private val context: Context) {
     public fun getModelDownloader(): ModelDownloader = modelDownloader
     public fun getSemanticMemoryIndex(): SemanticMemoryIndex = semanticMemoryIndex
     public fun getLocalVisionEngine(): LocalVisionEngine = localVisionEngine
+    public fun getDeviceController(): DeviceController = deviceController
+    public fun getShortcutGenerator(): ShortcutGenerator = shortcutGenerator
+    public fun getScriptSandbox(): LocalScriptSandbox = scriptSandbox
+    public fun getClipboardCompanion(): ClipboardCompanion = clipboardCompanion
 
     public fun learn(question: String, answer: String) {
         val nq = normalize(question)
@@ -304,7 +312,37 @@ class SarahBrain(private val context: Context) {
     public fun getAnswerAsync(userText: String, callback: (String) -> Unit) {
         val norm = normalize(userText)
 
-        // 1. Détection de demande de Traduction Multilingue Temps Réel (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
+        // 1. Contrôle Système & Matériel Local (Batterie, Volume, Paramètres)
+        if (norm.contains("batterie") || norm.contains("niveau de batterie") || norm.contains("pourcentage batterie")) {
+            val bat = deviceController.getBatteryStatus()
+            callback(bat.description)
+            return
+        }
+
+        if (norm.contains("augmente le volume") || norm.contains("monte le son") || norm.contains("plus fort")) {
+            val msg = deviceController.setVolume(1)
+            callback(msg)
+            return
+        }
+
+        if (norm.contains("baisse le volume") || norm.contains("diminue le son") || norm.contains("moins fort")) {
+            val msg = deviceController.setVolume(-1)
+            callback(msg)
+            return
+        }
+
+        // 2. Presse-Papier Intelligent
+        if (norm.contains("presse papier") || norm.contains("texte copie") || norm.contains("ce que j ai copie")) {
+            val clipText = clipboardCompanion.getClipboardText()
+            if (clipText != null && clipText.isNotEmpty()) {
+                callback("Voici le contenu de votre presse-papier : « $clipText ».")
+            } else {
+                callback("Votre presse-papier est actuellement vide.")
+            }
+            return
+        }
+
+        // 3. Détection de demande de Traduction Multilingue Temps Réel (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
         val translationReq = translationEngine.parseTranslationIntent(userText)
         if (translationReq != null) {
             translationEngine.translateAsync(

@@ -19,7 +19,22 @@ final class AIService {
         let normalized = normalizeText(trimmed)
         
         // -----------------------------------------------------------------
-        // 0. TRADUCTION MULTILINGUE TEMPS RÉEL (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
+        // 0. CONTRÔLE MATÉRIEL & PRESSE-PAPIER LOCAL
+        // -----------------------------------------------------------------
+        if normalized.contains("batterie") || normalized.contains("niveau de batterie") || normalized.contains("pourcentage batterie") {
+            return DeviceController.shared.getBatteryStatus()
+        }
+        
+        if normalized.contains("presse papier") || normalized.contains("texte copie") || normalized.contains("ce que j ai copie") {
+            if let clip = ClipboardCompanion.shared.getClipboardText(), !clip.isEmpty {
+                return "Voici le contenu de votre presse-papier : « \(clip) »."
+            } else {
+                return "Votre presse-papier est actuellement vide."
+            }
+        }
+        
+        // -----------------------------------------------------------------
+        // 0.1 TRADUCTION MULTILINGUE TEMPS RÉEL (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
         // -----------------------------------------------------------------
         if let translationReq = translation.parseTranslationIntent(input: trimmed) {
             let translated = await translation.translate(
