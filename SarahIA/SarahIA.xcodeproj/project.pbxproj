@@ -44,6 +44,13 @@
 		A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000028 /* WakeWordDetector.swift */; };
 		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
 		A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
+		A1B2C3D40001000100000030 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000030 /* SidebarView.swift */; };
+		A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000031 /* ChatScreenView.swift */; };
+		A1B2C3D40001000100000032 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000032 /* Conversation.swift */; };
+		A1B2C3D40001000100000033 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
+		A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */; };
+		A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000035 /* AudioSessionManager.swift */; };
+		A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000036 /* SpeechManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -86,6 +93,13 @@
 		A1B2C3D40002000100000028 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWidgetBridge.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000031 /* ChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreenView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000032 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000033 /* SarahWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWidgets.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechRecognizer.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000035 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000036 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40002000100000003 /* Message.swift */,
+				A1B2C3D40002000100000032 /* Conversation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -159,6 +174,9 @@
 				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
 				A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */,
 				A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */,
+				A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */,
+				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
+				A1B2C3D40002000100000036 /* SpeechManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -172,6 +190,9 @@
 				A1B2C3D40002000100000015 /* Avatar3DView.swift */,
 				A1B2C3D40002000100000018 /* MemoryVaultView.swift */,
 				A1B2C3D40002000100000019 /* SettingsView.swift */,
+				A1B2C3D40002000100000030 /* SidebarView.swift */,
+				A1B2C3D40002000100000031 /* ChatScreenView.swift */,
+				A1B2C3D40002000100000033 /* SarahWidgets.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -298,6 +319,13 @@
 				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
 				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
 				A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */,
+				A1B2C3D40001000100000030 /* SidebarView.swift in Sources */,
+				A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */,
+				A1B2C3D40001000100000032 /* Conversation.swift in Sources */,
+				A1B2C3D40001000100000033 /* SarahWidgets.swift in Sources */,
+				A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */,
+				A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */,
+				A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
