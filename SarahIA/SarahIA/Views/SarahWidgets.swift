@@ -1,34 +1,16 @@
 import SwiftUI
-#if canImport(WidgetKit)
-import WidgetKit
 
-// MARK: - Timeline Provider
+// MARK: - Modèle de Données des Widgets
 
-public struct SarahWidgetProvider: TimelineProvider {
-    public typealias Entry = SarahWidgetEntry
-    
-    public func placeholder(in context: Context) -> SarahWidgetEntry {
-        SarahWidgetEntry(date: Date(), stats: WidgetStatsData())
-    }
-    
-    public func getSnapshot(in context: Context, completion: @escaping (SarahWidgetEntry) -> Void) {
-        let stats = SarahWidgetBridge.shared.getStats()
-        completion(SarahWidgetEntry(date: Date(), stats: stats))
-    }
-    
-    public func getTimeline(in context: Context, completion: @escaping (Timeline<SarahWidgetEntry>) -> Void) {
-        let stats = SarahWidgetBridge.shared.getStats()
-        let entry = SarahWidgetEntry(date: Date(), stats: stats)
-        // Rafraîchir toutes les 30 minutes
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date()
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-        completion(timeline)
-    }
-}
-
-public struct SarahWidgetEntry: TimelineEntry {
+public struct SarahWidgetEntry: Identifiable {
+    public let id = UUID()
     public let date: Date
     public let stats: WidgetStatsData
+    
+    public init(date: Date = Date(), stats: WidgetStatsData = WidgetStatsData()) {
+        self.date = date
+        self.stats = stats
+    }
 }
 
 // MARK: - 1. Widget Statistiques & Graphique Allongé (Medium)
@@ -36,7 +18,7 @@ public struct SarahWidgetEntry: TimelineEntry {
 public struct SarahUsageStatsWidgetView: View {
     public let entry: SarahWidgetEntry
     
-    public init(entry: SarahWidgetEntry) {
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
         self.entry = entry
     }
     
@@ -48,14 +30,14 @@ public struct SarahUsageStatsWidgetView: View {
                     Text("👩🏻‍💼")
                         .font(.system(size: 16))
                     Text("Sarah IA")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                     
                     Spacer()
                     
                     // Badge Pourcentage d'usage
                     Text("\(entry.stats.usagePercentage)%")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.cyan)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -67,7 +49,7 @@ public struct SarahUsageStatsWidgetView: View {
                 // Nombre de discussions
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(entry.stats.totalConversations)")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .font(.system(size: 26, weight: .heavy))
                         .foregroundColor(.white)
                     
                     Text("Discussions")
@@ -77,11 +59,11 @@ public struct SarahUsageStatsWidgetView: View {
                 
                 // Temps passé / Messages
                 HStack(spacing: 8) {
-                    Label("\(entry.stats.activeMinutesToday)m actif", systemImage: "clock.fill")
+                    Label("\(entry.stats.activeMinutesToday)m", systemImage: "clock.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.cyan)
                     
-                    Label("\(entry.stats.learnedMemoriesCount) souvenirs", systemImage: "brain.fill")
+                    Label("\(entry.stats.learnedMemoriesCount)", systemImage: "brain.fill")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.purple)
                 }
@@ -97,7 +79,7 @@ public struct SarahUsageStatsWidgetView: View {
             // COLONNE DROITE : Graphique en Barres d'Activité 7 Jours
             VStack(alignment: .leading, spacing: 6) {
                 Text("Activité 7j")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.gray)
                 
                 Spacer()
@@ -160,6 +142,10 @@ public struct SarahUsageStatsWidgetView: View {
 public struct SarahCompactStatsWidgetView: View {
     public let entry: SarahWidgetEntry
     
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -167,14 +153,14 @@ public struct SarahCompactStatsWidgetView: View {
                     .font(.system(size: 20))
                 Spacer()
                 Text("\(entry.stats.usagePercentage)%")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.cyan)
             }
             
             Spacer()
             
             Text("\(entry.stats.totalConversations)")
-                .font(.system(size: 32, weight: .heavy, design: .rounded))
+                .font(.system(size: 32, weight: .heavy))
                 .foregroundColor(.white)
             
             Text("Discussions Sarah IA")
@@ -200,13 +186,17 @@ public struct SarahCompactStatsWidgetView: View {
 public struct SarahMemoryWidgetView: View {
     public let entry: SarahWidgetEntry
     
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 HStack(spacing: 6) {
                     Text("🧠")
                     Text("Mémoire de Sarah")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                 }
                 
@@ -230,7 +220,7 @@ public struct SarahMemoryWidgetView: View {
                         .foregroundColor(.gray)
                     
                     Text("« \(trigger) » ➔ « \(resp) »")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.cyan)
                         .lineLimit(2)
                 }
@@ -247,61 +237,3 @@ public struct SarahMemoryWidgetView: View {
         .background(Color(red: 0.07, green: 0.07, blue: 0.10))
     }
 }
-
-// MARK: - Déclarations Officielles des Widgets iOS (WidgetKit)
-
-public struct SarahUsageStatsWidget: Widget {
-    public let kind: String = "SarahUsageStatsWidget"
-    
-    public init() {}
-    
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
-            SarahUsageStatsWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Sarah IA • Statistiques & Graphique")
-        .description("Affiche vos statistiques de discussion et le graphique d'activité.")
-        .supportedFamilies([.systemMedium])
-    }
-}
-
-public struct SarahCompactStatsWidget: Widget {
-    public let kind: String = "SarahCompactStatsWidget"
-    
-    public init() {}
-    
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
-            SarahCompactStatsWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Sarah IA • Statut Rapide")
-        .description("Accès rapide et compteur de discussions.")
-        .supportedFamilies([.systemSmall])
-    }
-}
-
-public struct SarahMemoryWidget: Widget {
-    public let kind: String = "SarahMemoryWidget"
-    
-    public init() {}
-    
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { entry in
-            SarahMemoryWidgetView(entry: entry)
-        }
-        .configurationDisplayName("Sarah IA • Mémoire")
-        .description("Vos derniers souvenirs appris avec Sarah.")
-        .supportedFamilies([.systemMedium])
-    }
-}
-
-public struct SarahWidgetBundle: WidgetBundle {
-    public init() {}
-    
-    public var body: some Widget {
-        SarahUsageStatsWidget()
-        SarahCompactStatsWidget()
-        SarahMemoryWidget()
-    }
-}
-#endif
