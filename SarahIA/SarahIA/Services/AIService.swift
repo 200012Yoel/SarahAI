@@ -7,16 +7,28 @@ final class AIService {
     
     private let storage = StorageService.shared
     
+    private let openAI = OpenAIService.shared
+    private let translation = TranslationEngine.shared
+    private let modelDownloader = ModelDownloader.shared
+    
     private init() {}
     
     /// Génère une réponse IA pour la question ou la commande donnée, avec prise en compte de la mémoire apprise.
     func generateResponse(for question: String) async -> String {
-        // Simule un délai de traitement fluide (0.8 à 1.8 secondes)
-        let delay = UInt64.random(in: 800_000_000...1_800_000_000)
-        try? await Task.sleep(nanoseconds: delay)
-        
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)
+        
+        // -----------------------------------------------------------------
+        // 0. TRADUCTION MULTILINGUE TEMPS RÉEL (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
+        // -----------------------------------------------------------------
+        if let translationReq = translation.parseTranslationIntent(input: trimmed) {
+            let translated = await translation.translate(
+                text: translationReq.textToTranslate,
+                sourceLang: translationReq.sourceLanguage,
+                targetLang: translationReq.targetLanguage
+            )
+            return "En \(translationReq.targetLanguage.displayNameFr) : \(translated)"
+        }
         
         var state = storage.loadState()
         
@@ -143,7 +155,26 @@ final class AIService {
             return pickRandom(from: goodbyeResponses)
         }
         
-        // Réponse par défaut
+        // -----------------------------------------------------------------
+        // 5. RAISONNEMENT PROFOND OPENAI (Multi-tours & intelligence poussée)
+        // -----------------------------------------------------------------
+        if openAI.isConfigured {
+            do {
+                let aiResponse = try await openAI.ask(prompt: trimmed)
+                return aiResponse
+            } catch {
+                print("⚠️ [AIService] OpenAI indisponible, bascule sur le modèle hors-ligne.")
+            }
+        }
+        
+        // -----------------------------------------------------------------
+        // 6. MODÈLE HORS-LIGNE & BASE LOCALE RÉSILIENTE
+        // -----------------------------------------------------------------
+        let detected = translation.detectLanguage(text: trimmed)
+        if detected == "he" {
+            return "שלום ! שמעתי אותך מצוין : « \(trimmed) ». איך אני יכולה לעזור לך ?"
+        }
+        
         return pickRandom(from: defaultResponses)
     }
     

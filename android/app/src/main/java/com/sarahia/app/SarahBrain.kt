@@ -279,6 +279,19 @@ class SarahBrain(private val context: Context) {
             .trim()
     }
 
+    private val openAIService = OpenAIService(context)
+    private val translationEngine = TranslationEngine(context)
+    private val modelDownloader = ModelDownloader(context)
+
+    init {
+        // Préchargement des modèles IA légers hors-ligne
+        modelDownloader.ensureAllModelsDownloaded {}
+    }
+
+    public fun getOpenAIService(): OpenAIService = openAIService
+    public fun getTranslationEngine(): TranslationEngine = translationEngine
+    public fun getModelDownloader(): ModelDownloader = modelDownloader
+
     public fun learn(question: String, answer: String) {
         val nq = normalize(question)
         prefs.edit().putString("learned_$nq", answer).apply()
@@ -287,7 +300,24 @@ class SarahBrain(private val context: Context) {
     public fun getAnswerAsync(userText: String, callback: (String) -> Unit) {
         val norm = normalize(userText)
 
-        // 1. Recherche dans la mémoire apprise
+        // 1. Détection de demande de Traduction Multilingue Temps Réel (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
+        val translationReq = translationEngine.parseTranslationIntent(userText)
+        if (translationReq != null) {
+            translationEngine.translateAsync(
+                translationReq.textToTranslate,
+                translationReq.sourceLanguage,
+                translationReq.targetLanguage
+            ) { result ->
+                result.onSuccess { translated ->
+                    callback("En ${translationReq.targetLanguage.displayNameFr} : $translated")
+                }.onFailure {
+                    callback("Voici la traduction : ${translationReq.textToTranslate}")
+                }
+            }
+            return
+        }
+
+        // 2. Recherche dans la mémoire apprise locale
         val learnedKey = "learned_$norm"
         if (prefs.contains(learnedKey)) {
             val learnedAnswer = prefs.getString(learnedKey, "") ?: ""
@@ -297,7 +327,7 @@ class SarahBrain(private val context: Context) {
             }
         }
 
-        // 2. Recherche par mots clés dans la base des 200 questions
+        // 3. Recherche dans la base de connaissances instantanée (météo, heure, créateur, etc.)
         for ((keywords, answer) in QA) {
             val keys = keywords.split("|")
             for (k in keys) {
@@ -308,8 +338,30 @@ class SarahBrain(private val context: Context) {
             }
         }
 
-        // 3. Réponse par défaut
-        callback("J'ai bien compris : $userText. Je suis à votre écoute !")
+        // 4. Intelligence Conversationnelle Approfondie OpenAI (Multi-tours & raisonnement)
+        if (openAIService.isConfigured()) {
+            openAIService.askAsync(userText) { result ->
+                result.onSuccess { aiResponse ->
+                    callback(aiResponse)
+                }.onFailure {
+                    // Fallback intelligent hors-ligne
+                    fallbackOfflineResponse(userText, callback)
+                }
+            }
+            return
+        }
+
+        // 5. Moteur Hors-Ligne Résilient
+        fallbackOfflineResponse(userText, callback)
+    }
+
+    private fun fallbackOfflineResponse(userText: String, callback: (String) -> Unit) {
+        val detectedLang = translationEngine.detectLanguage(userText)
+        if (detectedLang == "he") {
+            callback("שלום ! שמעתי אותך מצוין : « $userText ». איך אני יכולה לעזור לך ?")
+        } else {
+            callback("J'ai bien compris votre demande : « $userText ». Je suis à votre entière disposition !")
+        }
     }
 
     private fun handleSpecialAnswer(answer: String, callback: (String) -> Unit) {

@@ -31,6 +31,9 @@
 		A1B2C3D4000100010000001B /* sarah_ai_web.html in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001B /* sarah_ai_web.html */; };
 		A1B2C3D4000100010000001C /* vrm_data.js in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001C /* vrm_data.js */; };
 		A1B2C3D4000100010000001D /* AA.vrm in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001D /* AA.vrm */; };
+		A1B2C3D4000100010000001E /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001E /* OpenAIService.swift */; };
+		A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001F /* TranslationEngine.swift */; };
+		A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000020 /* ModelDownloader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +63,9 @@
 		A1B2C3D4000200010000001B /* sarah_ai_web.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sarah_ai_web.html; sourceTree = "<group>"; };
 		A1B2C3D4000200010000001C /* vrm_data.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = vrm_data.js; sourceTree = "<group>"; };
 		A1B2C3D4000200010000001D /* AA.vrm */ = {isa = PBXFileReference; lastKnownFileType = file; path = AA.vrm; sourceTree = "<group>"; };
+		A1B2C3D4000200010000001E /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000001F /* TranslationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000020 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +126,9 @@
 				A1B2C3D40002000100000014 /* AvatarEngine.swift */,
 				A1B2C3D40002000100000016 /* VRMLoader.swift */,
 				A1B2C3D40002000100000017 /* HapticService.swift */,
+				A1B2C3D4000200010000001E /* OpenAIService.swift */,
+				A1B2C3D4000200010000001F /* TranslationEngine.swift */,
+				A1B2C3D40002000100000020 /* ModelDownloader.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -246,6 +255,9 @@
 				A1B2C3D40001000100000017 /* HapticService.swift in Sources */,
 				A1B2C3D40001000100000018 /* MemoryVaultView.swift in Sources */,
 				A1B2C3D40001000100000019 /* SettingsView.swift in Sources */,
+				A1B2C3D4000100010000001E /* OpenAIService.swift in Sources */,
+				A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */,
+				A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
