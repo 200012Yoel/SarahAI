@@ -134,6 +134,7 @@ jobs:
             echo "❌ ERREUR DE COMPILATION XCODEBUILD - EXTRAITS CIBLES :"
             echo "=================================================="
             grep -E -i "(error:|failed|warning:)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
+            grep -E "(error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/errors.txt" || tail -n 100 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/errors.txt"
             echo "--------------------------------------------------"
             echo "=== DERNIERES 80 LIGNES DE XCODEBUILD.LOG ==="
             echo "--------------------------------------------------"
@@ -243,6 +244,18 @@ jobs:
             dist/SarahIA.ipa
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Build Error if Failed
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-error
+          name: "Build Error Log"
+          body_path: errors.txt
+          draft: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
