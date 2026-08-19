@@ -570,7 +570,7 @@ function animate() {
         }
       }
 
-      // Clignement des yeux standard
+      // 4. Clignement naturel des yeux
       blinkTimer += delta;
       if (blinkTimer > nextBlink) {
         blinkTimer = 0;
@@ -578,18 +578,32 @@ function animate() {
         triggerBlink();
       }
 
-      // 5. Mouvement des lèvres (Lipsync synchronisé dès qu'elle parle)
+      // 5. MOTEUR DE LIP-SYNC AVANCÉ (Phonèmes VRM : A, I, U, E, O + Émotions)
       if (isSpeaking) {
-        const speechTime = elapsed * 14.0;
-        const openMouth = Math.max(0, Math.sin(speechTime) * 0.55 + Math.sin(speechTime * 0.5) * 0.3 + 0.15);
-        const shapeMouth = Math.max(0, Math.cos(speechTime * 0.8) * 0.45 + 0.3);
-        setExpression('aa', Math.min(0.85, openMouth));
-        setExpression('oh', Math.min(0.40, (1 - shapeMouth) * openMouth));
-        setExpression('ee', Math.min(0.35, shapeMouth * 0.5));
+        const speechTime = elapsed * 15.0;
+        const vA = Math.max(0, Math.sin(speechTime * 1.1) * 0.7 + 0.2);
+        const vI = Math.max(0, Math.sin(speechTime * 1.4 + 1.0) * 0.4);
+        const vU = Math.max(0, Math.cos(speechTime * 0.9) * 0.35);
+        const vE = Math.max(0, Math.sin(speechTime * 1.6 + 2.0) * 0.45);
+        const vO = Math.max(0, Math.cos(speechTime * 1.2 + 0.5) * 0.5);
+
+        setExpression('aa', Math.min(0.85, vA));
+        setExpression('ih', Math.min(0.40, vI));
+        setExpression('ou', Math.min(0.35, vU));
+        setExpression('ee', Math.min(0.40, vE));
+        setExpression('oh', Math.min(0.45, vO));
+
+        // Émotion chaleureuse : Sourire subtil et regard bienveillant
+        setExpression('happy', 0.40);
+        setExpression('relaxed', 0.25);
       } else {
         setExpression('aa', 0);
-        setExpression('oh', 0);
+        setExpression('ih', 0);
+        setExpression('ou', 0);
         setExpression('ee', 0);
+        setExpression('oh', 0);
+        setExpression('happy', 0.15); // Léger sourire d'écoute au repos
+        setExpression('relaxed', 0.20);
       }
 
       currentVRM.update(delta);
@@ -599,6 +613,18 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+
+window.setCustomViseme = function(a, i, u, e, o) {
+  setExpression('aa', a);
+  setExpression('ih', i);
+  setExpression('ou', u);
+  setExpression('ee', e);
+  setExpression('oh', o);
+};
+
+window.setEmotion = function(name, val) {
+  setExpression(name, val);
+};
 
 function triggerBlink() {
   let progress = 0;

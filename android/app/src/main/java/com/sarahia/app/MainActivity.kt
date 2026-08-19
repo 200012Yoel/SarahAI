@@ -24,6 +24,8 @@ class MainActivity : AppCompatActivity() {
     private val TAG = "SarahMainActivity"
     private var webView: WebView? = null
     private var voiceManager: VoiceManager? = null
+    private var chatDatabase: ChatDatabase? = null
+    private var networkMonitor: NetworkMonitor? = null
     private val RECORD_AUDIO_REQUEST_CODE = 2001
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -31,9 +33,26 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        chatDatabase = ChatDatabase(this)
+        networkMonitor = NetworkMonitor(this)
+
         initWebView()
         initVoiceEngine()
         checkAndRequestPermissions()
+        startVoiceService()
+    }
+
+    private fun startVoiceService() {
+        try {
+            val serviceIntent = Intent(this, SarahVoiceForegroundService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Démarrage foreground service: ${e.message}")
+        }
     }
 
     private fun initWebView() {
@@ -197,6 +216,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun onUserSpoke(text: String) {
             Log.d(TAG, "Message reçu: $text")
+            chatDatabase?.insertMessage(role = "user", content = text)
         }
 
         @JavascriptInterface
@@ -207,6 +227,39 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun startListening() {
             voiceManager?.startContinuousListening()
+        }
+
+        @JavascriptInterface
+        fun getChatHistoryJson(): String {
+            val list = chatDatabase?.getRecentMessages(100) ?: emptyList()
+            val arr = org.json.JSONArray()
+            for (m in list) {
+                val o = org.json.JSONObject()
+                o.put("id", m.id)
+                o.put("timestamp", m.timestamp)
+                o.put("role", m.role)
+                o.put("content", m.content)
+                o.put("language", m.language)
+                arr.put(o)
+            }
+            return arr.toString()
+        }
+
+        @JavascriptInterface
+        fun clearChatHistory() {
+            chatDatabase?.clearHistory()
+        }
+
+        @JavascriptInterface
+        fun setOpenAIKey(key: String) {
+            getSharedPreferences("sarah_ai_openai", Context.MODE_PRIVATE)
+                .edit().putString("openai_api_key", key.trim()).apply()
+        }
+
+        @JavascriptInterface
+        fun getOpenAIKey(): String {
+            return getSharedPreferences("sarah_ai_openai", Context.MODE_PRIVATE)
+                .getString("openai_api_key", "") ?: ""
         }
     }
 
