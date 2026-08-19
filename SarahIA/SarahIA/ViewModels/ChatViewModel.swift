@@ -396,13 +396,10 @@ public final class ChatViewModel: ObservableObject {
         } else {
             SpeechManager.shared.stopSpeaking()
             isContinuousConversationActive = true
-            AppleSpeechRecognizer.shared.requestPermissions { [weak self] ready in
-                guard let self = self, ready else { return }
-                AppleSpeechRecognizer.shared.startListening()
-                self.isMicRunning = true
-                self.voiceStatus = .listening(level: 0.5)
-                self.haptics.speechStarted()
-            }
+            AppleSpeechRecognizer.shared.startListening()
+            self.isMicRunning = true
+            self.voiceStatus = .listening(level: 0.5)
+            self.haptics.speechStarted()
         }
     }
     

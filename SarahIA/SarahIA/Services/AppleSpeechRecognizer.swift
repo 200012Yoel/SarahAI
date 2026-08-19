@@ -83,9 +83,6 @@ public final class AppleSpeechRecognizer: NSObject, ObservableObject, SFSpeechRe
         
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if speechRecognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
         self.recognitionRequest = request
         self.currentLiveText = ""
         self.hasDetectedSpeechInCurrentSession = false

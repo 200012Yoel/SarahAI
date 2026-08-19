@@ -37,7 +37,7 @@ public final class AudioSessionManager {
         do {
             try session.setCategory(
                 .playAndRecord,
-                mode: .measurement,
+                mode: .default,
                 options: [
                     .defaultToSpeaker,
                     .allowBluetooth,
