@@ -138,36 +138,31 @@ public struct ContentView: View {
                     .buttonStyle(ScaleBounceButtonStyle())
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 50)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
                 
                 Spacer()
                 
-                // Dock vocal / Contrôle Micro
-                HStack(spacing: 16) {
-                    Button(action: {
-                        viewModel.toggleMicrophone()
-                    }) {
-                        HStack(spacing: 10) {
-                            Image(systemName: viewModel.isMicRunning ? "waveform.circle.fill" : "mic.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(viewModel.isMicRunning ? .cyan : .white)
-                            
-                            Text(viewModel.isMicRunning ? "Sarah vous écoute..." : "Appuyer pour parler")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color(red: 0.11, green: 0.11, blue: 0.12).opacity(0.85))
-                        .cornerRadius(28)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 28)
-                                .stroke(viewModel.isMicRunning ? Color.cyan.opacity(0.6) : Color.white.opacity(0.15), lineWidth: 1)
-                        )
+                // Bouton Vocal Minimaliste Épuré
+                Button(action: {
+                    viewModel.toggleMicrophone()
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12).opacity(0.85))
+                            .frame(width: 58, height: 58)
+                            .overlay(
+                                Circle()
+                                    .stroke(viewModel.isMicRunning ? Color.cyan : Color.white.opacity(0.2), lineWidth: 1.5)
+                            )
+                        
+                        Image(systemName: viewModel.isMicRunning ? "waveform" : "mic.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(viewModel.isMicRunning ? .cyan : .white)
                     }
-                    .buttonStyle(ScaleBounceButtonStyle())
                 }
-                .padding(.bottom, 40)
+                .buttonStyle(ScaleBounceButtonStyle())
+                .padding(.bottom, 28)
             }
         }
     }
