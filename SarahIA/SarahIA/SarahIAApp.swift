@@ -43,7 +43,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .badge])
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            // iOS 12/13 ne connaissent pas l'option .banner.
+            completionHandler([.alert, .sound, .badge])
+        }
     }
     
     func userNotificationCenter(
