@@ -56,7 +56,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     }
     
     func applicationDidEnterBackground(_ application: UIApplication) {
-        AppleSpeechRecognizer.shared.stopListening()
+        if #available(iOS 13.0, *) {
+            AppleSpeechRecognizer.shared.stopListening()
+        }
     }
     
     func applicationWillEnterForeground(_ application: UIApplication) {

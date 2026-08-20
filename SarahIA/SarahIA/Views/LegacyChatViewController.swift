@@ -260,24 +260,26 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func toggleMicTapped() {
-        isRecording.toggle()
-        if isRecording {
-            micButton.setTitle("🔴", for: .normal)
-            statusLabel.text = "● Écoute en direct..."
-            statusLabel.textColor = .red
-            AppleSpeechRecognizer.shared.startListening()
-            AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] transcript in
-                DispatchQueue.main.async {
-                    self?.inputTextField.text = transcript
-                    self?.sendButtonTapped()
-                    self?.toggleMicTapped()
+        if #available(iOS 13.0, *) {
+            isRecording.toggle()
+            if isRecording {
+                micButton.setTitle("🔴", for: .normal)
+                statusLabel.text = "● Écoute en direct..."
+                statusLabel.textColor = .red
+                AppleSpeechRecognizer.shared.startListening()
+                AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] transcript in
+                    DispatchQueue.main.async {
+                        self?.inputTextField.text = transcript
+                        self?.sendButtonTapped()
+                        self?.toggleMicTapped()
+                    }
                 }
+            } else {
+                micButton.setTitle("🎙️", for: .normal)
+                statusLabel.text = "● Prête"
+                statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                AppleSpeechRecognizer.shared.stopListening()
             }
-        } else {
-            micButton.setTitle("🎙️", for: .normal)
-            statusLabel.text = "● Prête"
-            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-            AppleSpeechRecognizer.shared.stopListening()
         }
     }
     

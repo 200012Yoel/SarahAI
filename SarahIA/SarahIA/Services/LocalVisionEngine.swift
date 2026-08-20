@@ -6,6 +6,7 @@ import Vision
 /// - Analyse visuelle locale de scènes, luminosité et teintes
 /// - Extraction de texte locale (OCR Vision Framework en français, hébreu et anglais)
 /// - Traitement 100% privé sur l'appareil
+@available(iOS 13.0, *)
 public final class LocalVisionEngine {
     
     public static let shared = LocalVisionEngine()
