@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Vue Racine Pixel-Perfect 100% Native SwiftUI intégrant la physique du tiroir 3D (#app scale 0.92, corner radius 44pt).
+/// Vue Racine 100% Native SwiftUI avec interface de chat principale et tiroir latéral fluide (#app scale 0.92, corner radius 44pt).
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings: Bool = false
@@ -21,14 +21,9 @@ public struct ContentView: View {
                 .opacity(Double(viewModel.drawerProgress))
                 .allowsHitTesting(viewModel.drawerProgress > 0.05)
                 
-                // 2. CALQUE DU PREMIER PLAN : Application Principale (#app)
+                // 2. CALQUE DU PREMIER PLAN : Interface de Chat Principale (ChatScreenView)
                 ZStack {
-                    // Contenu selon le mode : Avatar 3D ou Chat
-                    if viewModel.appMode == .avatar {
-                        avatarScreen
-                    } else {
-                        ChatScreenView(viewModel: viewModel)
-                    }
+                    ChatScreenView(viewModel: viewModel)
                     
                     // Voile d'obscurcissement (#scrim) au-dessus de l'application
                     if viewModel.drawerProgress > 0 {
@@ -86,85 +81,6 @@ public struct ContentView: View {
         // Feuille de Paramètres Native (#sheet)
         .sheet(isPresented: $isShowingSettings) {
             settingsSheetView
-        }
-    }
-    
-    // MARK: - Écran Avatar 3D (#avatar)
-    
-    private var avatarScreen: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            // Rendu de l'Avatar 3D
-            Avatar3DView(isSpeaking: viewModel.voiceStatus == .speaking || SpeechManager.shared.isSpeaking)
-                .ignoresSafeArea()
-            
-            VStack {
-                // Top bar de l'écran Avatar
-                HStack {
-                    // Bouton Menu latéral (#btnMenu2)
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        viewModel.openDrawer()
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                .frame(width: 44, height: 44)
-                            
-                            Image(systemName: "line.3.horizontal")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                    
-                    Spacer()
-                    
-                    // Bouton Bascule vers le Chat
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        viewModel.switchToChat()
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                .frame(width: 44, height: 44)
-                            
-                            Image(systemName: "bubble.left.and.bubble.right")
-                                .font(.system(size: 18, weight: .regular))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 50)
-                .padding(.bottom, 6)
-                
-                Spacer()
-                
-                // Bouton Vocal Minimaliste Épuré
-                Button(action: {
-                    viewModel.toggleMicrophone()
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12).opacity(0.85))
-                            .frame(width: 58, height: 58)
-                            .overlay(
-                                Circle()
-                                    .stroke(viewModel.isMicRunning ? Color.cyan : Color.white.opacity(0.2), lineWidth: 1.5)
-                            )
-                        
-                        Image(systemName: viewModel.isMicRunning ? "waveform" : "mic.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(viewModel.isMicRunning ? .cyan : .white)
-                    }
-                }
-                .buttonStyle(ScaleBounceButtonStyle())
-                .padding(.bottom, 36)
-            }
         }
     }
     

@@ -23,7 +23,7 @@ public enum VoiceInteractionStatus: Equatable {
 public final class ChatViewModel: ObservableObject {
     
     // MARK: - Published UI State
-    @Published public var appMode: AppMode = .avatar
+    @Published public var appMode: AppMode = .text
     @Published public var conversations: [Conversation] = []
     @Published public var currentConversationId: UUID? = nil
     @Published public var messages: [Message] = []
@@ -108,7 +108,7 @@ public final class ChatViewModel: ObservableObject {
         if let mode = AppMode(rawValue: savedState.activeMode) {
             self.appMode = mode
         } else {
-            self.appMode = .avatar
+            self.appMode = .text
         }
         
         if let currentId = savedState.currentConversationId,
@@ -270,29 +270,17 @@ public final class ChatViewModel: ObservableObject {
     
     private func setupModeObserver() {
         $appMode
-            .sink { [weak self] newMode in
+            .sink { [weak self] _ in
                 guard let self = self else { return }
                 self.persistCurrentState()
                 self.haptics.modeToggled()
-                
-                if newMode == .avatar {
-                    self.audioEngine.requestPermissionAndStart { granted in
-                        if granted {
-                            self.whisperService.startTranscription()
-                        }
-                    }
-                }
             }
             .store(in: &cancellables)
     }
     
     public func switchToAvatar() {
-        haptics.buttonTap()
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-            appMode = .avatar
-            isDrawerOpen = false
-            drawerProgress = 0.0
-        }
+        // Mode chat natif permanent
+        switchToChat()
     }
     
     public func switchToChat() {
@@ -305,9 +293,7 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func toggleMode() {
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-            appMode = (appMode == .avatar) ? .text : .avatar
-        }
+        switchToChat()
     }
     
     // MARK: - Mode Conversationnel Continu (100% Gratuit & Local Apple Speech)
@@ -363,7 +349,7 @@ public final class ChatViewModel: ObservableObject {
             self.haptics.speechFinished()
             
             // 🔄 BOUCLE CONVERSATIONNELLE CONTINUE : Réactivation automatique du micro
-            if self.isContinuousConversationActive || self.appMode == .avatar {
+            if self.isContinuousConversationActive {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     if !SpeechManager.shared.isSpeaking {
                         AppleSpeechRecognizer.shared.startListening()

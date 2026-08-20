@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Écran de Discussion (Chat Screen) Pixel-Perfect 100% Natif SwiftUI reproduisant la section #chat de la maquette.
+/// Écran principal de discussion 100% natif SwiftUI intégrant MessageList et MessageBar.
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     
@@ -10,117 +10,26 @@ public struct ChatScreenView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Topbar (#topbar)
-            HStack {
-                // Bouton Menu Tiroir (#btnMenu)
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    viewModel.openDrawer()
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                            .frame(width: 44, height: 44)
-                        
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .buttonStyle(ScaleBounceButtonStyle())
-                
-                Spacer()
-                
-                // Bouton Rond Avatar 3D (#btnAvatar)
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    viewModel.switchToAvatar()
-                }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                            .frame(width: 44, height: 44)
-                        
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 19, weight: .regular))
-                            .foregroundColor(.white)
-                    }
-                }
-                .buttonStyle(ScaleBounceButtonStyle())
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 50)
-            .padding(.bottom, 6)
+            // 1. Topbar Native
+            topBar
             
-            // Fil de Discussion (.thread)
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.messages) { message in
-                            ChatBubbleView(
-                                message: message,
-                                isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
-                                onPlayTapped: {
-                                    viewModel.toggleSpeechForMessage(message.content)
-                                }
-                            )
-                            .id(message.id)
-                        }
-                        
-                        if viewModel.isTyping {
-                            HStack {
-                                TypingIndicatorView()
-                                    .padding(.leading, 8)
-                                Spacer()
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-                    .padding(.bottom, 4)
+            // 2. Fil de discussion standard SwiftUI (MessageList)
+            MessageList(
+                messages: viewModel.messages,
+                isTyping: viewModel.isTyping,
+                onToggleSpeech: { message in
+                    viewModel.toggleSpeechForMessage(message.content)
+                },
+                onSelectSuggestion: { suggestionText in
+                    viewModel.inputText = suggestionText
+                },
+                onIntroduceSarah: {
+                    viewModel.introduceSarah()
                 }
-                .onChange(of: viewModel.messages.count) { _ in
-                    if let last = viewModel.messages.last {
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
-                }
-            }
+            )
             
-            // Suggestions d'Actions (.suggests) affichées quand le fil est vierge
-            if viewModel.messages.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    suggestionRow(
-                        title: "Créer une image",
-                        icon: "photo",
-                        prefill: "Créer une image de "
-                    )
-                    suggestionRow(
-                        title: "Écrire ou modifier",
-                        icon: "square.and.pencil",
-                        prefill: "Écrire un texte sur "
-                    )
-                    suggestionRow(
-                        title: "Rechercher sur le Web",
-                        icon: "globe",
-                        prefill: "Rechercher sur le Web : "
-                    )
-                    suggestionRow(
-                        title: "✨ Présente-toi",
-                        icon: "sparkles",
-                        action: {
-                            viewModel.introduceSarah()
-                        }
-                    )
-                }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 14)
-                .transition(.opacity)
-            }
-            
-            // Barre de Saisie (Composer)
-            MessageInputView(
+            // 3. Barre de saisie standard SwiftUI (MessageBar)
+            MessageBar(
                 text: $viewModel.inputText,
                 isRecording: viewModel.isMicRunning,
                 onSend: { text in
@@ -130,44 +39,96 @@ public struct ChatScreenView: View {
                     viewModel.toggleMicrophone()
                 }
             )
-            .padding(.bottom, 20)
+            .padding(.bottom, 16)
         }
         .background(Color.black)
     }
     
-    // MARK: - Ligne de Suggestion (.sug)
+    // MARK: - Topbar
     
-    @ViewBuilder
-    private func suggestionRow(
-        title: String,
-        icon: String,
-        prefill: String? = nil,
-        action: (() -> Void)? = nil
-    ) -> some View {
-        Button(action: {
-            HapticService.shared.buttonTap()
-            if let act = action {
-                act()
-            } else if let p = prefill {
-                viewModel.inputText = p
+    private var topBar: some View {
+        HStack(alignment: .center) {
+            // Bouton Menu Tiroir (Sidebar)
+            Button(action: {
+                HapticService.shared.buttonTap()
+                viewModel.openDrawer()
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
             }
-        }) {
-            HStack(spacing: 22) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .regular))
+            .buttonStyle(ScaleBounceButtonStyle())
+            
+            Spacer()
+            
+            // Titre & Indicateur d'état Sarah IA
+            VStack(spacing: 2) {
+                Text("Sarah IA")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                    .frame(width: 26, height: 26)
                 
-                Text(title)
-                    .font(.system(size: 20, weight: .regular))
-                    .foregroundColor(.white)
-                    .tracking(-0.2)
-                
-                Spacer()
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 6, height: 6)
+                    
+                    Text(statusText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.6))
+                }
             }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+            
+            Spacer()
+            
+            // Bouton Nouvelle Discussion
+            Button(action: {
+                HapticService.shared.buttonTap()
+                viewModel.startNewChat()
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+            .buttonStyle(ScaleBounceButtonStyle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal, 16)
+        .padding(.top, 50)
+        .padding(.bottom, 6)
+    }
+    
+    private var statusColor: Color {
+        if viewModel.isMicRunning {
+            return .red
+        } else if viewModel.isSpeaking {
+            return .cyan
+        } else if viewModel.isTyping {
+            return .yellow
+        } else {
+            return .green
+        }
+    }
+    
+    private var statusText: String {
+        if viewModel.isMicRunning {
+            return "Écoute en direct..."
+        } else if viewModel.isSpeaking {
+            return "Parle..."
+        } else if viewModel.isTyping {
+            return "Réflexion..."
+        } else {
+            return "Prête"
+        }
     }
 }
