@@ -2,76 +2,96 @@
 //  Avatar3DView.swift
 //  SarahIA
 //
-//  Rendu de l'Avatar 3D authentique de Sarah (VRM + Three.js + Metal)
-//  Synchronisation labiale, clignement des yeux et animations gestuelles temps réel.
+//  Rendu 3D 100% Natif SceneKit / Metal pour Sarah IA
+//  ZÉRO WebView, ZÉRO HTML/JS - Performances et réactivité maximales
 //
 
 import SwiftUI
-import WebKit
+import SceneKit
 
-/// Vue intégrant l'avatar 3D officiel de Sarah avec rendu haute performance et synchronisation vocale
+/// Vue 3D native représentant l'avatar de Sarah avec rendu Metal SceneKit temps réel
 public struct Avatar3DView: View {
+    @ObservedObject var avatarEngine = AvatarEngine.shared
+    @ObservedObject var speechManager = SpeechManager.shared
     public var isSpeaking: Bool = false
+    
+    @State private var dragOffset: CGSize = .zero
     
     public init(isSpeaking: Bool = false) {
         self.isSpeaking = isSpeaking
     }
     
     public var body: some View {
-        ZStack {
-            Color.black.edgesIgnoringSafeArea(.all)
-            
-            AvatarVRMContainerView(isSpeaking: isSpeaking)
-                .edgesIgnoringSafeArea(.all)
+        GeometryReader { geometry in
+            ZStack {
+                // Fond sombre texturé pour faire ressortir l'éclairage 3D
+                Color.black.edgesIgnoringSafeArea(.all)
+                
+                // Rendu SceneKit Natif Haute Performance (Metal)
+                NativeSceneKitContainerView(scene: avatarEngine.scene)
+                    .edgesIgnoringSafeArea(.all)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                dragOffset = value.translation
+                                avatarEngine.setLookAtOffset(
+                                    deltaX: Float(value.translation.width),
+                                    deltaY: Float(value.translation.height)
+                                )
+                            }
+                            .onEnded { _ in
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                    dragOffset = .zero
+                                }
+                                avatarEngine.setLookAtOffset(deltaX: 0, deltaY: 0)
+                            }
+                    )
+                
+                // Effet de halo ambiant réactif à l'élocution de Sarah
+                if isSpeaking || speechManager.isSpeaking {
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color.cyan.opacity(0.12),
+                            Color.purple.opacity(0.06),
+                            Color.clear
+                        ]),
+                        center: .center,
+                        startRadius: 50,
+                        endRadius: 350
+                    )
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
+            }
         }
     }
 }
 
-/// Conteneur WKWebView haute performance pour le rendu 3D VRM de Sarah
-struct AvatarVRMContainerView: UIViewRepresentable {
-    var isSpeaking: Bool
+/// Conteneur UIViewRepresentable encapsulant un SCNView natif configuré pour Metal
+struct NativeSceneKitContainerView: UIViewRepresentable {
+    let scene: SCNScene
     
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func makeUIView(context: Context) -> SCNView {
+        let scnView = SCNView(frame: .zero, options: [
+            SCNView.Option.preferredRenderingAPI.rawValue: SCNRenderingAPI.metal.rawValue
+        ])
+        
+        scnView.scene = scene
+        scnView.backgroundColor = .black
+        scnView.antialiasingMode = .multisampling4X
+        scnView.preferredFramesPerSecond = 60
+        scnView.autoenablesDefaultLighting = false
+        scnView.allowsCameraControl = false
+        scnView.rendersContinuously = true
+        scnView.isOpaque = true
+        
+        return scnView
     }
     
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.allowsInlineMediaPlayback = true
-        config.mediaTypesRequiringUserActionForPlayback = []
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
-        
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.scrollView.isScrollEnabled = false
-        webView.scrollView.bounces = false
-        webView.navigationDelegate = context.coordinator
-        
-        // Chargement du moteur 3D de Sarah
-        if let htmlUrl = Bundle.main.url(forResource: "sarah_ai_web", withExtension: "html") {
-            webView.loadFileURL(htmlUrl, allowingReadAccessTo: Bundle.main.bundleURL)
-        } else if let path = Bundle.main.path(forResource: "sarah_ai_web", ofType: "html"),
-                  let htmlString = try? String(contentsOfFile: path, encoding: .utf8) {
-            webView.loadHTMLString(htmlString, baseURL: Bundle.main.bundleURL)
-        }
-        
-        context.coordinator.webView = webView
-        return webView
-    }
-    
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        // Synchronisation du mouvement des lèvres et de l'animation d'élocution
-        let js = "if (window.setSpeaking) { window.setSpeaking(\(isSpeaking ? "true" : "false")); }"
-        webView.evaluateJavaScript(js, completionHandler: nil)
-    }
-    
-    class Coordinator: NSObject, WKNavigationDelegate {
-        weak var webView: WKWebView?
-        
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            print("✅ [Avatar3DView] Avatar 3D de Sarah initialisé avec succès.")
+    func updateUIView(_ uiView: SCNView, context: Context) {
+        if uiView.scene != scene {
+            uiView.scene = scene
         }
     }
 }

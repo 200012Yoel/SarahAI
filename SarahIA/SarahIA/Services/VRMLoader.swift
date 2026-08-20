@@ -1,6 +1,8 @@
 import Foundation
 import SceneKit
 import UIKit
+import ModelIO
+import SceneKit.ModelIO
 
 /// Structure décrivant les os et morphers découverts dans un modèle VRM / VRoid Studio
 public struct VRMAvatarRig {
@@ -101,14 +103,17 @@ public final class VRMLoader {
             
             // Formats VRM / GLB (glTF 2.0 Binary)
             if ext == "vrm" || ext == "glb" || ext == "gltf" {
-                // Tentative de chargement via SCNScene
+                // 1. Tentative avec ModelIO natif Apple (MDLAsset -> SCNScene)
+                let asset = MDLAsset(url: url)
+                let mdlScene = SCNScene(mdlAsset: asset)
+                if !mdlScene.rootNode.childNodes.isEmpty {
+                    return parseAvatarRig(from: mdlScene.rootNode)
+                }
+                
+                // 2. Tentative directe SCNScene
                 if let scene = try? SCNScene(url: url, options: nil) {
                     return parseAvatarRig(from: scene.rootNode)
                 }
-                
-                // Inspection des données binaire GLB
-                let data = try Data(contentsOf: url)
-                return parseGLBOrVRMData(data, originalUrl: url)
             }
         } catch {
             print("⚠️ [VRMLoader] Erreur de chargement du fichier 3D (\(url.lastPathComponent)): \(error.localizedDescription)")
