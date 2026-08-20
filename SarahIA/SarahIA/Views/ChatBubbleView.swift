@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Bulle de message stylisée au format natif iMessage Dark Mode avec bouton de lecture vocale TTS.
+@available(iOS 14.0, *)
 public struct ChatBubbleView: View {
     public let message: Message
     public var isSpeaking: Bool
@@ -144,6 +145,7 @@ public struct ChatBubbleView: View {
 
 // MARK: - Preview
 
+@available(iOS 14.0, *)
 struct ChatBubbleView_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 12) {

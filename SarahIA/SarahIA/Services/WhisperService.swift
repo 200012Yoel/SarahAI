@@ -3,6 +3,7 @@ import Speech
 import AVFoundation
 
 /// Service de Reconnaissance Vocale Local et Gratuit (remplaçant Whisper)
+@available(iOS 13.0, *)
 public final class WhisperService: ObservableObject {
     
     public static let shared = WhisperService()

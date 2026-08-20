@@ -74,6 +74,7 @@ public struct TypingIndicatorView: View {
 }
 
 /// Un seul point animé de l'indicateur de frappe.
+@available(iOS 13.0, *)
 struct DotView: View {
     @Binding var animate: Bool
     
@@ -97,6 +98,7 @@ struct DotView: View {
 
 // MARK: - Preview
 
+@available(iOS 13.0, *)
 struct TypingIndicatorView_Previews: PreviewProvider {
     static var previews: some View {
         TypingIndicatorView()
