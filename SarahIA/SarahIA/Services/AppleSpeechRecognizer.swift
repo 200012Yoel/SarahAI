@@ -87,10 +87,18 @@ public final class AppleSpeechRecognizer: NSObject, ObservableObject, SFSpeechRe
         self.currentLiveText = ""
         self.hasDetectedSpeechInCurrentSession = false
         
+        audioEngine.reset()
         let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
         inputNode.removeTap(onBus: 0)
+        
+        var recordingFormat = inputNode.inputFormat(forBus: 0)
+        if recordingFormat.sampleRate == 0 || recordingFormat.channelCount == 0 {
+            recordingFormat = inputNode.outputFormat(forBus: 0)
+        }
+        if recordingFormat.sampleRate == 0 || recordingFormat.channelCount == 0 {
+            recordingFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) ?? recordingFormat
+        }
+        
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, _) in
             self?.recognitionRequest?.append(buffer)
             self?.calculateAudioLevel(buffer: buffer)
