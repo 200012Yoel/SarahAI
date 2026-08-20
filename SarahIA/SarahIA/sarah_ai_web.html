@@ -8,8 +8,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 
-  <!-- Three.js & VRM via ES modules -->
-  <script type="importmap">
+  <!-- Three.js & VRM via ES modules, avec polyfill Import Maps (es-module-shims) pour compatibilite
+       iOS 15 / WebKit < 16.4. Les Import Maps natives ne sont supportees qu'a partir de Safari/WebKit 16.4 :
+       sans ce polyfill, le <script type="importmap"> est silencieusement ignore sur les appareils plus
+       anciens (iOS 15.x, 16.0-16.3), l'import "three"/"@pixiv/three-vrm" echoue et l'avatar reste un
+       ecran noir sans aucune erreur visible. Le shim rend le chargement fiable sur toutes les versions. -->
+  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+  <script type="importmap-shim">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
@@ -136,7 +141,15 @@
     <canvas id="vrm-canvas"></canvas>
   </div>
 
-<script type="module">
+  <!-- Badge de statut flottant : ces éléments manquaient du HTML (probablement retirés lors d'un
+       nettoyage précédent) alors que le CSS et le JS les référencent encore (voice-dock/status-badge).
+       Sans eux, updateStatus() ne faisait rien silencieusement et aucun message (chargement, erreur,
+       écoute, parole) n'était jamais visible à l'écran. -->
+  <div id="voice-dock">
+    <div id="status-badge">Initialisation de l'avatar…</div>
+  </div>
+
+<script type="module-shim">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
@@ -332,6 +345,7 @@ function parseAndApplyVRM(arrayBuffer) {
     },
     (err) => {
       console.error("Erreur parse VRM:", err);
+      updateStatus("Erreur de chargement de l'avatar 3D");
     }
   );
 }
@@ -435,6 +449,14 @@ async function initLoader() {
   } catch(_) {}
 }
 initLoader();
+
+// Filet de sécurité : si aucun avatar n'a pu être affiché après 10s (pas de réseau, CDN inaccessible,
+// import bloqué...), on le signale clairement au lieu de laisser un écran noir silencieux.
+setTimeout(() => {
+  if (!window.currentVRM) {
+    updateStatus("Impossible de charger l'avatar (connexion Internet requise)");
+  }
+}, 10000);
 
 let targetHeadY = 1.35;
 
