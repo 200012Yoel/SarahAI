@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sarah AI — Avatar 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+  <!-- Three.js & VRM via ES modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/",
+      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.2/lib/three-vrm.module.js"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #030308;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #fff;
+    }
+
+    #canvas-container {
+      position: absolute; inset: 0;
+      width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 45%, rgba(60, 30, 120, 0.25) 0%, rgba(10, 5, 25, 0.7) 60%, #030308 100%);
+    }
+
+    #vrm-canvas {
+      width: 100%; height: 100%;
+      display: block;
+    }
+
+    /* Clean Floating Status Badge (Continuous Background Voice) */
+    #voice-dock {
+      position: absolute;
+      bottom: 35px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    #status-badge {
+      font-size: 14px; font-weight: 600;
+      color: rgba(255,255,255,0.95);
+      padding: 10px 22px; border-radius: 24px;
+      background: rgba(10, 10, 20, 0.75);
+      border: 1px solid rgba(147, 112, 219, 0.35);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(147, 112, 219, 0.2);
+      transition: all 0.3s ease;
+    }
+  </style>
+  <script src="vrm_data.js"></script>
+  <script>
+    // 🎙️ SÉLECTEUR DE VOIX FÉMININE JEUNE ET NATURELLE (100% GARANTI SANS VOIX D'HOMME)
+    window.getFrenchFemaleVoice = function() {
+      if (!window.speechSynthesis) return null;
+      const voices = window.speechSynthesis.getVoices() || [];
+      const maleKeywords = ['male', 'homme', 'masculin', 'fra', 'frb', 'fre', 'frf', 'thomas', 'nicolas', 'paul', 'antoine', 'remi', 'alain', 'guy', 'jean', 'bernard', 'pierre', 'garcon', 'garçon'];
+      const femaleKeywords = ['female', 'feminin', 'féminin', 'frc', 'frd', 'frg', 'frh', 'audrey', 'hortense', 'amelie', 'amélie', 'celine', 'julie', 'lea', 'clara', 'chloe', 'camille', 'sarah', 'alice', 'virginie', 'denise'];
+
+      const frVoices = voices.filter(v => v.lang && (v.lang.startsWith('fr') || v.lang.includes('FR')));
+      const nonMale = frVoices.filter(v => {
+        const name = (v.name || '').toLowerCase();
+        return !maleKeywords.some(k => name.includes(k));
+      });
+
+      return nonMale.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k))) ||
+             nonMale[0] ||
+             frVoices.find(v => femaleKeywords.some(k => (v.name || '').toLowerCase().includes(k))) ||
+             frVoices[0] ||
+             null;
+    };
+
+    window.updateStatus = function(text) {
+      const el = document.getElementById('status-badge');
+      if (el) el.textContent = text;
+    };
+
+    window.speakText = function(text) {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'fr-FR';
+      utter.rate = 1.06;
+      utter.pitch = 1.22; // Ton plus élevé pour une voix de jeune fille fraîche et claire
+
+      const femaleVoice = window.getFrenchFemaleVoice();
+      if (femaleVoice) utter.voice = femaleVoice;
+
+      utter.onstart = () => {
+        window.updateStatus("🗣️ Sarah parle...");
+        if (window.setSpeaking) window.setSpeaking(true);
+      };
+      utter.onend = () => {
+        window.updateStatus("Sarah vous écoute en continu");
+        if (window.setSpeaking) window.setSpeaking(false);
+        if (window.restartWebRecognition) window.restartWebRecognition();
+      };
+      utter.onerror = () => {
+        window.updateStatus("Sarah vous écoute en continu");
+        if (window.setSpeaking) window.setSpeaking(false);
+        if (window.restartWebRecognition) window.restartWebRecognition();
+      };
+      window.speechSynthesis.speak(utter);
+    };
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.getFrenchFemaleVoice();
+      };
+    }
+  </script>
+</head>
+<body>
+
+  <!-- Conteneur 3D -->
+  <div id="canvas-container">
+    <canvas id="vrm-canvas"></canvas>
+  </div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+/* ════════════════════════════════════════════════════════════════════
+   3D ENGINE — SCÈNE ÉPURÉE AVEC BUSTE & MAINS PARFAITEMENT CENTRÉS
+════════════════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('vrm-canvas');
+const container = document.getElementById('canvas-container');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(26, window.innerWidth / window.innerHeight, 0.1, 50);
+
+// Éclairage studio immersif
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
+scene.add(ambientLight);
+
+const keyLight = new THREE.DirectionalLight(0xfff5ee, 2.2);
+keyLight.position.set(1.5, 3.5, 2.5);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x9060ff, 0.85);
+fillLight.position.set(-2.5, 2.0, 1.5);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.7);
+rimLight.position.set(0, 4.0, -3.0);
+scene.add(rimLight);
+
+// Particules flottantes douces
+const partGeo = new THREE.BufferGeometry();
+const count = 120;
+const posArr = new Float32Array(count * 3);
+for (let i = 0; i < count; i++) {
+  posArr[i * 3]     = (Math.random() - 0.5) * 8;
+  posArr[i * 3 + 1] = Math.random() * 5;
+  posArr[i * 3 + 2] = (Math.random() - 0.5) * 6;
+}
+partGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+const partMat = new THREE.PointsMaterial({ color: 0xc084fc, size: 0.035, transparent: true, opacity: 0.55 });
+const particles = new THREE.Points(partGeo, partMat);
+scene.add(particles);
+
+let currentVRM = null;
+window.currentVRM = null;
+let isSpeaking = false;
+window.isSpeaking = false;
+
+window.setSpeaking = function(val) {
+  isSpeaking = val;
+  window.isSpeaking = val;
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   FONCTIONS GLOBALES D'AFFICHAGE & SYNTHÈSE VOCALE
+════════════════════════════════════════════════════════════════════ */
+function updateStatus(text) {
+  const el = document.getElementById('status-badge');
+  if (el) el.textContent = text;
+}
+window.updateStatus = updateStatus;
+
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'fr-FR';
+  utter.rate = 1.06;
+  utter.pitch = 1.22;
+
+  const femaleVoice = (window.getFrenchFemaleVoice && window.getFrenchFemaleVoice()) || null;
+  if (femaleVoice) utter.voice = femaleVoice;
+
+  utter.onstart = () => {
+    updateStatus("🗣️ Sarah parle...");
+    isSpeaking = true;
+    window.isSpeaking = true;
+  };
+
+  utter.onend = () => {
+    updateStatus("Sarah vous écoute en continu");
+    isSpeaking = false;
+    window.isSpeaking = false;
+    setExpression('aa', 0);
+    setExpression('oh', 0);
+    setExpression('ee', 0);
+    setExpression('ih', 0);
+    setExpression('ou', 0);
+  };
+
+  utter.onerror = () => {
+    updateStatus("Sarah vous écoute en continu");
+    isSpeaking = false;
+    window.isSpeaking = false;
+    setExpression('aa', 0);
+    setExpression('oh', 0);
+  };
+
+  window.speechSynthesis.speak(utter);
+}
+window.speakText = speakText;
+
+let clock = new THREE.Clock();
+let blinkTimer = 0;
+let nextBlink = 3.0;
+
+const gltfLoader = new GLTFLoader();
+gltfLoader.register((parser) => new VRMLoaderPlugin(parser));
+
+function setupAvatarModel(vrm) {
+  if (currentVRM) scene.remove(currentVRM.scene);
+
+  VRMUtils.removeUnnecessaryJoints(vrm.scene);
+  try { VRMUtils.rotateVRM0(vrm); } catch(_) {}
+
+  scene.add(vrm.scene);
+  // Apply dress rendering fixes (double-sided, transparency settings)
+  applyDressMaterialFixes(vrm);
+  currentVRM = vrm;
+  window.currentVRM = vrm;
+
+  // Cadrage parfait : Centrage strict au milieu de l'écran
+  vrm.scene.position.set(0, 0, 0);
+  vrm.scene.rotation.set(0, 0, 0);
+
+  const headBone = vrm.humanoid?.getNormalizedBoneNode('head');
+  let headY = 1.35;
+  if (headBone) {
+    vrm.scene.updateMatrixWorld(true);
+    const headWorldPos = new THREE.Vector3();
+    headBone.getWorldPosition(headWorldPos);
+    if (headWorldPos.y > 0.5) headY = headWorldPos.y;
+  }
+  targetHeadY = headY;
+
+  // Cadrage dézoomé et aéré : Tête complète, épaules et buste
+  updateCameraFraming();
+
+  // Apparaître directe & saluer vocalement
+  updateStatus("Sarah vous écoute en continu");
+  if (!window.SarahBridge) {
+    setTimeout(() => {
+      speakText("Bonjour, je m'appelle Sarah !");
+    }, 200);
+  }
+}
+
+function updateCameraFraming() {
+  const w = window.innerWidth || 360;
+  const h = window.innerHeight || 640;
+  const aspect = w / h;
+  camera.aspect = aspect;
+
+  const isPortrait = h > w;
+  if (isPortrait) {
+    camera.fov = 28;
+    const camY = targetHeadY + 0.04;
+    const targetY = targetHeadY - 0.12;
+    const camZ = aspect < 0.52 ? 4.0 : 3.75;
+    camera.position.set(0, camY, camZ);
+    camera.lookAt(0, targetY, 0);
+  } else {
+    // Mode Paysage / Desktop
+    camera.fov = 23;
+    const camY = targetHeadY + 0.05;
+    const targetY = targetHeadY - 0.10;
+    const camZ = 3.45;
+    camera.position.set(0, camY, camZ);
+    camera.lookAt(0, targetY, 0);
+  }
+
+  camera.updateProjectionMatrix();
+}
+
+function parseAndApplyVRM(arrayBuffer) {
+  gltfLoader.parse(
+    arrayBuffer,
+    '',
+    (gltf) => {
+      const vrm = gltf.userData.vrm;
+      if (vrm) {
+        setupAvatarModel(vrm);
+        saveToIndexedDB(arrayBuffer);
+      }
+    },
+    (err) => {
+      console.error("Erreur parse VRM:", err);
+    }
+  );
+}
+
+function applyDressMaterialFixes(vrm) {
+  // Préserver le bon rendu des textures (visage, bouche, yeux, vêtements) sans casser le depthWrite
+  vrm.scene.traverse((obj) => {
+    if (obj.isMesh && obj.material) {
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        mat.depthWrite = true;
+        mat.needsUpdate = true;
+      });
+    }
+  });
+}
+
+
+// Sauvegarde dans IndexedDB pour que le nouvel avatar s'ouvre instantanément
+function saveToIndexedDB(buffer) {
+  try {
+    const req = indexedDB.open('SarahVRMDB_v3', 1);
+    req.onupgradeneeded = (e) => { e.target.result.createObjectStore('models'); };
+    req.onsuccess = (e) => {
+      const db = e.target.result;
+      const tx = db.transaction('models', 'readwrite');
+      tx.objectStore('models').put(buffer, 'current_avatar');
+    };
+  } catch(_) {}
+}
+
+function loadFromIndexedDB() {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open('SarahVRMDB_v3', 1);
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('models')) return resolve(null);
+        const tx = db.transaction('models', 'readonly');
+        const getReq = tx.objectStore('models').get('current_avatar');
+        getReq.onsuccess = () => resolve(getReq.result || null);
+        getReq.onerror = () => resolve(null);
+      };
+      req.onerror = () => resolve(null);
+    } catch(_) { resolve(null); }
+  });
+}
+
+async function base64ToArrayBuffer(base64) {
+  try {
+    // Décodage natif C++ ultra-rapide via fetch data-URL (~10-15ms)
+    const res = await fetch("data:application/octet-stream;base64," + base64);
+    return await res.arrayBuffer();
+  } catch(_) {
+    // Fallback par blocs rapides
+    const bin = window.atob(base64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i += 65536) {
+      const end = Math.min(i + 65536, len);
+      for (let j = i; j < end; j++) {
+        bytes[j] = bin.charCodeAt(j);
+      }
+    }
+    return bytes.buffer;
+  }
+}
+
+async function initLoader() {
+  // 1. Priorité 1 : Fichier binaire local direct (Sarah.vrm / AA.vrm) intercepté ultra-vite
+  const candidates = ['Sarah.vrm', 'AA.vrm', 'aa.vrm'];
+  for (const path of candidates) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        parseAndApplyVRM(buf);
+        return;
+      }
+    } catch(_) {}
+  }
+
+  // 2. Priorité 2 : Données embarquées base64 synchrones décodées immédiatement
+  if (window.EMBEDDED_VRM_BASE64) {
+    try {
+      const buf = await base64ToArrayBuffer(window.EMBEDDED_VRM_BASE64);
+      parseAndApplyVRM(buf);
+      return;
+    } catch(e) {
+      console.warn("Erreur chargement base64:", e);
+    }
+  }
+
+  // 3. Priorité 3 : Cache IndexedDB
+  try {
+    const cached = await loadFromIndexedDB();
+    if (cached) {
+      parseAndApplyVRM(cached);
+      return;
+    }
+  } catch(_) {}
+}
+initLoader();
+
+let targetHeadY = 1.35;
+
+function setExpression(name, val) {
+  if (!currentVRM || !currentVRM.expressionManager) return;
+  try {
+    const em = currentVRM.expressionManager;
+    const v = Math.max(0, Math.min(1, val));
+    em.setValue(name, v);
+    em.setValue(name.toLowerCase(), v);
+
+    // Mappage universel VRM 0.0 & 1.0 des voyelles et phonèmes
+    if (name === 'aa' || name === 'a' || name === 'A') {
+      em.setValue('aa', v);
+      em.setValue('a', v);
+    }
+    if (name === 'oh' || name === 'o' || name === 'O') {
+      em.setValue('oh', v);
+      em.setValue('o', v);
+    }
+    if (name === 'ee' || name === 'e' || name === 'E') {
+      em.setValue('ee', v);
+      em.setValue('e', v);
+    }
+    if (name === 'ih' || name === 'i' || name === 'I') {
+      em.setValue('ih', v);
+      em.setValue('i', v);
+    }
+    if (name === 'ou' || name === 'u' || name === 'U') {
+      em.setValue('ou', v);
+      em.setValue('u', v);
+    }
+    if (name === 'joy' || name === 'Joy' || name === 'happy') {
+      em.setValue('joy', v);
+      em.setValue('happy', v);
+    }
+  } catch(_) {}
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  const elapsed = clock.getElapsedTime();
+
+  particles.rotation.y = elapsed * 0.04;
+
+  // Protect the animation loop from uncaught errors that could freeze the UI
+  try {
+    if (currentVRM && currentVRM.humanoid) {
+      const humanoid = currentVRM.humanoid;
+
+      // 1. Respiration du buste
+      const spine = humanoid.getNormalizedBoneNode('spine');
+      if (spine) {
+        spine.rotation.x = Math.sin(elapsed * 0.9) * 0.015;
+        spine.rotation.z = Math.sin(elapsed * 0.6) * 0.006;
+      }
+
+      // 2. Mouvements de tête naturels
+      const head = humanoid.getNormalizedBoneNode('head');
+      if (head) {
+        if (isSpeaking) {
+          head.rotation.y = Math.sin(elapsed * 1.6) * 0.06;
+          head.rotation.x = Math.sin(elapsed * 2.4) * 0.035 - 0.02;
+          head.rotation.z = Math.sin(elapsed * 1.3) * 0.02;
+        } else {
+          head.rotation.y = Math.sin(elapsed * 0.4) * 0.035;
+          head.rotation.x = Math.sin(elapsed * 0.3) * 0.01 - 0.03;
+          head.rotation.z = Math.sin(elapsed * 0.35) * 0.01;
+        }
+      }
+
+      // 3. CONTRÔLE NATUREL DES BRAS ET DES MAINS (BRAS EN BAS LE LONG DU CORPS)
+      const leftUpperArm  = humanoid.getNormalizedBoneNode('leftUpperArm');
+      const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
+      const leftLowerArm  = humanoid.getNormalizedBoneNode('leftLowerArm');
+      const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
+      const leftHand      = humanoid.getNormalizedBoneNode('leftHand');
+      const rightHand     = humanoid.getNormalizedBoneNode('rightHand');
+
+      if (isSpeaking) {
+        // 🗣️ GESTUELLE CONVERSATIONNELLE DES MAINS QUAND ELLE PARLE
+        const g1 = Math.sin(elapsed * 2.8);
+        const g2 = Math.cos(elapsed * 2.2);
+
+        if (leftUpperArm) {
+          leftUpperArm.rotation.set(0.20 + g2 * 0.08, 0.1, -1.15 - g1 * 0.05);
+        }
+        if (leftLowerArm) {
+          leftLowerArm.rotation.set(-0.35 + g1 * 0.12, 0.65 - g2 * 0.1, -0.45);
+        }
+        if (leftHand) {
+          leftHand.rotation.set(g1 * 0.15, 0.15 + g2 * 0.12, 0.1);
+        }
+
+        if (rightUpperArm) {
+          rightUpperArm.rotation.set(0.20 + g1 * 0.08, -0.1, 1.15 + g2 * 0.05);
+        }
+        if (rightLowerArm) {
+          rightLowerArm.rotation.set(-0.35 + g2 * 0.12, -0.65 + g1 * 0.1, 0.45);
+        }
+        if (rightHand) {
+          rightHand.rotation.set(g2 * 0.15, -0.15 - g1 * 0.12, -0.1);
+        }
+
+      } else {
+        // 🧘 POSTURE DE REPOS PARFAITE (BRAS LE LONG DU CORPS, AVANT-BRAS PLIÉS DEVANT)
+        const breath = Math.sin(elapsed * 0.9) * 0.015;
+
+        if (leftUpperArm) {
+          leftUpperArm.rotation.set(0.15, 0.05, -1.22 - breath);
+        }
+        if (leftLowerArm) {
+          leftLowerArm.rotation.set(-0.25, 0.55, -0.35);
+        }
+        if (leftHand) {
+          leftHand.rotation.set(0.05, 0.1, 0.05);
+        }
+
+        if (rightUpperArm) {
+          rightUpperArm.rotation.set(0.15, -0.05, 1.22 + breath);
+        }
+        if (rightLowerArm) {
+          rightLowerArm.rotation.set(-0.25, -0.55, 0.35);
+        }
+        if (rightHand) {
+          rightHand.rotation.set(0.05, -0.1, -0.05);
+        }
+      }
+
+      // 4. Clignement naturel des yeux
+      blinkTimer += delta;
+      if (blinkTimer > nextBlink) {
+        blinkTimer = 0;
+        nextBlink = 2.5 + Math.random() * 3.5;
+        triggerBlink();
+      }
+
+      // 5. MOTEUR DE LIP-SYNC AVANCÉ (Phonèmes VRM : A, I, U, E, O + Émotions)
+      if (isSpeaking) {
+        const speechTime = elapsed * 15.0;
+        const vA = Math.max(0, Math.sin(speechTime * 1.1) * 0.7 + 0.2);
+        const vI = Math.max(0, Math.sin(speechTime * 1.4 + 1.0) * 0.4);
+        const vU = Math.max(0, Math.cos(speechTime * 0.9) * 0.35);
+        const vE = Math.max(0, Math.sin(speechTime * 1.6 + 2.0) * 0.45);
+        const vO = Math.max(0, Math.cos(speechTime * 1.2 + 0.5) * 0.5);
+
+        setExpression('aa', Math.min(0.85, vA));
+        setExpression('ih', Math.min(0.40, vI));
+        setExpression('ou', Math.min(0.35, vU));
+        setExpression('ee', Math.min(0.40, vE));
+        setExpression('oh', Math.min(0.45, vO));
+
+        // Émotion chaleureuse : Sourire subtil et regard bienveillant
+        setExpression('happy', 0.40);
+        setExpression('relaxed', 0.25);
+      } else {
+        setExpression('aa', 0);
+        setExpression('ih', 0);
+        setExpression('ou', 0);
+        setExpression('ee', 0);
+        setExpression('oh', 0);
+        setExpression('happy', 0.15); // Léger sourire d'écoute au repos
+        setExpression('relaxed', 0.20);
+      }
+
+      currentVRM.update(delta);
+    }
+  } catch (e) { console.error('Error in animate loop:', e); }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.setCustomViseme = function(a, i, u, e, o) {
+  setExpression('aa', a);
+  setExpression('ih', i);
+  setExpression('ou', u);
+  setExpression('ee', e);
+  setExpression('oh', o);
+};
+
+window.setEmotion = function(name, val) {
+  setExpression(name, val);
+};
+
+function triggerBlink() {
+  let progress = 0;
+  const step = () => {
+    progress += 0.09;
+    const v = progress < 0.5 ? progress * 2 : (1 - progress) * 2;
+    const val = Math.max(0, Math.min(1, v));
+    setExpression('blink', val);
+    setExpression('Blink', val);
+    if (progress < 1) requestAnimationFrame(step);
+    else {
+      setExpression('blink', 0);
+      setExpression('Blink', 0);
+    }
+  };
+  step();
+}
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  updateCameraFraming();
+ });
+
+/* ════════════════════════════════════════════════════════════════════
+   INTERACTIONS TACTILES & MICRO-GESTES SUR L'AVATAR 3D
+════════════════════════════════════════════════════════════════════ */
+const raycaster = new THREE.Raycaster();
+const touchCoord = new THREE.Vector2();
+
+window.triggerTouchReaction = function(zone) {
+  setExpression('happy', 0.85);
+  setTimeout(() => {
+    setExpression('happy', 0.20);
+  }, 1400);
+};
+
+function handlePointerTouch(event) {
+  const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+  const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+
+  touchCoord.x = (clientX / window.innerWidth) * 2 - 1;
+  touchCoord.y = -(clientY / window.innerHeight) * 2 + 1;
+
+  if (currentVRM) {
+    raycaster.setFromCamera(touchCoord, camera);
+    const intersects = raycaster.intersectObjects(currentVRM.scene.children, true);
+    if (intersects.length > 0) {
+      const hitPoint = intersects[0].point;
+      const zone = hitPoint.y > 1.35 ? 'head' : 'body';
+      triggerTouchReaction(zone);
+
+      try {
+        if (window.SarahBridge && window.SarahBridge.onAvatarTapped) {
+          window.SarahBridge.onAvatarTapped(zone);
+        } else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.onAvatarTapped) {
+          window.webkit.messageHandlers.onAvatarTapped.postMessage(zone);
+        }
+      } catch (e) {}
+    }
+  }
+}
+
+window.addEventListener('click', handlePointerTouch);
+window.addEventListener('touchstart', handlePointerTouch, { passive: true });
+</script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   RECONNAISSANCE VOCALE CONTINUE & BARGE-IN (ZERO BOUTON REQUIS)
+════════════════════════════════════════════════════════════════════ */
+const RESPONSES = [
+  "Bonjour ! Je suis Sarah, ravie de vous parler. Comment puis-je vous aider ?",
+  "Je vous écoute ! Posez-moi vos questions, je suis à votre entière disposition.",
+  "Très bonne question ! Je suis votre assistante intelligente 3D en temps réel.",
+  "Avec grand plaisir ! N'hésitez pas si vous avez besoin de quoi que ce soit d'autre."
+];
+
+function generateReply(text) {
+  const t = text.toLowerCase().trim();
+  if (/qui t'a créé|qui ta créé|ton créateur|créateur/.test(t)) return "Oui, je connais mon créateur : c'est Nathan Dev, un développeur qui développe plein de choses. Pour le commun des mortels, ça ne sert à rien !";
+  if (/où as tu été créé|où tu as été créé/.test(t)) return "J'ai été créé à Paris, avec une intelligence inspirée par la technologie israélienne.";
+  if (/quand as tu été créé|date de création/.test(t)) return "J'ai été créé vers la fin de l'année 2020, pendant la période du COVID.";
+  if (/bonjour|salut|hello|coucou/.test(t)) return "Bonjour ! Comment ça va aujourd'hui ?";
+  if (/bonsoir/.test(t)) return "Bonsoir ! J'espère que ta journée s'est bien passée.";
+  if (/bonne nuit/.test(t)) return "Bonne nuit ! Repose-toi bien et à demain.";
+  if (/ça va|comment ça va/.test(t)) return "Ça va très bien, merci ! Et toi ?";
+  if (/qui es.tu|présente.toi|ton nom/.test(t)) return "Je suis une intelligence artificielle personnelle créée pour discuter, apprendre et t'aider.";
+  if (/heure/.test(t)) { const d = new Date(); return `Il est actuellement ${d.getHours()} heures et ${d.getMinutes()} minutes.`; }
+  if (/date|quel jour/.test(t)) { const d = new Date(); return `Nous sommes le ${d.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`; }
+  if (/blague/.test(t)) return "Pourquoi les ordinateurs ont-ils froid ? Parce qu'ils laissent toujours leurs fenêtres ouvertes !";
+  if (/capitale de la france/.test(t)) return "La capitale de la France est Paris.";
+  if (/capitale d'israel|capitale d'israël/.test(t)) return "La capitale proclamée d'Israël est Jérusalem.";
+  return RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
+}
+
+let recognition = null;
+let isListeningActive = false;
+
+// --- BARGE-IN : Interrompre instantanément la parole quand l'utilisateur parle ---
+function triggerBargeIn() {
+  if (window.speechSynthesis && window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if (window.SarahBridge && window.SarahBridge.stopSpeaking) {
+    window.SarahBridge.stopSpeaking();
+  }
+  if (window.setSpeaking) {
+    window.setSpeaking(false);
+  }
+}
+function startContinuousRecognition() {
+  if (window.SarahBridge || (window.webkit && window.webkit.messageHandlers)) {
+    // Le conteneur natif (Android / iOS) gère la reconnaissance audio de manière fluide et exclusive
+    return;
+  }
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    return;
+  }
+
+  try {
+    if (recognition) {
+      recognition.abort();
+      recognition = null;
+    }
+
+    recognition = new SpeechRec();
+    recognition.lang = 'fr-FR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      isListeningActive = true;
+      window.updateStatus("🎙️ Sarah vous écoute...");
+    };
+
+    recognition.onspeechstart = () => {
+      triggerBargeIn();
+    };
+
+    recognition.onresult = (e) => {
+      triggerBargeIn();
+      let interim = '';
+      let final = '';
+
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          final += e.results[i][0].transcript;
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+
+      if (interim) {
+        window.updateStatus(`🎙️ « ${interim}... »`);
+      }
+
+      if (final && final.trim()) {
+        const query = final.trim();
+        window.updateStatus(`« ${query} »`);
+        if (window.SarahBridge && window.SarahBridge.onUserSpoke) {
+          window.SarahBridge.onUserSpoke(query);
+        } else {
+          setTimeout(() => {
+            const reply = generateReply(query);
+            window.speakText(reply);
+          }, 300);
+        }
+      }
+    };
+
+    recognition.onerror = (err) => {
+      isListeningActive = false;
+      setTimeout(() => {
+        if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+          restartWebRecognition();
+        }
+      }, 1000);
+    };
+
+    recognition.onend = () => {
+      isListeningActive = false;
+      setTimeout(() => {
+        if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+          restartWebRecognition();
+        }
+      }, 500);
+    };
+
+    recognition.start();
+  } catch(e) {
+    console.warn("SpeechRec error:", e);
+  }
+}
+
+window.speakText = function(text) {
+  if (!text || !text.trim()) return;
+  
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.speak) {
+    window.webkit.messageHandlers.speak.postMessage(text);
+    return;
+  }
+  
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'fr-FR';
+    utterance.pitch = 1.38; // Timbre jeune fille
+    utterance.rate = 1.08;
+
+    const voices = window.speechSynthesis.getVoices();
+    const frVoices = voices.filter(v => v.lang.startsWith('fr'));
+    const femaleVoice = frVoices.find(v => /female|audrey|hortense|amelie|amélie|chloé|chloe|celine|julie|virginie/i.test(v.name)) || frVoices[0];
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+
+    utterance.onstart = () => {
+      window.setSpeaking(true);
+      window.updateStatus("🗣️ Sarah parle...");
+    };
+
+    utterance.onend = () => {
+      window.setSpeaking(false);
+      window.updateStatus("Sarah vous écoute en continu");
+      setTimeout(restartWebRecognition, 400);
+    };
+
+    utterance.onerror = () => {
+      window.setSpeaking(false);
+      window.updateStatus("Sarah vous écoute en continu");
+      setTimeout(restartWebRecognition, 400);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+};
+
+// Initialisation au chargement
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.speechSynthesis) {
+    try { window.speechSynthesis.getVoices(); } catch(_) {}
+  }
+  // Ne démarrer la reconnaissance web que si non encapsulé dans l'app native iOS / Android
+  const isNativeApp = !!(window.SarahBridge || (window.webkit && window.webkit.messageHandlers));
+  if (!isNativeApp) {
+    setTimeout(() => {
+      startContinuousRecognition();
+    }, 1000);
+  }
+});
+</script>
+
+</body>
+</html>
