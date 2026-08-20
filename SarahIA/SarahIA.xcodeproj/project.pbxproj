@@ -21,15 +21,9 @@
 		A1B2C3D40001000100000011 /* AudioEngineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000011 /* AudioEngineManager.swift */; };
 		A1B2C3D40001000100000012 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000012 /* WhisperService.swift */; };
 		A1B2C3D40001000100000013 /* TTSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000013 /* TTSService.swift */; };
-		A1B2C3D40001000100000014 /* AvatarEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000014 /* AvatarEngine.swift */; };
-		A1B2C3D40001000100000015 /* Avatar3DView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000015 /* Avatar3DView.swift */; };
-		A1B2C3D40001000100000016 /* VRMLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000016 /* VRMLoader.swift */; };
 		A1B2C3D40001000100000017 /* HapticService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000017 /* HapticService.swift */; };
 		A1B2C3D40001000100000018 /* MemoryVaultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000018 /* MemoryVaultView.swift */; };
 		A1B2C3D40001000100000019 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000019 /* SettingsView.swift */; };
-		A1B2C3D4000100010000001A /* Sarah.vrm in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001A /* Sarah.vrm */; };
-		A1B2C3D4000100010000001B /* sarah_ai_web.html in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001B /* sarah_ai_web.html */; };
-		A1B2C3D4000100010000001C /* vrm_data.js in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001C /* vrm_data.js */; };
 		A1B2C3D4000100010000001E /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001E /* OpenAIService.swift */; };
 		A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000001F /* TranslationEngine.swift */; };
 		A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000020 /* ModelDownloader.swift */; };
@@ -52,6 +46,7 @@
 		A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000036 /* SpeechManager.swift */; };
 		A1B2C3D40001000100000037 /* MessageList.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000037 /* MessageList.swift */; };
 		A1B2C3D40001000100000038 /* MessageBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000038 /* MessageBar.swift */; };
+		A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000039 /* KeyboardObserver.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -75,15 +70,9 @@
 		A1B2C3D40002000100000011 /* AudioEngineManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000012 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000013 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000014 /* AvatarEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000015 /* Avatar3DView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Avatar3DView.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000016 /* VRMLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VRMLoader.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000017 /* HapticService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000018 /* MemoryVaultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryVaultView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000019 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000001A /* Sarah.vrm */ = {isa = PBXFileReference; lastKnownFileType = file; path = Sarah.vrm; sourceTree = "<group>"; };
-		A1B2C3D4000200010000001B /* sarah_ai_web.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sarah_ai_web.html; sourceTree = "<group>"; };
-		A1B2C3D4000200010000001C /* vrm_data.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = vrm_data.js; sourceTree = "<group>"; };
 		A1B2C3D4000200010000001E /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000001F /* TranslationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000020 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
@@ -106,6 +95,7 @@
 		A1B2C3D40002000100000036 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000037 /* MessageList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageList.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000038 /* MessageBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBar.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000039 /* KeyboardObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardObserver.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		W1B2C3D4000200010000005B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -149,9 +139,6 @@
 				A1B2C3D40004000100000006 /* ViewModels */,
 				A1B2C3D4000200010000000B /* Assets.xcassets */,
 				A1B2C3D4000200010000000A /* Info.plist */,
-				A1B2C3D4000200010000001A /* Sarah.vrm */,
-				A1B2C3D4000200010000001B /* sarah_ai_web.html */,
-				A1B2C3D4000200010000001C /* vrm_data.js */,
 			);
 			path = SarahIA;
 			sourceTree = "<group>";
@@ -174,8 +161,6 @@
 				A1B2C3D40002000100000011 /* AudioEngineManager.swift */,
 				A1B2C3D40002000100000012 /* WhisperService.swift */,
 				A1B2C3D40002000100000013 /* TTSService.swift */,
-				A1B2C3D40002000100000014 /* AvatarEngine.swift */,
-				A1B2C3D40002000100000016 /* VRMLoader.swift */,
 				A1B2C3D40002000100000017 /* HapticService.swift */,
 				A1B2C3D4000200010000001E /* OpenAIService.swift */,
 				A1B2C3D4000200010000001F /* TranslationEngine.swift */,
@@ -193,6 +178,7 @@
 				A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */,
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
+				A1B2C3D40002000100000039 /* KeyboardObserver.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -203,7 +189,6 @@
 				A1B2C3D40002000100000007 /* ChatBubbleView.swift */,
 				A1B2C3D40002000100000008 /* MessageInputView.swift */,
 				A1B2C3D40002000100000009 /* TypingIndicatorView.swift */,
-				A1B2C3D40002000100000015 /* Avatar3DView.swift */,
 				A1B2C3D40002000100000018 /* MemoryVaultView.swift */,
 				A1B2C3D40002000100000019 /* SettingsView.swift */,
 				A1B2C3D40002000100000030 /* SidebarView.swift */,
@@ -355,9 +340,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4000100010000000B /* Assets.xcassets in Resources */,
-				A1B2C3D4000100010000001A /* Sarah.vrm in Resources */,
-				A1B2C3D4000100010000001B /* sarah_ai_web.html in Resources */,
-				A1B2C3D4000100010000001C /* vrm_data.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -381,9 +363,6 @@
 				A1B2C3D40001000100000011 /* AudioEngineManager.swift in Sources */,
 				A1B2C3D40001000100000012 /* WhisperService.swift in Sources */,
 				A1B2C3D40001000100000013 /* TTSService.swift in Sources */,
-				A1B2C3D40001000100000014 /* AvatarEngine.swift in Sources */,
-				A1B2C3D40001000100000015 /* Avatar3DView.swift in Sources */,
-				A1B2C3D40001000100000016 /* VRMLoader.swift in Sources */,
 				A1B2C3D40001000100000017 /* HapticService.swift in Sources */,
 				A1B2C3D40001000100000018 /* MemoryVaultView.swift in Sources */,
 				A1B2C3D40001000100000019 /* SettingsView.swift in Sources */,
@@ -409,6 +388,7 @@
 				A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */,
 				A1B2C3D40001000100000037 /* MessageList.swift in Sources */,
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
+				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

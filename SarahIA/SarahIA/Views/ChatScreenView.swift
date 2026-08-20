@@ -1,47 +1,57 @@
 import SwiftUI
 
-/// Écran principal de discussion 100% natif SwiftUI intégrant MessageList et MessageBar.
+/// Écran principal de discussion 100% natif SwiftUI avec synchronisation dynamique du clavier au-dessus de MessageBar.
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @StateObject private var keyboard = KeyboardObserver()
     
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
     
     public var body: some View {
-        VStack(spacing: 0) {
-            // 1. Topbar Native
-            topBar
+        GeometryReader { geo in
+            let bottomInset = geo.safeAreaInsets.bottom
             
-            // 2. Fil de discussion standard SwiftUI (MessageList)
-            MessageList(
-                messages: viewModel.messages,
-                isTyping: viewModel.isTyping,
-                onToggleSpeech: { message in
-                    viewModel.toggleSpeechForMessage(message.content)
-                },
-                onSelectSuggestion: { suggestionText in
-                    viewModel.inputText = suggestionText
-                },
-                onIntroduceSarah: {
-                    viewModel.introduceSarah()
-                }
-            )
-            
-            // 3. Barre de saisie standard SwiftUI (MessageBar)
-            MessageBar(
-                text: $viewModel.inputText,
-                isRecording: viewModel.isMicRunning,
-                onSend: { text in
-                    viewModel.sendMessage(text)
-                },
-                onToggleMic: {
-                    viewModel.toggleMicrophone()
-                }
-            )
-            .padding(.bottom, 16)
+            VStack(spacing: 0) {
+                // 1. Topbar Native
+                topBar
+                
+                // 2. Fil de discussion (MessageList)
+                MessageList(
+                    messages: viewModel.messages,
+                    isTyping: viewModel.isTyping,
+                    isKeyboardVisible: keyboard.isVisible,
+                    onToggleSpeech: { message in
+                        viewModel.toggleSpeechForMessage(message.content)
+                    },
+                    onSelectSuggestion: { suggestionText in
+                        viewModel.inputText = suggestionText
+                    },
+                    onIntroduceSarah: {
+                        viewModel.introduceSarah()
+                    },
+                    onDismissKeyboard: {
+                        keyboard.dismiss()
+                    }
+                )
+                
+                // 3. Barre de saisie (MessageBar) synchronisée au-dessus du clavier
+                MessageBar(
+                    text: $viewModel.inputText,
+                    isRecording: viewModel.isMicRunning,
+                    onSend: { text in
+                        viewModel.sendMessage(text)
+                    },
+                    onToggleMic: {
+                        viewModel.toggleMicrophone()
+                    }
+                )
+                .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
+            }
+            .background(Color.black)
         }
-        .background(Color.black)
+        .ignoresSafeArea(.keyboard)
     }
     
     // MARK: - Topbar
@@ -51,6 +61,7 @@ public struct ChatScreenView: View {
             // Bouton Menu Tiroir (Sidebar)
             Button(action: {
                 HapticService.shared.buttonTap()
+                keyboard.dismiss()
                 viewModel.openDrawer()
             }) {
                 ZStack {
@@ -89,6 +100,7 @@ public struct ChatScreenView: View {
             // Bouton Nouvelle Discussion
             Button(action: {
                 HapticService.shared.buttonTap()
+                keyboard.dismiss()
                 viewModel.startNewChat()
             }) {
                 ZStack {
