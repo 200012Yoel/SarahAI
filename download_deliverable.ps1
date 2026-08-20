@@ -1,10 +1,16 @@
 param (
     [Parameter(Mandatory=$true)]
-    [string]$Type # "apk" or "ipa"
+    [string]$Type # "apk", "ipa", or "ipa-legacy"
 )
 
 $repo = "200012Yoel/SarahAI"
-$fileName = if ($Type -eq "apk") { "SarahIA.apk" } else { "SarahIA.ipa" }
+
+$fileName = switch ($Type) {
+    "apk" { "SarahIA.apk" }
+    "ipa-legacy" { "SarahIA-Legacy-iOS12.ipa" }
+    Default { "SarahIA.ipa" }
+}
+
 $targetPath = Join-Path (Get-Location) $fileName
 $directDownloadUrl = "https://github.com/$repo/releases/latest/download/$fileName"
 $fallbackDownloadUrl = "https://github.com/$repo/releases/download/latest/$fileName"
@@ -12,7 +18,7 @@ $fallbackDownloadUrl = "https://github.com/$repo/releases/download/latest/$fileN
 Write-Host ""
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host "  ⏳ ATTENTE ET TELECHARGEMENT AUTOMATIQUE DU FICHIER" -ForegroundColor Cyan
-Write-Host "  Fichier attendu : $fileName" -ForegroundColor Yellow
+Write-Host "  Fichier attendu : $fileName ($Type)" -ForegroundColor Yellow
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -29,7 +35,6 @@ while ($elapsed -lt $maxWaitSeconds) {
     Write-Host -NoNewline "`r[En attente du binaire...] $($elapsed)s ecoulees (Verification de la release...)   "
     
     try {
-        # 1. Verification par telechargement direct curl (aucune limite de requete GitHub API)
         $tempOutput = Join-Path (Get-Location) "temp_$fileName"
         if (Test-Path "$tempOutput") { Remove-Item "$tempOutput" -Force }
         

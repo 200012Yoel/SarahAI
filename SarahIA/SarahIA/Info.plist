@@ -20,13 +20,10 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>MinimumOSVersion</key>
+	<string>12.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-	</dict>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
@@ -51,17 +48,11 @@
 	<array>
 		<string>audio</string>
 		<string>fetch</string>
-		<string>processing</string>
-	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.sarahia.app.refresh</string>
-		<string>com.sarahia.app.processing</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel et la détection d'activité vocale (VAD).</string>
+	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Sarah AI utilise la reconnaissance vocale sur l'appareil pour transcrire votre voix instantanément en texte.</string>
+	<string>Sarah AI utilise la reconnaissance vocale pour transcrire votre voix en texte.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
