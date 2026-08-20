@@ -204,6 +204,7 @@ final class AIService {
     }
     
     /// Réponse pour le test de notification d'arrière-plan
+    @available(iOS 13.0, *)
     func generateBackgroundTestResponse() async -> String {
         try? await Task.sleep(nanoseconds: 3_000_000_000)
         return "🔔 Test d'arrière-plan réussi ! Sarah AI continue de fonctionner et de vous écouter même en arrière-plan. 🚀"

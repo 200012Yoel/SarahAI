@@ -50,15 +50,20 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
-            OTHER_LDFLAGS='-weak_framework SwiftUI -weak_framework Combine -weak_framework WidgetKit' \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
+
+          if [ "$BUILD_FAILED" = "1" ]; then
+            echo "=================================================="
+            echo "❌ ERREUR DE COMPILATION XCODEBUILD :"
+            grep -E -i "(error:|failed|warning:)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
+            exit 1
+          fi
 
       - name: Package Legacy IPA for iPhone 5S & iPhone 6
         run: |

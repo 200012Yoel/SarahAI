@@ -19,6 +19,7 @@ public final class LocalVisionEngine {
     private init() {}
     
     /// Analyse une image capturée par la caméra localement
+    @available(iOS 13.0, *)
     public func analyzeImage(_ image: UIImage) async -> VisionAnalysisResult {
         guard let cgImage = image.cgImage else {
             return VisionAnalysisResult(
