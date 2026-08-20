@@ -13,7 +13,8 @@ final class AIService {
     
     private init() {}
     
-    /// Génère une réponse IA pour la question ou la commande donnée, avec prise en compte de la mémoire apprise.
+    /// Génère une réponse IA pour la question ou la commande donnée (iOS 13+)
+    @available(iOS 13.0, *)
     func generateResponse(for question: String) async -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)

@@ -143,6 +143,7 @@ public final class TranslationEngine {
     }
     
     /// Traduit le texte de manière asynchrone ultra-réactive
+    @available(iOS 13.0, *)
     public func translate(text: String, sourceLang: String, targetLang: TargetLanguage) async -> String {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.lowercased()

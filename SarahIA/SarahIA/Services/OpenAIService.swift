@@ -44,6 +44,7 @@ public final class OpenAIService {
     }
     
     /// Génère une réponse via l'API OpenAI avec gestion d'historique multi-tours
+    @available(iOS 13.0, *)
     public func ask(prompt: String) async throws -> String {
         let apiKey = getApiKey()
         guard !apiKey.isEmpty else {

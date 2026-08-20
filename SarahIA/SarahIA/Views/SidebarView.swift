@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI reproduisant fidèlement la maquette HTML/CSS.
+@available(iOS 14.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isShowingSettings: Bool

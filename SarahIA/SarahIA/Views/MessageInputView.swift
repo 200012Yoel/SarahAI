@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Barre de Saisie (Composer) réutilisant le composant natif standard MessageBar.
+@available(iOS 14.0, *)
 public struct MessageInputView: View {
     @Binding var text: String
     var isRecording: Bool

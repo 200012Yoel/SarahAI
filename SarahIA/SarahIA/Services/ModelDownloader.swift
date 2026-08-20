@@ -4,6 +4,7 @@ import Foundation
 /// - Télécharge en tâche de fond les modèles légers texte (Français et Hébreu)
 /// - Compatible avec toutes les générations d'iPhone (iPhone 7 à iPhone 17 Pro Max)
 /// - Stockage sécurisé dans le sandbox de l'application
+@available(iOS 13.0, *)
 public final class ModelDownloader: ObservableObject {
     
     public static let shared = ModelDownloader()

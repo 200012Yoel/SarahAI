@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vue de liste de messages 100% native SwiftUI (MessageList) assurant un affichage fluide et performant du fil de discussion.
+@available(iOS 14.0, *)
 public struct MessageList: View {
     public let messages: [Message]
     public let isTyping: Bool

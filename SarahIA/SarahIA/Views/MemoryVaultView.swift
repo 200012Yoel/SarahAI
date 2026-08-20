@@ -13,6 +13,7 @@ public struct LearnedMemoryEntry: Identifiable {
 }
 
 /// Vue feuille de gestion visuelle de la mémoire permanente ("AI Brain Vault") de Sarah.
+@available(iOS 14.0, *)
 public struct MemoryVaultView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel

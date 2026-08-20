@@ -545,6 +545,7 @@ public struct SarahWidgetProvider: TimelineProvider {
 }
 
 // 1. Widget Statistiques
+@available(iOS 14.0, *)
 public struct SarahUsageStatsWidget: Widget {
     public let kind: String = "SarahUsageStatsWidget"
     public init() {}
@@ -559,6 +560,7 @@ public struct SarahUsageStatsWidget: Widget {
 }
 
 // 2. Widget Statut Avatar
+@available(iOS 14.0, *)
 public struct SarahStatusWidget: Widget {
     public let kind: String = "SarahStatusWidget"
     public init() {}
@@ -573,6 +575,7 @@ public struct SarahStatusWidget: Widget {
 }
 
 // 3. Widget Mémoire
+@available(iOS 14.0, *)
 public struct SarahMemoryWidget: Widget {
     public let kind: String = "SarahMemoryWidget"
     public init() {}
@@ -587,6 +590,7 @@ public struct SarahMemoryWidget: Widget {
 }
 
 // 4. Widget Accès Vocal Rapide
+@available(iOS 14.0, *)
 public struct SarahQuickVoiceWidget: Widget {
     public let kind: String = "SarahQuickVoiceWidget"
     public init() {}
@@ -601,6 +605,7 @@ public struct SarahQuickVoiceWidget: Widget {
 }
 
 // 5. Widget Dernier Message
+@available(iOS 14.0, *)
 public struct SarahLastMessageWidget: Widget {
     public let kind: String = "SarahLastMessageWidget"
     public init() {}
@@ -615,6 +620,7 @@ public struct SarahLastMessageWidget: Widget {
 }
 
 // 6. Widget Raccourcis Rapides
+@available(iOS 14.0, *)
 public struct SarahQuickActionsWidget: Widget {
     public let kind: String = "SarahQuickActionsWidget"
     public init() {}
@@ -629,6 +635,7 @@ public struct SarahQuickActionsWidget: Widget {
 }
 
 // 7. Widget Santé Système
+@available(iOS 14.0, *)
 public struct SarahSystemHealthWidget: Widget {
     public let kind: String = "SarahSystemHealthWidget"
     public init() {}
@@ -643,6 +650,7 @@ public struct SarahSystemHealthWidget: Widget {
 }
 
 // 8. Widget Conseil Quotidien
+@available(iOS 14.0, *)
 public struct SarahDailyTipWidget: Widget {
     public let kind: String = "SarahDailyTipWidget"
     public init() {}

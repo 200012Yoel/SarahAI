@@ -1,5 +1,5 @@
-name: iOS 12 Legacy Build (iPhone 5S/6)
-run-name: iOS 12 Legacy Build ${{ inputs.build_id || format('v{0}', github.run_number) }}
+name: 📱 iOS 12 - iPhone 5S & iPhone 6 (Build Legacy)
+run-name: 📱 iPhone 5S / iPhone 6 (iOS 12 Build #${{ github.run_number }})
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
         description: 'Identifiant unique du build'
         required: false
         type: string
-        default: 'SarahIA-Legacy-iOS12'
+        default: 'SarahIA-iPhone5S-iOS12'
 
 jobs:
   build:
@@ -25,17 +25,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15 / 16
+      - name: Select Xcode
         run: |
           echo "=== Xcode version active ==="
           xcodebuild -version
 
-      - name: Prepare iOS 12 Deployment Target Settings
+      - name: Prepare iOS 12 Deployment Target (iPhone 5S / 6 / 6+)
         run: |
-          echo "=== Configuration MinimumOSVersion 12.0 ==="
+          echo "=== Configuration MinimumOSVersion 12.0 pour iPhone 5S / iPhone 6 ==="
           find . -name "Info.plist" -not -path "*/SarahIAWidgets/*" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
 
-      - name: Build iOS 12 Legacy App
+      - name: Build iOS 12 Legacy App (iPhone 5S & 6)
         run: |
           set -o pipefail
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
@@ -60,7 +60,7 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
 
-      - name: Package Legacy IPA
+      - name: Package Legacy IPA for iPhone 5S & iPhone 6
         run: |
           set -eo pipefail
           APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d | head -n 1)
@@ -84,27 +84,29 @@ jobs:
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp
+          zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA-iPhone5S-iOS12.ipa" Payload
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA-Legacy-iOS12.ipa" Payload
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
           echo "=== Fichiers IPA generes avec succes ==="
           ls -lh "$GITHUB_WORKSPACE/dist/"
 
-      - name: Upload IPA Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SarahIA-Legacy-iOS12
+          name: SarahIA-iPhone5S-iOS12
           path: dist/*.ipa
           retention-days: 14
 
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release for iPhone 5S & iPhone 6
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Sarah IA - Release iOS 12+ (v${{ github.run_number }})"
-          body: "Binaire iOS compatible iOS 12.0 à iOS 18.0 (iPhone 5S, 6, 6 Plus et modèles récents)."
+          name: "📱 Sarah IA - iPhone 5S & iPhone 6 (iOS 12.0+ Legacy)"
+          body: "Binaire officiel Sarah IA compatible iPhone 5S, iPhone 6, iPhone 6 Plus (iOS 12.0 à 12.5.8) et tous les appareils récents."
           files: |
+            dist/SarahIA-iPhone5S-iOS12.ipa
             dist/SarahIA-Legacy-iOS12.ipa
             dist/SarahIA.ipa
           draft: false

@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Barre de saisie 100% native SwiftUI (MessageBar) avec gestion du texte, dictée vocale et actions rapides.
+@available(iOS 14.0, *)
 public struct MessageBar: View {
     @Binding var text: String
     var isRecording: Bool

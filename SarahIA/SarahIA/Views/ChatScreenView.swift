@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Écran principal de discussion 100% natif SwiftUI avec synchronisation dynamique du clavier au-dessus de MessageBar.
+@available(iOS 14.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()

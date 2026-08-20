@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vue Racine 100% Native SwiftUI avec interface de chat principale et tiroir latéral fluide (#app scale 0.92, corner radius 44pt).
+@available(iOS 14.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings: Bool = false

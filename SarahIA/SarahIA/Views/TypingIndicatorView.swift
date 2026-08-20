@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Indicateur de frappe animé (3 points qui rebondissent).
+@available(iOS 13.0, *)
 public struct TypingIndicatorView: View {
     @State private var animateFirstDot = false
     @State private var animateSecondDot = false

@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Vue feuille des paramètres vocaux et personnalisation de Sarah AI
+@available(iOS 14.0, *)
 public struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel

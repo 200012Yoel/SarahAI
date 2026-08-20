@@ -3,6 +3,7 @@ import Combine
 import UIKit
 
 /// Observateur de clavier ultra-réactif garantissant une synchronisation pixel-perfect entre le clavier iOS et la barre de saisie (MessageBar).
+@available(iOS 13.0, *)
 public final class KeyboardObserver: ObservableObject {
     public static let shared = KeyboardObserver()
     

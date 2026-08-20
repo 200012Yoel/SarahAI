@@ -233,8 +233,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.textColor = .yellow
         
         DispatchQueue.global(qos: .userInitiated).async {
-            Task {
-                let response = await AIService.shared.generateResponse(for: text)
+            if #available(iOS 13.0, *) {
+                Task {
+                    let response = await AIService.shared.generateResponse(for: text)
+                    DispatchQueue.main.async {
+                        self.statusLabel.text = "● Prête"
+                        self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                        
+                        let aiMsg = Message(content: response, isFromUser: false)
+                        self.appendMessage(aiMsg)
+                        self.speak(text: response)
+                    }
+                }
+            } else {
+                let response = "Bonjour ! J'ai bien reçu votre message : « \(text) »."
                 DispatchQueue.main.async {
                     self.statusLabel.text = "● Prête"
                     self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)

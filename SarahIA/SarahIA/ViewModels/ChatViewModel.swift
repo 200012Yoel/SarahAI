@@ -18,7 +18,8 @@ public enum VoiceInteractionStatus: Equatable {
     case error(String)
 }
 
-/// ViewModel principal orchestrant le mode Avatar 3D, le mode Texte, le tiroir de discussions multiples, le Whisper VAD, le TTS et la persistance.
+/// ViewModel principal orchestrant le mode Texte natif SwiftUI, le tiroir de discussions multiples, la reconnaissance vocale, le TTS et la persistance.
+@available(iOS 14.0, *)
 @MainActor
 public final class ChatViewModel: ObservableObject {
     
