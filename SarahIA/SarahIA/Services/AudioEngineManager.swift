@@ -12,6 +12,7 @@ public enum VoiceActivityState: Equatable {
 }
 
 /// Gestionnaire audio temps réel pour capture micro, VAD et barge-in interruption.
+@available(iOS 13.0, *)
 public final class AudioEngineManager: NSObject, ObservableObject {
     
     public static let shared = AudioEngineManager()

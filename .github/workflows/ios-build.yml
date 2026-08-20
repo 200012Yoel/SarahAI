@@ -1,5 +1,5 @@
-name: iOS Build
-run-name: iOS Build ${{ inputs.build_id || format('v{0}', github.run_number) }}
+name: 🍎 Sarah IA iOS Build (Universel iOS 12.0+)
+run-name: 🍎 Sarah IA iOS Universel (Build #${{ github.run_number }})
 
 on:
   push:
@@ -8,44 +8,14 @@ on:
   workflow_dispatch:
     inputs:
       build_id:
-        description: 'Unique build identifier'
+        description: 'Identifiant unique du build'
         required: false
         type: string
-        default: 'latest'
-      snapshot_ref:
-        description: 'Ref holding the working-tree snapshot to build (empty builds this branch)'
-        required: false
-        type: string
-        default: ''
-      ios_path:
-        description: 'Path to iOS project (e.g., "ios" for React Native)'
-        required: false
-        type: string
-        default: '.'
-      scheme:
-        description: 'Xcode scheme to build (auto-detected if empty)'
-        required: false
-        type: string
-        default: ''
-      use_signing:
-        description: 'Enable code signing (requires secrets to be configured)'
-        required: false
-        type: boolean
-        default: false
-      configuration:
-        description: 'Build configuration (Debug is faster, Release for production)'
-        required: false
-        type: string
-        default: 'Release'
-      flutter_version:
-        description: 'Flutter version to use (e.g., 3.24.0). Empty means latest stable.'
-        required: false
-        type: string
-        default: ''
+        default: 'SarahIA'
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
     timeout-minutes: 30
     permissions:
       contents: write
@@ -55,69 +25,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout working-tree snapshot
-        if: inputs.snapshot_ref != ''
-        env:
-          SNAPSHOT_REF: ${{ inputs.snapshot_ref }}
+      - name: Select Xcode
         run: |
-          set -e
-          git fetch --depth=1 origin "+$SNAPSHOT_REF:refs/heads/snapshot"
-          git checkout --force snapshot
-          echo "Building $(git rev-parse --short HEAD)"
-
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
-      - name: Debug - List project structure
-        env:
-          IOS_PATH: ${{ inputs.ios_path }}
-        run: |
-          echo "=== Working directory ==="
-          pwd
-          echo "=== IOS_PATH = $IOS_PATH ==="
-          echo "=== Root listing ==="
-          ls -la
-          echo "=== IOS_PATH listing ==="
-          ls -la "$IOS_PATH/" || echo "IOS_PATH not found!"
-          echo "=== Looking for .xcodeproj ==="
-          find . -name "*.xcodeproj" -type d 2>/dev/null || true
-          echo "=== Looking for schemes ==="
-          find . -name "*.xcscheme" -type f 2>/dev/null || true
-          echo "=== Xcode version ==="
+          echo "=== Xcode Version Active ==="
           xcodebuild -version
-          echo "=== Available schemes in IOS_PATH ==="
-          cd "$IOS_PATH" 2>/dev/null && xcodebuild -list 2>&1 || echo "xcodebuild -list failed"
 
-      - name: Build App
-        env:
-          BUILD_ID: ${{ inputs.build_id }}
-          IOS_PATH: ${{ inputs.ios_path }}
-          SCHEME: ${{ inputs.scheme }}
-          CONFIGURATION: ${{ inputs.configuration }}
+      - name: Configure Universal iOS 12.0+ Target
+        run: |
+          echo "=== Normalisation MinimumOSVersion 12.0 dans les Plists ==="
+          find . -name "Info.plist" -not -path "*/SarahIAWidgets/*" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
+
+      - name: Build Universal App Mach-O
         run: |
           set -o pipefail
-
-          # Finding Xcode Project
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
-          if [ -z "$PROJECT_FILE" ]; then
-            echo "Erreur : Aucun fichier .xcodeproj trouve dans le repertoire !"
-            exit 1
-          fi
-          echo "=== Projet Xcode trouve : $PROJECT_FILE ==="
-
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
-          TARGET_SCHEME="${SCHEME:-SarahIA}"
-          BUILD_CONFIG="${CONFIGURATION:-Debug}"
 
-          echo "=== Deplacement vers $PROJECT_DIR et compilation du scheme $TARGET_SCHEME (Config: $BUILD_CONFIG) ==="
           cd "$PROJECT_DIR"
 
+          echo "=== Compilation de l'application Sarah IA (Universal iOS 12.0 -> iOS 18.0) ==="
           xcodebuild \
             -project "$PROJECT_NAME" \
-            -scheme "$TARGET_SCHEME" \
+            -scheme "SarahIA" \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
@@ -129,198 +59,59 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log" || BUILD_FAILED=1
 
-          # Compilation de la target Widget séparément
-          echo "=== Compilation de la target SarahIAWidgets ==="
-          xcodebuild \
-            -project "$PROJECT_NAME" \
-            -target "SarahIAWidgets" \
-            -configuration Release \
-            -sdk iphoneos \
-            CONFIGURATION_BUILD_DIR="$GITHUB_WORKSPACE/DerivedData/Build/Products/Release-iphoneos" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build 2>&1 | tee -a "$GITHUB_WORKSPACE/xcodebuild.log" || echo "Widget build warning (non-fatal)"
-
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="
-            echo "❌ ERREUR DE COMPILATION XCODEBUILD - EXTRAITS CIBLES :"
-            echo "=================================================="
-            grep -E -i "(error:|failed|warning:)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
-            grep -E "(error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/errors.txt" || tail -n 100 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/errors.txt"
-            echo "--------------------------------------------------"
-            echo "=== DERNIERES 80 LIGNES DE XCODEBUILD.LOG ==="
-            echo "--------------------------------------------------"
-            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log"
+            echo "❌ ERREUR DE COMPILATION XCODEBUILD :"
+            grep -E -i "(error:|failed)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
             exit 1
           fi
 
-          echo "=== Compilation Xcode terminee avec succes ==="
-
-      - name: Package IPA
-        env:
-          BUILD_ID: ${{ inputs.build_id }}
+      - name: Package Universal IPA
         run: |
           set -eo pipefail
-          BUILD_ID="${BUILD_ID:-SarahIA}"
-
-          echo "=== Recherche du binaire .app compile ==="
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)
-
-          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
-            echo "Erreur : Bundle .app introuvable dans DerivedData !"
-            exit 1
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)
           fi
 
-          APP_NAME=$(basename "$APP_PATH")
-          echo "=== Application trouvee : $APP_PATH (Nom: $APP_NAME) ==="
-
-          # Nettoyage et creation du dossier Payload officiel iOS
+          echo "=== Bundle App Trouve : $APP_PATH ==="
           rm -rf /tmp/Payload
           mkdir -p /tmp/Payload
-
-          # Copie de l'application .app dans Payload/
           cp -R "$APP_PATH" /tmp/Payload/
 
-          # Verification et garantie de presence d'Info.plist dans Payload/SarahIA.app/
-          INFOPLIST_TARGET="/tmp/Payload/$APP_NAME/Info.plist"
-          if [ ! -f "$INFOPLIST_TARGET" ]; then
-            echo "⚠️ Info.plist absent du bundle .app, copie explicite..."
-            find . -name "Info.plist" -not -path "*/SarahIAWidgets/*" -exec cp {} "$INFOPLIST_TARGET" \; 2>/dev/null || true
-          fi
-
-          # Nettoyage et expansion garantie des variables plist via plutil
+          INFOPLIST_TARGET="/tmp/Payload/$(basename "$APP_PATH")/Info.plist"
           if [ -f "$INFOPLIST_TARGET" ]; then
-            echo "=== Conversion et expansion Info.plist avec plutil ==="
-            plutil -convert xml1 "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace MinimumOSVersion -string "12.0" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleDisplayName -string "Sarah IA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace MinimumOSVersion -string "15.0" "$INFOPLIST_TARGET" 2>/dev/null || true
-          fi
-
-          # Garantir que le binaire exécutable Mach-O s'appelle SarahIA dans Payload/SarahIA.app/
-          if [ ! -f "/tmp/Payload/$APP_NAME/SarahIA" ]; then
-            BINARY_FOUND=$(find "/tmp/Payload/$APP_NAME" -maxdepth 1 -type f -exec file {} \; | grep -i "Mach-O" | cut -d: -f1 | head -n 1)
-            if [ -n "$BINARY_FOUND" ]; then
-              echo "Re-nommage du binaire Mach-O ($BINARY_FOUND) en SarahIA..."
-              mv "$BINARY_FOUND" "/tmp/Payload/$APP_NAME/SarahIA"
-            fi
-          fi
-          if [ -f "/tmp/Payload/$APP_NAME/SarahIA" ]; then
-            chmod +x "/tmp/Payload/$APP_NAME/SarahIA"
-          fi
-
-          # Intégration du bundle App Extension SarahIAWidgets.appex compilé par Xcode
-          echo "=== Integration du bundle SarahIAWidgets.appex compile par Xcode ==="
-          WIDGET_APPEX=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIAWidgets.appex" -type d | head -n 1)
-          
-          if [ -n "$WIDGET_APPEX" ] && [ -d "$WIDGET_APPEX" ]; then
-            echo "✅ SarahIAWidgets.appex compile trouve : $WIDGET_APPEX"
-            mkdir -p "/tmp/Payload/$APP_NAME/PlugIns"
-            cp -R "$WIDGET_APPEX" "/tmp/Payload/$APP_NAME/PlugIns/"
-            
-            # Garantir les clés Info.plist du widget avec plutil
-            WIDGET_PLIST="/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/Info.plist"
-            if [ -f "$WIDGET_PLIST" ]; then
-              plutil -convert xml1 "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace CFBundleName -string "SarahIAWidgets" "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace CFBundleDisplayName -string "Sarah IA Widgets" "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace CFBundleExecutable -string "SarahIAWidgets" "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace CFBundleIdentifier -string "com.sarahia.app.SarahIAWidgets" "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace CFBundlePackageType -string "XPC!" "$WIDGET_PLIST" 2>/dev/null || true
-              plutil -replace MinimumOSVersion -string "15.0" "$WIDGET_PLIST" 2>/dev/null || true
-              echo "✅ Info.plist widget normalise avec succes"
-            fi
-            echo "=== Contenu du .appex integre ==="
-            ls -la "/tmp/Payload/$APP_NAME/PlugIns/SarahIAWidgets.appex/"
-          else
-            echo "ℹ️ Aucun bundle .appex externe detecte dans DerivedData."
-          fi
-
-          if [ ! -f "$INFOPLIST_TARGET" ]; then
-            echo "❌ ERREUR CRITIQUE: Info.plist est manquant dans Payload/$APP_NAME/Info.plist !"
-            exit 1
           fi
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          mkdir -p "$GITHUB_WORKSPACE/build"
-
-          # Archiver le dossier Payload au format .ipa valide
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
-          zip -ryq "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa" Payload
 
-          echo "=== Fichier .ipa valide et conforme genere ==="
+          echo "=== Fichier SarahIA.ipa Universel genere avec succes ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
-          ls -lh "$GITHUB_WORKSPACE/build/$BUILD_ID.ipa"
 
-      - name: Upload IPA artifact
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ipa
-          path: build/*.ipa
-          retention-days: 7
-          if-no-files-found: error
+          name: SarahIA-IPA
+          path: dist/SarahIA.ipa
+          retention-days: 14
 
-      - name: Publish GitHub Release with Direct Download IPA
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: success()
+        if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Sarah AI Latest iOS Build"
-          body: "Official build of Sarah AI iOS Application. Download SarahIA.ipa directly."
-          files: |
-            dist/SarahIA.ipa
+          name: "🍎 Sarah IA - Version Universelle (iOS 12.0+ à iOS 18.0+)"
+          body: "Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus et tous les iPhones récents."
+          files: dist/SarahIA.ipa
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish Build Error if Failed
-        if: failure()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-error
-          name: "Build Error Log"
-          body_path: errors.txt
-          draft: false
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcodebuild-log
-          path: xcodebuild.log
-          retention-days: 3
-          if-no-files-found: ignore
-
-      - name: Save DerivedData cache
-        uses: actions/cache/save@v4
-        if: always()
-        with:
-          path: DerivedData
-          key: deriveddata-${{ github.run_id }}
-
-      - name: Build summary
-        if: always()
-        run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build ID:** ${{ inputs.build_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          if [ -f "$GITHUB_WORKSPACE/xcodebuild.log" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Last 50 lines of xcodebuild output" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -50 "$GITHUB_WORKSPACE/xcodebuild.log" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi

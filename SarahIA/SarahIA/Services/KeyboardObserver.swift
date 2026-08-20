@@ -39,7 +39,6 @@ public final class KeyboardObserver: ObservableObject {
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] duration in
-                let dur = duration ?? 0.25
                 withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
                     self?.keyboardHeight = 0
                     self?.isVisible = false

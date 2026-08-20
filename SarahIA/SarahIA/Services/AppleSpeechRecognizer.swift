@@ -12,6 +12,7 @@ public enum SpeechRecognizerState: Equatable {
 }
 
 /// Gestionnaire de Reconnaissance Vocale 100% Gratuit, Local et Continu basé sur Apple Speech.framework (`SFSpeechRecognizer`).
+@available(iOS 13.0, *)
 public final class AppleSpeechRecognizer: NSObject, ObservableObject, SFSpeechRecognizerDelegate {
     
     public static let shared = AppleSpeechRecognizer()

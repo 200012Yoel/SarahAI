@@ -15,6 +15,7 @@ public struct VisemeFrame {
 }
 
 /// Service de synthèse vocale temps réel avec générateur de visèmes et support d'interruption instantanée.
+@available(iOS 13.0, *)
 public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = TTSService()

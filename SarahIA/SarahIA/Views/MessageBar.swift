@@ -43,16 +43,14 @@ public struct MessageBar: View {
             .buttonStyle(ScaleBounceButtonStyle())
             
             // 2. Champ de Saisie Texte
-            TextField("Demander à Sarah...", text: $text)
+            TextField("Demander à Sarah...", text: $text, onCommit: {
+                submitMessage()
+            })
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(.white)
                 .accentColor(Color(red: 0.04, green: 0.52, blue: 1.0))
                 .autocapitalization(.sentences)
                 .disableAutocorrection(false)
-                .submitLabel(.send)
-                .onSubmit {
-                    submitMessage()
-                }
                 .padding(.horizontal, 4)
             
             // 3. Bouton Dictée Vocale / Microphone

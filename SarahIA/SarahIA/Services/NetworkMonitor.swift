@@ -4,6 +4,7 @@ import Network
 /// Moniteur Réseau Temps Réel pour iOS :
 /// - Détecte instantanément les transitions En-Ligne ⇄ Hors-Ligne
 /// - Permet de basculer du cloud OpenAI vers les modèles locaux hors-ligne en 0ms
+@available(iOS 13.0, *)
 public final class NetworkMonitor: ObservableObject {
     
     public static let shared = NetworkMonitor()
