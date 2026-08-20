@@ -9,6 +9,7 @@ echo.
 echo [1/2] Sauvegarde et declenchement du build sur GitHub...
 git add -A
 git commit -m "Build iOS IPA: Sarah IA com.sarahia.app" --allow-empty
+git pull --rebase origin main
 git push origin main
 echo   [OK] Build lance sur les serveurs macOS !
 echo.
