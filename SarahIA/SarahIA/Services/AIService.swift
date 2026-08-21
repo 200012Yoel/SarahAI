@@ -94,13 +94,35 @@ final class AIService {
     }
     
     private func generateKnowledgeResponse(normalized: String, trimmed: String) -> String {
+        var state = storage.loadState()
+        
+        // Mémorisation du prénom de l'utilisateur
+        if normalized.starts(with: "je m appelle ") || normalized.starts(with: "mon nom est ") || normalized.starts(with: "mon prenom est ") {
+            let name = trimmed.components(separatedBy: " ").suffix(from: 3).joined(separator: " ")
+            if !name.isEmpty {
+                state.learnedMemories["_user_name"] = name
+                storage.saveState(state)
+                return "Enchantée \(name) ! C'est un plaisir de discuter avec vous. Comment puis-je vous aider aujourd'hui ? 😊"
+            }
+        }
+        
+        if normalized.contains("comment je m appelle") || normalized.contains("mon prenom") || normalized.contains("mon nom") {
+            if let userName = state.learnedMemories["_user_name"] {
+                return "Vous vous appelez \(userName) ! Je n'oublie jamais mes amis. ✨"
+            }
+            return "Vous ne m'avez pas encore dit votre prénom ! Dites simplement : « Je m'appelle [Votre prénom] » pour que je le retienne."
+        }
+        
         // Salutations & Présentation
         if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
-            return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?"
+            if let userName = state.learnedMemories["_user_name"] {
+                return "Bonjour \(userName) ! 👋 Que puis-je faire pour vous aujourd'hui ?"
+            }
+            return "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?"
         }
         
         if normalized.contains("ca va") || normalized.contains("comment vas tu") || normalized.contains("comment tu vas") {
-            return "Je vais à merveille, merci ! Prête à vous assister et répondre à toutes vos questions. Et vous ?"
+            return "Je vais à merveille, merci ! Prête à vous assister et répondre à toutes vos questions. Et vous, comment se passe votre journée ?"
         }
         
         // Date & Calendrier
@@ -125,6 +147,39 @@ final class AIService {
             return pickRandom(from: weatherResponses)
         }
         
+        // Traductions rapides
+        if normalized.contains("traduis") || normalized.contains("comment on dit") || normalized.contains("en anglais") {
+            if normalized.contains("bonjour") { return "« Bonjour » se traduit par « Hello » ou « Good morning » en anglais. 🇬🇧" }
+            if normalized.contains("merci") { return "« Merci » se traduit par « Thank you » en anglais. 🇬🇧" }
+            if normalized.contains("au revoir") { return "« Au revoir » se traduit par « Goodbye » en anglais. 🇬🇧" }
+            if normalized.contains("je t aime") { return "« Je t'aime » se traduit par « I love you » en anglais. ❤️" }
+            if normalized.contains("shalom") || normalized.contains("en hebreu") { return "En hébreu, « Bonjour » et « Paix » se disent « Shalom » (שלום). 🇮🇱" }
+        }
+        
+        // Connaissances générales & Culture
+        if normalized.contains("qui a cree apple") || normalized.contains("createur apple") || normalized.contains("steve jobs") {
+            return "Apple a été cofondée en 1976 par Steve Jobs, Steve Wozniak et Ronald Wayne en Californie. 🍎"
+        }
+        
+        if normalized.contains("capitale") {
+            if normalized.contains("france") { return "La capitale de la France est Paris. 🇫🇷" }
+            if normalized.contains("israel") { return "La capitale d'Israël est Jérusalem. 🇮🇱" }
+            if normalized.contains("italie") { return "La capitale de l'Italie est Rome. 🇮🇹" }
+            if normalized.contains("espagne") { return "La capitale de l'Espagne est Madrid. 🇪🇸" }
+            if normalized.contains("etats unis") || normalized.contains("usa") { return "La capitale des États-Unis est Washington D.C. 🇺🇸" }
+            if normalized.contains("angleterre") || normalized.contains("royaume uni") { return "La capitale du Royaume-Uni est Londres. 🇬🇧" }
+        }
+        
+        // Histoires & Détente
+        if normalized.contains("histoire") || normalized.contains("raconte une histoire") {
+            return "Il était une fois, dans un iPhone 5S plein d'énergie, une assistante nommée Sarah qui résolvait tous les calculs et apprenait chaque mot de son utilisateur avec le sourire ! 📖✨"
+        }
+        
+        // Conseils & Astuces
+        if normalized.contains("conseil") || normalized.contains("astuce") || normalized.contains("dormir") {
+            return "Voici mon conseil pour une super journée : buvez un grand verre d'eau le matin, prenez 5 minutes pour respirer et évitez les écrans 30 minutes avant de dormir ! 💡🌙"
+        }
+        
         // Calculs mathématiques automatiques (ex: 2 + 2, calcule 15 * 3)
         if let mathResult = evaluateSimpleMath(in: trimmed) {
             return "Le résultat est : \(mathResult) 🧮"
@@ -132,7 +187,7 @@ final class AIService {
         
         // Aide & Capacités
         if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("que sais tu faire") || normalized.contains("comment tu marche") {
-            return "Je suis Sarah, votre assistante IA ultra-rapide ! 🌟\n\nVoici ce que je peux faire :\n1. Discuter et répondre à vos questions par écrit ou à la voix.\n2. Apprendre de nouveaux souvenirs (ex: « Apprends papa » ➔ puis donnez la réponse).\n3. Calculer des opérations mathématiques (ex: « 25 * 4 »).\n4. Vous donner l'heure, la date, la météo et l'état de votre batterie.\n5. Fonctionner 100% hors-ligne en toute sécurité !"
+            return "Je suis Sarah, votre assistante IA ultra-rapide ! 🌟\n\nVoici ce que je peux faire :\n1. 💬 Discuter et répondre à vos questions par écrit ou à la voix.\n2. 🧠 Apprendre de nouveaux souvenirs (ex: « Apprends papa » ➔ puis donnez la réponse).\n3. 🧮 Calculer des opérations mathématiques (ex: « 15 * 8 »).\n4. ⏰ Vous donner l'heure, la date, la météo et l'état de votre batterie.\n5. 🌐 Traduire des mots et partager des anecdotes culturelles !"
         }
         
         // Remerciements & Compliments
@@ -141,7 +196,7 @@ final class AIService {
         }
         
         if normalized.contains("t es belle") || normalized.contains("tu es gentille") || normalized.contains("je t aime") {
-            return "C'est très gentil ! Merci beaucoup, je fais de mon mieux pour vous être utile au quotidien. 😊"
+            return "C'est très gentil ! Merci beaucoup, je fais de mon mieux pour être la meilleure assistante possible pour vous. 😊"
         }
         
         // Identité

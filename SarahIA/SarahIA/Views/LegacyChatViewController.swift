@@ -2,11 +2,11 @@ import UIKit
 import AVFoundation
 import Speech
 
-/// Contrôleur de discussion universel 100% UIKit au design moderne et épuré :
-/// - Titrage intelligent des discussions d'après le premier message envoyé
-/// - Sidebar moderne avec cartes de discussion arrondies et aperçu des messages
-/// - Pas de discussions vides dupliquées
-/// - Microphone matériel connecté en direct avec reconnaissance vocale instantanée
+/// Contrôleur de discussion universel 100% UIKit :
+/// - Animation Vague Siri Vocale dynamique et réactive en temps réel
+/// - Enregistrement instantané au TAC au TAC
+/// - Voix féminine naturelle avec intonation réaliste
+/// - Titrage automatique des discussions
 /// - 100% compatible iOS 12.0+ (iPhone 5S, 6, 7, 8, etc.)
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
@@ -21,11 +21,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let suggestionsScrollView = UIScrollView()
     private let suggestionsStackView = UIStackView()
     
+    // Barre de Saisie
     private let composerContainer = UIView()
     private let actionPlusButton = UIButton(type: .system)
     private let inputTextField = UITextField()
     private let micButton = UIButton(type: .system)
     private let sendButton = UIButton(type: .system)
+    
+    // MARK: - Vague Siri Vocale Animée (Waveform Overlay)
+    private let siriWaveOverlay = UIView()
+    private let waveBarsStack = UIStackView()
+    private var waveBarViews: [UIView] = []
+    private let waveStatusLabel = UILabel()
+    private let waveStopButton = UIButton(type: .system)
+    private var waveAnimationTimer: Timer?
     
     // MARK: - Menu Latéral Moderne (Sidebar Drawer)
     private let drawerScrim = UIView()
@@ -49,6 +58,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    private var accumulatedSpokenText: String = ""
     
     // Suggestions rapides
     private let quickSuggestions = [
@@ -66,11 +76,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     public override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        setupSiriWaveOverlay()
         setupDrawerUI()
         setupSuggestions()
         setupKeyboardNotifications()
         setupGestures()
         loadPersistedState()
+        prewarmAudioSession()
     }
     
     public override func viewDidLayoutSubviews() {
@@ -83,6 +95,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     public override var preferredStatusBarStyle: UIStatusBarStyle {
         return .lightContent
+    }
+    
+    private func prewarmAudioSession() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let audioSession = AVAudioSession.sharedInstance()
+            try? audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try? audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        }
     }
     
     // MARK: - Configuration UI Principale
@@ -182,7 +202,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         // Bouton Micro 🎙️
         micButton.translatesAutoresizingMaskIntoConstraints = false
         micButton.setTitle("🎙️", for: .normal)
-        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
+        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
         micButton.addTarget(self, action: #selector(toggleMicTapped), for: .touchUpInside)
         composerContainer.addSubview(micButton)
         
@@ -270,6 +290,118 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
+    // MARK: - Configuration de la Vague Siri Vocale Animée
+    
+    private func setupSiriWaveOverlay() {
+        siriWaveOverlay.translatesAutoresizingMaskIntoConstraints = false
+        siriWaveOverlay.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.98)
+        siriWaveOverlay.layer.cornerRadius = 23
+        siriWaveOverlay.layer.borderWidth = 1.5
+        siriWaveOverlay.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.8).cgColor
+        siriWaveOverlay.clipsToBounds = true
+        siriWaveOverlay.alpha = 0
+        siriWaveOverlay.isHidden = true
+        composerContainer.addSubview(siriWaveOverlay)
+        
+        // Stack des barres animées
+        waveBarsStack.translatesAutoresizingMaskIntoConstraints = false
+        waveBarsStack.axis = .horizontal
+        waveBarsStack.alignment = .center
+        waveBarsStack.distribution = .equalSpacing
+        waveBarsStack.spacing = 4
+        siriWaveOverlay.addSubview(waveBarsStack)
+        
+        let barColors: [UIColor] = [
+            UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0),   // Cyan
+            UIColor(red: 0.58, green: 0.20, blue: 0.95, alpha: 1.0), // Purple
+            UIColor(red: 1.0, green: 0.18, blue: 0.58, alpha: 1.0),  // Pink
+            UIColor(red: 0.20, green: 0.60, blue: 1.0, alpha: 1.0),  // Blue
+            UIColor(red: 0.0, green: 0.90, blue: 0.80, alpha: 1.0)   // Teal
+        ]
+        
+        for color in barColors {
+            let bar = UIView()
+            bar.translatesAutoresizingMaskIntoConstraints = false
+            bar.backgroundColor = color
+            bar.layer.cornerRadius = 3
+            bar.clipsToBounds = true
+            bar.widthAnchor.constraint(equalToConstant: 6).isActive = true
+            bar.heightAnchor.constraint(equalToConstant: 12).isActive = true
+            waveBarsStack.addArrangedSubview(bar)
+            waveBarViews.append(bar)
+        }
+        
+        // Label Statut Siri
+        waveStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        waveStatusLabel.text = "Je vous écoute..."
+        waveStatusLabel.textColor = .white
+        waveStatusLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        siriWaveOverlay.addSubview(waveStatusLabel)
+        
+        // Bouton Arrêter / Envoyer
+        waveStopButton.translatesAutoresizingMaskIntoConstraints = false
+        waveStopButton.setTitle("✓", for: .normal)
+        waveStopButton.setTitleColor(.white, for: .normal)
+        waveStopButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .heavy)
+        waveStopButton.backgroundColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        waveStopButton.layer.cornerRadius = 16
+        waveStopButton.clipsToBounds = true
+        waveStopButton.addTarget(self, action: #selector(toggleMicTapped), for: .touchUpInside)
+        siriWaveOverlay.addSubview(waveStopButton)
+        
+        NSLayoutConstraint.activate([
+            siriWaveOverlay.topAnchor.constraint(equalTo: composerContainer.topAnchor),
+            siriWaveOverlay.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor),
+            siriWaveOverlay.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor),
+            siriWaveOverlay.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor),
+            
+            waveBarsStack.leadingAnchor.constraint(equalTo: siriWaveOverlay.leadingAnchor, constant: 14),
+            waveBarsStack.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
+            waveBarsStack.heightAnchor.constraint(equalToConstant: 28),
+            
+            waveStatusLabel.leadingAnchor.constraint(equalTo: waveBarsStack.trailingAnchor, constant: 10),
+            waveStatusLabel.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
+            waveStatusLabel.trailingAnchor.constraint(lessThanOrEqualTo: waveStopButton.leadingAnchor, constant: -8),
+            
+            waveStopButton.trailingAnchor.constraint(equalTo: siriWaveOverlay.trailingAnchor, constant: -7),
+            waveStopButton.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
+            waveStopButton.widthAnchor.constraint(equalToConstant: 32),
+            waveStopButton.heightAnchor.constraint(equalToConstant: 32)
+        ])
+    }
+    
+    private func startWaveAnimation() {
+        siriWaveOverlay.isHidden = false
+        UIView.animate(withDuration: 0.2) {
+            self.siriWaveOverlay.alpha = 1.0
+        }
+        
+        waveAnimationTimer?.invalidate()
+        waveAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let heights: [CGFloat] = [8, 14, 22, 16, 10]
+            for (index, bar) in self.waveBarViews.enumerated() {
+                let randomFactor = CGFloat.random(in: 0.6...1.4)
+                let targetHeight = heights[index % heights.count] * randomFactor
+                UIView.animate(withDuration: 0.1) {
+                    bar.constraints.first(where: { $0.firstAttribute == .height })?.constant = max(6, min(targetHeight, 26))
+                    bar.superview?.layoutIfNeeded()
+                }
+            }
+        }
+    }
+    
+    private func stopWaveAnimation() {
+        waveAnimationTimer?.invalidate()
+        waveAnimationTimer = nil
+        
+        UIView.animate(withDuration: 0.2, animations: {
+            self.siriWaveOverlay.alpha = 0.0
+        }, completion: { _ in
+            self.siriWaveOverlay.isHidden = true
+        })
+    }
+    
     // MARK: - Configuration Menu Latéral Moderne
     
     private func setupDrawerUI() {
@@ -292,7 +424,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let leading = drawerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -drawerWidth)
         self.drawerLeadingConstraint = leading
         
-        // En-tête du Drawer
         let drawerHeader = UIView()
         drawerHeader.translatesAutoresizingMaskIntoConstraints = false
         drawerHeader.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.07, alpha: 1.0)
@@ -324,7 +455,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         newChatBtn.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
         drawerHeader.addSubview(newChatBtn)
         
-        // TableView du Drawer (Cartes de discussions)
         drawerTableView.translatesAutoresizingMaskIntoConstraints = false
         drawerTableView.backgroundColor = .clear
         drawerTableView.separatorStyle = .none
@@ -536,7 +666,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func newChatTapped() {
-        // Si la discussion courante est déjà vide, pas besoin de dupliquer
         if messages.isEmpty {
             if isDrawerOpen { toggleDrawer() }
             return
@@ -562,12 +691,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         dismissKeyboard()
         let alert = UIAlertController(
             title: "⚙️ Synthèse Vocale & Réglages de Sarah",
-            message: "• Voix : Féminine / Siri par défaut\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : Natif iOS 12+ (60 FPS)",
+            message: "• Voix : Féminine / Siri (Haute Définition)\n• Reconnaissance : Instantanée & Vague Siri\n• Mode : Natif iOS 12+ (60 FPS)",
             preferredStyle: .actionSheet
         )
         
         alert.addAction(UIAlertAction(title: "🔊 Tester la voix féminine", style: .default, handler: { [weak self] _ in
-            self?.speak(text: "Bonjour ! Je suis Sarah. Ma voix féminine est configurée par défaut pour vous répondre.")
+            self?.speak(text: "Bonjour ! Je suis Sarah. Ma voix féminine est configurée avec une intonation naturelle et fluide pour vous répondre.")
         }))
         
         alert.addAction(UIAlertAction(title: "🧠 Mémorisation & Apprentissage (Coffre)", style: .default, handler: { [weak self] _ in
@@ -660,7 +789,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(sheet, animated: true, completion: nil)
     }
     
-    // MARK: - Envoi & Traitement des Messages (Titrage Dynamique)
+    // MARK: - Envoi & Traitement des Messages
     
     @objc private func textFieldDidChange() {
         let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
@@ -680,7 +809,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         inputTextField.text = ""
         textFieldDidChange()
         
-        // Titrage intelligent de la discussion si c'est le premier message
         let isFirstUserMessage = messages.filter({ $0.isFromUser }).isEmpty
         if isFirstUserMessage {
             let cleanPrompt = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -710,10 +838,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    // MARK: - Microphone & Reconnaissance Vocale Native iOS 10+
+    // MARK: - Microphone Ultra-Réactif au TAC au TAC avec Vague Siri
     
     @objc private func toggleMicTapped() {
-        if audioEngine.isRunning {
+        if isRecording {
             stopAudioRecording()
         } else {
             startAudioRecording()
@@ -721,30 +849,42 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func startAudioRecording() {
+        accumulatedSpokenText = ""
+        
+        // 1. Déclenchement instantané de l'animation de la Vague Siri
+        startWaveAnimation()
+        isRecording = true
+        statusLabel.text = "● Écoute en direct..."
+        statusLabel.textColor = .red
+        
+        // 2. Vérification des permissions avec démarrage immédiat
         SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
             AVAudioSession.sharedInstance().requestRecordPermission { micGranted in
                 DispatchQueue.main.async {
                     guard authStatus == .authorized, micGranted else {
+                        self?.stopAudioRecording()
                         self?.statusLabel.text = "● Micro refusé"
                         self?.statusLabel.textColor = .orange
                         return
                     }
-                    self?.beginRecordingSession()
+                    self?.beginLiveRecognitionSession()
                 }
             }
         }
     }
     
-    private func beginRecordingSession() {
+    private func beginLiveRecognitionSession() {
+        guard isRecording else { return }
+        
         recognitionTask?.cancel()
         recognitionTask = nil
         
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("Erreur session audio: \(error)")
+            print("Session audio: \(error)")
         }
         
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
@@ -752,42 +892,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         recognitionRequest.shouldReportPartialResults = true
         
         let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
         
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            var isFinal = false
-            if let result = result {
-                self?.inputTextField.text = result.bestTranscription.formattedString
-                self?.textFieldDidChange()
-                isFinal = result.isFinal
-            }
-            
-            if error != nil || isFinal {
-                self?.stopAudioRecording()
-                if let text = self?.inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
-                    self?.sendButtonTapped()
-                }
-            }
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            recognitionRequest.append(buffer)
         }
         
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            recognitionRequest.append(buffer)
+        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            if let result = result {
+                self?.accumulatedSpokenText = result.bestTranscription.formattedString
+            }
+            
+            if error != nil {
+                // Terminer proprement et envoyer ce qui a été capté
+                if self?.isRecording == true {
+                    self?.stopAudioRecording()
+                }
+            }
         }
         
         audioEngine.prepare()
         do {
             try audioEngine.start()
-            isRecording = true
-            micButton.setTitle("🔴", for: .normal)
-            statusLabel.text = "● Écoute en direct..."
-            statusLabel.textColor = .red
         } catch {
-            print("AudioEngine n'a pas pu démarrer: \(error)")
+            print("AudioEngine: \(error)")
         }
     }
     
     private func stopAudioRecording() {
+        guard isRecording else { return }
+        isRecording = false
+        
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
@@ -795,10 +931,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         recognitionTask?.cancel()
         recognitionTask = nil
         
-        isRecording = false
-        micButton.setTitle("🎙️", for: .normal)
+        stopWaveAnimation()
+        
         statusLabel.text = "● En ligne"
         statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+        
+        let finalText = accumulatedSpokenText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !finalText.isEmpty {
+            inputTextField.text = finalText
+            sendButtonTapped()
+        }
     }
     
     private func appendMessage(_ msg: Message) {
@@ -814,16 +956,25 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.scrollToRow(at: indexPath, at: .bottom, animated: animated)
     }
     
-    // MARK: - Synthèse Vocale avec Voix Siri / Féminine par Défaut
+    // MARK: - Synthèse Vocale avec Voix Siri Féminine Réaliste
     
     private func speak(text: String) {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
         
-        let cleaned = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "#", with: "")
+        // Nettoyage et formatage naturel avec virgules pour une diction expressive
+        var cleaned = text
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "!", with: " ! ")
+            .replacingOccurrences(of: "?", with: " ? ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            
         let utterance = AVSpeechUtterance(string: cleaned)
         
+        // Sélection de la meilleure voix féminine française Siri
         let allVoices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.starts(with: "fr") }
         let femaleVoice = allVoices.first(where: {
             let name = $0.name.lowercased()
@@ -831,8 +982,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }) ?? AVSpeechSynthesisVoice(language: "fr-FR")
         
         utterance.voice = femaleVoice
-        utterance.rate = 0.50
-        utterance.pitchMultiplier = 1.08
+        utterance.rate = 0.48 // Vitesse d'élocution naturelle
+        utterance.pitchMultiplier = 1.06 // Ton chaleureux et féminin
+        utterance.volume = 1.0
+        
         speechSynthesizer.speak(utterance)
     }
     
@@ -897,7 +1050,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        // Menu Latéral (Cartes modernes)
         if tableView == drawerTableView {
             let cell = tableView.dequeueReusableCell(withIdentifier: "DrawerCell", for: indexPath) as! LegacyDrawerCell
             let conv = conversations[indexPath.row]
@@ -906,7 +1058,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return cell
         }
         
-        // TableView Principale des Messages
         let msg = messages[indexPath.row]
         if msg.isFromUser {
             let cell = tableView.dequeueReusableCell(withIdentifier: "UserCell", for: indexPath) as! LegacyUserCell
@@ -1039,7 +1190,7 @@ final class LegacyUserCell: UITableViewCell {
         backgroundColor = .clear
         
         bubbleView.translatesAutoresizingMaskIntoConstraints = false
-        bubbleView.backgroundColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0) // Apple Blue
+        bubbleView.backgroundColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0)
         bubbleView.layer.cornerRadius = 18
         bubbleView.clipsToBounds = true
         contentView.addSubview(bubbleView)
