@@ -877,6 +877,7 @@ public final class AIService {
     
     // MARK: - Test en Arrière-Plan
     
+    @available(iOS 13.0, *)
     public func generateBackgroundTestResponse() async -> String {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         return "Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée."
