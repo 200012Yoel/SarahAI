@@ -511,6 +511,7 @@ public struct SarahDailyTipWidgetView: View {
 #if canImport(WidgetKit)
 import WidgetKit
 
+@available(iOS 14.0, *)
 public struct SarahTimelineEntry: TimelineEntry {
     public let date: Date
     public let stats: WidgetStatsData
@@ -521,6 +522,7 @@ public struct SarahTimelineEntry: TimelineEntry {
     }
 }
 
+@available(iOS 14.0, *)
 public struct SarahWidgetProvider: TimelineProvider {
     public typealias Entry = SarahTimelineEntry
     
