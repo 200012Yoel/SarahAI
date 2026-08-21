@@ -14,7 +14,6 @@
 		A1B2C3D40001000100000005 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000005 /* NotificationService.swift */; };
 		A1B2C3D40001000100000006 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000006 /* ChatViewModel.swift */; };
 		A1B2C3D40001000100000007 /* ChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000007 /* ChatBubbleView.swift */; };
-		A1B2C3D40001000100000008 /* MessageInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000008 /* MessageInputView.swift */; };
 		A1B2C3D40001000100000009 /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000009 /* TypingIndicatorView.swift */; };
 		A1B2C3D4000100010000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000000B /* Assets.xcassets */; };
 		A1B2C3D40001000100000010 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000010 /* StorageService.swift */; };
@@ -62,7 +61,6 @@
 		A1B2C3D40002000100000005 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000006 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000007 /* ChatBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBubbleView.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000008 /* MessageInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInputView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000009 /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4000200010000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -189,7 +187,6 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40002000100000007 /* ChatBubbleView.swift */,
-				A1B2C3D40002000100000008 /* MessageInputView.swift */,
 				A1B2C3D40002000100000009 /* TypingIndicatorView.swift */,
 				A1B2C3D40002000100000018 /* MemoryVaultView.swift */,
 				A1B2C3D40002000100000019 /* SettingsView.swift */,

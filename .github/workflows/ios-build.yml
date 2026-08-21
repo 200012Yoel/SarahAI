@@ -62,7 +62,7 @@ jobs:
           if [ "$BUILD_FAILED" = "1" ]; then
             echo "=================================================="
             echo "❌ ERREUR DE COMPILATION XCODEBUILD :"
-            grep -E -i "(error:|failed)" "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 50 || true
+            cat "$GITHUB_WORKSPACE/xcodebuild.log" | tail -n 200 || true
             exit 1
           fi
 
