@@ -398,9 +398,9 @@ public struct SarahQuickActionsWidgetView: View {
             
             HStack(spacing: 10) {
                 actionTile(icon: "mic.fill", label: "Vocal", color: .sarahCyan)
-                actionTile(icon: "plus.bubble.fill", label: "Nouveau", color: .purple)
-                actionTile(icon: "brain.head.profile", label: "Mémoire", color: .sarahIndigo)
-                actionTile(icon: "sparkles", label: "Astuce", color: .pink)
+                actionTile(icon: "flashlight.on.fill", label: "Torche", color: .yellow)
+                actionTile(icon: "battery.100.bolt", label: "Batterie", color: .green)
+                actionTile(icon: "brain.head.profile", label: "Mémoire", color: .purple)
             }
         }
         .padding(14)
@@ -499,7 +499,7 @@ public struct SarahDailyTipWidgetView: View {
             
             Divider().background(Color.white.opacity(0.1))
             
-            Text("« Parlez-moi naturellement comme à une amie, je mémorise tout ce que vous me dites ! »")
+            Text("« Dites par exemple : « Allume la torche » ou « Niveau de batterie » pour exécuter une action instantanée à la voix ! »")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.white.opacity(0.9))
                 .italic()
@@ -508,7 +508,7 @@ public struct SarahDailyTipWidgetView: View {
             Spacer()
             
             HStack {
-                Text("💡 Astuce : dites « Apprends que... »")
+                Text("💡 Astuce : 100% hors-ligne & ultra-rapide")
                     .font(.system(size: 10))
                     .foregroundColor(.gray)
             }

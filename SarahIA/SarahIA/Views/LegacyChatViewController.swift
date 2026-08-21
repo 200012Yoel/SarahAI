@@ -62,13 +62,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     // Suggestions rapides
     private let quickSuggestions = [
-        "💡 Que sais-tu faire ?",
-        "🧠 Apprends papa",
+        "🔦 Allume la torche",
+        "🔋 Niveau de batterie",
         "⏰ Quelle heure est-il ?",
         "☀️ Quel temps fait-il ?",
-        "🔋 Niveau de batterie",
+        "😂 Raconte une blague",
+        "✨ Donne-moi une citation",
+        "🧠 Apprends papa",
         "🧮 Calcule 15 * 8",
-        "😂 Raconte une blague"
+        "💡 Que sais-tu faire ?"
     ]
     
     // MARK: - Cycle de Vie
@@ -676,6 +678,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         conversations.insert(newConv, at: 0)
         messages = []
         newConv.messages = []
+        AIService.shared.syncHistoryFromMessages([])
         
         saveState()
         tableView.reloadData()
@@ -764,8 +767,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private func widgetsModalTapped() {
         let stats = SarahWidgetBridge.shared.getStats()
         let alert = UIAlertController(
-            title: "📊 Statistiques Sarah IA",
-            message: "• Discussions : \(stats.totalConversations)\n• Messages : \(stats.totalMessages)\n• Souvenirs mémorisés : \(stats.learnedMemoriesCount)\n• Taux d'activité : \(stats.usagePercentage)%\n• Latence : < 0.2s (60 FPS)",
+            title: "📊 Dashboard Widgets Sarah IA",
+            message: "• Discussions actives : \(stats.totalConversations)\n• Messages échangés : \(stats.totalMessages)\n• Souvenirs mémorisés : \(stats.learnedMemoriesCount)\n• Taux d'activité : \(stats.usagePercentage)%\n• Graphique d'activité : 7j synchronisés\n• Latence IA locale : < 0.2s (60 FPS)\n\nSur iOS 14+, ces 8 widgets sont directement ajoutables sur votre Écran d'accueil !",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "Parfait", style: .default, handler: nil))
@@ -774,6 +777,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🔦 Lampe torche (On/Off)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Allume la torche"
+            self?.sendButtonTapped()
+        }))
         sheet.addAction(UIAlertAction(title: "🧠 Enseigner un mot", style: .default, handler: { [weak self] _ in
             self?.promptTeachMemory()
         }))
@@ -811,8 +818,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let isFirstUserMessage = messages.filter({ $0.isFromUser }).isEmpty
         if isFirstUserMessage {
-            let cleanPrompt = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-            let dynamicTitle = cleanPrompt.count > 28 ? String(cleanPrompt.prefix(28)) + "..." : cleanPrompt
+            let dynamicTitle = AIService.shared.generateSmartTitle(from: text)
             if let idx = conversations.firstIndex(where: { $0.id == currentConversationId }) {
                 conversations[idx].title = dynamicTitle
             }
@@ -830,6 +836,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             DispatchQueue.main.async {
                 self.statusLabel.text = "● En ligne"
                 self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                
+                // Mettre à jour le titre dynamique avec le contexte de la réponse si premier tour
+                if isFirstUserMessage {
+                    if let idx = self.conversations.firstIndex(where: { $0.id == self.currentConversationId }) {
+                        self.conversations[idx].title = AIService.shared.generateSmartTitle(from: text, responseText: response)
+                        self.drawerTableView.reloadData()
+                    }
+                }
                 
                 let aiMsg = Message(content: response, isFromUser: false)
                 self.appendMessage(aiMsg)
@@ -1006,6 +1020,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return
         }
         
+        AIService.shared.syncHistoryFromMessages(self.messages)
         tableView.reloadData()
     }
     
@@ -1021,10 +1036,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         state.messages = messages
         StorageService.shared.saveState(state)
         
+        let lastMemoryTuple: (trigger: String, response: String)? = state.learnedMemories.first.map { ($0.key, $0.value) }
         SarahWidgetBridge.shared.syncStats(
             conversationsCount: conversations.count,
             messagesCount: messages.count,
             memoriesCount: state.learnedMemories.count,
+            lastMemory: lastMemoryTuple,
             lastMessage: messages.last?.content
         )
     }

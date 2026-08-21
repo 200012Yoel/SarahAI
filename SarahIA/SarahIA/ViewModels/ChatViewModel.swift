@@ -431,11 +431,7 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Traitement des Messages
     
     private func generateTitle(from text: String) -> String {
-        let cleaned = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.count > 34 {
-            return String(cleaned.prefix(34)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
-        }
-        return cleaned.isEmpty ? "Nouvelle discussion" : cleaned
+        return aiService.generateSmartTitle(from: text)
     }
     
     private func ensureConversation(withFirstMessage text: String) {
@@ -444,6 +440,10 @@ public final class ChatViewModel: ObservableObject {
             let newConv = Conversation(title: title)
             conversations.insert(newConv, at: 0)
             currentConversationId = newConv.id
+        } else if let id = currentConversationId, let index = conversations.firstIndex(where: { $0.id == id }) {
+            if conversations[index].title == "Nouvelle discussion" || conversations[index].messages.isEmpty {
+                conversations[index].title = generateTitle(from: text)
+            }
         }
     }
     
@@ -486,6 +486,13 @@ public final class ChatViewModel: ObservableObject {
             let response = await aiService.generateResponse(for: transcription)
             self.refreshLearnedMemories()
             
+            // Mise à jour intelligente du titre de la discussion
+            if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
+                if self.messages.filter({ $0.isFromUser }).count <= 1 {
+                    self.conversations[index].title = self.aiService.generateSmartTitle(from: transcription, responseText: response)
+                }
+            }
+            
             let aiMessage = Message(content: response, isFromUser: false)
             self.appendMessage(aiMessage)
             self.isTyping = false
@@ -510,6 +517,13 @@ public final class ChatViewModel: ObservableObject {
         Task {
             let response = await aiService.generateResponse(for: text)
             self.refreshLearnedMemories()
+            
+            // Mise à jour intelligente du titre de la discussion
+            if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
+                if self.messages.filter({ $0.isFromUser }).count <= 1 {
+                    self.conversations[index].title = self.aiService.generateSmartTitle(from: text, responseText: response)
+                }
+            }
             
             let aiMessage = Message(content: response, isFromUser: false)
             self.appendMessage(aiMessage)

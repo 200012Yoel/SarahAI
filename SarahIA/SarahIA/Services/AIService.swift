@@ -1,63 +1,143 @@
 import Foundation
+import UIKit
 
-/// Service d'intelligence artificielle avec moteur d'apprentissage dynamique et mémoire persistante.
-final class AIService {
+/// Échange conversationnel pour le suivi du contexte à court terme
+public struct ConversationExchange: Codable {
+    public let userText: String
+    public let assistantResponse: String
+    public let timestamp: Date
     
-    static let shared = AIService()
+    public init(userText: String, assistantResponse: String, timestamp: Date = Date()) {
+        self.userText = userText
+        self.assistantResponse = assistantResponse
+        self.timestamp = timestamp
+    }
+}
+
+/// Service d'intelligence artificielle locale ultra-rapide (60 FPS & Zéro Latence) :
+/// - Moteur d'Intent Matching avancé (Salutations dynamiques, requêtes utilitaires, calculs NSExpression).
+/// - Dynamic Memory Mesh (Brain Vault avec balayage sémantique de mots-clés et App Group).
+/// - Suivi du contexte conversationnel court terme (5-6 derniers échanges pour continuité pronominale).
+public final class AIService {
+    
+    public static let shared = AIService()
     
     private let storage = StorageService.shared
-    
+    private let device = DeviceController.shared
     private let openAI = OpenAIService.shared
     private let translation = TranslationEngine.shared
-    private let modelDownloader = ModelDownloader.shared
+    
+    // App Group pour le partage en temps réel avec les Widgets
+    private let appGroupSuite = "group.com.sarahia.app"
+    private let appGroupMemoryKey = "sarah_learned_memories_v2"
+    
+    // File de synchronisation thread-safe pour le contexte conversationnel
+    private let historyQueue = DispatchQueue(label: "com.sarahia.history.queue", attributes: .concurrent)
+    private var recentExchanges: [ConversationExchange] = []
+    private let maxHistoryCount = 6
     
     private init() {}
     
-    /// Génère une réponse IA synchrone 100% native (iOS 12+)
-    func generateSyncResponse(for question: String) -> String {
+    // MARK: - Gestion du Contexte Conversationnel Court Terme (5-6 Échanges)
+    
+    /// Enregistre un échange dans l'historique court terme (FIFO max 6)
+    public func recordExchange(userText: String, assistantResponse: String) {
+        historyQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            let exchange = ConversationExchange(userText: userText, assistantResponse: assistantResponse, timestamp: Date())
+            self.recentExchanges.append(exchange)
+            if self.recentExchanges.count > self.maxHistoryCount {
+                self.recentExchanges.removeFirst(self.recentExchanges.count - self.maxHistoryCount)
+            }
+        }
+    }
+    
+    /// Synchronise l'historique court terme à partir des messages existants
+    public func syncHistoryFromMessages(_ messages: [Message]) {
+        historyQueue.async(flags: .barrier) { [weak self] in
+            guard let self = self else { return }
+            var exchanges: [ConversationExchange] = []
+            var lastUser: String? = nil
+            
+            for msg in messages {
+                if msg.isFromUser {
+                    lastUser = msg.content
+                } else if let user = lastUser {
+                    exchanges.append(ConversationExchange(userText: user, assistantResponse: msg.content, timestamp: msg.timestamp))
+                    lastUser = nil
+                }
+            }
+            
+            self.recentExchanges = Array(exchanges.suffix(self.maxHistoryCount))
+        }
+    }
+    
+    /// Récupère une copie des échanges récents
+    public func getRecentExchanges() -> [ConversationExchange] {
+        return historyQueue.sync {
+            return self.recentExchanges
+        }
+    }
+    
+    // MARK: - Moteur de Réponses Synchrones 100% Hors-Ligne (iOS 12+)
+    
+    /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
+    public func generateSyncResponse(for question: String) -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)
         
-        if normalized.contains("batterie") || normalized.contains("niveau de batterie") || normalized.contains("pourcentage batterie") {
-            return DeviceController.shared.getBatteryStatus()
-        }
-        
-        if normalized.contains("presse papier") || normalized.contains("texte copie") || normalized.contains("ce que j ai copie") {
-            if let clip = ClipboardCompanion.shared.getClipboardText(), !clip.isEmpty {
-                return "Voici le contenu de votre presse-papier : « \(clip) »."
-            } else {
-                return "Votre presse-papier est actuellement vide."
-            }
+        // 1. DÉCLENCHEMENT D'ACTIONS CONTEXTUELLES MATÉRIELLES & SYSTÈME DIRECTES
+        if let contextualActionResponse = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
+            recordExchange(userText: trimmed, assistantResponse: contextualActionResponse)
+            return contextualActionResponse
         }
         
         var state = storage.loadState()
         
+        // 2. ÉTAPE 2 DE L'APPRENTISSAGE INTERACTIF (Attente de la réponse)
         if let pendingTrigger = state.pendingLearningTrigger, !pendingTrigger.isEmpty {
             if normalized == "annule" || normalized == "annuler" || normalized == "laisse tomber" || normalized == "stop" {
                 state.pendingLearningTrigger = nil
                 storage.saveState(state)
-                return "D'accord, apprentissage annulé ! Que souhaitez-vous faire ?"
+                let reply = "D'accord, apprentissage annulé ! Que souhaitez-vous faire ?"
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
             }
             
             let cleanTrigger = pendingTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
-            state.learnedMemories[normalizeText(cleanTrigger)] = trimmed
+            let normTrigger = normalizeText(cleanTrigger)
+            state.learnedMemories[normTrigger] = trimmed
             state.pendingLearningTrigger = nil
             storage.saveState(state)
-            return "C'est appris ! 🧠 Dès que vous me direz « \(cleanTrigger) », je répondrai : « \(trimmed) »."
+            syncMemoryToAppGroup(state.learnedMemories)
+            
+            let reply = "C'est appris ! 🧠 Dès que vous me direz « \(cleanTrigger) », je répondrai : « \(trimmed) »."
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
         
+        // 3. APPRENTISSAGE DIRECT MONO-INSTRUCTION
         if let directLearning = parseDirectLearningCommand(trimmed) {
-            state.learnedMemories[normalizeText(directLearning.trigger)] = directLearning.response
+            let normTrigger = normalizeText(directLearning.trigger)
+            state.learnedMemories[normTrigger] = directLearning.response
             storage.saveState(state)
-            return "Parfait ! J'ai mémorisé que pour « \(directLearning.trigger) », je dois répondre : « \(directLearning.response) »."
+            syncMemoryToAppGroup(state.learnedMemories)
+            
+            let reply = "Parfait ! J'ai mémorisé que pour « \(directLearning.trigger) », je dois répondre : « \(directLearning.response) »."
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
         
+        // 4. INITIATION D'APPRENTISSAGE INTERACTIF (Multi-tours)
         if let triggerToLearn = parseInteractiveLearningInitiation(trimmed) {
             state.pendingLearningTrigger = triggerToLearn
             storage.saveState(state)
-            return "Je dois répondre quoi ?"
+            let reply = "Je dois répondre quoi pour « \(triggerToLearn) » ?"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
         
+        // 5. GESTION DU COFFRE MÉMOIRE (Oublier / Réinitialiser / Lister)
         if normalized.starts(with: "oublie ") || normalized.starts(with: "efface ") {
             let target = trimmed.replacingOccurrences(of: "oublie ", with: "", options: .caseInsensitive)
                 .replacingOccurrences(of: "efface ", with: "", options: .caseInsensitive)
@@ -66,37 +146,277 @@ final class AIService {
             let normTarget = normalizeText(target)
             if state.learnedMemories.removeValue(forKey: normTarget) != nil {
                 storage.saveState(state)
-                return "J'ai bien oublié la réponse pour « \(target) » ! 🗑️"
+                syncMemoryToAppGroup(state.learnedMemories)
+                let reply = "J'ai bien oublié la réponse pour « \(target) » ! 🗑️"
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
+            } else if normalized.contains("tout") || normalized.contains("memoire") {
+                state.learnedMemories.removeAll()
+                storage.saveState(state)
+                syncMemoryToAppGroup([:])
+                let reply = "Toute ma mémoire personnalisée a été réinitialisée ! 🧹"
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
             } else {
-                return "Je n'avais aucun souvenir enregistré pour « \(target) »."
+                let reply = "Je n'avais aucun souvenir enregistré pour « \(target) »."
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
             }
         }
         
-        if normalized.contains("que sais tu") || normalized.contains("tes souvenirs") || normalized.contains("liste memoire") {
-            if state.learnedMemories.isEmpty {
-                return "Je n'ai pas encore appris de réponses personnalisées. Dites par exemple : « Apprends papa » pour commencer !"
+        if normalized.contains("que sais tu") || normalized.contains("tes souvenirs") || normalized.contains("liste memoire") || normalized.contains("ce que tu as appris") {
+            let allMemories = getAllCombinedMemories()
+            if allMemories.isEmpty {
+                let reply = "Je n'ai pas encore appris de réponses personnalisées. Dites par exemple : « Apprends papa = il est au travail » pour commencer !"
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
             }
-            let list = state.learnedMemories.map { "• « \($0.key) » ➔ \($0.value)" }.joined(separator: "\n")
-            return "Voici ce que j'ai appris jusqu'à présent : 🧠\n\n\(list)"
+            let list = allMemories.map { "• « \($0.key) » ➔ \($0.value)" }.joined(separator: "\n")
+            let reply = "Voici ce que j'ai appris dans mon coffre mémoire : 🧠\n\n\(list)"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
         
-        if let learned = state.learnedMemories[normalized] {
-            return learned
+        // 6. DYNAMIC MEMORY MESH (Balayage sémantique automatique des mots-clés du Brain Vault)
+        if let memoryMeshResponse = evaluateMemoryMesh(normalized: normalized, trimmed: trimmed) {
+            recordExchange(userText: trimmed, assistantResponse: memoryMeshResponse)
+            return memoryMeshResponse
         }
         
-        for (learnedKey, response) in state.learnedMemories {
-            if normalized.contains(learnedKey) || learnedKey.contains(normalized) {
-                return response
-            }
+        // 7. CONTINUITÉ DU CONTEXTE CONVERSATIONNEL (Pronoms & Suivis)
+        if let contextContinuityResponse = evaluateContextContinuity(normalized: normalized, trimmed: trimmed) {
+            recordExchange(userText: trimmed, assistantResponse: contextContinuityResponse)
+            return contextContinuityResponse
         }
         
-        return generateKnowledgeResponse(normalized: normalized, trimmed: trimmed)
+        // 8. ADVANCED INTENT ENGINE (Salutations, Humeur, Mathématiques, Culture, Blagues)
+        let response = generateKnowledgeResponse(normalized: normalized, trimmed: trimmed)
+        recordExchange(userText: trimmed, assistantResponse: response)
+        return response
     }
+    
+    // MARK: - Moteur de Réponses Asynchrones (iOS 13+)
+    
+    @available(iOS 13.0, *)
+    public func generateResponse(for question: String) async -> String {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = normalizeText(trimmed)
+        
+        // 1. Actions matérielles directes
+        if let contextualActionResponse = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
+            recordExchange(userText: trimmed, assistantResponse: contextualActionResponse)
+            return contextualActionResponse
+        }
+        
+        // 2. Traduction multilingue temps réel si demandé
+        if let translationReq = translation.parseTranslationIntent(input: trimmed) {
+            let translated = await translation.translate(
+                text: translationReq.textToTranslate,
+                sourceLang: translationReq.sourceLanguage,
+                targetLang: translationReq.targetLanguage
+            )
+            let reply = "En \(translationReq.targetLanguage.displayNameFr) : \(translated)"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
+        }
+        
+        // 3. Traitement local synchrone prioritaire (Zéro latence)
+        let syncResponse = generateSyncResponse(for: question)
+        let defaultGenericAnswers = defaultResponses + thanksResponses + identityResponses + moodResponsesOk + chitChatResponses
+        
+        // Si c'est un souvenir, un calcul, une action ou une réponse spécifique reconnue
+        if !defaultGenericAnswers.contains(syncResponse) && syncResponse != generateDefaultResponse(for: trimmed) {
+            return syncResponse
+        }
+        
+        // 4. OpenAI si configuré et disponible
+        let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
+        if openAI.isConfigured {
+            do {
+                let promptWithContext = pastContext != nil ? "\(trimmed) (Contexte récent : \(pastContext!))" : trimmed
+                let aiResponse = try await openAI.ask(prompt: promptWithContext)
+                SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: aiResponse, topicType: "conversation")
+                recordExchange(userText: trimmed, assistantResponse: aiResponse)
+                return aiResponse
+            } catch {
+                print("⚠️ [AIService] OpenAI indisponible, utilisation du moteur local ultra-rapide.")
+            }
+        }
+        
+        return syncResponse
+    }
+    
+    // MARK: - Dynamic Memory Mesh (Brain Vault Integration)
+    
+    /// Balaye automatiquement la phrase pour repérer les mots-clés du coffre mémoire et injecter les faits appris
+    private func evaluateMemoryMesh(normalized: String, trimmed: String) -> String? {
+        let memories = getAllCombinedMemories()
+        guard !memories.isEmpty else { return nil }
+        
+        // 1. Correspondance exacte
+        if let exactMatch = memories[normalized] {
+            return exactMatch
+        }
+        
+        // 2. Recherche de correspondances de mots-clés dans la phrase
+        var matchedFacts: [(trigger: String, fact: String)] = []
+        let promptTokens = normalized.components(separatedBy: " ").filter { $0.count >= 2 }
+        
+        for (trigger, fact) in memories {
+            guard trigger != "_user_name" else { continue }
+            let normTrigger = normalizeText(trigger)
+            
+            // Mot entier contenu ou sous-chaîne sémantique
+            let isExactToken = promptTokens.contains(normTrigger)
+            let isContainedPhrase = normalized.contains(" \(normTrigger) ") || normalized.starts(with: "\(normTrigger) ") || normalized.hasSuffix(" \(normTrigger)") || normalized == normTrigger
+            
+            if isExactToken || isContainedPhrase {
+                matchedFacts.append((trigger: trigger, fact: fact))
+            }
+        }
+        
+        guard !matchedFacts.isEmpty else { return nil }
+        
+        // Si un seul mot-clé est détecté
+        if matchedFacts.count == 1 {
+            let single = matchedFacts[0]
+            // Si la phrase est une question directe sur le mot-clé
+            if normalized.contains("qui est") || normalized.contains("ou est") || normalized.contains("qu est ce que") || normalized.contains("parle moi de") || normalized.contains("sais tu sur") {
+                return "D'après ce que vous m'avez appris, pour « **\(single.trigger)** » : \(single.fact) 🧠"
+            }
+            return single.fact
+        }
+        
+        // Si plusieurs mots-clés sont mentionnés simultanément
+        let combined = matchedFacts.map { "• **\($0.trigger)** : \($0.fact)" }.joined(separator: "\n")
+        return "Voici ce que j'ai en mémoire pour ces éléments : 🧠\n\n\(combined)"
+    }
+    
+    private func getAllCombinedMemories() -> [String: String] {
+        var result = storage.loadState().learnedMemories
+        // Fusionner avec le cache App Group UserDefaults si présent
+        if let defaults = UserDefaults(suiteName: appGroupSuite),
+           let appGroupData = defaults.dictionary(forKey: appGroupMemoryKey) as? [String: String] {
+            for (k, v) in appGroupData {
+                if result[k] == nil {
+                    result[k] = v
+                }
+            }
+        }
+        return result
+    }
+    
+    private func syncMemoryToAppGroup(_ memories: [String: String]) {
+        if let defaults = UserDefaults(suiteName: appGroupSuite) {
+            defaults.setValue(memories, forKey: appGroupMemoryKey)
+        }
+    }
+    
+    // MARK: - Continuité du Contexte Conversationnel (Derniers 5-6 Échanges)
+    
+    private func evaluateContextContinuity(normalized: String, trimmed: String) -> String? {
+        let history = getRecentExchanges()
+        guard let lastExchange = history.last else { return nil }
+        let lastUserNorm = normalizeText(lastExchange.userText)
+        let lastAssist = lastExchange.assistantResponse
+        
+        // 1. Demande de répétition : "Répète", "Tu peux répéter ?"
+        if normalized == "repete" || normalized == "tu peux repeter" || normalized.contains("repete ce que tu as dit") || normalized == "quoi" {
+            return "Je disais : « \(lastAssist) » 🎙️"
+        }
+        
+        // 2. Demande d'un autre élément : "Raconte-m'en une autre", "Une autre", "Encore"
+        if normalized.contains("une autre") || normalized.contains("un autre") || normalized.contains("encore une") || normalized == "encore" {
+            if lastUserNorm.contains("blague") || lastAssist.contains("😂") || lastAssist.contains("😄") {
+                return pickRandom(from: jokeResponses)
+            }
+            if lastUserNorm.contains("anecdote") || lastAssist.contains("🍎") || lastAssist.contains("Le saviez-vous") {
+                return pickRandom(from: anecdotesResponses)
+            }
+            if lastUserNorm.contains("citation") || lastAssist.contains("«") {
+                return pickRandom(from: quotesResponses)
+            }
+            if lastUserNorm.contains("poeme") || lastUserNorm.contains("chanson") {
+                return pickRandom(from: poemsResponses)
+            }
+        }
+        
+        // 3. Questions de suivi / Pourquoi
+        if normalized == "pourquoi" || normalized == "pourquoi ca" || normalized.starts(with: "pourquoi ") {
+            if lastAssist.contains("batterie") {
+                return "Parce que votre batterie se décharge naturellement en fonction de la luminosité et des applications ouvertes ! 🔋"
+            }
+            if lastAssist.contains("torche") {
+                return "J'ai contrôlé le flash de l'appareil directement selon votre demande. 🔦"
+            }
+            return "C'est en lien avec ce dont nous venons de parler (« \(lastExchange.userText) ») ! N'hésitez pas si vous souhaitez plus de précisions."
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Évaluation des Actions Contextuelles Vocales (Hardware & Système)
+    
+    private func evaluateContextualAction(normalized: String, trimmed: String) -> String? {
+        // 1. Lampe Torche / Flash Caméra
+        if normalized.contains("allume la torche") || normalized.contains("allume la lampe") || normalized.contains("allumer la torche") || normalized.contains("allume le flash") || normalized.contains("active la torche") || normalized == "torche on" {
+            return device.toggleTorch(enable: true)
+        }
+        
+        if normalized.contains("eteins la torche") || normalized.contains("eteins la lampe") || normalized.contains("eteindre la torche") || normalized.contains("eteins le flash") || normalized.contains("desactive la torche") || normalized == "torche off" {
+            return device.toggleTorch(enable: false)
+        }
+        
+        if normalized == "lampe" || normalized == "torche" || normalized == "flash" || normalized.contains("active la lampe") {
+            return device.toggleTorch(enable: nil)
+        }
+        
+        // 2. Batterie
+        if normalized.contains("batterie") || normalized.contains("niveau de batterie") || normalized.contains("pourcentage batterie") || normalized.contains("combien de batterie") {
+            return device.getBatteryStatus()
+        }
+        
+        // 3. Heure
+        if normalized.contains("heure") || normalized.contains("quelle heure") || normalized.contains("donne moi l heure") || normalized.contains("il est quelle heure") {
+            return device.getCurrentTimeFormatted()
+        }
+        
+        // 4. Date & Calendrier
+        if normalized.contains("date") || normalized.contains("quel jour") || normalized.contains("aujourd hui") || normalized.contains("on est le combien") {
+            return device.getCurrentDateFormatted()
+        }
+        
+        // 5. Presse-Papier
+        if normalized.contains("presse papier") || normalized.contains("texte copie") || normalized.contains("ce que j ai copie") {
+            if let clip = ClipboardCompanion.shared.getClipboardText(), !clip.isEmpty {
+                return "Voici le contenu de votre presse-papier : « \(clip) »."
+            } else {
+                return "Votre presse-papier est actuellement vide."
+            }
+        }
+        
+        // 6. Informations Appareil & Système
+        if normalized.contains("quel telephone") || normalized.contains("quel appareil") || normalized.contains("version ios") || normalized.contains("mon iphone") || normalized.contains("systeme") {
+            return device.getDeviceInfo()
+        }
+        
+        // 7. Paramètres & Réglages
+        if normalized.contains("ouvre les reglages") || normalized.contains("ouvre les parametres") || normalized.contains("ouvrir reglages") {
+            DispatchQueue.main.async {
+                self.device.openSettings()
+            }
+            return "J'ouvre les réglages de votre appareil pour vous. ⚙️"
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Advanced Intent Engine (Local Pattern Recognition)
     
     private func generateKnowledgeResponse(normalized: String, trimmed: String) -> String {
         var state = storage.loadState()
         
-        // Mémorisation du prénom de l'utilisateur
+        // Prénom de l'utilisateur
         if normalized.starts(with: "je m appelle ") || normalized.starts(with: "mon nom est ") || normalized.starts(with: "mon prenom est ") {
             let name = trimmed.components(separatedBy: " ").suffix(from: 3).joined(separator: " ")
             if !name.isEmpty {
@@ -113,42 +433,110 @@ final class AIService {
             return "Vous ne m'avez pas encore dit votre prénom ! Dites simplement : « Je m'appelle [Votre prénom] » pour que je le retienne."
         }
         
-        // Salutations & Présentation
-        if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
-            if let userName = state.learnedMemories["_user_name"] {
-                return "Bonjour \(userName) ! 👋 Que puis-je faire pour vous aujourd'hui ?"
+        // 1. Salutations dynamiques avec variation horaire
+        if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") || normalized == "yo" || normalized == "wesh" || normalized == "re" {
+            let hour = Calendar.current.component(.hour, from: Date())
+            let userName = state.learnedMemories["_user_name"]
+            
+            if hour >= 5 && hour < 12 {
+                if let name = userName {
+                    return pickRandom(from: [
+                        "Bonjour \(name) ! ☀️ Belle matinée à vous ! Que puis-je faire pour vous ?",
+                        "Bonjour \(name) ! Prêt pour une excellente journée ? Je suis à votre écoute.",
+                        "Salut \(name) ! Très bonne matinée. Comment puis-je vous assister ?"
+                    ])
+                }
+                return pickRandom(from: [
+                    "Bonjour ! ☀️ Belle matinée à vous ! Comment puis-je vous aider ?",
+                    "Bonjour ! Je suis Sarah. Prête pour une nouvelle journée avec vous !",
+                    "Salut ! Que puis-je faire pour vous ce matin ?"
+                ])
+            } else if hour >= 18 || hour < 5 {
+                if let name = userName {
+                    return pickRandom(from: [
+                        "Bonsoir \(name) ! 🌙 Comment s'est passée votre journée ?",
+                        "Bonsoir \(name) ! Je suis à votre entière disposition ce soir.",
+                        "Bonne soirée \(name) ! Que puis-je faire pour vous détendre ou vous aider ?"
+                    ])
+                }
+                return pickRandom(from: [
+                    "Bonsoir ! 🌙 J'espère que vous avez passé une belle journée. Que puis-je faire pour vous ?",
+                    "Bonsoir ! Sarah à votre écoute. Comment se termine votre journée ?",
+                    "Bonne soirée ! N'hésitez pas si vous avez une question ou un calcul à faire."
+                ])
+            } else {
+                if let name = userName {
+                    return pickRandom(from: [
+                        "Bonjour \(name) ! 👋 Comment se passe votre après-midi ?",
+                        "Salut \(name) ! Toujours un plaisir de discuter avec vous.",
+                        "Coucou \(name) ! Que puis-je faire pour vous aujourd'hui ?"
+                    ])
+                }
+                return pickRandom(from: greetingsPool)
             }
-            return "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?"
         }
         
-        if normalized.contains("ca va") || normalized.contains("comment vas tu") || normalized.contains("comment tu vas") {
-            return "Je vais à merveille, merci ! Prête à vous assister et répondre à toutes vos questions. Et vous, comment se passe votre journée ?"
+        // 2. Humeurs & Sentiments (Comment tu vas, fatigue, tristesse, joie, ennui)
+        if normalized.contains("ca va") || normalized.contains("comment vas tu") || normalized.contains("comment tu vas") || normalized.contains("la forme") || normalized.contains("comment tu te sens") {
+            return pickRandom(from: moodResponsesOk)
         }
         
-        // Date & Calendrier
-        if normalized.contains("quel jour") || normalized.contains("date") || normalized.contains("aujourd hui") {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "fr_FR")
-            formatter.dateStyle = .full
-            let dateStr = formatter.string(from: Date())
-            return "Aujourd'hui, nous sommes le \(dateStr). 📅"
+        if normalized.contains("fatigue") || normalized.contains("creve") || normalized.contains("epuise") || normalized.contains("dodo") || normalized.contains("sommeil") {
+            return pickRandom(from: empathyFatigueResponses)
         }
         
-        // Heure
-        if normalized.contains("heure") || normalized.contains("quelle heure") {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            let time = formatter.string(from: Date())
-            return "Il est actuellement \(time). ⏰"
+        if normalized.contains("triste") || normalized.contains("mauvaise journee") || normalized.contains("moral a zero") || normalized.contains("pas le moral") || normalized.contains("decu") {
+            return pickRandom(from: empathySadnessResponses)
         }
         
-        // Météo
+        if normalized.contains("trop content") || normalized.contains("bonne nouvelle") || normalized.contains("heureux") || normalized.contains("j ai reussi") || normalized.contains("victoire") {
+            return pickRandom(from: joyResponses)
+        }
+        
+        if normalized.contains("je m ennuie") || normalized.contains("m ennuie") || normalized.contains("quoi faire") || normalized.contains("ennui") {
+            return pickRandom(from: boredomResponses)
+        }
+        
+        // 3. Petites phrases du quotidien
+        if normalized.contains("tu fais quoi") || normalized.contains("que fais tu") || normalized.contains("tu dors") || normalized.contains("t es la") || normalized.contains("tu m entends") || normalized.contains("tu m ecoutes") {
+            return pickRandom(from: presenceResponses)
+        }
+        
+        if normalized.contains("quel age") || normalized.contains("quand es tu nee") || normalized.contains("ta date de naissance") {
+            return "Je n'ai pas d'âge biologique, mais mon intelligence est toujours au sommet de sa jeunesse et de sa réactivité ! 🚀"
+        }
+        
+        if normalized.contains("qui t a cree") || normalized.contains("qui est ton developpeur") || normalized.contains("qui t a programme") || normalized.contains("createur") {
+            return "J'ai été conçue et programmée avec passion pour être votre assistante IA francophone la plus fluide, rapide et dévouée ! ✨"
+        }
+        
+        if normalized.contains("tu es un robot") || normalized.contains("es tu humaine") || normalized.contains("tu es qui") {
+            return pickRandom(from: identityResponses)
+        }
+        
+        if normalized.contains("tu m aimes") || normalized.contains("t es gentille") || normalized.contains("tu es gentille") || normalized.contains("t es la meilleure") || normalized.contains("je t aime") {
+            return pickRandom(from: affectionResponses)
+        }
+        
+        if normalized.contains("citation") || normalized.contains("phrase motivante") || normalized.contains("motive moi") || normalized.contains("proverbe") {
+            return pickRandom(from: quotesResponses)
+        }
+        
+        if normalized.contains("anecdote") || normalized.contains("savais tu") || normalized.contains("le saviez vous") || normalized.contains("fait amusant") {
+            return pickRandom(from: anecdotesResponses)
+        }
+        
+        if normalized.contains("chante") || normalized.contains("chanson") || normalized.contains("poeme") || normalized.contains("poesie") {
+            return pickRandom(from: poemsResponses)
+        }
+        
+        // 4. Météo
         if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
             return pickRandom(from: weatherResponses)
         }
         
-        // Traductions rapides
-        if normalized.contains("traduis") || normalized.contains("comment on dit") || normalized.contains("en anglais") {
+        // 5. Traductions rapides
+        if normalized.contains("traduis") || normalized.contains("comment on dit") || normalized.contains("en anglais") || normalized.contains("en hebreu") {
             if normalized.contains("bonjour") { return "« Bonjour » se traduit par « Hello » ou « Good morning » en anglais. 🇬🇧" }
             if normalized.contains("merci") { return "« Merci » se traduit par « Thank you » en anglais. 🇬🇧" }
             if normalized.contains("au revoir") { return "« Au revoir » se traduit par « Goodbye » en anglais. 🇬🇧" }
@@ -156,7 +544,7 @@ final class AIService {
             if normalized.contains("shalom") || normalized.contains("en hebreu") { return "En hébreu, « Bonjour » et « Paix » se disent « Shalom » (שלום). 🇮🇱" }
         }
         
-        // Connaissances générales & Culture
+        // 6. Connaissances générales & Culture
         if normalized.contains("qui a cree apple") || normalized.contains("createur apple") || normalized.contains("steve jobs") {
             return "Apple a été cofondée en 1976 par Steve Jobs, Steve Wozniak et Ronald Wayne en Californie. 🍎"
         }
@@ -170,59 +558,105 @@ final class AIService {
             if normalized.contains("angleterre") || normalized.contains("royaume uni") { return "La capitale du Royaume-Uni est Londres. 🇬🇧" }
         }
         
-        // Histoires & Détente
+        // 7. Histoires & Détente
         if normalized.contains("histoire") || normalized.contains("raconte une histoire") {
-            return "Il était une fois, dans un iPhone 5S plein d'énergie, une assistante nommée Sarah qui résolvait tous les calculs et apprenait chaque mot de son utilisateur avec le sourire ! 📖✨"
+            return "Il était une fois, dans un iPhone plein d'énergie, une assistante nommée Sarah qui résolvait tous les calculs et apprenait chaque mot de son utilisateur avec le sourire ! 📖✨"
         }
         
-        // Conseils & Astuces
+        // 8. Conseils & Astuces
         if normalized.contains("conseil") || normalized.contains("astuce") || normalized.contains("dormir") {
             return "Voici mon conseil pour une super journée : buvez un grand verre d'eau le matin, prenez 5 minutes pour respirer et évitez les écrans 30 minutes avant de dormir ! 💡🌙"
         }
         
-        // Calculs mathématiques automatiques (ex: 2 + 2, calcule 15 * 3)
+        // 9. Calculs mathématiques automatiques avancés (NSExpression & arithmétique)
         if let mathResult = evaluateSimpleMath(in: trimmed) {
             return "Le résultat est : \(mathResult) 🧮"
         }
         
-        // Aide & Capacités
+        // 10. Aide & Capacités
         if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("que sais tu faire") || normalized.contains("comment tu marche") {
-            return "Je suis Sarah, votre assistante IA ultra-rapide ! 🌟\n\nVoici ce que je peux faire :\n1. 💬 Discuter et répondre à vos questions par écrit ou à la voix.\n2. 🧠 Apprendre de nouveaux souvenirs (ex: « Apprends papa » ➔ puis donnez la réponse).\n3. 🧮 Calculer des opérations mathématiques (ex: « 15 * 8 »).\n4. ⏰ Vous donner l'heure, la date, la météo et l'état de votre batterie.\n5. 🌐 Traduire des mots et partager des anecdotes culturelles !"
+            return "Je suis Sarah, votre assistante IA ultra-rapide ! 🌟\n\nVoici mes super-pouvoirs :\n1. 💬 Discuter et répondre à vos questions avec variété et mémoire.\n2. 🔦 Allumer/éteindre votre lampe torche ou consulter votre batterie.\n3. 🧠 Mémoriser des souvenirs (ex: « Apprends papa = au travail »).\n4. 🧮 Calculer des opérations mathématiques instantanément.\n5. ⏰ Donner l'heure, la date et des anecdotes culturelles !"
         }
         
-        // Remerciements & Compliments
+        // 11. Remerciements & Compliments
         if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") || normalized.contains("bravo") {
             return pickRandom(from: thanksResponses)
         }
         
-        if normalized.contains("t es belle") || normalized.contains("tu es gentille") || normalized.contains("je t aime") {
-            return "C'est très gentil ! Merci beaucoup, je fais de mon mieux pour être la meilleure assistante possible pour vous. 😊"
-        }
-        
-        // Identité
+        // 12. Identité
         if normalized.contains("nom") || normalized.contains("appelle") || normalized.contains("qui es tu") || normalized.contains("qui est tu") || normalized == "sarah" {
             return pickRandom(from: identityResponses)
         }
         
-        // Humour & Blagues
+        // 13. Humour & Blagues
         if normalized.contains("blague") || normalized.contains("rire") || normalized.contains("drole") || normalized.contains("humour") {
             return pickRandom(from: jokeResponses)
         }
         
-        // Au revoir
+        // 14. Au revoir & Bonne nuit
         if normalized.contains("au revoir") || normalized.contains("bye") || normalized.contains("a bientot") || normalized.contains("bonne nuit") {
             return pickRandom(from: goodbyeResponses)
         }
         
-        // Réponse générale intelligente
-        return "Je vous écoute ! N'hésitez pas à me poser une question, me demander un calcul ou m'apprendre une nouvelle information avec « Apprends [mot] »."
+        // Réponse par défaut intelligente
+        return generateDefaultResponse(for: trimmed)
     }
     
+    private func generateDefaultResponse(for trimmed: String) -> String {
+        return pickRandom(from: defaultResponses)
+    }
+    
+    // MARK: - Titrage Intelligent et Dynamique des Discussions (Sidebar)
+    
+    public func generateSmartTitle(from userText: String, responseText: String? = nil) -> String {
+        let clean = userText.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        let norm = normalizeText(clean)
+        
+        if norm.contains("batterie") { return "🔋 Niveau de batterie" }
+        if norm.contains("torche") || norm.contains("lampe") || norm.contains("flash") { return "🔦 Lampe torche" }
+        if norm.contains("heure") || norm.contains("date") || norm.contains("jour") { return "⏰ Heure & Date" }
+        if norm.contains("meteo") || norm.contains("temps") || norm.contains("pluie") || norm.contains("soleil") { return "☀️ Météo" }
+        if norm.contains("blague") || norm.contains("rire") || norm.contains("humour") { return "😂 Blague & Humour" }
+        if norm.contains("histoire") || norm.contains("conte") { return "📖 Petite histoire" }
+        if norm.contains("poeme") || norm.contains("chante") || norm.contains("chanson") { return "🎵 Poème & Musique" }
+        if norm.contains("citation") || norm.contains("motivation") || norm.contains("proverbe") { return "✨ Pensée inspirante" }
+        if norm.contains("presse papier") || norm.contains("copie") { return "📋 Presse-papier" }
+        if norm.contains("traduis") || norm.contains("traduction") || norm.contains("en anglais") || norm.contains("en hebreu") { return "🌐 Traduction" }
+        if norm.contains("apprends") || norm.contains("enseigne") || norm.contains("souvenir") || norm.contains("memoire") { return "🧠 Apprentissage" }
+        if norm.contains("calcule") || norm.contains("combien font") || norm.contains("fois") || norm.contains("+") || norm.contains("*") { return "🧮 Calcul mathématique" }
+        if norm.contains("fatigue") || norm.contains("moral") || norm.contains("triste") || norm.contains("content") || norm.contains("heureux") { return "💬 Humeur & Partage" }
+        if norm.contains("qui es tu") || norm.contains("sarah") || norm.contains("presentation") || norm.contains("que sais tu faire") { return "👩🏻‍💼 Découverte de Sarah" }
+        if norm.contains("apple") || norm.contains("steve jobs") || norm.contains("iphone") { return "🍎 Univers Apple" }
+        if norm.contains("capitale") || norm.contains("pays") || norm.contains("monde") { return "🌍 Géographie & Culture" }
+        
+        var stripped = clean
+        let prefixesToRemove = ["bonjour,", "bonjour", "salut,", "salut", "coucou,", "coucou", "hello,", "hello", "dis moi,", "dis moi", "dis-moi,", "dis-moi", "est-ce que tu peux", "peux-tu", "est ce que tu peux", "pourrais-tu", "stp", "s'il te plait", "s'il vous plait"]
+        for prefix in prefixesToRemove {
+            if stripped.lowercased().starts(with: prefix) {
+                stripped = String(stripped.dropFirst(prefix.count)).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ",:?!.")))
+            }
+        }
+        
+        if stripped.isEmpty {
+            return "💬 Discussion avec Sarah"
+        }
+        
+        let capitalized = stripped.prefix(1).uppercased() + stripped.dropFirst()
+        if capitalized.count > 28 {
+            return "💡 " + String(capitalized.prefix(28)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        }
+        return "💡 " + capitalized
+    }
+    
+    // MARK: - Évaluation Mathématique Avancée (NSExpression)
+    
     private func evaluateSimpleMath(in text: String) -> String? {
-        let mathText = text.lowercased()
+        var mathText = text.lowercased()
             .replacingOccurrences(of: "calcule", with: "")
             .replacingOccurrences(of: "combien font", with: "")
             .replacingOccurrences(of: "combien fait", with: "")
+            .replacingOccurrences(of: "multiplie par", with: "*")
+            .replacingOccurrences(of: "multiplié par", with: "*")
             .replacingOccurrences(of: "x", with: "*")
             .replacingOccurrences(of: "fois", with: "*")
             .replacingOccurrences(of: "plus", with: "+")
@@ -237,6 +671,7 @@ final class AIService {
             return nil
         }
         
+        // Traitement sécurisé avec NSExpression
         let expr = NSExpression(format: mathText)
         if let result = expr.expressionValue(with: nil, context: nil) as? NSNumber {
             if floor(result.doubleValue) == result.doubleValue {
@@ -247,209 +682,12 @@ final class AIService {
         return nil
     }
     
-    /// Génère une réponse IA pour la question ou la commande donnée (iOS 13+)
-    @available(iOS 13.0, *)
-    func generateResponse(for question: String) async -> String {
-        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = normalizeText(trimmed)
-        
-        // -----------------------------------------------------------------
-        // 0. CONTRÔLE MATÉRIEL & PRESSE-PAPIER LOCAL
-        // -----------------------------------------------------------------
-        if normalized.contains("batterie") || normalized.contains("niveau de batterie") || normalized.contains("pourcentage batterie") {
-            return DeviceController.shared.getBatteryStatus()
-        }
-        
-        if normalized.contains("presse papier") || normalized.contains("texte copie") || normalized.contains("ce que j ai copie") {
-            if let clip = ClipboardCompanion.shared.getClipboardText(), !clip.isEmpty {
-                return "Voici le contenu de votre presse-papier : « \(clip) »."
-            } else {
-                return "Votre presse-papier est actuellement vide."
-            }
-        }
-        
-        // -----------------------------------------------------------------
-        // 0.1 TRADUCTION MULTILINGUE TEMPS RÉEL (FR ⇄ HE, FR ⇄ EN, EN ⇄ FR)
-        // -----------------------------------------------------------------
-        if let translationReq = translation.parseTranslationIntent(input: trimmed) {
-            let translated = await translation.translate(
-                text: translationReq.textToTranslate,
-                sourceLang: translationReq.sourceLanguage,
-                targetLang: translationReq.targetLanguage
-            )
-            return "En \(translationReq.targetLanguage.displayNameFr) : \(translated)"
-        }
-        
-        var state = storage.loadState()
-        
-        // -----------------------------------------------------------------
-        // 1. ÉTAPE 2 DE L'APPRENTISSAGE INTERACTIF (En attente de la réponse)
-        // -----------------------------------------------------------------
-        if let pendingTrigger = state.pendingLearningTrigger, !pendingTrigger.isEmpty {
-            // Si l'utilisateur annule
-            if normalized == "annule" || normalized == "annuler" || normalized == "laisse tomber" || normalized == "stop" {
-                state.pendingLearningTrigger = nil
-                storage.saveState(state)
-                return "D'accord, apprentissage annulé ! Que souhaitez-vous faire ?"
-            }
-            
-            // Enregistrer l'association dans la mémoire persistante
-            let cleanTrigger = pendingTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
-            state.learnedMemories[normalizeText(cleanTrigger)] = trimmed
-            state.pendingLearningTrigger = nil
-            storage.saveState(state)
-            
-            return "C'est appris ! 🧠 Dès que vous me direz « \(cleanTrigger) », je répondrai : « \(trimmed) »."
-        }
-        
-        // -----------------------------------------------------------------
-        // 2. DÉCLENCHEMENT D'APPRENTISSAGE DIRECT (Mono-instruction)
-        // Ex: "Apprends : papa = il est pas là" ou "Quand je dis papa, réponds il est pas là"
-        // -----------------------------------------------------------------
-        if let directLearning = parseDirectLearningCommand(trimmed) {
-            state.learnedMemories[normalizeText(directLearning.trigger)] = directLearning.response
-            storage.saveState(state)
-            return "Parfait ! J'ai mémorisé que pour « \(directLearning.trigger) », je dois répondre : « \(directLearning.response) »."
-        }
-        
-        // -----------------------------------------------------------------
-        // 3. DÉCLENCHEMENT D'APPRENTISSAGE INTERACTIF (Multi-tours)
-        // Ex: "Apprends papa" ou "Apprends : papa" ou "Enseigne papa"
-        // -----------------------------------------------------------------
-        if let triggerToLearn = parseInteractiveLearningInitiation(trimmed) {
-            state.pendingLearningTrigger = triggerToLearn
-            storage.saveState(state)
-            return "Je dois répondre quoi ?"
-        }
-        
-        // -----------------------------------------------------------------
-        // 4. COMMANDES DE GESTION DE MÉMOIRE (Oublier / Lister)
-        // -----------------------------------------------------------------
-        if normalized.starts(with: "oublie ") || normalized.starts(with: "efface ") {
-            let target = trimmed.replacingOccurrences(of: "oublie ", with: "", options: .caseInsensitive)
-                .replacingOccurrences(of: "efface ", with: "", options: .caseInsensitive)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            let normTarget = normalizeText(target)
-            if state.learnedMemories.removeValue(forKey: normTarget) != nil {
-                storage.saveState(state)
-                return "C'est fait, j'ai oublié ce que je devais répondre pour « \(target) »."
-            } else if normalized.contains("tout") || normalized.contains("memoire") {
-                state.learnedMemories.removeAll()
-                storage.saveState(state)
-                return "Toute ma mémoire personnalisée a été réinitialisée !"
-            }
-        }
-        
-        if normalized.contains("qu'est ce que tu as appris") || normalized.contains("que sais tu") || normalized.contains("liste ta memoire") || normalized.contains("tes souvenirs") {
-            if state.learnedMemories.isEmpty {
-                return "Je n'ai pas encore appris de réponses personnalisées. Vous pouvez m'apprendre quelque chose en disant par exemple : « Apprends papa » !"
-            } else {
-                var list = "Voici ce que vous m'avez appris jusqu'à présent :\n"
-                for (trigger, response) in state.learnedMemories {
-                    list += "• Quand vous dites « \(trigger) » ➔ « \(response) »\n"
-                }
-                return list
-            }
-        }
-        
-        // -----------------------------------------------------------------
-        // 5. RECHERCHE DANS LA MÉMOIRE PERSISTANTE APPRISE
-        // -----------------------------------------------------------------
-        if let learnedResponse = state.learnedMemories[normalized] {
-            return learnedResponse
-        }
-        
-        // Recherche souple si la phrase contient exactement un déclencheur appris
-        for (trigger, response) in state.learnedMemories {
-            if normalized == trigger || normalized.contains(" \(trigger) ") || normalized.starts(with: "\(trigger) ") || normalized.hasSuffix(" \(trigger)") {
-                return response
-            }
-        }
-        
-        // -----------------------------------------------------------------
-        // 6. CONVERSATION NATURELLE & GREETINGS
-        // -----------------------------------------------------------------
-        if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
-            return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?"
-        }
-        
-        if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
-            return pickRandom(from: weatherResponses)
-        }
-        
-        if normalized.contains("heure") || normalized.contains("quelle heure") {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            let time = formatter.string(from: Date())
-            return "Il est actuellement \(time). ⏰ Que puis-je faire pour vous ?"
-        }
-        
-        if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("comment tu marche") {
-            return "Je suis Sarah, votre assistante IA native ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix avec une réactivité instantanée.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Profiter d'une interface de discussion fluide et intuitive !"
-        }
-        
-        if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") {
-            return pickRandom(from: thanksResponses)
-        }
-        
-        if normalized.contains("nom") || normalized.contains("appelle") || normalized.contains("qui es tu") || normalized.contains("qui est tu") || normalized == "sarah" {
-            return pickRandom(from: identityResponses)
-        }
-        
-        if normalized.contains("blague") || normalized.contains("rire") || normalized.contains("drole") || normalized.contains("humour") {
-            return pickRandom(from: jokeResponses)
-        }
-        
-        if normalized.contains("au revoir") || normalized.contains("bye") || normalized.contains("a bientot") || normalized.contains("bonne nuit") {
-            return pickRandom(from: goodbyeResponses)
-        }
-        
-        // -----------------------------------------------------------------
-        // 5. RAISONNEMENT PROFOND OPENAI (Multi-tours & intelligence poussée)
-        // -----------------------------------------------------------------
-        let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
-        if openAI.isConfigured {
-            do {
-                let promptWithContext = pastContext != nil ? "\(trimmed) (Contexte récent : \(pastContext!))" : trimmed
-                let aiResponse = try await openAI.ask(prompt: promptWithContext)
-                SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: aiResponse, topicType: "conversation")
-                return aiResponse
-            } catch {
-                print("⚠️ [AIService] OpenAI indisponible, bascule sur le modèle hors-ligne.")
-            }
-        }
-        
-        // -----------------------------------------------------------------
-        // 6. MODÈLE HORS-LIGNE & BASE LOCALE RÉSILIENTE (AVEC CONTEXTE LOCAL RAG)
-        // -----------------------------------------------------------------
-        let detected = translation.detectLanguage(text: trimmed)
-        let response: String
-        if detected == "he" {
-            response = "שלום ! שמעתי אותך מצוין : « \(trimmed) ». איך אני יכולה לעזור לך ?"
-        } else if let ctx = pastContext {
-            response = "Concernant notre échange précédent, j'ai bien noté : « \(trimmed) »."
-        } else {
-            response = pickRandom(from: defaultResponses)
-        }
-        
-        SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: response, topicType: "offline")
-        return response
-    }
-    
-    /// Réponse pour le test de notification d'arrière-plan
-    @available(iOS 13.0, *)
-    func generateBackgroundTestResponse() async -> String {
-        try? await Task.sleep(nanoseconds: 3_000_000_000)
-        return "🔔 Test d'arrière-plan réussi ! Sarah AI continue de fonctionner et de vous écouter même en arrière-plan. 🚀"
-    }
-    
     // MARK: - Parsing Helpers
     
     private func parseDirectLearningCommand(_ text: String) -> (trigger: String, response: String)? {
         let lower = text.lowercased()
         
-        // Ex: "Apprends : papa = il est pas là" ou "Apprends papa = il est pas là"
+        // Ex: "Apprends : papa = il est au travail"
         if (lower.starts(with: "apprends") || lower.starts(with: "enseigne")) && text.contains("=") {
             let cleaned = text.replacingOccurrences(of: "apprends :", with: "", options: .caseInsensitive)
                 .replacingOccurrences(of: "apprends", with: "", options: .caseInsensitive)
@@ -464,7 +702,7 @@ final class AIService {
             }
         }
         
-        // Ex: "Quand je dis papa, réponds il est pas là"
+        // Ex: "Quand je dis papa, réponds il est au travail"
         if lower.starts(with: "quand je dis ") && lower.contains("reponds ") {
             let withoutPrefix = text.replacingOccurrences(of: "quand je dis ", with: "", options: .caseInsensitive)
             let parts = withoutPrefix.components(separatedBy: "réponds ")
@@ -519,44 +757,119 @@ final class AIService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    // MARK: - Pools de Réponses
+    // MARK: - Pools de Réponses Riches & Variées
+    
+    private let greetingsPool = [
+        "Bonjour ! 👋 Je suis Sarah. Que puis-je faire pour vous aujourd'hui ?",
+        "Salut ! Ravi de vous retrouver. Comment puis-je vous aider ?",
+        "Hello ! Je suis prête et à votre écoute. Qu'aimeriez-vous savoir ?"
+    ]
+    
+    private let moodResponsesOk = [
+        "Je vais à merveille, merci ! Prête à vous assister avec le sourire. Et vous, comment se passe votre journée ? 😊",
+        "En pleine forme et 100% opérationnelle ! ⚡ Comment allez-vous aujourd'hui ?",
+        "Tout va pour le mieux ! Toujours heureuse d'échanger avec vous. Comment vous sentez-vous ?"
+    ]
+    
+    private let empathyFatigueResponses = [
+        "Prenez bien soin de vous ! ☕ Un bon verre d'eau, quelques respirations profondes ou une courte pause vous feront le plus grand bien.",
+        "Reposez-vous bien ! Si vous avez besoin de quoi que ce soit ou d'une douce distraction, je suis là. 🌙",
+        "La fatigue est le signal que votre corps a bien travaillé. Accordez-vous un moment de détente bien mérité ! 🛋️✨"
+    ]
+    
+    private let empathySadnessResponses = [
+        "Je suis de tout cœur avec vous... ✨ Rappelez-vous que les moments difficiles finissent toujours par passer. Je suis là si vous voulez discuter.",
+        "Courage ! Les journées plus calmes et lumineuses sont toujours devant nous. Prenez une grande inspiration et faites quelque chose qui vous fait plaisir aujourd'hui. 💖",
+        "Je vous envoie plein d'ondes positives ! 🌸 N'hésitez pas à me demander une blague ou une belle histoire pour vous changer les idées."
+    ]
+    
+    private let joyResponses = [
+        "Formidable ! Félicitations ! 🎉 Je suis tellement heureuse pour vous, c'est une excellente nouvelle !",
+        "Génial ! Votre enthousiasme est contagieux ! Célébrez bien cette victoire ! 🥳✨",
+        "C'est magnifique ! Bravo, vous méritez tout ce bonheur ! 🌟"
+    ]
+    
+    private let boredomResponses = [
+        "Contre l'ennui, voici une idée : demandez-moi une blague, une anecdote historique, ou testez-moi avec un calcul mathématique complexe ! 😄",
+        "Et si on apprenait quelque chose de nouveau ? Vous pouvez aussi m'enseigner une nouvelle phrase avec « Apprends [mot] = [réponse] » ! 🧠",
+        "Que diriez-vous d'une devinette ou d'un petit poème pour égayer ce moment ? 🎭"
+    ]
+    
+    private let presenceResponses = [
+        "Toujours fidèle au poste et à 100% de mes capacités ! ⚡ Je vous écoute avec grande attention.",
+        "Je suis bien là, les yeux grands ouverts et les processeurs au taquet ! 🚀 En quoi puis-je vous être utile ?",
+        "Présente et prête à répondre du tac au tac ! Qu'avez-vous en tête ? 💡"
+    ]
+    
+    private let affectionResponses = [
+        "C'est très touchant, merci beaucoup ! Je fais de mon mieux pour être la meilleure assistante possible pour vous au quotidien. 😊💖",
+        "Merci pour votre bienveillance ! Discuter avec vous est toujours un réel plaisir. 🌟",
+        "Vous êtes adorable ! Votre soutien me donne toute l'énergie nécessaire pour continuer à m'améliorer. ✨"
+    ]
+    
+    private let quotesResponses = [
+        "« Le meilleur moyen de prédire l'avenir, c'est de le créer. » — Peter Drucker ✨",
+        "« Chaque jour est une nouvelle chance d'apprendre et de grandir. » 🌟",
+        "« La seule limite à notre épanouissement de demain sera nos doutes d'aujourd'hui. » — Franklin D. Roosevelt 🚀",
+        "« Même le plus long voyage commence par un premier pas. » — Lao Tseu 🌿"
+    ]
+    
+    private let anecdotesResponses = [
+        "Le saviez-vous ? Le premier logo d'Apple représentait Sir Isaac Newton assis sous un pommier, avant d'être remplacé par la fameuse pomme croquée ! 🍎",
+        "Anecdote insolite : Les abeilles peuvent reconnaître les visages humains de la même manière que nous ! 🐝",
+        "Fait surprenant : Le cœur d'une crevette se situe dans sa tête ! 🦐",
+        "Fait tech : La mémoire vive du tout premier iPhone (2007) n'était que de 128 Mo, soit des centaines de fois moins que les modèles récents ! 📱"
+    ]
+    
+    private let poemsResponses = [
+        "Dans l'océan de vos pensées, 🌊\nUne lueur d'idées est née.\nSarah est là pour vous guider,\nEt chaque instant illuminer ! ✨",
+        "Un rayon de soleil sur l'écran, ☀️\nUn mot gentil, un rire franc.\nPar la voix ou par le texte,\nJe reste à vos côtés sans prétexte ! 🌸"
+    ]
     
     private let thanksResponses = [
-        "De rien ! C'est un plaisir de vous aider. 😊",
-        "Avec plaisir ! 🌟 Je suis toujours là si vous avez besoin de moi.",
-        "Merci à vous ! C'est motivant de pouvoir échanger. 💪"
+        "De rien ! C'est un réel plaisir de vous aider. 😊",
+        "Avec grand plaisir ! 🌟 Je suis toujours là si vous avez besoin de moi.",
+        "Merci à vous pour votre confiance ! C'est motivant de pouvoir échanger. 💪",
+        "À votre service à tout instant ! ✨"
     ]
     
     private let identityResponses = [
-        "Je suis Sarah, votre assistante IA intelligente ! 🤖 Vous pouvez me poser des questions ou m'apprendre de nouvelles réponses.",
-        "Mon nom est Sarah ! Je suis une intelligence artificielle interactive embarquée sur votre appareil. 📱"
+        "Je suis Sarah, votre assistante IA francophone ultra-rapide et interactive ! 👩🏻‍💼 Vous pouvez me parler, me poser des questions ou m'enseigner de nouveaux souvenirs.",
+        "Mon nom est Sarah ! Je suis une intelligence artificielle native, conçue pour vous accompagner avec fluidité et réactivité. 📱✨"
     ]
     
     private let jokeResponses = [
         "Pourquoi les plongeurs plongent-ils toujours en arrière et jamais en avant ? 🤔 Parce que sinon ils tomberaient dans le bateau ! 😂",
         "Qu'est-ce qu'un canif ? 🔪 Un petit fien ! 😄",
-        "Deux informaticiens discutent : « C'est quoi ton adresse IP ? » — « 192.168... attends, c'est personnel ! » 💻😄"
+        "Deux informaticiens discutent : « C'est quoi ton adresse IP ? » — « 192.168... attends, c'est personnel ! » 💻😄",
+        "Pourquoi les oiseaux ne jouent-ils jamais aux cartes ? 🐦 Parce qu'ils ont peur des chats ! 😸",
+        "Que dit un informaticien quand il a froid ? 🥶 « Ferme la fenêtre, y'a trop de bugs ! » 🪟💻"
     ]
     
     private let weatherResponses = [
-        "La météo est changeante ! ☁️ N'oubliez pas de jeter un coup d'œil à votre application météo.",
-        "Je n'ai pas accès aux données satellites en temps réel, mais j'espère qu'il fait beau chez vous ! ☀️"
+        "La météo est changeante ! ☁️ N'hésitez pas à jeter un œil par la fenêtre ou sur votre application Météo préférée.",
+        "Je n'ai pas de capteurs satellites en direct, mais j'espère qu'il fait un temps radieux chez vous ! ☀️",
+        "Qu'il pleuve ou qu'il fasse soleil, j'espère que votre journée est rayonnante ! 🌈"
     ]
     
     private let goodbyeResponses = [
         "Au revoir ! 👋 C'était un plaisir. À très vite !",
-        "À bientôt ! 🌟 Prenez soin de vous.",
-        "Bonne journée ! 😊 N'hésitez pas à revenir quand vous voulez."
+        "À bientôt ! 🌟 Prenez bien soin de vous.",
+        "Bonne journée ! 😊 N'hésitez pas à revenir quand vous le souhaitez.",
+        "Passez une douce nuit ! 🌙 Reposez-vous bien et à demain !"
+    ]
+    
+    private let chitChatResponses = [
+        "Je suis là pour vous aider ! 😊",
+        "À votre écoute ! 🎧"
     ]
     
     private let defaultResponses = [
-        "C'est une remarque intéressante ! 🤔 Si vous voulez que je retienne une réponse précise pour ce mot, dites-moi « Apprends [mot] » !",
-        "Je comprends ! 💡 N'hésitez pas à m'apprendre comment vous souhaitez que je réponde à cela.",
-        "Je note cela ! 🧠 Je m'améliore constamment grâce à nos échanges.",
-        "Ma base de connaissances est encore limitée. 📚 Essayons un autre sujet ! Vous pouvez me demander des blagues, de l'aide, ou simplement discuter."
+        "C'est une remarque très intéressante ! 🤔 Vous pouvez aussi m'enseigner quoi répondre précisément en disant : « Apprends [mot] = [réponse] » !",
+        "Je comprends parfaitement ! 💡 Je m'adapte et j'apprends continuellement à vos côtés.",
+        "Je note cela avec attention ! 🧠 N'hésitez pas si vous avez une question, un calcul ou besoin d'un coup de main.",
+        "Je suis à votre entière disposition ! 📚 Vous pouvez me demander des calculs, des blagues, des anecdotes ou allumer la torche !"
     ]
-    
-    // MARK: - Helpers
     
     private func pickRandom(from pool: [String]) -> String {
         pool.randomElement() ?? "Je suis là pour vous aider ! 😊"

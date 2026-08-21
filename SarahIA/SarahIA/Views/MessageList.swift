@@ -126,24 +126,31 @@ public struct MessageList: View {
             // Liste des suggestions
             VStack(spacing: 8) {
                 suggestionCard(
-                    title: "Créer une image",
-                    subtitle: "Générer une illustration ou un visuel",
-                    icon: "photo.on.rectangle.angled",
-                    prefill: "Créer une image de "
+                    title: "🔦 Allumer la torche",
+                    subtitle: "Contrôler la lampe de l'appareil instantanément",
+                    icon: "flashlight.on.fill",
+                    prefill: "Allume la torche"
                 )
                 
                 suggestionCard(
-                    title: "Écrire ou modifier",
-                    subtitle: "Rédiger un email, message ou document",
-                    icon: "square.and.pencil",
-                    prefill: "Écrire un texte sur "
+                    title: "🔋 Niveau de batterie",
+                    subtitle: "Vérifier le pourcentage et la charge",
+                    icon: "battery.100.bolt",
+                    prefill: "Quel est le niveau de batterie ?"
                 )
                 
                 suggestionCard(
-                    title: "Rechercher sur le Web",
-                    subtitle: "Obtenir des informations en direct",
-                    icon: "globe.europe.africa.fill",
-                    prefill: "Rechercher sur le Web : "
+                    title: "⏰ Demander l'heure & la date",
+                    subtitle: "Heure exacte et date du jour",
+                    icon: "clock.fill",
+                    prefill: "Quelle heure est-il ?"
+                )
+                
+                suggestionCard(
+                    title: "😂 Raconter une blague",
+                    subtitle: "Un moment de détente et d'humour",
+                    icon: "face.smiling.fill",
+                    prefill: "Raconte-moi une blague"
                 )
                 
                 suggestionCard(
