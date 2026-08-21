@@ -93,6 +93,45 @@ final class AIService {
         return generateKnowledgeResponse(normalized: normalized, trimmed: trimmed)
     }
     
+    private func generateKnowledgeResponse(normalized: String, trimmed: String) -> String {
+        if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
+            return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?"
+        }
+        
+        if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
+            return pickRandom(from: weatherResponses)
+        }
+        
+        if normalized.contains("heure") || normalized.contains("quelle heure") {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            let time = formatter.string(from: Date())
+            return "Il est actuellement \(time). ⏰ Que puis-je faire pour vous ?"
+        }
+        
+        if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("comment tu marche") {
+            return "Je suis Sarah, votre assistante IA native ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix avec une réactivité instantanée.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Profiter d'une interface de discussion fluide et intuitive !"
+        }
+        
+        if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") {
+            return pickRandom(from: thanksResponses)
+        }
+        
+        if normalized.contains("nom") || normalized.contains("appelle") || normalized.contains("qui es tu") || normalized.contains("qui est tu") || normalized == "sarah" {
+            return pickRandom(from: identityResponses)
+        }
+        
+        if normalized.contains("blague") || normalized.contains("rire") || normalized.contains("drole") || normalized.contains("humour") {
+            return pickRandom(from: jokeResponses)
+        }
+        
+        if normalized.contains("au revoir") || normalized.contains("bye") || normalized.contains("a bientot") || normalized.contains("bonne nuit") {
+            return pickRandom(from: goodbyeResponses)
+        }
+        
+        return "C'est bien noté ! Je suis toujours à votre écoute pour vous assister. Que souhaitez-vous savoir d'autre ?"
+    }
+    
     /// Génère une réponse IA pour la question ou la commande donnée (iOS 13+)
     @available(iOS 13.0, *)
     func generateResponse(for question: String) async -> String {

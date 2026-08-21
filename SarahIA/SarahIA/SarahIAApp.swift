@@ -17,14 +17,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         let window = UIWindow(frame: UIScreen.main.bounds)
         self.window = window
         
-        if #available(iOS 14.0, *) {
+        if #available(iOS 15.0, *) {
             // Mode Moderne SwiftUI Pixel-Perfect
             let contentView = ContentView()
             let hostingController = UIHostingController(rootView: contentView)
             hostingController.view.backgroundColor = .black
             window.rootViewController = hostingController
         } else {
-            // Mode Secours UIKit 100% Natif pour iOS 12 et 13 (iPhone 5S, 6, 6 Plus)
+            // Mode Secours UIKit 100% Natif pour iOS 12, 13 et 14 (iPhone 5S, 6, 6 Plus)
             let legacyVC = LegacyChatViewController()
             window.rootViewController = legacyVC
         }
@@ -43,7 +43,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .badge])
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            completionHandler([.alert, .sound, .badge])
+        }
     }
     
     func userNotificationCenter(
