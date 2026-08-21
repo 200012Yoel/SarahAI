@@ -1,5 +1,5 @@
-name: 🍎 Sarah IA iOS Build (Universel iOS 12.0+)
-run-name: 🍎 Sarah IA iOS Universel (Build #${{ github.run_number }})
+name: iOS Build Universal
+run-name: iOS Build Universal (Build #${{ github.run_number }})
 
 on:
   push:
@@ -108,8 +108,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "🍎 Sarah IA - Version Universelle (iOS 12.0+ à iOS 18.0+)"
-          body: "Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus et tous les iPhones récents."
+          name: "Sarah IA - iOS Universal (iOS 12.0+ / iPhone 5S 6 7 8 X 11 12 13 14 15 16)"
+          body: "Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus, iPhone 7 et tous les iPhones récents."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
