@@ -88,31 +88,9 @@ class MainActivity : AppCompatActivity() {
                     return false
                 }
 
-                override fun shouldInterceptRequest(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): android.webkit.WebResourceResponse? {
-                    val url = request?.url?.toString() ?: return null
-                    if (url.endsWith("Sarah.vrm", ignoreCase = true) || url.endsWith("AA.vrm", ignoreCase = true)) {
-                        try {
-                            val isStream = assets.open("Sarah.vrm")
-                            val response = android.webkit.WebResourceResponse("model/gltf-binary", "UTF-8", isStream)
-                            val headers = HashMap<String, String>()
-                            headers["Access-Control-Allow-Origin"] = "*"
-                            headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-                            headers["Access-Control-Allow-Headers"] = "*"
-                            response.responseHeaders = headers
-                            return response
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Interception VRM asset: ${e.message}")
-                        }
-                    }
-                    return super.shouldInterceptRequest(view, request)
-                }
-
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Log.d(TAG, "✅ Page 3D VRM chargée.")
+                    Log.d(TAG, "✅ Interface chargée.")
                     updateWebStatus("Sarah vous écoute en continu")
                 }
             }

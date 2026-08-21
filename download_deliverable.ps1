@@ -1,20 +1,18 @@
 param (
     [Parameter(Mandatory=$true)]
-    [string]$Type # "apk", "ipa", or "ipa-legacy"
+    [string]$Type # "apk" or "ipa"
 )
 
 $repo = "200012Yoel/SarahAI"
 
 $fileName = switch ($Type) {
     "apk" { "SarahIA.apk" }
-    "ipa-legacy" { "SarahIA-iPhone5S-iOS12.ipa" }
     Default { "SarahIA.ipa" }
 }
 
 $targetPath = Join-Path (Get-Location) $fileName
 $directDownloadUrl = "https://github.com/$repo/releases/latest/download/$fileName"
 $fallbackDownloadUrl = "https://github.com/$repo/releases/download/latest/$fileName"
-$genericLegacyUrl = "https://github.com/$repo/releases/latest/download/SarahIA-Legacy-iOS12.ipa"
 
 Write-Host ""
 Write-Host "==================================================================" -ForegroundColor Cyan
