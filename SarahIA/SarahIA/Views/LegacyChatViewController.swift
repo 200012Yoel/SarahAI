@@ -926,7 +926,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             recognitionRequest.append(buffer)
         }
         
@@ -995,7 +995,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
         
         // Nettoyage et formatage naturel avec virgules pour une diction expressive
-        var cleaned = text
+        let cleaned = text
             .replacingOccurrences(of: "*", with: "")
             .replacingOccurrences(of: "#", with: "")
             .replacingOccurrences(of: "_", with: "")

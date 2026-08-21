@@ -4,7 +4,7 @@ import SwiftUI
 
 @available(iOS 13.0, *)
 extension Color {
-    public static let sarahCyan = Color(red: 0.0, green: 0.78, blue: 1.0)
+    public static let sarahWidgetCyan = Color(red: 0.0, green: 0.78, blue: 1.0)
 }
 
 // MARK: - Modèle de Données des Widgets
@@ -47,10 +47,10 @@ public struct SarahUsageStatsWidgetView: View {
                     // Badge Pourcentage d'usage
                     Text("\(entry.stats.usagePercentage)%")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.sarahCyan)
+                        .foregroundColor(.sarahWidgetCyan)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.sarahCyan.opacity(0.2)))
+                        .background(Capsule().fill(Color.sarahWidgetCyan.opacity(0.2)))
                 }
                 
                 Spacer()
@@ -92,7 +92,7 @@ public struct SarahUsageStatsWidgetView: View {
                     Spacer()
                     Text("7j")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.sarahCyan)
+                        .foregroundColor(.sarahWidgetCyan)
                 }
                 
                 Spacer()
@@ -108,7 +108,7 @@ public struct SarahUsageStatsWidgetView: View {
                                 .fill(
                                     isToday ?
                                     LinearGradient(
-                                        colors: [Color.sarahCyan, Color.purple],
+                                        colors: [Color.sarahWidgetCyan, Color.purple],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     ) :
@@ -122,7 +122,7 @@ public struct SarahUsageStatsWidgetView: View {
                             
                             Text(dayLetter(for: index))
                                 .font(.system(size: 8, weight: isToday ? .bold : .regular))
-                                .foregroundColor(isToday ? .sarahCyan : .gray)
+                                .foregroundColor(isToday ? .sarahWidgetCyan : .gray)
                         }
                     }
                 }
@@ -164,7 +164,7 @@ public struct SarahCompactStatsWidgetView: View {
                 Spacer()
                 Text("\(entry.stats.usagePercentage)%")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(.sarahWidgetCyan)
             }
             
             Spacer()
@@ -232,7 +232,7 @@ public struct SarahMemoryWidgetView: View {
                     
                     Text("« \(trigger) » ➔ « \(resp) »")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.sarahCyan)
+                        .foregroundColor(.sarahWidgetCyan)
                         .lineLimit(2)
                 }
             } else {
@@ -266,7 +266,7 @@ public struct SarahStatusWidgetView: View {
                     .font(.system(size: 22))
                 Spacer()
                 Circle()
-                    .fill(Color.sarahCyan)
+                    .fill(Color.sarahWidgetCyan)
                     .frame(width: 8, height: 8)
             }
             
@@ -301,13 +301,13 @@ public struct SarahQuickVoiceWidgetView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color.sarahCyan.opacity(0.8), Color.purple.opacity(0.8)],
+                            colors: [Color.sarahWidgetCyan.opacity(0.8), Color.purple.opacity(0.8)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .frame(width: 54, height: 54)
-                    .shadow(color: Color.sarahCyan.opacity(0.4), radius: 10)
+                    .shadow(color: Color.sarahWidgetCyan.opacity(0.4), radius: 10)
                 
                 Image(systemName: "mic.fill")
                     .font(.system(size: 24, weight: .bold))
@@ -365,7 +365,7 @@ public struct SarahLastMessageWidgetView: View {
             HStack {
                 Text("👩🏻‍💼 Sarah IA")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(.sarahWidgetCyan)
                 
                 Spacer()
                 
@@ -398,11 +398,11 @@ public struct SarahQuickActionsWidgetView: View {
                 Spacer()
                 Text("\(entry.stats.usagePercentage)% actif")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(.sarahWidgetCyan)
             }
             
             HStack(spacing: 10) {
-                actionTile(icon: "mic.fill", label: "Vocal", color: .sarahCyan)
+                actionTile(icon: "mic.fill", label: "Vocal", color: .sarahWidgetCyan)
                 actionTile(icon: "flashlight.on.fill", label: "Torche", color: .yellow)
                 actionTile(icon: "battery.100.bolt", label: "Batterie", color: .green)
                 actionTile(icon: "brain.head.profile", label: "Mémoire", color: .purple)
@@ -463,7 +463,7 @@ public struct SarahSystemHealthWidgetView: View {
                     .foregroundColor(.gray)
                 Text("100% Locale")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(.sarahWidgetCyan)
             }
             
             VStack(alignment: .leading, spacing: 2) {

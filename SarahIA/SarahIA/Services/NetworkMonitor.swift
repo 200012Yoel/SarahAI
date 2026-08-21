@@ -16,11 +16,7 @@ public final class NetworkMonitor: NSObject {
     
     public static let shared = NetworkMonitor()
     
-    #if canImport(Combine)
-    @Published public private(set) var isConnected: Bool = true
-    #else
     public private(set) var isConnected: Bool = true
-    #endif
     
     private let queue = DispatchQueue(label: "com.sarahai.network.monitor", qos: .utility)
     

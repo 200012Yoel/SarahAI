@@ -651,7 +651,7 @@ public final class AIService {
     // MARK: - Évaluation Mathématique Avancée (NSExpression)
     
     private func evaluateSimpleMath(in text: String) -> String? {
-        var mathText = text.lowercased()
+        let mathText = text.lowercased()
             .replacingOccurrences(of: "calcule", with: "")
             .replacingOccurrences(of: "combien font", with: "")
             .replacingOccurrences(of: "combien fait", with: "")
@@ -873,5 +873,18 @@ public final class AIService {
     
     private func pickRandom(from pool: [String]) -> String {
         pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
+    }
+    
+    // MARK: - Test en Arrière-Plan
+    
+    public func generateBackgroundTestResponse() async -> String {
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        return "Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée."
+    }
+    
+    public func generateBackgroundTestResponse(completion: @escaping (String) -> Void) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
+            completion("Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée.")
+        }
     }
 }
