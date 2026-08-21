@@ -271,12 +271,10 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
-				A1B2C3D40003000100000004 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				W1B2C3D40004000100000002 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
 			productName = SarahIA;
@@ -360,7 +358,6 @@
 				A1B2C3D40001000100000005 /* NotificationService.swift in Sources */,
 				A1B2C3D40001000100000006 /* ChatViewModel.swift in Sources */,
 				A1B2C3D40001000100000007 /* ChatBubbleView.swift in Sources */,
-				A1B2C3D40001000100000008 /* MessageInputView.swift in Sources */,
 				A1B2C3D40001000100000009 /* TypingIndicatorView.swift in Sources */,
 				A1B2C3D40001000100000010 /* StorageService.swift in Sources */,
 				A1B2C3D40001000100000011 /* AudioEngineManager.swift in Sources */,
