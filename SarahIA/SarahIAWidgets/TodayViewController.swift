@@ -90,10 +90,6 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
         completionHandler(.newData)
     }
     
-    public func widgetMarginInsets(forProposedMarginInsets defaultMarginInsets: UIEdgeInsets) -> UIEdgeInsets {
-        return UIEdgeInsets.zero
-    }
-    
     // MARK: - Configuration UI
     
     private func setupUI() {

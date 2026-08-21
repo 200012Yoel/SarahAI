@@ -2,6 +2,11 @@ import Foundation
 #if canImport(SwiftUI)
 import SwiftUI
 
+@available(iOS 13.0, *)
+extension Color {
+    public static let sarahCyan = Color(red: 0.0, green: 0.78, blue: 1.0)
+}
+
 // MARK: - Modèle de Données des Widgets
 
 @available(iOS 14.0, *)
