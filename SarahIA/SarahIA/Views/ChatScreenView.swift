@@ -49,6 +49,7 @@ public struct ChatScreenView: View {
                     }
                 )
                 .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
+                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
             }
             .background(Color.black)
         }

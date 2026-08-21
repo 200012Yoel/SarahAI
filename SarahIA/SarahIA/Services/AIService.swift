@@ -152,7 +152,7 @@ final class AIService {
         }
         
         if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("comment tu marche") {
-            return "Je suis Sarah, votre assistante IA interactive ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Voir mes expressions et gestes en direct sur mon Avatar 3D !"
+            return "Je suis Sarah, votre assistante IA native ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix avec une réactivité instantanée.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Profiter d'une interface de discussion fluide et intuitive !"
         }
         
         if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") {
@@ -294,7 +294,7 @@ final class AIService {
     ]
     
     private let identityResponses = [
-        "Je suis Sarah AI, votre assistante 3D intelligente ! 🤖 Vous pouvez me poser des questions ou m'apprendre de nouvelles réponses.",
+        "Je suis Sarah, votre assistante IA intelligente ! 🤖 Vous pouvez me poser des questions ou m'apprendre de nouvelles réponses.",
         "Mon nom est Sarah ! Je suis une intelligence artificielle interactive embarquée sur votre appareil. 📱"
     ]
     

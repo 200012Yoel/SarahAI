@@ -238,7 +238,7 @@ public struct SarahMemoryWidgetView: View {
     }
 }
 
-// MARK: - 4. Widget Statut & Avatar (Small)
+// MARK: - 4. Widget Statut & Discussion (Small)
 
 public struct SarahStatusWidgetView: View {
     public let entry: SarahWidgetEntry
@@ -390,7 +390,7 @@ public struct SarahQuickActionsWidgetView: View {
                 actionTile(icon: "mic.fill", label: "Vocal", color: .cyan)
                 actionTile(icon: "plus.bubble.fill", label: "Nouveau", color: .purple)
                 actionTile(icon: "brain.head.profile", label: "Mémoire", color: .indigo)
-                actionTile(icon: "person.crop.circle.fill", label: "Avatar", color: .pink)
+                actionTile(icon: "sparkles", label: "Astuce", color: .pink)
             }
         }
         .padding(14)
@@ -559,7 +559,7 @@ public struct SarahUsageStatsWidget: Widget {
     }
 }
 
-// 2. Widget Statut Avatar
+// 2. Widget Statut & Accès Direct
 @available(iOS 14.0, *)
 public struct SarahStatusWidget: Widget {
     public let kind: String = "SarahStatusWidget"
@@ -568,7 +568,7 @@ public struct SarahStatusWidget: Widget {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
             SarahStatusWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("2. Avatar & Statut")
+        .configurationDisplayName("2. Statut & Accès Direct")
         .description("Consultez l'état et lancez une conversation avec Sarah.")
         .supportedFamilies([.systemSmall])
     }
@@ -629,7 +629,7 @@ public struct SarahQuickActionsWidget: Widget {
             SarahQuickActionsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
         .configurationDisplayName("6. Actions Rapides")
-        .description("Accédez directement au vocal, nouveau chat, mémoire et avatar.")
+        .description("Accédez directement au vocal, nouveau chat et mémoire.")
         .supportedFamilies([.systemMedium])
     }
 }

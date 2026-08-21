@@ -5,7 +5,6 @@ import AVFoundation
 
 /// Mode d'affichage actif de l'application Sarah AI
 public enum AppMode: String, Codable {
-    case avatar
     case text
 }
 
@@ -277,11 +276,6 @@ public final class ChatViewModel: ObservableObject {
                 self.haptics.modeToggled()
             }
             .store(in: &cancellables)
-    }
-    
-    public func switchToAvatar() {
-        // Mode chat natif permanent
-        switchToChat()
     }
     
     public func switchToChat() {

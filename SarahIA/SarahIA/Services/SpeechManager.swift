@@ -6,7 +6,7 @@ import Combine
 /// Gestionnaire de synthèse vocale haute fidélité pour Sarah IA :
 /// - Voix féminine française naturelle (recherche prioritaire sur Amélie / Audrey / Hortense)
 /// - Contournement du mode silencieux via AudioSessionManager
-/// - Synchronisation labiale en temps réel (visèmes et morphs pour Avatar 3D)
+/// - Synthèse vocale fluide et naturelle pour le chat
 @available(iOS 13.0, *)
 public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     

@@ -11,7 +11,7 @@ public struct TypingIndicatorView: View {
     
     public var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            // Miniature Avatar
+            // Badge Assistant Sarah
             ZStack {
                 Circle()
                     .fill(

@@ -66,7 +66,7 @@ public struct ChatBubbleView: View {
     
     private var aiBubble: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            // Miniature Avatar
+            // Badge Assistant Sarah
             ZStack {
                 Circle()
                     .fill(

@@ -2,7 +2,7 @@ import Foundation
 
 /// Modèle d'état persisté complet de l'application Sarah AI.
 public struct AppPersistedState: Codable {
-    public var activeMode: String // "text" ou "avatar"
+    public var activeMode: String // "text"
     public var conversations: [Conversation]
     public var currentConversationId: UUID?
     public var messages: [Message] // Fallback historique
@@ -12,7 +12,7 @@ public struct AppPersistedState: Codable {
     public var pendingLearningTrigger: String? // Déclencheur en attente d'apprentissage
     
     public init(
-        activeMode: String = "avatar",
+        activeMode: String = "text",
         conversations: [Conversation] = [],
         currentConversationId: UUID? = nil,
         messages: [Message] = [],
@@ -38,20 +38,17 @@ public struct VoiceSettings: Codable {
     public var speechRate: Float // 0.5 (normal)
     public var speechPitch: Float // 1.0
     public var language: String // "fr-FR"
-    public var autoListenInAvatarMode: Bool
     
     public init(
         vadSensitivity: Float = 0.65,
         speechRate: Float = 0.52,
         speechPitch: Float = 1.05,
-        language: String = "fr-FR",
-        autoListenInAvatarMode: Bool = true
+        language: String = "fr-FR"
     ) {
         self.vadSensitivity = vadSensitivity
         self.speechRate = speechRate
         self.speechPitch = speechPitch
         self.language = language
-        self.autoListenInAvatarMode = autoListenInAvatarMode
     }
 }
 

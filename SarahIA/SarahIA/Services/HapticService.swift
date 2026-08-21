@@ -47,7 +47,7 @@ public final class HapticService {
         notificationGenerator.notificationOccurred(.warning)
     }
     
-    /// Retour tactile lors du changement de mode (Avatar / Texte)
+    /// Retour tactile lors d'une action interactive
     public func modeToggled() {
         selectionGenerator.selectionChanged()
     }

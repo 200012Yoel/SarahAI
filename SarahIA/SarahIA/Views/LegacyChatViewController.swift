@@ -1,7 +1,7 @@
 import UIKit
 import AVFoundation
 
-/// Contrôleur de discussion 100% natif UIKit assurant une compatibilité totale avec iOS 12.0+ (iPhone 5S, 6, 6 Plus).
+/// Contrôleur de discussion 100% natif UIKit assurant une compatibilité totale et sans crash avec iOS 12.0+ (iPhone 5S, 6, 6 Plus, 7, 8, etc.).
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
     // MARK: - Propriétés UI
@@ -12,9 +12,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let micButton = UIButton(type: .system)
     private let titleLabel = UILabel()
     private let statusLabel = UILabel()
-    private let emptyStateView = UIView()
     
     private var composerBottomConstraint: NSLayoutConstraint?
+    private var isKeyboardPresented: Bool = false
     
     // MARK: - Données & Services
     private var messages: [Message] = []
@@ -27,6 +27,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         setupKeyboardNotifications()
         setupGestures()
         loadInitialMessages()
+    }
+    
+    public override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if !isKeyboardPresented {
+            let bottomInset = view.safeAreaInsets.bottom
+            composerBottomConstraint?.constant = -(bottomInset > 0 ? (bottomInset + 8) : 16)
+        }
     }
     
     public override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -51,7 +59,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         topBar.addSubview(titleLabel)
         
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
-        statusLabel.text = "● Prête (Mode iOS 12)"
+        statusLabel.text = "● En ligne"
         statusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
         statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
         topBar.addSubview(statusLabel)
@@ -101,7 +109,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         sendButton.setTitle("⬆️", for: .normal)
         sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .bold)
-        sendButton.backgroundColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0)
+        sendButton.backgroundColor = UIColor(red: 0.2, green: 0.2, blue: 0.22, alpha: 1.0)
         sendButton.layer.cornerRadius = 16
         sendButton.tintColor = .white
         sendButton.addTarget(self, action: #selector(sendButtonTapped), for: .touchUpInside)
@@ -109,7 +117,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // Setup Constraints
         let topSafeArea = topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
-        let composerBottom = composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10)
+        let composerBottom = composerContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16)
         self.composerBottomConstraint = composerBottom
         
         NSLayoutConstraint.activate([
@@ -150,7 +158,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    // MARK: - Synchronisation Clavier iOS 12+
+    // MARK: - Synchronisation Clavier Pixel-Perfect
     
     private func setupKeyboardNotifications() {
         NotificationCenter.default.addObserver(
@@ -174,14 +182,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return
         }
         
-        let bottomPadding: CGFloat = -frame.height - 4
+        isKeyboardPresented = true
+        let bottomPadding: CGFloat = -frame.height - 8
         composerBottomConstraint?.constant = bottomPadding
         
-        UIView.animate(withDuration: duration) {
+        UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
             self.view.layoutIfNeeded()
-        } completion: { _ in
+        }, completion: { _ in
             self.scrollToBottom(animated: true)
-        }
+        })
     }
     
     @objc private func keyboardWillHide(_ notification: Notification) {
@@ -190,10 +199,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return
         }
         
-        composerBottomConstraint?.constant = -10
-        UIView.animate(withDuration: duration) {
+        isKeyboardPresented = false
+        let bottomInset = view.safeAreaInsets.bottom
+        composerBottomConstraint?.constant = -(bottomInset > 0 ? (bottomInset + 8) : 16)
+        
+        UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
             self.view.layoutIfNeeded()
-        }
+        }, completion: nil)
     }
     
     private func setupGestures() {
@@ -237,7 +249,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 Task {
                     let response = await AIService.shared.generateResponse(for: text)
                     DispatchQueue.main.async {
-                        self.statusLabel.text = "● Prête"
+                        self.statusLabel.text = "● En ligne"
                         self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
                         
                         let aiMsg = Message(content: response, isFromUser: false)
@@ -248,7 +260,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             } else {
                 let response = "Bonjour ! J'ai bien reçu votre message : « \(text) »."
                 DispatchQueue.main.async {
-                    self.statusLabel.text = "● Prête"
+                    self.statusLabel.text = "● En ligne"
                     self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
                     
                     let aiMsg = Message(content: response, isFromUser: false)
@@ -276,7 +288,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 }
             } else {
                 micButton.setTitle("🎙️", for: .normal)
-                statusLabel.text = "● Prête"
+                statusLabel.text = "● En ligne"
                 statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
                 AppleSpeechRecognizer.shared.stopListening()
             }
@@ -304,7 +316,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     private func loadInitialMessages() {
         let welcome = Message(
-            content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA 100% native adaptée pour votre iPhone. Comment puis-je vous aider ?",
+            content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA 100% native. Comment puis-je vous aider aujourd'hui ?",
             isFromUser: false
         )
         messages = [welcome]
@@ -378,7 +390,7 @@ public final class LegacyUserCell: UITableViewCell {
 }
 
 public final class LegacyAICell: UITableViewCell {
-    private let avatarLabel = UILabel()
+    private let assistantBadge = UILabel()
     private let bubbleView = UIView()
     private let messageLabel = UILabel()
     private let listenButton = UIButton(type: .system)
@@ -389,10 +401,10 @@ public final class LegacyAICell: UITableViewCell {
         backgroundColor = .clear
         selectionStyle = .none
         
-        avatarLabel.translatesAutoresizingMaskIntoConstraints = false
-        avatarLabel.text = "👩🏻‍💼"
-        avatarLabel.font = UIFont.systemFont(ofSize: 22)
-        contentView.addSubview(avatarLabel)
+        assistantBadge.translatesAutoresizingMaskIntoConstraints = false
+        assistantBadge.text = "👩🏻‍💼"
+        assistantBadge.font = UIFont.systemFont(ofSize: 22)
+        contentView.addSubview(assistantBadge)
         
         bubbleView.translatesAutoresizingMaskIntoConstraints = false
         bubbleView.backgroundColor = UIColor(red: 0.16, green: 0.16, blue: 0.18, alpha: 1.0)
@@ -413,13 +425,13 @@ public final class LegacyAICell: UITableViewCell {
         contentView.addSubview(listenButton)
         
         NSLayoutConstraint.activate([
-            avatarLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
-            avatarLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
-            avatarLabel.widthAnchor.constraint(equalToConstant: 28),
-            avatarLabel.heightAnchor.constraint(equalToConstant: 28),
+            assistantBadge.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+            assistantBadge.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
+            assistantBadge.widthAnchor.constraint(equalToConstant: 28),
+            assistantBadge.heightAnchor.constraint(equalToConstant: 28),
             
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubbleView.leadingAnchor.constraint(equalTo: avatarLabel.trailingAnchor, constant: 6),
+            bubbleView.leadingAnchor.constraint(equalTo: assistantBadge.trailingAnchor, constant: 6),
             bubbleView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -60),
             
             messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
