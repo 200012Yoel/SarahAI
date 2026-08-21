@@ -13,6 +13,86 @@ final class AIService {
     
     private init() {}
     
+    /// Génère une réponse IA synchrone 100% native (iOS 12+)
+    func generateSyncResponse(for question: String) -> String {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = normalizeText(trimmed)
+        
+        if normalized.contains("batterie") || normalized.contains("niveau de batterie") || normalized.contains("pourcentage batterie") {
+            return DeviceController.shared.getBatteryStatus()
+        }
+        
+        if normalized.contains("presse papier") || normalized.contains("texte copie") || normalized.contains("ce que j ai copie") {
+            if let clip = ClipboardCompanion.shared.getClipboardText(), !clip.isEmpty {
+                return "Voici le contenu de votre presse-papier : « \(clip) »."
+            } else {
+                return "Votre presse-papier est actuellement vide."
+            }
+        }
+        
+        var state = storage.loadState()
+        
+        if let pendingTrigger = state.pendingLearningTrigger, !pendingTrigger.isEmpty {
+            if normalized == "annule" || normalized == "annuler" || normalized == "laisse tomber" || normalized == "stop" {
+                state.pendingLearningTrigger = nil
+                storage.saveState(state)
+                return "D'accord, apprentissage annulé ! Que souhaitez-vous faire ?"
+            }
+            
+            let cleanTrigger = pendingTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+            state.learnedMemories[normalizeText(cleanTrigger)] = trimmed
+            state.pendingLearningTrigger = nil
+            storage.saveState(state)
+            return "C'est appris ! 🧠 Dès que vous me direz « \(cleanTrigger) », je répondrai : « \(trimmed) »."
+        }
+        
+        if let directLearning = parseDirectLearningCommand(trimmed) {
+            state.learnedMemories[normalizeText(directLearning.trigger)] = directLearning.response
+            storage.saveState(state)
+            return "Parfait ! J'ai mémorisé que pour « \(directLearning.trigger) », je dois répondre : « \(directLearning.response) »."
+        }
+        
+        if let triggerToLearn = parseInteractiveLearningInitiation(trimmed) {
+            state.pendingLearningTrigger = triggerToLearn
+            storage.saveState(state)
+            return "Je dois répondre quoi ?"
+        }
+        
+        if normalized.starts(with: "oublie ") || normalized.starts(with: "efface ") {
+            let target = trimmed.replacingOccurrences(of: "oublie ", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "efface ", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let normTarget = normalizeText(target)
+            if state.learnedMemories.removeValue(forKey: normTarget) != nil {
+                storage.saveState(state)
+                return "J'ai bien oublié la réponse pour « \(target) » ! 🗑️"
+            } else {
+                return "Je n'avais aucun souvenir enregistré pour « \(target) »."
+            }
+        }
+        
+        if normalized.contains("que sais tu") || normalized.contains("tes souvenirs") || normalized.contains("liste memoire") {
+            if state.learnedMemories.isEmpty {
+                return "Je n'ai pas encore appris de réponses personnalisées. Dites par exemple : « Apprends papa » pour commencer !"
+            }
+            let list = state.learnedMemories.map { "• « \($0.key) » ➔ \($0.value)" }.joined(separator: "\n")
+            return "Voici ce que j'ai appris jusqu'à présent : 🧠\n\n\(list)"
+        }
+        
+        if let learned = state.learnedMemories[normalized] {
+            return learned
+        }
+        
+        for (learnedKey, response) in state.learnedMemories {
+            if normalized.contains(learnedKey) || learnedKey.contains(normalized) {
+                return response
+            }
+        }
+        
+        return generateKnowledgeResponse(normalized: normalized, trimmed: trimmed)
+    }
+    
     /// Génère une réponse IA pour la question ou la commande donnée (iOS 13+)
     @available(iOS 13.0, *)
     func generateResponse(for question: String) async -> String {
