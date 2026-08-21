@@ -71,7 +71,7 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
     
     // MARK: - Protocole NCWidgetProviding (iOS 10 - iOS 14+)
     
-    public func widgetActiveDisplayModeDidChange(_ activeDisplayMode: NCWidgetDisplayMode, withMaximumSize maxSize: CGSize) {
+    @objc public func widgetActiveDisplayModeDidChange(_ activeDisplayMode: NCWidgetDisplayMode, withMaximumSize maxSize: CGSize) {
         if activeDisplayMode == .expanded {
             preferredContentSize = CGSize(width: maxSize.width, height: 220)
             expandedContainer.isHidden = false
@@ -85,7 +85,7 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
         }
     }
     
-    public func widgetPerformUpdate(completionHandler: @escaping (NCUpdateResult) -> Void) {
+    @objc public func widgetPerformUpdate(completionHandler: @escaping (NCUpdateResult) -> Void) {
         reloadWidgetData()
         completionHandler(.newData)
     }

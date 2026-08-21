@@ -27,7 +27,7 @@
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.widget-extension</string>
         <key>NSExtensionPrincipalClass</key>
-        <string>SarahIAWidgets.TodayViewController</string>
+        <string>TodayViewController</string>
     </dict>
 </dict>
 </plist>
