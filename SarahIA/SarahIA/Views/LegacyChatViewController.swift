@@ -517,10 +517,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         var newConv = Conversation(title: "Nouvelle discussion \(conversations.count + 1)")
         currentConversationId = newConv.id
         conversations.insert(newConv, at: 0)
-        messages = [
-            Message(content: "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?", isFromUser: false)
-        ]
-        newConv.messages = messages
+        messages = []
+        newConv.messages = []
         
         saveState()
         tableView.reloadData()
@@ -530,22 +528,22 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    // MARK: - Réglages (Intègre le Coffre Mémoire 🧠)
+    // MARK: - Réglages (Discret, Intègre la Synthèse Vocale & la Mémorisation)
     
     @objc private func openSettings() {
         dismissKeyboard()
         let alert = UIAlertController(
-            title: "⚙️ Réglages Sarah IA",
-            message: "• Voix : Féminine / Siri (Locale)\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : Natif iOS 12+ (60 FPS)",
+            title: "⚙️ Synthèse Vocale & Réglages de Sarah",
+            message: "• Voix : Féminine / Siri par défaut\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : Natif iOS 12+ (60 FPS)",
             preferredStyle: .actionSheet
         )
         
-        alert.addAction(UIAlertAction(title: "🧠 Coffre Mémoire (Brain Vault)", style: .default, handler: { [weak self] _ in
-            self?.openMemoryVault()
-        }))
-        
         alert.addAction(UIAlertAction(title: "🔊 Tester la voix féminine", style: .default, handler: { [weak self] _ in
             self?.speak(text: "Bonjour ! Je suis Sarah. Ma voix féminine est configurée par défaut pour vous répondre.")
+        }))
+        
+        alert.addAction(UIAlertAction(title: "🧠 Mémorisation & Apprentissage (Coffre)", style: .default, handler: { [weak self] _ in
+            self?.openMemoryVault()
         }))
         
         alert.addAction(UIAlertAction(title: "📊 Statistiques d'usage", style: .default, handler: { [weak self] _ in
@@ -822,11 +820,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return
         }
         
-        if messages.isEmpty {
-            messages = [
-                Message(content: "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?", isFromUser: false)
-            ]
-        }
         tableView.reloadData()
     }
     
