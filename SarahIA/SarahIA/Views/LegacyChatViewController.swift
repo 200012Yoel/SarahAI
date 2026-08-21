@@ -469,7 +469,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func newChatTapped() {
-        let newConv = Conversation(title: "Nouvelle discussion \(conversations.count + 1)")
+        var newConv = Conversation(title: "Nouvelle discussion \(conversations.count + 1)")
         currentConversationId = newConv.id
         conversations.insert(newConv, at: 0)
         messages = [
