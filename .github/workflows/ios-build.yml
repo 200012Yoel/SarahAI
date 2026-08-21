@@ -59,10 +59,14 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             build > "$GITHUB_WORKSPACE/xcodebuild.log" 2>&1 || true
 
+          grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
+          if [ ! -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
+            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
+          fi
+
           if grep -q "BUILD FAILED" "$GITHUB_WORKSPACE/xcodebuild.log"; then
             echo "❌ BUILD FAILED DETECTED"
-            grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" | head -n 40 || true
-            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log"
+            cat "$GITHUB_WORKSPACE/xcode_errors.txt"
             exit 1
           fi
 
@@ -116,23 +120,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish Error Release If Failed
-        if: failure()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-error
-          name: "Build Error Log"
-          body_path: xcode_errors.txt
-          draft: false
-          prerelease: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Build Log Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: xcodebuild-log
-          path: xcodebuild.log
+          name: build-logs
+          path: |
+            xcodebuild.log
+            xcode_errors.txt
           retention-days: 3
           if-no-files-found: ignore
