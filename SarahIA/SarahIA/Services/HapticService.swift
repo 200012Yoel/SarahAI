@@ -29,12 +29,12 @@ public final class HapticService {
     
     /// Retour tactile lors de la fin de parole
     public func speechFinished() {
-        lightGenerator.impactOccurred(intensity: 0.6)
+        lightGenerator.impactOccurred()
     }
     
     /// Retour tactile franc lors d'une interruption (Barge-In)
     public func bargeIn() {
-        mediumGenerator.impactOccurred(intensity: 0.9)
+        mediumGenerator.impactOccurred()
     }
     
     /// Retour tactile lors de la mémorisation réussie d'un nouveau mot
@@ -54,6 +54,6 @@ public final class HapticService {
     
     /// Retour tactile sur tap bouton
     public func buttonTap() {
-        lightGenerator.impactOccurred(intensity: 0.5)
+        lightGenerator.impactOccurred()
     }
 }

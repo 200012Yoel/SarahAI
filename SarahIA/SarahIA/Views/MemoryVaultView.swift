@@ -13,7 +13,7 @@ public struct LearnedMemoryEntry: Identifiable {
 }
 
 /// Vue feuille de gestion visuelle de la mémoire permanente ("AI Brain Vault") de Sarah.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct MemoryVaultView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel
@@ -74,7 +74,7 @@ public struct MemoryVaultView: View {
                         presentationMode.wrappedValue.dismiss()
                     }) {
                         Text("Fermer")
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                     }
                 }
                 
@@ -85,7 +85,7 @@ public struct MemoryVaultView: View {
                     }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                     }
                 }
             }
@@ -169,7 +169,7 @@ public struct MemoryVaultView: View {
                     HStack {
                         Text("Quand vous dites :")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                         Spacer()
                         
                         Button(action: {
@@ -185,7 +185,7 @@ public struct MemoryVaultView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.cyan.opacity(0.25))
+                            .background(Color.sarahCyan.opacity(0.25))
                             .cornerRadius(6)
                         }
                         .buttonStyle(BorderlessButtonStyle())
@@ -229,7 +229,7 @@ public struct MemoryVaultView: View {
             Spacer()
             Image(systemName: "brain.head.profile")
                 .font(.system(size: 54))
-                .foregroundColor(.cyan.opacity(0.6))
+                .foregroundColor(.sarahCyan.opacity(0.6))
             
             Text("Aucune mémoire enregistrée")
                 .font(.system(size: 18, weight: .bold))
@@ -249,7 +249,7 @@ public struct MemoryVaultView: View {
                     .foregroundColor(.black)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(Color.cyan)
+                    .background(Color.sarahCyan)
                     .cornerRadius(10)
             }
             .padding(.top, 8)
@@ -268,7 +268,7 @@ public struct MemoryVaultView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("MOT OU PHRASE DÉCLENCHEUR")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                         
                         TextField("Ex: Papa", text: $newTrigger)
                             .padding(12)
@@ -280,7 +280,7 @@ public struct MemoryVaultView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("RÉPONSE DE SARAH")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                         
                         TextField("Ex: Il est pas là", text: $newResponse)
                             .padding(12)
@@ -305,7 +305,7 @@ public struct MemoryVaultView: View {
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background((newTrigger.isEmpty || newResponse.isEmpty) ? Color.gray : Color.cyan)
+                            .background((newTrigger.isEmpty || newResponse.isEmpty) ? Color.gray : Color.sarahCyan)
                             .cornerRadius(12)
                     }
                     .disabled(newTrigger.isEmpty || newResponse.isEmpty)
@@ -322,7 +322,7 @@ public struct MemoryVaultView: View {
                     Button("Annuler") {
                         isAddingNewMemory = false
                     }
-                    .foregroundColor(.cyan)
+                    .foregroundColor(.sarahCyan)
                 }
             }
         }

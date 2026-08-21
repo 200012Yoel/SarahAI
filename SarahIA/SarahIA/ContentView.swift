@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Vue Racine 100% Native SwiftUI avec interface de chat principale et tiroir latéral fluide (#app scale 0.92, corner radius 44pt).
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings: Bool = false
@@ -177,4 +177,11 @@ public struct ContentView: View {
         }
         .buttonStyle(PlainButtonStyle())
     }
+}
+
+// MARK: - Compatibility Colors
+@available(iOS 13.0, *)
+extension Color {
+    public static let sarahCyan = Color(red: 0.0, green: 0.78, blue: 1.0)
+    public static let sarahIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)
 }

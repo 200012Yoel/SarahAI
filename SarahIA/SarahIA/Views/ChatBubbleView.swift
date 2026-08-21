@@ -100,11 +100,11 @@ public struct ChatBubbleView: View {
                     .overlay(
                         RoundedRectangle(cornerRadius: 19, style: .continuous)
                             .stroke(
-                                isSpeaking ? Color.cyan.opacity(0.6) : Color.white.opacity(0.08),
+                                isSpeaking ? Color.sarahCyan.opacity(0.6) : Color.white.opacity(0.08),
                                 lineWidth: isSpeaking ? 1.5 : 0.5
                             )
                     )
-                    .shadow(color: isSpeaking ? Color.cyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
+                    .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
                 
                 // Barre d'action inférieure : Heure + Bouton Écouter la réponse
                 HStack(spacing: 8) {
@@ -120,19 +120,19 @@ public struct ChatBubbleView: View {
                         HStack(spacing: 4) {
                             Image(systemName: isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2.fill")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(isSpeaking ? .cyan : .white.opacity(0.8))
+                                .foregroundColor(isSpeaking ? .sarahCyan : .white.opacity(0.8))
                             
                             Text(isSpeaking ? "En lecture..." : "Écouter")
                                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .foregroundColor(isSpeaking ? .cyan : .white.opacity(0.8))
+                                .foregroundColor(isSpeaking ? .sarahCyan : .white.opacity(0.8))
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(
                             Capsule()
-                                .fill(isSpeaking ? Color.cyan.opacity(0.2) : Color.white.opacity(0.08))
+                                .fill(isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.white.opacity(0.08))
                                 .overlay(
-                                    Capsule().stroke(isSpeaking ? Color.cyan.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
+                                    Capsule().stroke(isSpeaking ? Color.sarahCyan.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 0.5)
                                 )
                         )
                     }

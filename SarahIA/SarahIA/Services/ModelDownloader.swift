@@ -56,6 +56,7 @@ public final class ModelDownloader: ObservableObject {
         return FileManager.default.fileExists(atPath: file.path)
     }
     
+    @available(iOS 15.0, *)
     public func downloadModel(type: ModelType) async -> Bool {
         let destination = modelsDirectory.appendingPathComponent(type.fileName)
         do {

@@ -451,9 +451,8 @@ public final class LegacyAICell: UITableViewCell {
         bubbleView.addSubview(messageLabel)
         
         listenButton.translatesAutoresizingMaskIntoConstraints = false
-        listenButton.setTitle("🔊 Écouter", for: .normal)
-        listenButton.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .medium)
-        listenButton.tintColor = .cyan
+        listenButton.setTitleColor(UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0), for: .normal)
+        listenButton.tintColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
         listenButton.addTarget(self, action: #selector(listenTapped), for: .touchUpInside)
         contentView.addSubview(listenButton)
         

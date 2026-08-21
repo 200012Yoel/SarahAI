@@ -75,9 +75,7 @@ public final class AudioEngineManager: NSObject, ObservableObject {
                 mode: .voiceChat,
                 options: [
                     .defaultToSpeaker,
-                    .allowBluetoothHFP,
-                    .allowBluetoothA2DP,
-                    .allowAirPlay
+                    .allowBluetooth
                 ]
             )
             try session.setPreferredIOBufferDuration(0.02) // 20ms basse latence

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Vue feuille des paramètres vocaux et personnalisation de Sarah AI
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel
@@ -21,7 +21,7 @@ public struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
-                    Section(header: Text("Voix Locale de Sarah").foregroundColor(.cyan)) {
+                    Section(header: Text("Voix Locale de Sarah").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Vitesse d'élocution")
@@ -30,7 +30,7 @@ public struct SettingsView: View {
                                     .foregroundColor(.gray)
                             }
                             Slider(value: $speechRate, in: 0.35...0.65, step: 0.01)
-                                .tint(.cyan)
+                                .tint(.sarahCyan)
                         }
                         
                         VStack(alignment: .leading, spacing: 6) {
@@ -41,7 +41,7 @@ public struct SettingsView: View {
                                     .foregroundColor(.gray)
                             }
                             Slider(value: $speechPitch, in: 0.8...1.3, step: 0.02)
-                                .tint(.cyan)
+                                .tint(.sarahCyan)
                         }
                         
                         Button(action: {
@@ -52,12 +52,12 @@ public struct SettingsView: View {
                                 Image(systemName: "play.circle.fill")
                                 Text("Tester la voix")
                             }
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.sarahCyan)
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Microphone & VAD Full-Duplex").foregroundColor(.cyan)) {
+                    Section(header: Text("Microphone & VAD Full-Duplex").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Sensibilité de détection vocale")
@@ -66,12 +66,12 @@ public struct SettingsView: View {
                                     .foregroundColor(.gray)
                             }
                             Slider(value: $vadSensitivity, in: 0.3...0.9, step: 0.05)
-                                .tint(.cyan)
+                                .tint(.sarahCyan)
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Widgets Sarah IA (iOS 15 & 16+)").foregroundColor(.cyan)) {
+                    Section(header: Text("Widgets Sarah IA (iOS 15 & 16+)").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Aperçu du Widget Statistiques & Graphique :")
                                 .font(.system(size: 13, weight: .semibold))
@@ -106,7 +106,7 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Historique & Réinitialisation").foregroundColor(.cyan)) {
+                    Section(header: Text("Historique & Réinitialisation").foregroundColor(.sarahCyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
@@ -135,7 +135,7 @@ public struct SettingsView: View {
                         )
                         presentationMode.wrappedValue.dismiss()
                     }
-                    .foregroundColor(.cyan)
+                    .foregroundColor(.sarahCyan)
                 }
             }
             .onAppear {

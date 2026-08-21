@@ -126,7 +126,7 @@ public struct ChatScreenView: View {
         if viewModel.isMicRunning {
             return .red
         } else if viewModel.isSpeaking {
-            return .cyan
+            return .sarahCyan
         } else if viewModel.isTyping {
             return .yellow
         } else {
