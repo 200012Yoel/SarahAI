@@ -2,6 +2,9 @@ import Foundation
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
+#if canImport(NotificationCenter)
+import NotificationCenter
+#endif
 
 /// Données statistiques partagées avec les Widgets iOS
 public struct WidgetStatsData: Codable {
@@ -41,18 +44,34 @@ public struct WidgetStatsData: Codable {
     }
 }
 
-/// Pont de Contrôle Dynamique des Widgets iOS (WidgetKit Bridge)
+/// Pont de Contrôle Dynamique des Widgets iOS (WidgetKit Bridge & Today Extension Sync)
 public final class SarahWidgetBridge {
     
     public static let shared = SarahWidgetBridge()
     
     private let appGroupSuite = "group.com.sarahia.app"
     private let statsKey = "sarah_widget_stats_v2"
+    private let fileName = "sarah_widget_stats.json"
     
     private init() {}
     
-    private var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroupSuite) ?? UserDefaults.standard
+    private var sharedDefaults: UserDefaults? {
+        UserDefaults(suiteName: appGroupSuite)
+    }
+    
+    private var fileLocations: [URL] {
+        var urls: [URL] = []
+        if let groupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupSuite) {
+            urls.append(groupURL.appendingPathComponent(fileName))
+        }
+        if let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            urls.append(docURL.appendingPathComponent(fileName))
+        }
+        if let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            urls.append(cacheURL.appendingPathComponent(fileName))
+        }
+        urls.append(URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName))
+        return urls
     }
     
     /// Synchronise les statistiques actuelles de l'application avec les Widgets iOS
@@ -64,7 +83,7 @@ public final class SarahWidgetBridge {
         lastMessage: String? = nil
     ) {
         var current = getStats()
-        current.totalConversations = conversationsCount
+        current.totalConversations = max(1, conversationsCount)
         current.totalMessages = messagesCount
         current.learnedMemoriesCount = memoriesCount
         
@@ -77,32 +96,80 @@ public final class SarahWidgetBridge {
         }
         
         // Calcul du pourcentage d'usage basé sur l'activité
-        let score = min(100, max(15, (conversationsCount * 8) + (messagesCount * 2) + (memoriesCount * 5)))
+        let score = min(100, max(15, (conversationsCount * 6) + (messagesCount * 3) + (memoriesCount * 5)))
         current.usagePercentage = score
+        
+        // Mettre à jour l'activité hebdomadaire
+        if current.weeklyActivity.isEmpty {
+            current.weeklyActivity = [2, 4, 7, 9, 12, 8, max(5, messagesCount)]
+        } else {
+            var activity = current.weeklyActivity
+            if activity.count >= 7 {
+                activity[activity.count - 1] = max(activity[activity.count - 1], messagesCount)
+            }
+            current.weeklyActivity = activity
+        }
+        
         current.lastUpdated = Date()
         
         saveStats(current)
         reloadWidgets()
     }
     
-    /// Enregistre les données statistiques
+    /// Enregistre les données statistiques sur tous les supports partagés
     public func saveStats(_ stats: WidgetStatsData) {
-        if let encoded = try? JSONEncoder().encode(stats) {
-            sharedDefaults.setValue(encoded, forKey: statsKey)
+        guard let encoded = try? JSONEncoder().encode(stats) else { return }
+        
+        // 1. UserDefaults (App Group + Standard)
+        sharedDefaults?.setValue(encoded, forKey: statsKey)
+        UserDefaults.standard.setValue(encoded, forKey: statsKey)
+        sharedDefaults?.synchronize()
+        UserDefaults.standard.synchronize()
+        
+        // 2. Fichiers partagés multi-répertoires
+        for url in fileLocations {
+            try? encoded.write(to: url, options: .atomic)
         }
     }
     
     /// Récupère les données statistiques pour l'affichage des widgets
     public func getStats() -> WidgetStatsData {
-        if let data = sharedDefaults.data(forKey: statsKey),
+        var candidates: [WidgetStatsData] = []
+        
+        // Lecture App Group UserDefaults
+        if let data = sharedDefaults?.data(forKey: statsKey),
            let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
-            return decoded
+            candidates.append(decoded)
         }
+        
+        // Lecture Standard UserDefaults
+        if let data = UserDefaults.standard.data(forKey: statsKey),
+           let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
+            candidates.append(decoded)
+        }
+        
+        // Lecture Fichiers partagés
+        for url in fileLocations {
+            if let data = try? Data(contentsOf: url),
+               let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
+                candidates.append(decoded)
+            }
+        }
+        
+        // Sélectionner la version la plus récente
+        if let newest = candidates.max(by: { $0.lastUpdated < $1.lastUpdated }) {
+            return newest
+        }
+        
         return WidgetStatsData()
     }
     
-    /// Recharge les timelines de tous les widgets
+    /// Recharge les timelines de tous les widgets (iOS 12 Today + iOS 14 WidgetKit)
     public func reloadWidgets() {
+        #if canImport(NotificationCenter)
+        NCWidgetController.widgetController().setHasContent(true, forWidgetWithBundleIdentifier: "com.sarahia.app.SarahIAWidgets")
+        #endif
+        
         #if canImport(WidgetKit)
         if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadAllTimelines()

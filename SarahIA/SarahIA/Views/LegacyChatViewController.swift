@@ -309,55 +309,58 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    // MARK: - Configuration de la Vague Siri Vocale Animée
+    // MARK: - Configuration de la Vague Siri Vocale Animée Pleine Longueur
     
     private func setupSiriWaveOverlay() {
         siriWaveOverlay.translatesAutoresizingMaskIntoConstraints = false
-        siriWaveOverlay.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.98)
+        siriWaveOverlay.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.09, alpha: 0.98)
         siriWaveOverlay.layer.cornerRadius = 23
         siriWaveOverlay.layer.borderWidth = 1.5
-        siriWaveOverlay.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.8).cgColor
+        siriWaveOverlay.layer.borderColor = UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 0.9).cgColor
         siriWaveOverlay.clipsToBounds = true
         siriWaveOverlay.alpha = 0
         siriWaveOverlay.isHidden = true
         composerContainer.addSubview(siriWaveOverlay)
         
-        // Stack des barres animées
+        // Stack des barres animées réparties sur TOUTE la longueur jusqu'au micro
         waveBarsStack.translatesAutoresizingMaskIntoConstraints = false
         waveBarsStack.axis = .horizontal
         waveBarsStack.alignment = .center
         waveBarsStack.distribution = .equalSpacing
-        waveBarsStack.spacing = 4
+        waveBarsStack.spacing = 3
         siriWaveOverlay.addSubview(waveBarsStack)
         
         let barColors: [UIColor] = [
-            UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0),   // Cyan
-            UIColor(red: 0.58, green: 0.20, blue: 0.95, alpha: 1.0), // Purple
-            UIColor(red: 1.0, green: 0.18, blue: 0.58, alpha: 1.0),  // Pink
-            UIColor(red: 0.20, green: 0.60, blue: 1.0, alpha: 1.0),  // Blue
-            UIColor(red: 0.0, green: 0.90, blue: 0.80, alpha: 1.0)   // Teal
+            UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0),   // Cyan
+            UIColor(red: 0.15, green: 0.70, blue: 1.0, alpha: 1.0),  // Bleu ciel
+            UIColor(red: 0.35, green: 0.50, blue: 1.0, alpha: 1.0),  // Bleu roi
+            UIColor(red: 0.55, green: 0.30, blue: 0.95, alpha: 1.0), // Violet
+            UIColor(red: 0.75, green: 0.20, blue: 0.90, alpha: 1.0), // Pourpre
+            UIColor(red: 0.95, green: 0.18, blue: 0.70, alpha: 1.0), // Rose fluo
+            UIColor(red: 1.0, green: 0.30, blue: 0.50, alpha: 1.0),  // Corail
+            UIColor(red: 1.0, green: 0.60, blue: 0.20, alpha: 1.0),  // Orange
+            UIColor(red: 0.90, green: 0.85, blue: 0.10, alpha: 1.0), // Or
+            UIColor(red: 0.20, green: 0.90, blue: 0.60, alpha: 1.0), // Vert menthe
+            UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0),   // Cyan
+            UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1.0),  // Bleu
+            UIColor(red: 0.60, green: 0.25, blue: 0.95, alpha: 1.0), // Violet
+            UIColor(red: 0.90, green: 0.20, blue: 0.80, alpha: 1.0), // Magenta
+            UIColor(red: 0.0, green: 0.90, blue: 0.90, alpha: 1.0)   // Turquoise
         ]
         
         for color in barColors {
             let bar = UIView()
             bar.translatesAutoresizingMaskIntoConstraints = false
             bar.backgroundColor = color
-            bar.layer.cornerRadius = 3
+            bar.layer.cornerRadius = 2.5
             bar.clipsToBounds = true
-            bar.widthAnchor.constraint(equalToConstant: 6).isActive = true
-            bar.heightAnchor.constraint(equalToConstant: 12).isActive = true
+            bar.widthAnchor.constraint(equalToConstant: 5).isActive = true
+            bar.heightAnchor.constraint(equalToConstant: 10).isActive = true
             waveBarsStack.addArrangedSubview(bar)
             waveBarViews.append(bar)
         }
         
-        // Label Statut Siri
-        waveStatusLabel.translatesAutoresizingMaskIntoConstraints = false
-        waveStatusLabel.text = "Je vous écoute..."
-        waveStatusLabel.textColor = .white
-        waveStatusLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        siriWaveOverlay.addSubview(waveStatusLabel)
-        
-        // Bouton Arrêter / Envoyer
+        // Bouton Arrêter / Envoyer au bout de la barre
         waveStopButton.translatesAutoresizingMaskIntoConstraints = false
         waveStopButton.setTitle("✓", for: .normal)
         waveStopButton.setTitleColor(.white, for: .normal)
@@ -375,12 +378,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             siriWaveOverlay.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor),
             
             waveBarsStack.leadingAnchor.constraint(equalTo: siriWaveOverlay.leadingAnchor, constant: 14),
+            waveBarsStack.trailingAnchor.constraint(equalTo: waveStopButton.leadingAnchor, constant: -12),
             waveBarsStack.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
             waveBarsStack.heightAnchor.constraint(equalToConstant: 28),
-            
-            waveStatusLabel.leadingAnchor.constraint(equalTo: waveBarsStack.trailingAnchor, constant: 10),
-            waveStatusLabel.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
-            waveStatusLabel.trailingAnchor.constraint(lessThanOrEqualTo: waveStopButton.leadingAnchor, constant: -8),
             
             waveStopButton.trailingAnchor.constraint(equalTo: siriWaveOverlay.trailingAnchor, constant: -7),
             waveStopButton.centerYAnchor.constraint(equalTo: siriWaveOverlay.centerYAnchor),
@@ -396,16 +396,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
         
         waveAnimationTimer?.invalidate()
-        waveAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+        var phase: Double = 0.0
+        waveAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            let heights: [CGFloat] = [8, 14, 22, 16, 10]
+            phase += 0.35
             for (index, bar) in self.waveBarViews.enumerated() {
-                let randomFactor = CGFloat.random(in: 0.6...1.4)
-                let targetHeight = heights[index % heights.count] * randomFactor
-                UIView.animate(withDuration: 0.1) {
-                    bar.constraints.first(where: { $0.firstAttribute == .height })?.constant = max(6, min(targetHeight, 26))
+                let waveSin = sin(phase + (Double(index) * 0.45))
+                let normalized = (waveSin + 1.0) / 2.0 // 0.0 à 1.0
+                let targetHeight = CGFloat(6 + (normalized * 20))
+                UIView.animate(withDuration: 0.08, delay: 0, options: [.curveEaseInOut, .allowUserInteraction], animations: {
+                    bar.constraints.first(where: { $0.firstAttribute == .height })?.constant = targetHeight
                     bar.superview?.layoutIfNeeded()
-                }
+                }, completion: nil)
             }
         }
     }
@@ -1053,10 +1055,19 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         state.messages = messages
         StorageService.shared.saveState(state)
         
+        // Calcul du total des questions (messages utilisateur) sur l'ensemble des discussions
+        var totalQuestions = 0
+        for conv in conversations {
+            totalQuestions += conv.messages.filter { $0.isFromUser }.count
+        }
+        if !conversations.contains(where: { $0.id == currentConversationId }) {
+            totalQuestions += messages.filter { $0.isFromUser }.count
+        }
+        
         let lastMemoryTuple: (trigger: String, response: String)? = state.learnedMemories.first.map { ($0.key, $0.value) }
         SarahWidgetBridge.shared.syncStats(
-            conversationsCount: conversations.count,
-            messagesCount: messages.count,
+            conversationsCount: max(1, conversations.count),
+            messagesCount: totalQuestions,
             memoriesCount: state.learnedMemories.count,
             lastMemory: lastMemoryTuple,
             lastMessage: messages.last?.content

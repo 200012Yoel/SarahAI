@@ -155,10 +155,11 @@ public final class ChatViewModel: ObservableObject {
         storageService.saveState(state)
         
         // Synchronisation en temps réel des statistiques vers les Widgets iOS
+        let totalQuestions = self.conversations.reduce(0) { $0 + $1.messages.filter { $0.isFromUser }.count } + (self.conversations.contains(where: { $0.id == self.currentConversationId }) ? 0 : self.messages.filter { $0.isFromUser }.count)
         let lastMemoryTuple: (trigger: String, response: String)? = self.learnedMemories.first.map { ($0.key, $0.value) }
         SarahWidgetBridge.shared.syncStats(
-            conversationsCount: self.conversations.count,
-            messagesCount: self.messages.count,
+            conversationsCount: max(1, self.conversations.count),
+            messagesCount: totalQuestions,
             memoriesCount: self.learnedMemories.count,
             lastMemory: lastMemoryTuple,
             lastMessage: self.messages.last?.content

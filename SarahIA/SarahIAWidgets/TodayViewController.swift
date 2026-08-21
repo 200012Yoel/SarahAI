@@ -47,6 +47,7 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
     
     // 5. Boutons d'Action Rapide
     private let actionsStack = UIStackView()
+    private var liveTimer: Timer?
     
     // MARK: - Cycle de Vie
     
@@ -67,6 +68,16 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reloadWidgetData()
+        liveTimer?.invalidate()
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.reloadWidgetData()
+        }
+    }
+    
+    public override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        liveTimer?.invalidate()
+        liveTimer = nil
     }
     
     // MARK: - Protocole NCWidgetProviding (iOS 10 - iOS 14+)
