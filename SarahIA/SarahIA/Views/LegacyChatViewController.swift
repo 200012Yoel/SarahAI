@@ -5,11 +5,14 @@ import AVFoundation
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
     // MARK: - Propriétés UI
+    private let topBar = UIView()
     private let tableView = UITableView()
     private let composerContainer = UIView()
     private let inputTextField = UITextField()
     private let sendButton = UIButton(type: .system)
     private let micButton = UIButton(type: .system)
+    private let newChatButton = UIButton(type: .system)
+    private let widgetsButton = UIButton(type: .system)
     private let titleLabel = UILabel()
     private let statusLabel = UILabel()
     
@@ -47,14 +50,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         view.backgroundColor = .black
         
         // 1. Barre de navigation supérieure
-        let topBar = UIView()
         topBar.translatesAutoresizingMaskIntoConstraints = false
-        topBar.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1.0)
+        topBar.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         view.addSubview(topBar)
         
+        // Bouton Nouveau Chat (Gauche)
+        newChatButton.translatesAutoresizingMaskIntoConstraints = false
+        newChatButton.setTitle("✏️", for: .normal)
+        newChatButton.titleLabel?.font = UIFont.systemFont(ofSize: 20)
+        newChatButton.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
+        topBar.addSubview(newChatButton)
+        
+        // Titre et Statut (Centre)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.text = "Sarah IA"
-        titleLabel.font = UIFont.systemFont(ofSize: 18, weight: .bold)
+        titleLabel.font = UIFont.systemFont(ofSize: 17, weight: .bold)
         titleLabel.textColor = .white
         topBar.addSubview(titleLabel)
         
@@ -63,6 +73,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.font = UIFont.systemFont(ofSize: 11, weight: .medium)
         statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
         topBar.addSubview(statusLabel)
+        
+        // Bouton Widgets & Infos (Droite)
+        widgetsButton.translatesAutoresizingMaskIntoConstraints = false
+        widgetsButton.setTitle("📊", for: .normal)
+        widgetsButton.titleLabel?.font = UIFont.systemFont(ofSize: 20)
+        widgetsButton.addTarget(self, action: #selector(widgetsModalTapped), for: .touchUpInside)
+        topBar.addSubview(widgetsButton)
         
         // 2. TableView des messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -79,11 +96,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // 3. Barre de saisie (Composer)
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
-        composerContainer.backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1.0)
+        composerContainer.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0)
         composerContainer.layer.cornerRadius = 22
         composerContainer.layer.masksToBounds = true
         composerContainer.layer.borderWidth = 0.5
-        composerContainer.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
+        composerContainer.layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
         view.addSubview(composerContainer)
         
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
@@ -95,7 +112,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         inputTextField.delegate = self
         inputTextField.attributedPlaceholder = NSAttributedString(
             string: "Demander à Sarah...",
-            attributes: [.foregroundColor: UIColor.gray]
+            attributes: [.foregroundColor: UIColor.lightGray]
         )
         inputTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
         composerContainer.addSubview(inputTextField)
@@ -109,7 +126,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         sendButton.setTitle("⬆️", for: .normal)
         sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .bold)
-        sendButton.backgroundColor = UIColor(red: 0.2, green: 0.2, blue: 0.22, alpha: 1.0)
+        sendButton.backgroundColor = UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1.0)
         sendButton.layer.cornerRadius = 16
         sendButton.tintColor = .white
         sendButton.addTarget(self, action: #selector(sendButtonTapped), for: .touchUpInside)
@@ -124,13 +141,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             topSafeArea,
-            topBar.heightAnchor.constraint(equalToConstant: 54),
+            topBar.heightAnchor.constraint(equalToConstant: 50),
+            
+            newChatButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 14),
+            newChatButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            newChatButton.widthAnchor.constraint(equalToConstant: 36),
+            newChatButton.heightAnchor.constraint(equalToConstant: 36),
             
             titleLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
-            titleLabel.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 8),
+            titleLabel.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 6),
             
             statusLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
             statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            
+            widgetsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -14),
+            widgetsButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            widgetsButton.widthAnchor.constraint(equalToConstant: 36),
+            widgetsButton.heightAnchor.constraint(equalToConstant: 36),
             
             tableView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -218,11 +245,30 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         view.endEditing(true)
     }
     
+    // MARK: - Actions TopBar
+    
+    @objc private func newChatTapped() {
+        messages = [
+            Message(content: "Nouvelle discussion commencée ! 🌟 Que souhaitez-vous demander à Sarah ?", isFromUser: false)
+        ]
+        tableView.reloadData()
+    }
+    
+    @objc private func widgetsModalTapped() {
+        let alert = UIAlertController(
+            title: "📊 Widgets & Statistiques Sarah IA",
+            message: "• Messages échangés : \(messages.count)\n• Vitesse de réponse : Instantanée\n• Mode : 100% Natif iOS 12+\n• Synthèse vocale : Active (AVSpeech)\n• 8 Widgets disponibles sur l'écran d'accueil",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Super !", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
     // MARK: - Envoi & Traitement des Messages
     
     @objc private func textFieldDidChange() {
         let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        sendButton.backgroundColor = hasText ? UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0) : UIColor(red: 0.2, green: 0.2, blue: 0.22, alpha: 1.0)
+        sendButton.backgroundColor = hasText ? UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0) : UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1.0)
     }
     
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -248,6 +294,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             if #available(iOS 13.0, *) {
                 Task {
                     let response = await AIService.shared.generateResponse(for: text)
+                    SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response)
                     DispatchQueue.main.async {
                         self.statusLabel.text = "● En ligne"
                         self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
@@ -259,6 +306,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 }
             } else {
                 let response = "Bonjour ! J'ai bien reçu votre message : « \(text) »."
+                SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response)
                 DispatchQueue.main.async {
                     self.statusLabel.text = "● En ligne"
                     self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
