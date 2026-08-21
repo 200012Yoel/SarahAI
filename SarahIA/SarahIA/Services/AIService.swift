@@ -94,42 +94,102 @@ final class AIService {
     }
     
     private func generateKnowledgeResponse(normalized: String, trimmed: String) -> String {
+        // Salutations & Présentation
         if normalized == "bonjour" || normalized == "salut" || normalized == "hello" || normalized == "coucou" || normalized.starts(with: "bonjour") || normalized.starts(with: "salut") {
             return "Bonjour ! 👋 Comment puis-je vous aider aujourd'hui ?"
         }
         
-        if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
-            return pickRandom(from: weatherResponses)
+        if normalized.contains("ca va") || normalized.contains("comment vas tu") || normalized.contains("comment tu vas") {
+            return "Je vais à merveille, merci ! Prête à vous assister et répondre à toutes vos questions. Et vous ?"
         }
         
+        // Date & Calendrier
+        if normalized.contains("quel jour") || normalized.contains("date") || normalized.contains("aujourd hui") {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "fr_FR")
+            formatter.dateStyle = .full
+            let dateStr = formatter.string(from: Date())
+            return "Aujourd'hui, nous sommes le \(dateStr). 📅"
+        }
+        
+        // Heure
         if normalized.contains("heure") || normalized.contains("quelle heure") {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
             let time = formatter.string(from: Date())
-            return "Il est actuellement \(time). ⏰ Que puis-je faire pour vous ?"
+            return "Il est actuellement \(time). ⏰"
         }
         
-        if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("comment tu marche") {
-            return "Je suis Sarah, votre assistante IA native ! 🌟\n\nVous pouvez :\n1. Discuter avec moi au texte ou à la voix avec une réactivité instantanée.\n2. M'apprendre des réponses personnalisées (ex: dites « Apprends papa » puis indiquez quoi répondre).\n3. Profiter d'une interface de discussion fluide et intuitive !"
+        // Météo
+        if normalized.contains("meteo") || normalized.contains("temps") || normalized.contains("pluie") || normalized.contains("soleil") {
+            return pickRandom(from: weatherResponses)
         }
         
-        if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") {
+        // Calculs mathématiques automatiques (ex: 2 + 2, calcule 15 * 3)
+        if let mathResult = evaluateSimpleMath(in: trimmed) {
+            return "Le résultat est : \(mathResult) 🧮"
+        }
+        
+        // Aide & Capacités
+        if normalized.contains("aide") || normalized.contains("aider") || normalized.contains("que sais tu faire") || normalized.contains("comment tu marche") {
+            return "Je suis Sarah, votre assistante IA ultra-rapide ! 🌟\n\nVoici ce que je peux faire :\n1. Discuter et répondre à vos questions par écrit ou à la voix.\n2. Apprendre de nouveaux souvenirs (ex: « Apprends papa » ➔ puis donnez la réponse).\n3. Calculer des opérations mathématiques (ex: « 25 * 4 »).\n4. Vous donner l'heure, la date, la météo et l'état de votre batterie.\n5. Fonctionner 100% hors-ligne en toute sécurité !"
+        }
+        
+        // Remerciements & Compliments
+        if normalized.contains("merci") || normalized.contains("super") || normalized.contains("genial") || normalized.contains("parfait") || normalized.contains("bravo") {
             return pickRandom(from: thanksResponses)
         }
         
+        if normalized.contains("t es belle") || normalized.contains("tu es gentille") || normalized.contains("je t aime") {
+            return "C'est très gentil ! Merci beaucoup, je fais de mon mieux pour vous être utile au quotidien. 😊"
+        }
+        
+        // Identité
         if normalized.contains("nom") || normalized.contains("appelle") || normalized.contains("qui es tu") || normalized.contains("qui est tu") || normalized == "sarah" {
             return pickRandom(from: identityResponses)
         }
         
+        // Humour & Blagues
         if normalized.contains("blague") || normalized.contains("rire") || normalized.contains("drole") || normalized.contains("humour") {
             return pickRandom(from: jokeResponses)
         }
         
+        // Au revoir
         if normalized.contains("au revoir") || normalized.contains("bye") || normalized.contains("a bientot") || normalized.contains("bonne nuit") {
             return pickRandom(from: goodbyeResponses)
         }
         
-        return "C'est bien noté ! Je suis toujours à votre écoute pour vous assister. Que souhaitez-vous savoir d'autre ?"
+        // Réponse générale intelligente
+        return "Je vous écoute ! N'hésitez pas à me poser une question, me demander un calcul ou m'apprendre une nouvelle information avec « Apprends [mot] »."
+    }
+    
+    private func evaluateSimpleMath(in text: String) -> String? {
+        let mathText = text.lowercased()
+            .replacingOccurrences(of: "calcule", with: "")
+            .replacingOccurrences(of: "combien font", with: "")
+            .replacingOccurrences(of: "combien fait", with: "")
+            .replacingOccurrences(of: "x", with: "*")
+            .replacingOccurrences(of: "fois", with: "*")
+            .replacingOccurrences(of: "plus", with: "+")
+            .replacingOccurrences(of: "moins", with: "-")
+            .replacingOccurrences(of: "divise par", with: "/")
+            .replacingOccurrences(of: "divisé par", with: "/")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let validChars = CharacterSet(charactersIn: "0123456789+-*/.() ")
+        guard mathText.unicodeScalars.allSatisfy({ validChars.contains($0) }),
+              mathText.contains(where: { "+-*/".contains($0) }) else {
+            return nil
+        }
+        
+        let expr = NSExpression(format: mathText)
+        if let result = expr.expressionValue(with: nil, context: nil) as? NSNumber {
+            if floor(result.doubleValue) == result.doubleValue {
+                return "\(result.intValue)"
+            }
+            return String(format: "%.2f", result.doubleValue)
+        }
+        return nil
     }
     
     /// Génère une réponse IA pour la question ou la commande donnée (iOS 13+)

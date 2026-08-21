@@ -1,7 +1,8 @@
 import UIKit
 import AVFoundation
+import Speech
 
-/// Contrôleur de discussion universel 100% UIKit reproduisant fidèlement l'interface moderne (Sidebar, Menu, Brain Vault, Suggestions, Widgets, Réglages) sans aucun crash sur iOS 12.0+ (iPhone 5S, 6, 6 Plus, 7, 8, etc.).
+/// Contrôleur de discussion universel 100% UIKit reproduisant fidèlement l'interface moderne (Sidebar épurée, suppression par appui long, Brain Vault dans réglages, voix Siri féminine et micro natif) pour iOS 12.0+ (iPhone 5S, 6, 7, 8, etc.).
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
     // MARK: - Composants UI Principaux
@@ -9,7 +10,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let menuButton = UIButton(type: .system)
     private let titleLabel = UILabel()
     private let statusLabel = UILabel()
-    private let memoryHeaderButton = UIButton(type: .system)
     private let settingsHeaderButton = UIButton(type: .system)
     
     private let tableView = UITableView()
@@ -22,13 +22,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let micButton = UIButton(type: .system)
     private let sendButton = UIButton(type: .system)
     
-    // MARK: - Menu Latéral (Drawer / Sidebar)
+    // MARK: - Menu Latéral Épuré (Sidebar Drawer)
     private let drawerScrim = UIView()
     private let drawerView = UIView()
     private var drawerLeadingConstraint: NSLayoutConstraint?
     private var isDrawerOpen: Bool = false
     private let drawerTableView = UITableView()
-    private let drawerSearchField = UITextField()
     
     private var composerBottomConstraint: NSLayoutConstraint?
     private var isKeyboardPresented: Bool = false
@@ -39,7 +38,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private var currentConversationId: UUID = UUID()
     private var isRecording: Bool = false
     private let speechSynthesizer = AVSpeechSynthesizer()
-    private var currentlySpeakingMessageId: UUID? = nil
     
     // Suggestions rapides
     private let quickSuggestions = [
@@ -48,8 +46,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         "⏰ Quelle heure est-il ?",
         "☀️ Quel temps fait-il ?",
         "🔋 Niveau de batterie",
-        "📋 Presse-papier",
-        "😂 Raconte-moi une blague"
+        "🧮 Calcule 15 * 8",
+        "😂 Raconte une blague"
     ]
     
     // MARK: - Cycle de Vie
@@ -81,7 +79,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private func setupUI() {
         view.backgroundColor = .black
         
-        // 1. Barre Supérieure (TopBar)
+        // 1. Barre Supérieure (TopBar épurée)
         topBar.translatesAutoresizingMaskIntoConstraints = false
         topBar.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1.0)
         view.addSubview(topBar)
@@ -107,17 +105,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
         topBar.addSubview(statusLabel)
         
-        // Bouton Mémoire (🧠)
-        memoryHeaderButton.translatesAutoresizingMaskIntoConstraints = false
-        memoryHeaderButton.setTitle("🧠", for: .normal)
-        memoryHeaderButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
-        memoryHeaderButton.addTarget(self, action: #selector(openMemoryVault), for: .touchUpInside)
-        topBar.addSubview(memoryHeaderButton)
-        
         // Bouton Réglages (⚙️)
         settingsHeaderButton.translatesAutoresizingMaskIntoConstraints = false
         settingsHeaderButton.setTitle("⚙️", for: .normal)
-        settingsHeaderButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        settingsHeaderButton.titleLabel?.font = UIFont.systemFont(ofSize: 20)
         settingsHeaderButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         topBar.addSubview(settingsHeaderButton)
         
@@ -146,7 +137,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         suggestionsStackView.alignment = .center
         suggestionsScrollView.addSubview(suggestionsStackView)
         
-        // 4. Barre de Saisie (Composer Container)
+        // 4. Barre de Saisie (Composer)
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
         composerContainer.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
         composerContainer.layer.cornerRadius = 23
@@ -219,13 +210,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             
             settingsHeaderButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
             settingsHeaderButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
-            settingsHeaderButton.widthAnchor.constraint(equalToConstant: 32),
-            settingsHeaderButton.heightAnchor.constraint(equalToConstant: 32),
-            
-            memoryHeaderButton.trailingAnchor.constraint(equalTo: settingsHeaderButton.leadingAnchor, constant: -6),
-            memoryHeaderButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
-            memoryHeaderButton.widthAnchor.constraint(equalToConstant: 32),
-            memoryHeaderButton.heightAnchor.constraint(equalToConstant: 32),
+            settingsHeaderButton.widthAnchor.constraint(equalToConstant: 36),
+            settingsHeaderButton.heightAnchor.constraint(equalToConstant: 36),
             
             // TableView
             tableView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
@@ -273,10 +259,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    // MARK: - Configuration Menu Latéral (Sidebar Drawer)
+    // MARK: - Configuration Menu Latéral Épuré (Discussions Uniquement)
     
     private func setupDrawerUI() {
-        // Scrim semi-transparent
         drawerScrim.translatesAutoresizingMaskIntoConstraints = false
         drawerScrim.backgroundColor = UIColor(white: 0.0, alpha: 0.5)
         drawerScrim.alpha = 0
@@ -285,7 +270,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerScrim.addGestureRecognizer(tap)
         view.addSubview(drawerScrim)
         
-        // Panneau Drawer
         drawerView.translatesAutoresizingMaskIntoConstraints = false
         drawerView.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         drawerView.layer.shadowColor = UIColor.black.cgColor
@@ -320,13 +304,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         newChatBtn.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
         drawerHeader.addSubview(newChatBtn)
         
-        // TableView du Drawer (Liste des discussions + Accès rapides)
+        // TableView du Drawer (Liste des discussions épurée avec appui long)
         drawerTableView.translatesAutoresizingMaskIntoConstraints = false
         drawerTableView.backgroundColor = .clear
         drawerTableView.separatorColor = UIColor(white: 1.0, alpha: 0.08)
         drawerTableView.dataSource = self
         drawerTableView.delegate = self
         drawerTableView.register(UITableViewCell.self, forCellReuseIdentifier: "DrawerCell")
+        
+        // Geste d'appui long pour supprimer/renommer
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDrawerLongPress(_:)))
+        drawerTableView.addGestureRecognizer(longPress)
         drawerView.addSubview(drawerTableView)
         
         NSLayoutConstraint.activate([
@@ -358,6 +346,63 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             drawerTableView.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
             drawerTableView.bottomAnchor.constraint(equalTo: drawerView.bottomAnchor)
         ])
+    }
+    
+    // MARK: - Appui Long sur une Discussion (Supprimer / Renommer)
+    
+    @objc private func handleDrawerLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        let point = gesture.location(in: drawerTableView)
+        guard let indexPath = drawerTableView.indexPathForRow(at: point) else { return }
+        
+        let conv = conversations[indexPath.row]
+        let sheet = UIAlertController(
+            title: "Options de discussion",
+            message: "« \(conv.title) »",
+            preferredStyle: .actionSheet
+        )
+        
+        sheet.addAction(UIAlertAction(title: "✏️ Renommer", style: .default, handler: { [weak self] _ in
+            self?.promptRenameConversation(at: indexPath.row)
+        }))
+        
+        sheet.addAction(UIAlertAction(title: "🗑️ Supprimer la discussion", style: .destructive, handler: { [weak self] _ in
+            self?.deleteConversation(at: indexPath.row)
+        }))
+        
+        sheet.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(sheet, animated: true, completion: nil)
+    }
+    
+    private func promptRenameConversation(at index: Int) {
+        let conv = conversations[index]
+        let alert = UIAlertController(title: "Renommer", message: "Nouveau titre pour la discussion :", preferredStyle: .alert)
+        alert.addTextField { $0.text = conv.title }
+        alert.addAction(UIAlertAction(title: "Enregistrer", style: .default, handler: { [weak self] _ in
+            guard let newTitle = alert.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines), !newTitle.isEmpty else { return }
+            self?.conversations[index].title = newTitle
+            self?.saveState()
+            self?.drawerTableView.reloadData()
+        }))
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    private func deleteConversation(at index: Int) {
+        guard conversations.indices.contains(index) else { return }
+        let deletedConv = conversations.remove(at: index)
+        
+        if conversations.isEmpty {
+            newChatTapped()
+        } else if deletedConv.id == currentConversationId {
+            let first = conversations[0]
+            currentConversationId = first.id
+            messages = first.messages
+            tableView.reloadData()
+        }
+        
+        saveState()
+        drawerTableView.reloadData()
     }
     
     // MARK: - Suggestions Horizontales
@@ -485,8 +530,37 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    @objc private func openMemoryVault() {
+    // MARK: - Réglages (Intègre le Coffre Mémoire 🧠)
+    
+    @objc private func openSettings() {
         dismissKeyboard()
+        let alert = UIAlertController(
+            title: "⚙️ Réglages Sarah IA",
+            message: "• Voix : Féminine / Siri (Locale)\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : Natif iOS 12+ (60 FPS)",
+            preferredStyle: .actionSheet
+        )
+        
+        alert.addAction(UIAlertAction(title: "🧠 Coffre Mémoire (Brain Vault)", style: .default, handler: { [weak self] _ in
+            self?.openMemoryVault()
+        }))
+        
+        alert.addAction(UIAlertAction(title: "🔊 Tester la voix féminine", style: .default, handler: { [weak self] _ in
+            self?.speak(text: "Bonjour ! Je suis Sarah. Ma voix féminine est configurée par défaut pour vous répondre.")
+        }))
+        
+        alert.addAction(UIAlertAction(title: "📊 Statistiques d'usage", style: .default, handler: { [weak self] _ in
+            self?.widgetsModalTapped()
+        }))
+        
+        alert.addAction(UIAlertAction(title: "🗑️ Nouvelle discussion", style: .destructive, handler: { [weak self] _ in
+            self?.newChatTapped()
+        }))
+        
+        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    private func openMemoryVault() {
         let memories = StorageService.shared.loadState().learnedMemories
         var memoryText = ""
         if memories.isEmpty {
@@ -532,35 +606,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(alert, animated: true, completion: nil)
     }
     
-    @objc private func openSettings() {
-        dismissKeyboard()
-        let alert = UIAlertController(
-            title: "⚙️ Réglages & Paramètres Sarah IA",
-            message: "• Vitesse vocale : Normale (0.52)\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : 100% Natif iOS 12+\n• Mémoire persistante : Active",
-            preferredStyle: .actionSheet
-        )
-        alert.addAction(UIAlertAction(title: "🔊 Tester la voix de Sarah", style: .default, handler: { [weak self] _ in
-            self?.speak(text: "Bonjour ! La synthèse vocale de Sarah IA fonctionne parfaitement.")
-        }))
-        alert.addAction(UIAlertAction(title: "📊 Voir les Statistiques & Widgets", style: .default, handler: { [weak self] _ in
-            self?.widgetsModalTapped()
-        }))
-        alert.addAction(UIAlertAction(title: "🗑️ Réinitialiser la discussion", style: .destructive, handler: { [weak self] _ in
-            self?.newChatTapped()
-        }))
-        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
-    }
-    
-    @objc private func widgetsModalTapped() {
-        dismissKeyboard()
+    private func widgetsModalTapped() {
         let stats = SarahWidgetBridge.shared.getStats()
         let alert = UIAlertController(
-            title: "📊 Widgets & Statistiques Sarah IA",
-            message: "• Discussions totales : \(stats.totalConversations)\n• Messages échangés : \(stats.totalMessages)\n• Souvenirs en mémoire : \(stats.learnedMemoriesCount)\n• Niveau d'activité : \(stats.usagePercentage)%\n• Latence : < 0.2s (60 FPS)\n• 8 Widgets disponibles sur l'écran d'accueil",
+            title: "📊 Statistiques Sarah IA",
+            message: "• Discussions : \(stats.totalConversations)\n• Messages : \(stats.totalMessages)\n• Souvenirs mémorisés : \(stats.learnedMemoriesCount)\n• Taux d'activité : \(stats.usagePercentage)%\n• Latence : < 0.2s (60 FPS)",
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Génial !", style: .default, handler: nil))
+        alert.addAction(UIAlertAction(title: "Parfait", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)
     }
     
@@ -569,7 +622,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sheet.addAction(UIAlertAction(title: "🧠 Enseigner un mot", style: .default, handler: { [weak self] _ in
             self?.promptTeachMemory()
         }))
-        sheet.addAction(UIAlertAction(title: "🔋 Vérifier la batterie", style: .default, handler: { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: "🔋 Niveau de batterie", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Quel est le niveau de batterie ?"
             self?.sendButtonTapped()
         }))
@@ -621,27 +674,40 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
+    // MARK: - Microphone & Reconnaissance Vocale Native
+    
     @objc private func toggleMicTapped() {
-        if #available(iOS 13.0, *) {
-            isRecording.toggle()
-            if isRecording {
-                micButton.setTitle("🔴", for: .normal)
-                statusLabel.text = "● Écoute en direct..."
-                statusLabel.textColor = .red
+        isRecording.toggle()
+        if isRecording {
+            micButton.setTitle("🔴", for: .normal)
+            statusLabel.text = "● Écoute en direct..."
+            statusLabel.textColor = .red
+            
+            AppleSpeechRecognizer.shared.requestPermissions { [weak self] granted in
+                guard granted else {
+                    self?.statusLabel.text = "● Micro refusé"
+                    self?.statusLabel.textColor = .orange
+                    self?.isRecording = false
+                    self?.micButton.setTitle("🎙️", for: .normal)
+                    return
+                }
+                
                 AppleSpeechRecognizer.shared.startListening()
                 AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] transcript in
                     DispatchQueue.main.async {
                         self?.inputTextField.text = transcript
                         self?.sendButtonTapped()
-                        self?.toggleMicTapped()
+                        if self?.isRecording == true {
+                            self?.toggleMicTapped()
+                        }
                     }
                 }
-            } else {
-                micButton.setTitle("🎙️", for: .normal)
-                statusLabel.text = "● En ligne"
-                statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-                AppleSpeechRecognizer.shared.stopListening()
             }
+        } else {
+            micButton.setTitle("🎙️", for: .normal)
+            statusLabel.text = "● En ligne"
+            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            AppleSpeechRecognizer.shared.stopListening()
         }
     }
     
@@ -658,14 +724,26 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.scrollToRow(at: indexPath, at: .bottom, animated: animated)
     }
     
+    // MARK: - Synthèse Vocale avec Voix Siri / Féminine par Défaut
+    
     private func speak(text: String) {
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
-        utterance.rate = 0.52
-        utterance.pitchMultiplier = 1.05
+        
+        let cleaned = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "#", with: "")
+        let utterance = AVSpeechUtterance(string: cleaned)
+        
+        // Sélection intelligente de la voix féminine / Siri de haute qualité
+        let allVoices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.starts(with: "fr") }
+        let femaleVoice = allVoices.first(where: {
+            let name = $0.name.lowercased()
+            return name.contains("siri") || name.contains("audrey") || name.contains("aurélie") || name.contains("julie") || !name.contains("thomas")
+        }) ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        
+        utterance.voice = femaleVoice
+        utterance.rate = 0.50
+        utterance.pitchMultiplier = 1.08
         speechSynthesizer.speak(utterance)
     }
     
@@ -717,15 +795,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     // MARK: - UITableView DataSource & Delegate
     
     public func numberOfSections(in tableView: UITableView) -> Int {
-        if tableView == drawerTableView {
-            return 2 // 0: Accès Rapides, 1: Discussions
-        }
         return 1
     }
     
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if tableView == drawerTableView {
-            if section == 0 { return 3 } // Brain vault, widgets, settings
             return conversations.count
         }
         return messages.count
@@ -733,36 +807,22 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         if tableView == drawerTableView {
-            if section == 0 { return "ACCÈS RAPIDES" }
-            return "DISCUSSIONS RÉCENTES"
+            return "DISCUSSIONS"
         }
         return nil
     }
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        // TableView du Drawer (Menu Latéral)
+        // Menu Latéral (Discussions épurées)
         if tableView == drawerTableView {
             let cell = tableView.dequeueReusableCell(withIdentifier: "DrawerCell", for: indexPath)
             cell.backgroundColor = .clear
-            cell.textLabel?.textColor = .white
-            cell.textLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+            cell.textLabel?.font = UIFont.systemFont(ofSize: 15, weight: .medium)
             
-            if indexPath.section == 0 {
-                switch indexPath.row {
-                case 0:
-                    cell.textLabel?.text = "🧠 Coffre Mémoire"
-                case 1:
-                    cell.textLabel?.text = "📊 Statistiques & Widgets"
-                case 2:
-                    cell.textLabel?.text = "⚙️ Réglages"
-                default: break
-                }
-            } else {
-                let conv = conversations[indexPath.row]
-                let isSelected = conv.id == currentConversationId
-                cell.textLabel?.text = "💬 \(conv.title)"
-                cell.textLabel?.textColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .white
-            }
+            let conv = conversations[indexPath.row]
+            let isSelected = conv.id == currentConversationId
+            cell.textLabel?.text = "💬 \(conv.title)"
+            cell.textLabel?.textColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .white
             return cell
         }
         
@@ -785,28 +845,24 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.deselectRow(at: indexPath, animated: true)
         
         if tableView == drawerTableView {
-            if indexPath.section == 0 {
-                toggleDrawer()
-                switch indexPath.row {
-                case 0: openMemoryVault()
-                case 1: widgetsModalTapped()
-                case 2: openSettings()
-                default: break
-                }
-            } else {
-                let selectedConv = conversations[indexPath.row]
-                currentConversationId = selectedConv.id
-                messages = selectedConv.messages
-                tableView.reloadData()
-                self.tableView.reloadData()
-                toggleDrawer()
-                scrollToBottom(animated: false)
-            }
+            let selectedConv = conversations[indexPath.row]
+            currentConversationId = selectedConv.id
+            messages = selectedConv.messages
+            tableView.reloadData()
+            self.tableView.reloadData()
+            toggleDrawer()
+            scrollToBottom(animated: false)
+        }
+    }
+    
+    public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if tableView == drawerTableView && editingStyle == .delete {
+            deleteConversation(at: indexPath.row)
         }
     }
 }
 
-// MARK: - Cellules Personnalisées UIKit (Pixel-Perfect Dark Mode)
+// MARK: - Cellules Personnalisées UIKit (Dark Mode Pixel-Perfect)
 
 final class LegacyUserCell: UITableViewCell {
     private let bubbleView = UIView()
