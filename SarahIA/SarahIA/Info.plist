@@ -50,6 +50,17 @@
 	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Sarah AI utilise la reconnaissance vocale pour transcrire votre voix en texte.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sarahia.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sarahia</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

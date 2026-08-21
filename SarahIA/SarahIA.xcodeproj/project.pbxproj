@@ -51,6 +51,7 @@
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
+		W1B2C3D40001000100000053 /* TodayViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000053 /* TodayViewController.swift */; };
 		W1B2C3D4000100010000005A /* SarahIAWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = W1B2C3D4000200010000005A /* SarahIAWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -99,6 +100,7 @@
 		A1B2C3D40002000100000039 /* KeyboardObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardObserver.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000040 /* LegacyChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyChatViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
+		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		W1B2C3D4000200010000005B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -224,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */,
+				W1B2C3D40002000100000053 /* TodayViewController.swift */,
 				W1B2C3D4000200010000005B /* Info.plist */,
 			);
 			path = SarahIAWidgets;
@@ -401,6 +404,7 @@
 				W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */,
 				W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */,
 				W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */,
+				W1B2C3D40001000100000053 /* TodayViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -619,13 +623,24 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					WidgetKit,
+					"-weak_framework",
+					SwiftUI,
+					"-weak_framework",
+					Combine,
+					"-framework",
+					NotificationCenter,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
 				PRODUCT_NAME = SarahIAWidgets;
 				SKIP_INSTALL = YES;
@@ -647,13 +662,24 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					WidgetKit,
+					"-weak_framework",
+					SwiftUI,
+					"-weak_framework",
+					Combine,
+					"-framework",
+					NotificationCenter,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
 				PRODUCT_NAME = SarahIAWidgets;
 				SKIP_INSTALL = YES;

@@ -59,13 +59,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         completionHandler()
     }
     
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        if #available(iOS 13.0, *) {
-            AppleSpeechRecognizer.shared.stopListening()
+    func application(
+        _ app: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey : Any] = [:]
+    ) -> Bool {
+        guard let host = url.host?.lowercased() else { return true }
+        
+        NotificationCenter.default.post(name: NSNotification.Name("SarahOpenDeepLink"), object: host)
+        
+        if host == "torch" {
+            _ = DeviceController.shared.toggleTorch(enable: nil)
         }
-    }
-    
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        NotificationService.shared.clearBadge()
+        
+        return true
     }
 }

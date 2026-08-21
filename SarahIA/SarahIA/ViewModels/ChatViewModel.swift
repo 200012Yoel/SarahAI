@@ -129,6 +129,7 @@ public final class ChatViewModel: ObservableObject {
             self.currentConversationId = nil
             self.messages = []
         }
+        aiService.syncHistoryFromMessages(self.messages)
     }
     
     /// Sauvegarde l'état courant de l'application
@@ -187,6 +188,7 @@ public final class ChatViewModel: ObservableObject {
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
+        aiService.syncHistoryFromMessages([])
     }
     
     public func selectConversation(_ conv: Conversation) {
@@ -197,6 +199,7 @@ public final class ChatViewModel: ObservableObject {
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
+        aiService.syncHistoryFromMessages(conv.messages)
         persistCurrentState()
     }
     

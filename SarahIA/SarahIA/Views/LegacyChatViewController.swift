@@ -83,8 +83,25 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         setupSuggestions()
         setupKeyboardNotifications()
         setupGestures()
+        setupDeepLinkObserver()
         loadPersistedState()
         prewarmAudioSession()
+    }
+    
+    private func setupDeepLinkObserver() {
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahOpenDeepLink"), object: nil, queue: .main) { [weak self] notif in
+            guard let self = self, let action = notif.object as? String else { return }
+            switch action {
+            case "voice":
+                self.toggleMicTapped()
+            case "newchat":
+                self.newChatTapped()
+            case "memory":
+                self.openMemoryVault()
+            default:
+                break
+            }
+        }
     }
     
     public override func viewDidLayoutSubviews() {
@@ -1096,6 +1113,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             let selectedConv = conversations[indexPath.row]
             currentConversationId = selectedConv.id
             messages = selectedConv.messages
+            AIService.shared.syncHistoryFromMessages(messages)
             tableView.reloadData()
             self.tableView.reloadData()
             toggleDrawer()

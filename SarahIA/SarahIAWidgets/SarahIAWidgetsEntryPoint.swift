@@ -1,7 +1,8 @@
+#if canImport(WidgetKit)
 import WidgetKit
 import SwiftUI
 
-@main
+@available(iOS 14.0, *)
 struct SarahIAWidgetsBundle: WidgetBundle {
     var body: some Widget {
         SarahUsageStatsWidget()
@@ -14,3 +15,4 @@ struct SarahIAWidgetsBundle: WidgetBundle {
         SarahDailyTipWidget()
     }
 }
+#endif
