@@ -44,7 +44,8 @@ while ($elapsed -lt $maxWaitSeconds) {
         $runsResponse = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction SilentlyContinue
         
         if ($runsResponse -and $runsResponse.workflow_runs) {
-            $latestRun = $runsResponse.workflow_runs[0]
+            $latestRun = $runsResponse.workflow_runs | Where-Object { $_.name -like "*iOS*" } | Select-Object -First 1
+            if (-not $latestRun) { $latestRun = $runsResponse.workflow_runs[0] }
             
             # Vérifier si le run correspond au dernier commit
             $isMatchingCommit = ($latestRun.head_sha -eq $currentHead)

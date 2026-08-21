@@ -2,7 +2,12 @@ import UIKit
 import AVFoundation
 import Speech
 
-/// Contrôleur de discussion universel 100% UIKit reproduisant fidèlement l'interface moderne (Sidebar épurée, suppression par appui long, Brain Vault dans réglages, voix Siri féminine et micro natif) pour iOS 12.0+ (iPhone 5S, 6, 7, 8, etc.).
+/// Contrôleur de discussion universel 100% UIKit au design moderne et épuré :
+/// - Titrage intelligent des discussions d'après le premier message envoyé
+/// - Sidebar moderne avec cartes de discussion arrondies et aperçu des messages
+/// - Pas de discussions vides dupliquées
+/// - Microphone matériel connecté en direct avec reconnaissance vocale instantanée
+/// - 100% compatible iOS 12.0+ (iPhone 5S, 6, 7, 8, etc.)
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
     // MARK: - Composants UI Principaux
@@ -22,7 +27,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let micButton = UIButton(type: .system)
     private let sendButton = UIButton(type: .system)
     
-    // MARK: - Menu Latéral Épuré (Sidebar Drawer)
+    // MARK: - Menu Latéral Moderne (Sidebar Drawer)
     private let drawerScrim = UIView()
     private let drawerView = UIView()
     private var drawerLeadingConstraint: NSLayoutConstraint?
@@ -38,6 +43,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private var currentConversationId: UUID = UUID()
     private var isRecording: Bool = false
     private let speechSynthesizer = AVSpeechSynthesizer()
+    
+    // Moteur Microphone & Reconnaissance Vocale Native iOS 10+
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR"))
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private let audioEngine = AVAudioEngine()
     
     // Suggestions rapides
     private let quickSuggestions = [
@@ -79,7 +90,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private func setupUI() {
         view.backgroundColor = .black
         
-        // 1. Barre Supérieure (TopBar épurée)
+        // 1. Barre Supérieure
         topBar.translatesAutoresizingMaskIntoConstraints = false
         topBar.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1.0)
         view.addSubview(topBar)
@@ -259,11 +270,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    // MARK: - Configuration Menu Latéral Épuré (Discussions Uniquement)
+    // MARK: - Configuration Menu Latéral Moderne
     
     private func setupDrawerUI() {
         drawerScrim.translatesAutoresizingMaskIntoConstraints = false
-        drawerScrim.backgroundColor = UIColor(white: 0.0, alpha: 0.5)
+        drawerScrim.backgroundColor = UIColor(white: 0.0, alpha: 0.6)
         drawerScrim.alpha = 0
         drawerScrim.isHidden = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(toggleDrawer))
@@ -271,13 +282,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         view.addSubview(drawerScrim)
         
         drawerView.translatesAutoresizingMaskIntoConstraints = false
-        drawerView.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        drawerView.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.11, alpha: 1.0)
         drawerView.layer.shadowColor = UIColor.black.cgColor
-        drawerView.layer.shadowOpacity = 0.6
-        drawerView.layer.shadowRadius = 15
+        drawerView.layer.shadowOpacity = 0.8
+        drawerView.layer.shadowRadius = 20
         view.addSubview(drawerView)
         
-        let drawerWidth = UIScreen.main.bounds.width * 0.82
+        let drawerWidth = UIScreen.main.bounds.width * 0.84
         let leading = drawerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -drawerWidth)
         self.drawerLeadingConstraint = leading
         
@@ -289,30 +300,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let appTitle = UILabel()
         appTitle.translatesAutoresizingMaskIntoConstraints = false
-        appTitle.text = "Sarah IA"
-        appTitle.font = UIFont.systemFont(ofSize: 22, weight: .bold)
+        appTitle.text = "👩🏻‍💼 Sarah IA"
+        appTitle.font = UIFont.systemFont(ofSize: 20, weight: .bold)
         appTitle.textColor = .white
         drawerHeader.addSubview(appTitle)
+        
+        let appSubtitle = UILabel()
+        appSubtitle.translatesAutoresizingMaskIntoConstraints = false
+        appSubtitle.text = "Historique des discussions"
+        appSubtitle.font = UIFont.systemFont(ofSize: 12, weight: .regular)
+        appSubtitle.textColor = UIColor(white: 0.6, alpha: 1.0)
+        drawerHeader.addSubview(appSubtitle)
         
         let newChatBtn = UIButton(type: .system)
         newChatBtn.translatesAutoresizingMaskIntoConstraints = false
         newChatBtn.setTitle("➕ Nouvelle discussion", for: .normal)
         newChatBtn.setTitleColor(.white, for: .normal)
-        newChatBtn.backgroundColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.25)
+        newChatBtn.backgroundColor = UIColor(red: 0.0, green: 0.55, blue: 0.95, alpha: 0.35)
         newChatBtn.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
-        newChatBtn.layer.cornerRadius = 10
+        newChatBtn.layer.cornerRadius = 12
+        newChatBtn.layer.borderWidth = 1
+        newChatBtn.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.4).cgColor
         newChatBtn.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
         drawerHeader.addSubview(newChatBtn)
         
-        // TableView du Drawer (Liste des discussions épurée avec appui long)
+        // TableView du Drawer (Cartes de discussions)
         drawerTableView.translatesAutoresizingMaskIntoConstraints = false
         drawerTableView.backgroundColor = .clear
-        drawerTableView.separatorColor = UIColor(white: 1.0, alpha: 0.08)
+        drawerTableView.separatorStyle = .none
         drawerTableView.dataSource = self
         drawerTableView.delegate = self
-        drawerTableView.register(UITableViewCell.self, forCellReuseIdentifier: "DrawerCell")
+        drawerTableView.register(LegacyDrawerCell.self, forCellReuseIdentifier: "DrawerCell")
         
-        // Geste d'appui long pour supprimer/renommer
         let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDrawerLongPress(_:)))
         drawerTableView.addGestureRecognizer(longPress)
         drawerView.addSubview(drawerTableView)
@@ -331,17 +350,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             drawerHeader.topAnchor.constraint(equalTo: drawerView.topAnchor),
             drawerHeader.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
             drawerHeader.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
-            drawerHeader.heightAnchor.constraint(equalToConstant: 120),
+            drawerHeader.heightAnchor.constraint(equalToConstant: 135),
             
             appTitle.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 16),
             appTitle.topAnchor.constraint(equalTo: drawerHeader.topAnchor, constant: 36),
             
-            newChatBtn.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 16),
-            newChatBtn.trailingAnchor.constraint(equalTo: drawerHeader.trailingAnchor, constant: -16),
-            newChatBtn.bottomAnchor.constraint(equalTo: drawerHeader.bottomAnchor, constant: -10),
-            newChatBtn.heightAnchor.constraint(equalToConstant: 36),
+            appSubtitle.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 16),
+            appSubtitle.topAnchor.constraint(equalTo: appTitle.bottomAnchor, constant: 2),
             
-            drawerTableView.topAnchor.constraint(equalTo: drawerHeader.bottomAnchor),
+            newChatBtn.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 14),
+            newChatBtn.trailingAnchor.constraint(equalTo: drawerHeader.trailingAnchor, constant: -14),
+            newChatBtn.bottomAnchor.constraint(equalTo: drawerHeader.bottomAnchor, constant: -10),
+            newChatBtn.heightAnchor.constraint(equalToConstant: 38),
+            
+            drawerTableView.topAnchor.constraint(equalTo: drawerHeader.bottomAnchor, constant: 6),
             drawerTableView.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
             drawerTableView.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
             drawerTableView.bottomAnchor.constraint(equalTo: drawerView.bottomAnchor)
@@ -357,7 +379,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let conv = conversations[indexPath.row]
         let sheet = UIAlertController(
-            title: "Options de discussion",
+            title: "Discussion",
             message: "« \(conv.title) »",
             preferredStyle: .actionSheet
         )
@@ -495,7 +517,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         isDrawerOpen.toggle()
         dismissKeyboard()
         
-        let drawerWidth = UIScreen.main.bounds.width * 0.82
+        let drawerWidth = UIScreen.main.bounds.width * 0.84
         drawerLeadingConstraint?.constant = isDrawerOpen ? 0 : -drawerWidth
         
         if isDrawerOpen {
@@ -514,7 +536,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func newChatTapped() {
-        var newConv = Conversation(title: "Nouvelle discussion \(conversations.count + 1)")
+        // Si la discussion courante est déjà vide, pas besoin de dupliquer
+        if messages.isEmpty {
+            if isDrawerOpen { toggleDrawer() }
+            return
+        }
+        
+        var newConv = Conversation(title: "Nouvelle discussion")
         currentConversationId = newConv.id
         conversations.insert(newConv, at: 0)
         messages = []
@@ -528,7 +556,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    // MARK: - Réglages (Discret, Intègre la Synthèse Vocale & la Mémorisation)
+    // MARK: - Réglages
     
     @objc private func openSettings() {
         dismissKeyboard()
@@ -632,7 +660,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(sheet, animated: true, completion: nil)
     }
     
-    // MARK: - Envoi & Traitement des Messages
+    // MARK: - Envoi & Traitement des Messages (Titrage Dynamique)
     
     @objc private func textFieldDidChange() {
         let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
@@ -651,6 +679,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         inputTextField.text = ""
         textFieldDidChange()
+        
+        // Titrage intelligent de la discussion si c'est le premier message
+        let isFirstUserMessage = messages.filter({ $0.isFromUser }).isEmpty
+        if isFirstUserMessage {
+            let cleanPrompt = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            let dynamicTitle = cleanPrompt.count > 28 ? String(cleanPrompt.prefix(28)) + "..." : cleanPrompt
+            if let idx = conversations.firstIndex(where: { $0.id == currentConversationId }) {
+                conversations[idx].title = dynamicTitle
+            }
+        }
         
         let userMsg = Message(content: text, isFromUser: true)
         appendMessage(userMsg)
@@ -673,10 +711,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     // MARK: - Microphone & Reconnaissance Vocale Native iOS 10+
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR"))
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
-    private let audioEngine = AVAudioEngine()
     
     @objc private func toggleMicTapped() {
         if audioEngine.isRunning {
@@ -790,7 +824,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let cleaned = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "#", with: "")
         let utterance = AVSpeechUtterance(string: cleaned)
         
-        // Sélection intelligente de la voix féminine / Siri de haute qualité
         let allVoices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.starts(with: "fr") }
         let femaleVoice = allVoices.first(where: {
             let name = $0.name.lowercased()
@@ -856,24 +889,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         return messages.count
     }
     
-    public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         if tableView == drawerTableView {
-            return "DISCUSSIONS"
+            return 64
         }
-        return nil
+        return UITableView.automaticDimension
     }
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        // Menu Latéral (Discussions épurées)
+        // Menu Latéral (Cartes modernes)
         if tableView == drawerTableView {
-            let cell = tableView.dequeueReusableCell(withIdentifier: "DrawerCell", for: indexPath)
-            cell.backgroundColor = .clear
-            cell.textLabel?.font = UIFont.systemFont(ofSize: 15, weight: .medium)
-            
+            let cell = tableView.dequeueReusableCell(withIdentifier: "DrawerCell", for: indexPath) as! LegacyDrawerCell
             let conv = conversations[indexPath.row]
             let isSelected = conv.id == currentConversationId
-            cell.textLabel?.text = "💬 \(conv.title)"
-            cell.textLabel?.textColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .white
+            cell.configure(with: conv, isSelected: isSelected)
             return cell
         }
         
@@ -913,7 +942,91 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
 }
 
-// MARK: - Cellules Personnalisées UIKit (Dark Mode Pixel-Perfect)
+// MARK: - Cellule Moderne du Menu Latéral (Drawer Card Cell)
+
+final class LegacyDrawerCell: UITableViewCell {
+    private let cardView = UIView()
+    private let activeIndicator = UIView()
+    private let iconLabel = UILabel()
+    private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
+    
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        backgroundColor = .clear
+        
+        cardView.translatesAutoresizingMaskIntoConstraints = false
+        cardView.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
+        cardView.layer.cornerRadius = 12
+        cardView.layer.borderWidth = 0.5
+        cardView.layer.borderColor = UIColor(white: 1.0, alpha: 0.08).cgColor
+        cardView.clipsToBounds = true
+        contentView.addSubview(cardView)
+        
+        activeIndicator.translatesAutoresizingMaskIntoConstraints = false
+        activeIndicator.backgroundColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        activeIndicator.layer.cornerRadius = 2
+        cardView.addSubview(activeIndicator)
+        
+        iconLabel.translatesAutoresizingMaskIntoConstraints = false
+        iconLabel.text = "💬"
+        iconLabel.font = UIFont.systemFont(ofSize: 15)
+        cardView.addSubview(iconLabel)
+        
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.textColor = .white
+        titleLabel.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        cardView.addSubview(titleLabel)
+        
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
+        subtitleLabel.font = UIFont.systemFont(ofSize: 11, weight: .regular)
+        cardView.addSubview(subtitleLabel)
+        
+        NSLayoutConstraint.activate([
+            cardView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
+            cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            
+            activeIndicator.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 4),
+            activeIndicator.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
+            activeIndicator.widthAnchor.constraint(equalToConstant: 4),
+            activeIndicator.heightAnchor.constraint(equalToConstant: 24),
+            
+            iconLabel.leadingAnchor.constraint(equalTo: activeIndicator.trailingAnchor, constant: 8),
+            iconLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
+            iconLabel.widthAnchor.constraint(equalToConstant: 20),
+            
+            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: iconLabel.trailingAnchor, constant: 8),
+            titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -10),
+            
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor)
+        ])
+    }
+    
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    
+    func configure(with conversation: Conversation, isSelected: Bool) {
+        titleLabel.text = conversation.title
+        titleLabel.textColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .white
+        activeIndicator.isHidden = !isSelected
+        cardView.backgroundColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.15) : UIColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
+        cardView.layer.borderColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.5).cgColor : UIColor(white: 1.0, alpha: 0.08).cgColor
+        
+        if let last = conversation.messages.last {
+            subtitleLabel.text = last.content.replacingOccurrences(of: "\n", with: " ")
+        } else {
+            subtitleLabel.text = "Discussion vide"
+        }
+    }
+}
+
+// MARK: - Cellules Messages (Pixel-Perfect Dark Mode)
 
 final class LegacyUserCell: UITableViewCell {
     private let bubbleView = UIView()
