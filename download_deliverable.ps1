@@ -11,59 +11,79 @@ $fileName = switch ($Type) {
 }
 
 $targetPath = Join-Path (Get-Location) $fileName
-$directDownloadUrl = "https://github.com/$repo/releases/latest/download/$fileName"
-$fallbackDownloadUrl = "https://github.com/$repo/releases/download/latest/$fileName"
+if (Test-Path "$targetPath") {
+    try { Remove-Item "$targetPath" -Force } catch {}
+}
 
 Write-Host ""
 Write-Host "==================================================================" -ForegroundColor Cyan
-Write-Host "  ⏳ ATTENTE ET TELECHARGEMENT AUTOMATIQUE DU FICHIER" -ForegroundColor Cyan
-Write-Host "  Fichier attendu : $fileName" -ForegroundColor Yellow
+Write-Host "  ⏳ ATTENTE DU BUILD GITHUB ACTIONS ET TELECHARGEMENT DE L'IPA" -ForegroundColor Cyan
+Write-Host "  Fichier : $fileName (Compatible iOS 12.0+ / iPhone 5S / 6 / 7)" -ForegroundColor Yellow
 Write-Host "==================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$maxWaitSeconds = 900 # 15 minutes max
-$interval = 8
+$maxWaitSeconds = 900 # 15 minutes
+$interval = 6
 $elapsed = 0
 
-Write-Host "Le serveur compile actuellement votre application pour iPhone 5S sur macOS..." -ForegroundColor Gray
-Write-Host "Telechargement automatique des que le build est termine." -ForegroundColor Gray
-Write-Host ""
+Write-Host "Vérification en temps réel de la compilation sur macOS..." -ForegroundColor Gray
+
+# Récupération du commit local actuel
+$currentHead = (git rev-parse HEAD 2>$null)
+if ($currentHead) {
+    $currentHead = $currentHead.Trim()
+}
 
 while ($elapsed -lt $maxWaitSeconds) {
-    $secondsLeft = $maxWaitSeconds - $elapsed
-    Write-Host -NoNewline "`r[En attente du binaire...] $($elapsed)s ecoulees (Verification de la release...)   "
+    Write-Host -NoNewline "`r[Compilation macOS en cours...] $($elapsed)s écoulées...              "
     
     try {
-        $tempOutput = Join-Path (Get-Location) "temp_$fileName"
-        if (Test-Path "$tempOutput") { Remove-Item "$tempOutput" -Force }
+        # 1. Vérifier si un nouveau workflow a terminé
+        $headers = @{ "User-Agent" = "PowerShell-Downloader" }
+        $apiUrl = "https://api.github.com/repos/$repo/actions/runs?per_page=5"
+        $runsResponse = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction SilentlyContinue
         
-        # Tentative 1: URL directe
-        $curlResult = & curl.exe -s -L -f -o "$tempOutput" "$directDownloadUrl" 2>&1
-        
-        # Tentative 2 si échoue: URL générique
-        if (-not (Test-Path "$tempOutput") -or ((Get-Item "$tempOutput").Length -lt 100000)) {
-            if ($Type -eq "ipa-legacy") {
-                $curlResult = & curl.exe -s -L -f -o "$tempOutput" "$genericLegacyUrl" 2>&1
+        if ($runsResponse -and $runsResponse.workflow_runs) {
+            $latestRun = $runsResponse.workflow_runs[0]
+            
+            # Vérifier si le run correspond au dernier commit
+            $isMatchingCommit = ($latestRun.head_sha -eq $currentHead)
+            
+            if ($latestRun.status -eq "completed") {
+                if ($latestRun.conclusion -eq "success") {
+                    Write-Host ""
+                    Write-Host "  ✅ Compilation GitHub Actions terminée avec succès !" -ForegroundColor Green
+                    Write-Host "  Téléchargement du binaire $fileName..." -ForegroundColor Cyan
+                    
+                    $directDownloadUrl = "https://github.com/$repo/releases/latest/download/$fileName"
+                    $tempOutput = Join-Path (Get-Location) "temp_$fileName"
+                    if (Test-Path "$tempOutput") { Remove-Item "$tempOutput" -Force }
+                    
+                    # Téléchargement via curl
+                    & curl.exe -s -L -f -o "$tempOutput" "$directDownloadUrl"
+                    
+                    if ((Test-Path "$tempOutput") -and ((Get-Item "$tempOutput").Length -gt 100000)) {
+                        Move-Item -Path "$tempOutput" -Destination "$targetPath" -Force
+                        $size = (Get-Item "$targetPath").Length
+                        $sizeMB = [math]::Round($size / 1MB, 2)
+                        
+                        Write-Host ""
+                        Write-Host "==================================================================" -ForegroundColor Green
+                        Write-Host "  🎉 $fileName PRET POUR L'INSTALLATION SUR IPHONE 5S / 6 / 7 !" -ForegroundColor Green
+                        Write-Host "  Fichier : $targetPath ($sizeMB Mo)" -ForegroundColor Yellow
+                        Write-Host "  Vous pouvez maintenant cliquer sur 'Start' dans Sideloadly !" -ForegroundColor Cyan
+                        Write-Host "==================================================================" -ForegroundColor Green
+                        Write-Host ""
+                        
+                        explorer.exe /select,"$targetPath"
+                        exit 0
+                    }
+                } elseif ($latestRun.conclusion -eq "failure") {
+                    Write-Host ""
+                    Write-Host "❌ Le build sur GitHub Actions a échoué. Consultez les logs : $($latestRun.html_url)" -ForegroundColor Red
+                    exit 1
+                }
             }
-        }
-        
-        if ((Test-Path "$tempOutput") -and ((Get-Item "$tempOutput").Length -gt 100000)) {
-            if (Test-Path "$targetPath") { Remove-Item "$targetPath" -Force }
-            Move-Item -Path "$tempOutput" -Destination "$targetPath" -Force
-            
-            $size = (Get-Item "$targetPath").Length
-            $sizeMB = [math]::Round($size / 1MB, 2)
-            Write-Host ""
-            Write-Host "==================================================================" -ForegroundColor Green
-            Write-Host "  🎉 $fileName TELECHARGE AVEC SUCCES DANS VOS DOSSIERS !" -ForegroundColor Green
-            Write-Host "  Emplacement : $targetPath ($sizeMB Mo)" -ForegroundColor Yellow
-            Write-Host "==================================================================" -ForegroundColor Green
-            Write-Host ""
-            
-            explorer.exe /select,"$targetPath"
-            exit 0
-        } else {
-            if (Test-Path "$tempOutput") { Remove-Item "$tempOutput" -Force }
         }
     } catch {
         # Continuer
@@ -74,5 +94,5 @@ while ($elapsed -lt $maxWaitSeconds) {
 }
 
 Write-Host ""
-Write-Host "⚠️ Temps d'attente depasse. Vous pouvez verifier le build et recuperer le fichier ici :" -ForegroundColor Yellow
-Write-Host "https://github.com/$repo/releases" -ForegroundColor Cyan
+Write-Host "⚠️ Temps d'attente dépassé. Vous pouvez vérifier le statut ici :" -ForegroundColor Yellow
+Write-Host "https://github.com/$repo/actions" -ForegroundColor Cyan
