@@ -47,8 +47,15 @@ while ($elapsed -lt $maxWaitSeconds) {
             $latestRun = $runsResponse.workflow_runs | Where-Object { $_.name -like "*iOS*" } | Select-Object -First 1
             if (-not $latestRun) { $latestRun = $runsResponse.workflow_runs[0] }
             
-            # Vérifier si le run correspond au dernier commit
-            $isMatchingCommit = ($latestRun.head_sha -eq $currentHead)
+            # Vérifier si le run correspond au commit HEAD actuel
+            $isMatchingCommit = ($currentHead -and ($latestRun.head_sha -eq $currentHead))
+            
+            # Si le build trouvé est un ancien commit et qu'on vient de lancer (moins de 45s), attendre le nouveau
+            if (-not $isMatchingCommit -and $elapsed -lt 45) {
+                Start-Sleep -Seconds $interval
+                $elapsed += $interval
+                continue
+            }
             
             if ($latestRun.status -eq "completed") {
                 if ($latestRun.conclusion -eq "success") {
