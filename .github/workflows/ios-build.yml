@@ -120,6 +120,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish Error Release If Failed
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Sarah IA - Build Diagnostic Logs"
+          body_path: xcode_errors.txt
+          files: |
+            xcode_errors.txt
+            xcodebuild.log
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload Build Log Artifact
         if: always()
         uses: actions/upload-artifact@v4
