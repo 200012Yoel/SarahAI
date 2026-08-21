@@ -1,7 +1,10 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
 
 // MARK: - Modèle de Données des Widgets
 
+@available(iOS 14.0, *)
 public struct SarahWidgetEntry: Identifiable {
     public let id = UUID()
     public let date: Date
@@ -15,6 +18,7 @@ public struct SarahWidgetEntry: Identifiable {
 
 // MARK: - 1. Widget Statistiques & Graphique Allongé (Medium)
 
+@available(iOS 14.0, *)
 public struct SarahUsageStatsWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -51,94 +55,95 @@ public struct SarahUsageStatsWidgetView: View {
                     Text("\(entry.stats.totalConversations)")
                         .font(.system(size: 26, weight: .heavy))
                         .foregroundColor(.white)
-                    
-                    Text("Discussions")
-                        .font(.system(size: 11, weight: .medium))
+                    Text("Discussions actives")
+                        .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.gray)
                 }
                 
-                // Temps passé / Messages
-                HStack(spacing: 8) {
-                    Label("\(entry.stats.activeMinutesToday)m", systemImage: "clock.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.cyan)
-                    
-                    Label("\(entry.stats.learnedMemoriesCount)", systemImage: "brain.fill")
+                // Indicateur Mémoire
+                HStack(spacing: 4) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 9))
+                        .foregroundColor(.purple)
+                    Text("\(entry.stats.learnedMemoriesCount) souvenirs")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.purple)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
-            // SÉPARATEUR
+            // SÉPARATEUR VERTICAL DISCRET
             Rectangle()
-                .fill(Color.white.opacity(0.1))
+                .fill(Color.white.opacity(0.08))
                 .frame(width: 1)
                 .padding(.vertical, 4)
             
-            // COLONNE DROITE : Graphique en Barres d'Activité 7 Jours
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Activité 7j")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.gray)
+            // COLONNE DROITE : Graphique d'Activité 7 Jours
+            VStack(alignment: .trailing, spacing: 6) {
+                HStack {
+                    Text("Activité")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.gray)
+                    Spacer()
+                    Text("7j")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.cyan)
+                }
                 
                 Spacer()
                 
-                HStack(alignment: .bottom, spacing: 6) {
-                    let days = ["L", "M", "M", "J", "V", "S", "D"]
-                    let values = entry.stats.weeklyActivity
-                    let maxVal = max(1, values.max() ?? 1)
-                    
-                    ForEach(0..<min(7, values.count), id: \.self) { i in
-                        let val = values[i]
-                        let ratio = CGFloat(val) / CGFloat(maxVal)
-                        let barHeight = max(8.0, ratio * 48.0)
-                        let isToday = (i == 6)
+                // 7 Barres verticales représentant l'activité
+                HStack(alignment: .bottom, spacing: 5) {
+                    ForEach(0..<entry.stats.weeklyActivity.count, id: \.self) { index in
+                        let value = entry.stats.weeklyActivity[index]
+                        let isToday = (index == entry.stats.weeklyActivity.count - 1)
                         
-                        VStack(spacing: 4) {
+                        VStack(spacing: 3) {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(
-                                    isToday
-                                    ? LinearGradient(
-                                        gradient: Gradient(colors: [Color.cyan, Color.blue]),
+                                    isToday ?
+                                    LinearGradient(
+                                        colors: [Color.cyan, Color.purple],
                                         startPoint: .top,
                                         endPoint: .bottom
-                                    )
-                                    : LinearGradient(
-                                        gradient: Gradient(colors: [Color.purple.opacity(0.8), Color.purple.opacity(0.4)]),
+                                    ) :
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.35), Color.white.opacity(0.12)],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
                                 )
-                                .frame(width: 10, height: barHeight)
-                                .shadow(color: isToday ? Color.cyan.opacity(0.5) : Color.clear, radius: 4, x: 0, y: 0)
+                                .frame(width: 8, height: CGFloat(max(6, min(48, value * 3))))
                             
-                            Text(days[i])
-                                .font(.system(size: 9, weight: isToday ? .bold : .regular))
+                            Text(dayLetter(for: index))
+                                .font(.system(size: 8, weight: isToday ? .bold : .regular))
                                 .foregroundColor(isToday ? .cyan : .gray)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
             }
-            .frame(width: 115)
+            .frame(width: 110)
         }
         .padding(14)
         .background(
             LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.08, green: 0.08, blue: 0.11),
-                    Color(red: 0.04, green: 0.04, blue: 0.06)
-                ]),
+                colors: [Color(red: 0.08, green: 0.08, blue: 0.11), Color(red: 0.04, green: 0.04, blue: 0.06)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
     }
+    
+    private func dayLetter(for index: Int) -> String {
+        let days = ["L", "M", "M", "J", "V", "S", "D"]
+        guard index >= 0 && index < days.count else { return "" }
+        return days[index]
+    }
 }
 
 // MARK: - 2. Widget Carré Compact (Small)
 
+@available(iOS 14.0, *)
 public struct SarahCompactStatsWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -183,6 +188,7 @@ public struct SarahCompactStatsWidgetView: View {
 
 // MARK: - 3. Widget Mémoire & Brain Vault (Medium)
 
+@available(iOS 14.0, *)
 public struct SarahMemoryWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -240,6 +246,7 @@ public struct SarahMemoryWidgetView: View {
 
 // MARK: - 4. Widget Statut & Discussion (Small)
 
+@available(iOS 14.0, *)
 public struct SarahStatusWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -275,6 +282,7 @@ public struct SarahStatusWidgetView: View {
 
 // MARK: - 5. Widget Accès Vocal Instantané (Small)
 
+@available(iOS 14.0, *)
 public struct SarahQuickVoiceWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -317,6 +325,7 @@ public struct SarahQuickVoiceWidgetView: View {
 
 // MARK: - 6. Widget Dernier Message & Discussion (Medium)
 
+@available(iOS 14.0, *)
 public struct SarahLastMessageWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -367,6 +376,7 @@ public struct SarahLastMessageWidgetView: View {
 
 // MARK: - 7. Widget Actions Rapides (Medium)
 
+@available(iOS 14.0, *)
 public struct SarahQuickActionsWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -418,6 +428,7 @@ public struct SarahQuickActionsWidgetView: View {
 
 // MARK: - 8. Widget Santé & Latence Système (Small)
 
+@available(iOS 14.0, *)
 public struct SarahSystemHealthWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -466,6 +477,7 @@ public struct SarahSystemHealthWidgetView: View {
 
 // MARK: - 9. Widget Conseil & Astuce Quotidienne (Medium)
 
+@available(iOS 14.0, *)
 public struct SarahDailyTipWidgetView: View {
     public let entry: SarahWidgetEntry
     
@@ -665,4 +677,5 @@ public struct SarahDailyTipWidget: Widget {
         .supportedFamilies([.systemMedium])
     }
 }
+#endif
 #endif

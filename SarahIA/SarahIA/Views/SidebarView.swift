@@ -285,6 +285,7 @@ public struct SidebarView: View {
 }
 
 /// Style de bouton interactif avec micro-animation d'échelle au toucher
+@available(iOS 13.0, *)
 public struct ScaleBounceButtonStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
