@@ -49,6 +49,7 @@ jobs:
             -scheme "SarahIA" \
             -configuration Release \
             -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \

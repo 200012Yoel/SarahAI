@@ -16,6 +16,7 @@
 		A1B2C3D40001000100000007 /* ChatBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000007 /* ChatBubbleView.swift */; };
 		A1B2C3D40001000100000009 /* TypingIndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000009 /* TypingIndicatorView.swift */; };
 		A1B2C3D4000100010000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000000B /* Assets.xcassets */; };
+		A1B2C3D4000100010000000D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000000D /* LaunchScreen.storyboard */; };
 		A1B2C3D40001000100000010 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000010 /* StorageService.swift */; };
 		A1B2C3D40001000100000011 /* AudioEngineManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000011 /* AudioEngineManager.swift */; };
 		A1B2C3D40001000100000012 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000012 /* WhisperService.swift */; };
@@ -64,6 +65,7 @@
 		A1B2C3D40002000100000009 /* TypingIndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4000200010000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1B2C3D4000200010000000D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1B2C3D4000200010000000C /* SarahIA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SarahIA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1B2C3D40002000100000010 /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000011 /* AudioEngineManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineManager.swift; sourceTree = "<group>"; };
@@ -138,6 +140,7 @@
 				A1B2C3D40004000100000005 /* Views */,
 				A1B2C3D40004000100000006 /* ViewModels */,
 				A1B2C3D4000200010000000B /* Assets.xcassets */,
+				A1B2C3D4000200010000000D /* LaunchScreen.storyboard */,
 				A1B2C3D4000200010000000A /* Info.plist */,
 			);
 			path = SarahIA;
@@ -338,6 +341,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D4000100010000000B /* Assets.xcassets in Resources */,
+				A1B2C3D4000100010000000D /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,8 +423,6 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -439,7 +441,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app;
 				PRODUCT_NAME = SarahIA;
-				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1";
 			};
@@ -461,8 +463,6 @@
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -481,7 +481,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app;
 				PRODUCT_NAME = SarahIA;
-				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1";
 			};
@@ -491,7 +491,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -540,7 +540,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -554,7 +554,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -597,7 +597,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = NO;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
