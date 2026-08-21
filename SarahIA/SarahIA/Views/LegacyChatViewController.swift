@@ -1,35 +1,67 @@
 import UIKit
 import AVFoundation
 
-/// Contrôleur de discussion 100% natif UIKit assurant une compatibilité totale et sans crash avec iOS 12.0+ (iPhone 5S, 6, 6 Plus, 7, 8, etc.).
+/// Contrôleur de discussion universel 100% UIKit reproduisant fidèlement l'interface moderne (Sidebar, Menu, Brain Vault, Suggestions, Widgets, Réglages) sans aucun crash sur iOS 12.0+ (iPhone 5S, 6, 6 Plus, 7, 8, etc.).
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
     
-    // MARK: - Propriétés UI
+    // MARK: - Composants UI Principaux
     private let topBar = UIView()
-    private let tableView = UITableView()
-    private let composerContainer = UIView()
-    private let inputTextField = UITextField()
-    private let sendButton = UIButton(type: .system)
-    private let micButton = UIButton(type: .system)
-    private let newChatButton = UIButton(type: .system)
-    private let widgetsButton = UIButton(type: .system)
+    private let menuButton = UIButton(type: .system)
     private let titleLabel = UILabel()
     private let statusLabel = UILabel()
+    private let memoryHeaderButton = UIButton(type: .system)
+    private let settingsHeaderButton = UIButton(type: .system)
+    
+    private let tableView = UITableView()
+    private let suggestionsScrollView = UIScrollView()
+    private let suggestionsStackView = UIStackView()
+    
+    private let composerContainer = UIView()
+    private let actionPlusButton = UIButton(type: .system)
+    private let inputTextField = UITextField()
+    private let micButton = UIButton(type: .system)
+    private let sendButton = UIButton(type: .system)
+    
+    // MARK: - Menu Latéral (Drawer / Sidebar)
+    private let drawerScrim = UIView()
+    private let drawerView = UIView()
+    private var drawerLeadingConstraint: NSLayoutConstraint?
+    private var isDrawerOpen: Bool = false
+    private let drawerTableView = UITableView()
+    private let drawerSearchField = UITextField()
     
     private var composerBottomConstraint: NSLayoutConstraint?
     private var isKeyboardPresented: Bool = false
     
-    // MARK: - Données & Services
+    // MARK: - Données & Persistance
     private var messages: [Message] = []
+    private var conversations: [Conversation] = []
+    private var currentConversationId: UUID = UUID()
     private var isRecording: Bool = false
     private let speechSynthesizer = AVSpeechSynthesizer()
+    private var currentlySpeakingMessageId: UUID? = nil
+    
+    // Suggestions rapides
+    private let quickSuggestions = [
+        "💡 Que sais-tu faire ?",
+        "🧠 Apprends papa",
+        "⏰ Quelle heure est-il ?",
+        "☀️ Quel temps fait-il ?",
+        "🔋 Niveau de batterie",
+        "📋 Presse-papier",
+        "😂 Raconte-moi une blague"
+    ]
+    
+    // MARK: - Cycle de Vie
     
     public override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+        setupDrawerUI()
+        setupSuggestions()
         setupKeyboardNotifications()
         setupGestures()
-        loadInitialMessages()
+        loadPersistedState()
     }
     
     public override func viewDidLayoutSubviews() {
@@ -44,22 +76,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         return .lightContent
     }
     
-    // MARK: - Configuration UI Native UIKit
+    // MARK: - Configuration UI Principale
     
     private func setupUI() {
         view.backgroundColor = .black
         
-        // 1. Barre de navigation supérieure
+        // 1. Barre Supérieure (TopBar)
         topBar.translatesAutoresizingMaskIntoConstraints = false
-        topBar.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        topBar.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1.0)
         view.addSubview(topBar)
         
-        // Bouton Nouveau Chat (Gauche)
-        newChatButton.translatesAutoresizingMaskIntoConstraints = false
-        newChatButton.setTitle("✏️", for: .normal)
-        newChatButton.titleLabel?.font = UIFont.systemFont(ofSize: 20)
-        newChatButton.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
-        topBar.addSubview(newChatButton)
+        // Bouton Menu Hamburger (☰)
+        menuButton.translatesAutoresizingMaskIntoConstraints = false
+        menuButton.setTitle("☰", for: .normal)
+        menuButton.setTitleColor(.white, for: .normal)
+        menuButton.titleLabel?.font = UIFont.systemFont(ofSize: 22, weight: .bold)
+        menuButton.addTarget(self, action: #selector(toggleDrawer), for: .touchUpInside)
+        topBar.addSubview(menuButton)
         
         // Titre et Statut (Centre)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -74,14 +107,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
         topBar.addSubview(statusLabel)
         
-        // Bouton Widgets & Infos (Droite)
-        widgetsButton.translatesAutoresizingMaskIntoConstraints = false
-        widgetsButton.setTitle("📊", for: .normal)
-        widgetsButton.titleLabel?.font = UIFont.systemFont(ofSize: 20)
-        widgetsButton.addTarget(self, action: #selector(widgetsModalTapped), for: .touchUpInside)
-        topBar.addSubview(widgetsButton)
+        // Bouton Mémoire (🧠)
+        memoryHeaderButton.translatesAutoresizingMaskIntoConstraints = false
+        memoryHeaderButton.setTitle("🧠", for: .normal)
+        memoryHeaderButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        memoryHeaderButton.addTarget(self, action: #selector(openMemoryVault), for: .touchUpInside)
+        topBar.addSubview(memoryHeaderButton)
         
-        // 2. TableView des messages
+        // Bouton Réglages (⚙️)
+        settingsHeaderButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsHeaderButton.setTitle("⚙️", for: .normal)
+        settingsHeaderButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        settingsHeaderButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
+        topBar.addSubview(settingsHeaderButton)
+        
+        // 2. TableView des Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .black
         tableView.separatorStyle = .none
@@ -94,98 +134,257 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.rowHeight = UITableView.automaticDimension
         view.addSubview(tableView)
         
-        // 3. Barre de saisie (Composer)
+        // 3. Barre de Suggestions Horizontale
+        suggestionsScrollView.translatesAutoresizingMaskIntoConstraints = false
+        suggestionsScrollView.showsHorizontalScrollIndicator = false
+        suggestionsScrollView.backgroundColor = .clear
+        view.addSubview(suggestionsScrollView)
+        
+        suggestionsStackView.translatesAutoresizingMaskIntoConstraints = false
+        suggestionsStackView.axis = .horizontal
+        suggestionsStackView.spacing = 8
+        suggestionsStackView.alignment = .center
+        suggestionsScrollView.addSubview(suggestionsStackView)
+        
+        // 4. Barre de Saisie (Composer Container)
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
-        composerContainer.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 1.0)
-        composerContainer.layer.cornerRadius = 22
-        composerContainer.layer.masksToBounds = true
+        composerContainer.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.15, alpha: 1.0)
+        composerContainer.layer.cornerRadius = 23
         composerContainer.layer.borderWidth = 0.5
-        composerContainer.layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
+        composerContainer.layer.borderColor = UIColor(white: 1.0, alpha: 0.15).cgColor
+        composerContainer.clipsToBounds = true
         view.addSubview(composerContainer)
         
+        // Bouton Plus ➕
+        actionPlusButton.translatesAutoresizingMaskIntoConstraints = false
+        actionPlusButton.setTitle("➕", for: .normal)
+        actionPlusButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
+        actionPlusButton.addTarget(self, action: #selector(actionPlusTapped), for: .touchUpInside)
+        composerContainer.addSubview(actionPlusButton)
+        
+        // Champ de Texte
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
-        inputTextField.placeholder = "Demander à Sarah..."
+        inputTextField.backgroundColor = .clear
         inputTextField.textColor = .white
-        inputTextField.tintColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0)
-        inputTextField.font = UIFont.systemFont(ofSize: 16)
+        inputTextField.tintColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        inputTextField.font = UIFont.systemFont(ofSize: 15)
+        inputTextField.attributedPlaceholder = NSAttributedString(
+            string: "Message pour Sarah...",
+            attributes: [.foregroundColor: UIColor(white: 0.55, alpha: 1.0)]
+        )
         inputTextField.returnKeyType = .send
         inputTextField.delegate = self
-        inputTextField.attributedPlaceholder = NSAttributedString(
-            string: "Demander à Sarah...",
-            attributes: [.foregroundColor: UIColor.lightGray]
-        )
         inputTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
         composerContainer.addSubview(inputTextField)
         
+        // Bouton Micro 🎙️
         micButton.translatesAutoresizingMaskIntoConstraints = false
         micButton.setTitle("🎙️", for: .normal)
-        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
         micButton.addTarget(self, action: #selector(toggleMicTapped), for: .touchUpInside)
         composerContainer.addSubview(micButton)
         
+        // Bouton Envoyer ⬆
         sendButton.translatesAutoresizingMaskIntoConstraints = false
-        sendButton.setTitle("⬆️", for: .normal)
-        sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .bold)
+        sendButton.setTitle("▲", for: .normal)
+        sendButton.setTitleColor(.white, for: .normal)
+        sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .black)
         sendButton.backgroundColor = UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1.0)
         sendButton.layer.cornerRadius = 16
-        sendButton.tintColor = .white
+        sendButton.clipsToBounds = true
         sendButton.addTarget(self, action: #selector(sendButtonTapped), for: .touchUpInside)
         composerContainer.addSubview(sendButton)
         
-        // Setup Constraints
-        let topSafeArea = topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor)
+        // Layout Constraints
         let composerBottom = composerContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16)
         self.composerBottomConstraint = composerBottom
         
         NSLayoutConstraint.activate([
+            // TopBar
+            topBar.topAnchor.constraint(equalTo: view.topAnchor),
             topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            topSafeArea,
-            topBar.heightAnchor.constraint(equalToConstant: 50),
+            topBar.heightAnchor.constraint(equalToConstant: 80),
             
-            newChatButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 14),
-            newChatButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            newChatButton.widthAnchor.constraint(equalToConstant: 36),
-            newChatButton.heightAnchor.constraint(equalToConstant: 36),
+            menuButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 14),
+            menuButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
+            menuButton.widthAnchor.constraint(equalToConstant: 36),
+            menuButton.heightAnchor.constraint(equalToConstant: 36),
             
             titleLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
-            titleLabel.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 6),
+            titleLabel.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -22),
             
             statusLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
             statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             
-            widgetsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -14),
-            widgetsButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            widgetsButton.widthAnchor.constraint(equalToConstant: 36),
-            widgetsButton.heightAnchor.constraint(equalToConstant: 36),
+            settingsHeaderButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
+            settingsHeaderButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
+            settingsHeaderButton.widthAnchor.constraint(equalToConstant: 32),
+            settingsHeaderButton.heightAnchor.constraint(equalToConstant: 32),
             
+            memoryHeaderButton.trailingAnchor.constraint(equalTo: settingsHeaderButton.leadingAnchor, constant: -6),
+            memoryHeaderButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
+            memoryHeaderButton.widthAnchor.constraint(equalToConstant: 32),
+            memoryHeaderButton.heightAnchor.constraint(equalToConstant: 32),
+            
+            // TableView
             tableView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: composerContainer.topAnchor, constant: -8),
+            tableView.bottomAnchor.constraint(equalTo: suggestionsScrollView.topAnchor, constant: -4),
             
+            // Suggestions
+            suggestionsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            suggestionsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            suggestionsScrollView.bottomAnchor.constraint(equalTo: composerContainer.topAnchor, constant: -8),
+            suggestionsScrollView.heightAnchor.constraint(equalToConstant: 36),
+            
+            suggestionsStackView.topAnchor.constraint(equalTo: suggestionsScrollView.topAnchor),
+            suggestionsStackView.leadingAnchor.constraint(equalTo: suggestionsScrollView.leadingAnchor, constant: 14),
+            suggestionsStackView.trailingAnchor.constraint(equalTo: suggestionsScrollView.trailingAnchor, constant: -14),
+            suggestionsStackView.bottomAnchor.constraint(equalTo: suggestionsScrollView.bottomAnchor),
+            suggestionsStackView.heightAnchor.constraint(equalTo: suggestionsScrollView.heightAnchor),
+            
+            // Composer Container
             composerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             composerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            composerContainer.heightAnchor.constraint(equalToConstant: 44),
             composerBottom,
+            composerContainer.heightAnchor.constraint(equalToConstant: 46),
             
-            micButton.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 8),
-            micButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            micButton.widthAnchor.constraint(equalToConstant: 32),
-            micButton.heightAnchor.constraint(equalToConstant: 32),
+            actionPlusButton.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 8),
+            actionPlusButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            actionPlusButton.widthAnchor.constraint(equalToConstant: 30),
+            actionPlusButton.heightAnchor.constraint(equalToConstant: 30),
             
-            inputTextField.leadingAnchor.constraint(equalTo: micButton.trailingAnchor, constant: 8),
-            inputTextField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
+            inputTextField.leadingAnchor.constraint(equalTo: actionPlusButton.trailingAnchor, constant: 6),
+            inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -6),
             inputTextField.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            inputTextField.heightAnchor.constraint(equalToConstant: 38),
             
-            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -6),
+            micButton.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -6),
+            micButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            micButton.widthAnchor.constraint(equalToConstant: 30),
+            micButton.heightAnchor.constraint(equalToConstant: 30),
+            
+            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -7),
             sendButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
             sendButton.widthAnchor.constraint(equalToConstant: 32),
             sendButton.heightAnchor.constraint(equalToConstant: 32)
         ])
     }
     
-    // MARK: - Synchronisation Clavier Pixel-Perfect
+    // MARK: - Configuration Menu Latéral (Sidebar Drawer)
+    
+    private func setupDrawerUI() {
+        // Scrim semi-transparent
+        drawerScrim.translatesAutoresizingMaskIntoConstraints = false
+        drawerScrim.backgroundColor = UIColor(white: 0.0, alpha: 0.5)
+        drawerScrim.alpha = 0
+        drawerScrim.isHidden = true
+        let tap = UITapGestureRecognizer(target: self, action: #selector(toggleDrawer))
+        drawerScrim.addGestureRecognizer(tap)
+        view.addSubview(drawerScrim)
+        
+        // Panneau Drawer
+        drawerView.translatesAutoresizingMaskIntoConstraints = false
+        drawerView.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        drawerView.layer.shadowColor = UIColor.black.cgColor
+        drawerView.layer.shadowOpacity = 0.6
+        drawerView.layer.shadowRadius = 15
+        view.addSubview(drawerView)
+        
+        let drawerWidth = UIScreen.main.bounds.width * 0.82
+        let leading = drawerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -drawerWidth)
+        self.drawerLeadingConstraint = leading
+        
+        // En-tête du Drawer
+        let drawerHeader = UIView()
+        drawerHeader.translatesAutoresizingMaskIntoConstraints = false
+        drawerHeader.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.07, alpha: 1.0)
+        drawerView.addSubview(drawerHeader)
+        
+        let appTitle = UILabel()
+        appTitle.translatesAutoresizingMaskIntoConstraints = false
+        appTitle.text = "Sarah IA"
+        appTitle.font = UIFont.systemFont(ofSize: 22, weight: .bold)
+        appTitle.textColor = .white
+        drawerHeader.addSubview(appTitle)
+        
+        let newChatBtn = UIButton(type: .system)
+        newChatBtn.translatesAutoresizingMaskIntoConstraints = false
+        newChatBtn.setTitle("➕ Nouvelle discussion", for: .normal)
+        newChatBtn.setTitleColor(.white, for: .normal)
+        newChatBtn.backgroundColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.25)
+        newChatBtn.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        newChatBtn.layer.cornerRadius = 10
+        newChatBtn.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
+        drawerHeader.addSubview(newChatBtn)
+        
+        // TableView du Drawer (Liste des discussions + Accès rapides)
+        drawerTableView.translatesAutoresizingMaskIntoConstraints = false
+        drawerTableView.backgroundColor = .clear
+        drawerTableView.separatorColor = UIColor(white: 1.0, alpha: 0.08)
+        drawerTableView.dataSource = self
+        drawerTableView.delegate = self
+        drawerTableView.register(UITableViewCell.self, forCellReuseIdentifier: "DrawerCell")
+        drawerView.addSubview(drawerTableView)
+        
+        NSLayoutConstraint.activate([
+            drawerScrim.topAnchor.constraint(equalTo: view.topAnchor),
+            drawerScrim.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            drawerScrim.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            drawerScrim.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            drawerView.topAnchor.constraint(equalTo: view.topAnchor),
+            drawerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            leading,
+            drawerView.widthAnchor.constraint(equalToConstant: drawerWidth),
+            
+            drawerHeader.topAnchor.constraint(equalTo: drawerView.topAnchor),
+            drawerHeader.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
+            drawerHeader.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
+            drawerHeader.heightAnchor.constraint(equalToConstant: 120),
+            
+            appTitle.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 16),
+            appTitle.topAnchor.constraint(equalTo: drawerHeader.topAnchor, constant: 36),
+            
+            newChatBtn.leadingAnchor.constraint(equalTo: drawerHeader.leadingAnchor, constant: 16),
+            newChatBtn.trailingAnchor.constraint(equalTo: drawerHeader.trailingAnchor, constant: -16),
+            newChatBtn.bottomAnchor.constraint(equalTo: drawerHeader.bottomAnchor, constant: -10),
+            newChatBtn.heightAnchor.constraint(equalToConstant: 36),
+            
+            drawerTableView.topAnchor.constraint(equalTo: drawerHeader.bottomAnchor),
+            drawerTableView.leadingAnchor.constraint(equalTo: drawerView.leadingAnchor),
+            drawerTableView.trailingAnchor.constraint(equalTo: drawerView.trailingAnchor),
+            drawerTableView.bottomAnchor.constraint(equalTo: drawerView.bottomAnchor)
+        ])
+    }
+    
+    // MARK: - Suggestions Horizontales
+    
+    private func setupSuggestions() {
+        for suggestion in quickSuggestions {
+            let btn = UIButton(type: .system)
+            btn.setTitle(suggestion, for: .normal)
+            btn.setTitleColor(UIColor(white: 0.9, alpha: 1.0), for: .normal)
+            btn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+            btn.backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
+            btn.layer.cornerRadius = 14
+            btn.layer.borderWidth = 0.5
+            btn.layer.borderColor = UIColor(white: 1.0, alpha: 0.12).cgColor
+            btn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            btn.addTarget(self, action: #selector(suggestionTapped(_:)), for: .touchUpInside)
+            suggestionsStackView.addArrangedSubview(btn)
+        }
+    }
+    
+    @objc private func suggestionTapped(_ sender: UIButton) {
+        guard let text = sender.title(for: .normal) else { return }
+        inputTextField.text = text
+        sendButtonTapped()
+    }
+    
+    // MARK: - Gestion du Clavier & Gestes
     
     private func setupKeyboardNotifications() {
         NotificationCenter.default.addObserver(
@@ -238,37 +437,155 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private func setupGestures() {
         let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tap.cancelsTouchesInView = false
-        view.addGestureRecognizer(tap)
+        tableView.addGestureRecognizer(tap)
     }
     
     @objc private func dismissKeyboard() {
         view.endEditing(true)
     }
     
-    // MARK: - Actions TopBar
+    // MARK: - Actions TopBar & Drawer
+    
+    @objc private func toggleDrawer() {
+        isDrawerOpen.toggle()
+        dismissKeyboard()
+        
+        let drawerWidth = UIScreen.main.bounds.width * 0.82
+        drawerLeadingConstraint?.constant = isDrawerOpen ? 0 : -drawerWidth
+        
+        if isDrawerOpen {
+            drawerScrim.isHidden = false
+            drawerTableView.reloadData()
+        }
+        
+        UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseInOut, animations: {
+            self.drawerScrim.alpha = self.isDrawerOpen ? 1.0 : 0.0
+            self.view.layoutIfNeeded()
+        }, completion: { _ in
+            if !self.isDrawerOpen {
+                self.drawerScrim.isHidden = true
+            }
+        })
+    }
     
     @objc private func newChatTapped() {
+        let newConv = Conversation(title: "Nouvelle discussion \(conversations.count + 1)")
+        currentConversationId = newConv.id
+        conversations.insert(newConv, at: 0)
         messages = [
-            Message(content: "Nouvelle discussion commencée ! 🌟 Que souhaitez-vous demander à Sarah ?", isFromUser: false)
+            Message(content: "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?", isFromUser: false)
         ]
+        newConv.messages = messages
+        
+        saveState()
         tableView.reloadData()
+        
+        if isDrawerOpen {
+            toggleDrawer()
+        }
+    }
+    
+    @objc private func openMemoryVault() {
+        dismissKeyboard()
+        let memories = StorageService.shared.loadState().learnedMemories
+        var memoryText = ""
+        if memories.isEmpty {
+            memoryText = "Aucun souvenir appris pour le moment.\n\nDites par exemple : « Apprends papa » pour enseigner une réponse personnalisée à Sarah !"
+        } else {
+            memoryText = memories.map { "• « \($0.key) » ➔ « \($0.value) »" }.joined(separator: "\n\n")
+        }
+        
+        let alert = UIAlertController(
+            title: "🧠 Coffre Mémoire (Brain Vault)",
+            message: memoryText,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "➕ Enseigner un mot", style: .default, handler: { [weak self] _ in
+            self?.promptTeachMemory()
+        }))
+        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    private func promptTeachMemory() {
+        let alert = UIAlertController(
+            title: "🧠 Enseigner à Sarah",
+            message: "Entrez le déclencheur et ce que Sarah doit répondre :",
+            preferredStyle: .alert
+        )
+        alert.addTextField { $0.placeholder = "Mot déclencheur (ex: Papa)" }
+        alert.addTextField { $0.placeholder = "Réponse (ex: Il est au travail)" }
+        
+        alert.addAction(UIAlertAction(title: "Enregistrer", style: .default, handler: { [weak self] _ in
+            guard let trigger = alert.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let response = alert.textFields?[1].text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trigger.isEmpty, !response.isEmpty else { return }
+            
+            var state = StorageService.shared.loadState()
+            state.learnedMemories[trigger.lowercased()] = response
+            StorageService.shared.saveState(state)
+            
+            let confirmation = Message(content: "C'est appris ! 🧠 Dès que vous me direz « \(trigger) », je répondrai : « \(response) ».", isFromUser: false)
+            self?.appendMessage(confirmation)
+        }))
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    @objc private func openSettings() {
+        dismissKeyboard()
+        let alert = UIAlertController(
+            title: "⚙️ Réglages & Paramètres Sarah IA",
+            message: "• Vitesse vocale : Normale (0.52)\n• Reconnaissance : 100% Locale & Instantanée\n• Mode : 100% Natif iOS 12+\n• Mémoire persistante : Active",
+            preferredStyle: .actionSheet
+        )
+        alert.addAction(UIAlertAction(title: "🔊 Tester la voix de Sarah", style: .default, handler: { [weak self] _ in
+            self?.speak(text: "Bonjour ! La synthèse vocale de Sarah IA fonctionne parfaitement.")
+        }))
+        alert.addAction(UIAlertAction(title: "📊 Voir les Statistiques & Widgets", style: .default, handler: { [weak self] _ in
+            self?.widgetsModalTapped()
+        }))
+        alert.addAction(UIAlertAction(title: "🗑️ Réinitialiser la discussion", style: .destructive, handler: { [weak self] _ in
+            self?.newChatTapped()
+        }))
+        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
     
     @objc private func widgetsModalTapped() {
+        dismissKeyboard()
+        let stats = SarahWidgetBridge.shared.getStats()
         let alert = UIAlertController(
             title: "📊 Widgets & Statistiques Sarah IA",
-            message: "• Messages échangés : \(messages.count)\n• Vitesse de réponse : Instantanée\n• Mode : 100% Natif iOS 12+\n• Synthèse vocale : Active (AVSpeech)\n• 8 Widgets disponibles sur l'écran d'accueil",
+            message: "• Discussions totales : \(stats.totalConversations)\n• Messages échangés : \(stats.totalMessages)\n• Souvenirs en mémoire : \(stats.learnedMemoriesCount)\n• Niveau d'activité : \(stats.usagePercentage)%\n• Latence : < 0.2s (60 FPS)\n• 8 Widgets disponibles sur l'écran d'accueil",
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Super !", style: .default, handler: nil))
+        alert.addAction(UIAlertAction(title: "Génial !", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+    
+    @objc private func actionPlusTapped() {
+        let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🧠 Enseigner un mot", style: .default, handler: { [weak self] _ in
+            self?.promptTeachMemory()
+        }))
+        sheet.addAction(UIAlertAction(title: "🔋 Vérifier la batterie", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Quel est le niveau de batterie ?"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "⏰ Demander l'heure", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Quelle heure est-il ?"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(sheet, animated: true, completion: nil)
     }
     
     // MARK: - Envoi & Traitement des Messages
     
     @objc private func textFieldDidChange() {
         let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        sendButton.backgroundColor = hasText ? UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0) : UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1.0)
+        sendButton.backgroundColor = hasText ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : UIColor(red: 0.22, green: 0.22, blue: 0.24, alpha: 1.0)
     }
     
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -328,8 +645,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    private func appendMessage(_ message: Message) {
-        messages.append(message)
+    private func appendMessage(_ msg: Message) {
+        messages.append(msg)
+        saveState()
         tableView.reloadData()
         scrollToBottom(animated: true)
     }
@@ -341,152 +659,284 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func speak(text: String) {
+        if speechSynthesizer.isSpeaking {
+            speechSynthesizer.stopSpeaking(at: .immediate)
+        }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
         utterance.rate = 0.52
+        utterance.pitchMultiplier = 1.05
         speechSynthesizer.speak(utterance)
     }
     
-    private func loadInitialMessages() {
-        let welcome = Message(
-            content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA 100% native. Comment puis-je vous aider aujourd'hui ?",
-            isFromUser: false
-        )
-        messages = [welcome]
+    // MARK: - Persistance État
+    
+    private func loadPersistedState() {
+        let state = StorageService.shared.loadState()
+        self.conversations = state.conversations
+        if let currentId = state.currentConversationId,
+           let activeConv = conversations.first(where: { $0.id == currentId }) {
+            self.currentConversationId = activeConv.id
+            self.messages = activeConv.messages
+        } else if let first = conversations.first {
+            self.currentConversationId = first.id
+            self.messages = first.messages
+        } else {
+            newChatTapped()
+            return
+        }
+        
+        if messages.isEmpty {
+            messages = [
+                Message(content: "Bonjour ! 👋 Je suis Sarah. Comment puis-je vous aider aujourd'hui ?", isFromUser: false)
+            ]
+        }
         tableView.reloadData()
+    }
+    
+    private func saveState() {
+        if let idx = conversations.firstIndex(where: { $0.id == currentConversationId }) {
+            conversations[idx].messages = messages
+            conversations[idx].updatedAt = Date()
+        }
+        
+        var state = StorageService.shared.loadState()
+        state.conversations = conversations
+        state.currentConversationId = currentConversationId
+        state.messages = messages
+        StorageService.shared.saveState(state)
+        
+        SarahWidgetBridge.shared.syncStats(
+            conversationsCount: conversations.count,
+            messagesCount: messages.count,
+            memoriesCount: state.learnedMemories.count,
+            lastMessage: messages.last?.content
+        )
     }
     
     // MARK: - UITableView DataSource & Delegate
     
+    public func numberOfSections(in tableView: UITableView) -> Int {
+        if tableView == drawerTableView {
+            return 2 // 0: Accès Rapides, 1: Discussions
+        }
+        return 1
+    }
+    
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        if tableView == drawerTableView {
+            if section == 0 { return 3 } // Brain vault, widgets, settings
+            return conversations.count
+        }
         return messages.count
     }
     
+    public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        if tableView == drawerTableView {
+            if section == 0 { return "ACCÈS RAPIDES" }
+            return "DISCUSSIONS RÉCENTES"
+        }
+        return nil
+    }
+    
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let message = messages[indexPath.row]
-        if message.isFromUser {
+        // TableView du Drawer (Menu Latéral)
+        if tableView == drawerTableView {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "DrawerCell", for: indexPath)
+            cell.backgroundColor = .clear
+            cell.textLabel?.textColor = .white
+            cell.textLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+            
+            if indexPath.section == 0 {
+                switch indexPath.row {
+                case 0:
+                    cell.textLabel?.text = "🧠 Coffre Mémoire"
+                case 1:
+                    cell.textLabel?.text = "📊 Statistiques & Widgets"
+                case 2:
+                    cell.textLabel?.text = "⚙️ Réglages"
+                default: break
+                }
+            } else {
+                let conv = conversations[indexPath.row]
+                let isSelected = conv.id == currentConversationId
+                cell.textLabel?.text = "💬 \(conv.title)"
+                cell.textLabel?.textColor = isSelected ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .white
+            }
+            return cell
+        }
+        
+        // TableView Principale des Messages
+        let msg = messages[indexPath.row]
+        if msg.isFromUser {
             let cell = tableView.dequeueReusableCell(withIdentifier: "UserCell", for: indexPath) as! LegacyUserCell
-            cell.configure(with: message)
+            cell.configure(with: msg)
             return cell
         } else {
             let cell = tableView.dequeueReusableCell(withIdentifier: "AICell", for: indexPath) as! LegacyAICell
-            cell.configure(with: message) { [weak self] in
-                self?.speak(text: message.content)
+            cell.configure(with: msg) { [weak self] in
+                self?.speak(text: msg.content)
             }
             return cell
         }
     }
+    
+    public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        
+        if tableView == drawerTableView {
+            if indexPath.section == 0 {
+                toggleDrawer()
+                switch indexPath.row {
+                case 0: openMemoryVault()
+                case 1: widgetsModalTapped()
+                case 2: openSettings()
+                default: break
+                }
+            } else {
+                let selectedConv = conversations[indexPath.row]
+                currentConversationId = selectedConv.id
+                messages = selectedConv.messages
+                tableView.reloadData()
+                self.tableView.reloadData()
+                toggleDrawer()
+                scrollToBottom(animated: false)
+            }
+        }
+    }
 }
 
-// MARK: - Cellules UIKit de Message
+// MARK: - Cellules Personnalisées UIKit (Pixel-Perfect Dark Mode)
 
-public final class LegacyUserCell: UITableViewCell {
+final class LegacyUserCell: UITableViewCell {
     private let bubbleView = UIView()
     private let messageLabel = UILabel()
+    private let timeLabel = UILabel()
     
-    public override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
         selectionStyle = .none
+        backgroundColor = .clear
         
         bubbleView.translatesAutoresizingMaskIntoConstraints = false
-        bubbleView.backgroundColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0)
-        bubbleView.layer.cornerRadius = 16
+        bubbleView.backgroundColor = UIColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1.0) // Apple Blue
+        bubbleView.layer.cornerRadius = 18
+        bubbleView.clipsToBounds = true
         contentView.addSubview(bubbleView)
         
         messageLabel.translatesAutoresizingMaskIntoConstraints = false
         messageLabel.numberOfLines = 0
         messageLabel.textColor = .white
-        messageLabel.font = UIFont.systemFont(ofSize: 16)
+        messageLabel.font = UIFont.systemFont(ofSize: 15)
         bubbleView.addSubview(messageLabel)
+        
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
+        timeLabel.font = UIFont.systemFont(ofSize: 10)
+        contentView.addSubview(timeLabel)
         
         NSLayoutConstraint.activate([
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
             bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-            bubbleView.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 60),
+            bubbleView.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 50),
             
-            messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
-            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
-            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12)
+            messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10),
+            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -10),
+            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 14),
+            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -14),
+            
+            timeLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 2),
+            timeLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -4),
+            timeLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4)
         ])
     }
     
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
-    public func configure(with message: Message) {
+    func configure(with message: Message) {
         messageLabel.text = message.content
+        timeLabel.text = message.formattedTime
     }
 }
 
-public final class LegacyAICell: UITableViewCell {
+final class LegacyAICell: UITableViewCell {
     private let assistantBadge = UILabel()
     private let bubbleView = UIView()
     private let messageLabel = UILabel()
     private let listenButton = UIButton(type: .system)
+    private let timeLabel = UILabel()
     private var onListen: (() -> Void)?
     
-    public override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
         selectionStyle = .none
+        backgroundColor = .clear
         
         assistantBadge.translatesAutoresizingMaskIntoConstraints = false
         assistantBadge.text = "👩🏻‍💼"
-        assistantBadge.font = UIFont.systemFont(ofSize: 22)
+        assistantBadge.font = UIFont.systemFont(ofSize: 20)
         contentView.addSubview(assistantBadge)
         
         bubbleView.translatesAutoresizingMaskIntoConstraints = false
-        bubbleView.backgroundColor = UIColor(red: 0.16, green: 0.16, blue: 0.18, alpha: 1.0)
-        bubbleView.layer.cornerRadius = 16
+        bubbleView.backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
+        bubbleView.layer.cornerRadius = 18
+        bubbleView.layer.borderWidth = 0.5
+        bubbleView.layer.borderColor = UIColor(white: 1.0, alpha: 0.1).cgColor
+        bubbleView.clipsToBounds = true
         contentView.addSubview(bubbleView)
         
         messageLabel.translatesAutoresizingMaskIntoConstraints = false
         messageLabel.numberOfLines = 0
         messageLabel.textColor = .white
-        messageLabel.font = UIFont.systemFont(ofSize: 16)
+        messageLabel.font = UIFont.systemFont(ofSize: 15)
         bubbleView.addSubview(messageLabel)
         
         listenButton.translatesAutoresizingMaskIntoConstraints = false
+        listenButton.setTitle("🔊 Écouter", for: .normal)
         listenButton.setTitleColor(UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0), for: .normal)
         listenButton.tintColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        listenButton.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
         listenButton.addTarget(self, action: #selector(listenTapped), for: .touchUpInside)
         contentView.addSubview(listenButton)
         
+        timeLabel.translatesAutoresizingMaskIntoConstraints = false
+        timeLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
+        timeLabel.font = UIFont.systemFont(ofSize: 10)
+        contentView.addSubview(timeLabel)
+        
         NSLayoutConstraint.activate([
-            assistantBadge.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+            assistantBadge.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
             assistantBadge.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
-            assistantBadge.widthAnchor.constraint(equalToConstant: 28),
-            assistantBadge.heightAnchor.constraint(equalToConstant: 28),
+            assistantBadge.widthAnchor.constraint(equalToConstant: 26),
+            assistantBadge.heightAnchor.constraint(equalToConstant: 26),
             
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubbleView.leadingAnchor.constraint(equalTo: assistantBadge.trailingAnchor, constant: 6),
-            bubbleView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -60),
+            bubbleView.leadingAnchor.constraint(equalTo: assistantBadge.trailingAnchor, constant: 8),
+            bubbleView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -40),
             
-            messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
-            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
-            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+            messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10),
+            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -10),
+            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 14),
+            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -14),
             
             listenButton.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 2),
             listenButton.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 4),
-            listenButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4)
+            listenButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            
+            timeLabel.centerYAnchor.constraint(equalTo: listenButton.centerYAnchor),
+            timeLabel.leadingAnchor.constraint(equalTo: listenButton.trailingAnchor, constant: 8)
         ])
     }
     
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
     @objc private func listenTapped() {
         onListen?()
     }
     
-    public func configure(with message: Message, onListen: @escaping () -> Void) {
+    func configure(with message: Message, onListen: @escaping () -> Void) {
         messageLabel.text = message.content
+        timeLabel.text = message.formattedTime
         self.onListen = onListen
     }
 }
