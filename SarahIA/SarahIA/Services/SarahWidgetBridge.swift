@@ -167,7 +167,7 @@ public final class SarahWidgetBridge {
     /// Recharge les timelines de tous les widgets (iOS 12 Today + iOS 14 WidgetKit)
     public func reloadWidgets() {
         #if canImport(NotificationCenter)
-        NCWidgetController.widgetController().setHasContent(true, forWidgetWithBundleIdentifier: "com.sarahia.app.SarahIAWidgets")
+        NCWidgetController().setHasContent(true, forWidgetWithBundleIdentifier: "com.sarahia.app.SarahIAWidgets")
         #endif
         
         #if canImport(WidgetKit)
