@@ -149,6 +149,7 @@ public struct SettingsView: View {
 }
 
 // MARK: - Compatibility Extension
+@available(iOS 13.0, *)
 extension View {
     @ViewBuilder
     func hideScrollContentBackground() -> some View {
