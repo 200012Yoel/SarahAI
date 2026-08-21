@@ -674,41 +674,99 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    // MARK: - Microphone & Reconnaissance Vocale Native
+    // MARK: - Microphone & Reconnaissance Vocale Native iOS 10+
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR"))
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private let audioEngine = AVAudioEngine()
     
     @objc private func toggleMicTapped() {
-        isRecording.toggle()
-        if isRecording {
+        if audioEngine.isRunning {
+            stopAudioRecording()
+        } else {
+            startAudioRecording()
+        }
+    }
+    
+    private func startAudioRecording() {
+        SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
+            AVAudioSession.sharedInstance().requestRecordPermission { micGranted in
+                DispatchQueue.main.async {
+                    guard authStatus == .authorized, micGranted else {
+                        self?.statusLabel.text = "● Micro refusé"
+                        self?.statusLabel.textColor = .orange
+                        return
+                    }
+                    self?.beginRecordingSession()
+                }
+            }
+        }
+    }
+    
+    private func beginRecordingSession() {
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("Erreur session audio: \(error)")
+        }
+        
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        guard let recognitionRequest = recognitionRequest else { return }
+        recognitionRequest.shouldReportPartialResults = true
+        
+        let inputNode = audioEngine.inputNode
+        
+        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            var isFinal = false
+            if let result = result {
+                self?.inputTextField.text = result.bestTranscription.formattedString
+                self?.textFieldDidChange()
+                isFinal = result.isFinal
+            }
+            
+            if error != nil || isFinal {
+                self?.stopAudioRecording()
+                if let text = self?.inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                    self?.sendButtonTapped()
+                }
+            }
+        }
+        
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            recognitionRequest.append(buffer)
+        }
+        
+        audioEngine.prepare()
+        do {
+            try audioEngine.start()
+            isRecording = true
             micButton.setTitle("🔴", for: .normal)
             statusLabel.text = "● Écoute en direct..."
             statusLabel.textColor = .red
-            
-            AppleSpeechRecognizer.shared.requestPermissions { [weak self] granted in
-                guard granted else {
-                    self?.statusLabel.text = "● Micro refusé"
-                    self?.statusLabel.textColor = .orange
-                    self?.isRecording = false
-                    self?.micButton.setTitle("🎙️", for: .normal)
-                    return
-                }
-                
-                AppleSpeechRecognizer.shared.startListening()
-                AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] transcript in
-                    DispatchQueue.main.async {
-                        self?.inputTextField.text = transcript
-                        self?.sendButtonTapped()
-                        if self?.isRecording == true {
-                            self?.toggleMicTapped()
-                        }
-                    }
-                }
-            }
-        } else {
-            micButton.setTitle("🎙️", for: .normal)
-            statusLabel.text = "● En ligne"
-            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-            AppleSpeechRecognizer.shared.stopListening()
+        } catch {
+            print("AudioEngine n'a pas pu démarrer: \(error)")
         }
+    }
+    
+    private func stopAudioRecording() {
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionRequest = nil
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        
+        isRecording = false
+        micButton.setTitle("🎙️", for: .normal)
+        statusLabel.text = "● En ligne"
+        statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
     }
     
     private func appendMessage(_ msg: Message) {
