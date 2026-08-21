@@ -1,8 +1,8 @@
 import Foundation
 
-/// Gestionnaire de Téléchargement des Modèles IA Légers Hors-Ligne (iOS) :
-/// - Télécharge en tâche de fond les modèles légers texte (Français et Hébreu)
-/// - Compatible avec toutes les générations d'iPhone (iPhone 7 à iPhone 17 Pro Max)
+/// Gestionnaire Résilient de Téléchargement des Modèles IA Légers (iOS 12.0+ à 18.0+) :
+/// - Initialisation immédiate des modèles par défaut embarqués
+/// - Téléchargement distant avec timeout 5s et repli hors-ligne automatique sans bloquer le démarrage
 public final class ModelDownloader {
     
     public static let shared = ModelDownloader()
@@ -35,6 +35,13 @@ public final class ModelDownloader {
         }
     }
     
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 5.0
+        config.timeoutIntervalForResource = 8.0
+        return URLSession(configuration: config)
+    }()
+    
     private var modelsDirectory: URL {
         let fm = FileManager.default
         let urls = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -54,23 +61,40 @@ public final class ModelDownloader {
         return FileManager.default.fileExists(atPath: file.path)
     }
     
-    @available(iOS 15.0, *)
-    public func downloadModel(type: ModelType) async -> Bool {
+    // MARK: - Téléchargement Callback (iOS 12.0+)
+    
+    public func downloadModel(type: ModelType, completion: @escaping (Bool) -> Void) {
         let destination = modelsDirectory.appendingPathComponent(type.fileName)
-        do {
-            let (tempUrl, response) = try await URLSession.shared.download(from: type.remoteUrl)
-            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
-                if FileManager.default.fileExists(atPath: destination.path) {
-                    try? FileManager.default.removeItem(at: destination)
+        let task = session.downloadTask(with: type.remoteUrl) { [weak self] tempUrl, response, error in
+            if let tempUrl = tempUrl,
+               let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                let fm = FileManager.default
+                if fm.fileExists(atPath: destination.path) {
+                    try? fm.removeItem(at: destination)
                 }
-                try FileManager.default.moveItem(at: tempUrl, to: destination)
-                return true
+                do {
+                    try fm.moveItem(at: tempUrl, to: destination)
+                    completion(true)
+                    return
+                } catch {}
             }
-        } catch {
-            print("⚠️ [ModelDownloader] Téléchargement distant échoué, utilisation du modèle hors-ligne résilient.")
+            
+            // Fallback modèle hors-ligne par défaut
+            self?.createDefaultModel(type: type, destination: destination)
+            completion(true)
         }
-        createDefaultModel(type: type, destination: destination)
-        return true
+        task.resume()
+    }
+    
+    // MARK: - Téléchargement Moderne Async/Await (iOS 13.0+)
+    
+    @available(iOS 13.0, *)
+    public func downloadModel(type: ModelType) async -> Bool {
+        return await withCheckedContinuation { continuation in
+            self.downloadModel(type: type) { success in
+                continuation.resume(returning: success)
+            }
+        }
     }
     
     private func ensureDefaultModelsCreated() {

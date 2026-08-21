@@ -1,6 +1,9 @@
 import Foundation
 
-/// Moteur de Traduction Multilingue Temps Réel (Français, Hébreu, Anglais) pour iOS
+/// Moteur de Traduction Multilingue Résilient (Français, Hébreu, Anglais) :
+/// - Dictionnaire local ultra-rapide (0ms, 100% hors-ligne)
+/// - Requête réseau MyMemory avec timeout court (4s) et fallback local automatique
+/// - Compatible iOS 12.0+ (Callbacks) et iOS 13.0+ (Async/Await)
 public final class TranslationEngine {
     
     public static let shared = TranslationEngine()
@@ -24,6 +27,14 @@ public final class TranslationEngine {
         public let sourceLanguage: String
         public let targetLanguage: TargetLanguage
     }
+    
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 4.0
+        config.timeoutIntervalForResource = 6.0
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        return URLSession(configuration: config)
+    }()
     
     private let fastLocalDict: [String: String] = [
         // FR -> HE
@@ -62,10 +73,13 @@ public final class TranslationEngine {
         
         // FR -> EN
         "bonjour|en": "Hello",
+        "salut|en": "Hi",
         "merci|en": "Thank you",
+        "merci beaucoup|en": "Thank you very much",
         "au revoir|en": "Goodbye",
         "comment ça va|en": "How are you?",
-        "bonne nuit|en": "Good night"
+        "bonne nuit|en": "Good night",
+        "je t'aime|en": "I love you"
     ]
     
     private init() {}
@@ -142,36 +156,51 @@ public final class TranslationEngine {
         return (hebrewCount > latinCount && hebrewCount > 0) ? "he" : "fr"
     }
     
-    /// Traduit le texte de manière asynchrone ultra-réactive
-    @available(iOS 13.0, *)
-    public func translate(text: String, sourceLang: String, targetLang: TargetLanguage) async -> String {
+    // MARK: - Traduction avec Callback (iOS 12.0+)
+    
+    public func translate(text: String, sourceLang: String, targetLang: TargetLanguage, completion: @escaping (String) -> Void) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = clean.lowercased()
         
-        // 1. Dictionnaire local instantané (0ms)
+        // 1. Dictionnaire local instantané (0ms, 100% hors-ligne)
         let dictKey = targetLang == .english ? "\(lower)|en" : lower
         if let localMatch = fastLocalDict[dictKey] {
-            return localMatch
+            completion(localMatch)
+            return
         }
         
-        // 2. Traduction réseau haute fidélité
+        // 2. Requête API distante sécurisée avec timeout 4s
         guard let encoded = clean.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=\(sourceLang)|\(targetLang.rawValue)") else {
-            return clean
+            completion(clean)
+            return
         }
         
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            if let http = response as? HTTPURLResponse, http.statusCode == 200,
+        let request = URLRequest(url: url)
+        session.dataTask(with: request) { data, response, error in
+            if let data = data,
+               let http = response as? HTTPURLResponse, http.statusCode == 200,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let responseData = json["responseData"] as? [String: Any],
                let translatedText = responseData["translatedText"] as? String,
                !translatedText.isEmpty,
                !translatedText.lowercased().contains("no query specified") {
-                return translatedText
+                completion(translatedText)
+            } else {
+                // Fallback sur le texte d'origine
+                completion(clean)
             }
-        } catch {}
-        
-        return clean
+        }.resume()
+    }
+    
+    // MARK: - Traduction Asynchrone (iOS 13.0+)
+    
+    @available(iOS 13.0, *)
+    public func translate(text: String, sourceLang: String, targetLang: TargetLanguage) async -> String {
+        return await withCheckedContinuation { continuation in
+            self.translate(text: text, sourceLang: sourceLang, targetLang: targetLang) { translated in
+                continuation.resume(returning: translated)
+            }
+        }
     }
 }
