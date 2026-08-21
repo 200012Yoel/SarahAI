@@ -274,10 +274,12 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
+				W1B2C3D40003000100000030 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				W1B2C3D40004000100000002 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
 			productName = SarahIA;
