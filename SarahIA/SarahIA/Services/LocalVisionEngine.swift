@@ -91,63 +91,94 @@ public final class LocalVisionEngine {
         "window": ("fenêtre", "🪟", "une")
     ]
     
+    private let visionQueue = DispatchQueue(label: "com.vision.engine.queue", qos: .userInitiated)
+    
     private init() {}
     
-    /// Analyse une image capturée par la caméra et identifie l'objet en local
-    public func recognizeObject(in image: UIImage, completion: @escaping (VisionAnalysisResult) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self, let cgImage = image.cgImage else {
-                let fallback = VisionAnalysisResult(
-                    objectLabel: "objet",
-                    naturalSpokenResponse: "J'observe la photo, mais l'image n'est pas assez nette pour identifier l'objet avec certitude.",
-                    detectedText: "",
-                    confidence: 0.0
-                )
-                DispatchQueue.main.async { completion(fallback) }
-                return
+    /// Redimensionne et compresse l'image de manière ultra-sécurisée en arrière-plan pour éviter les crashs OOM (iPhone 5S, 7, 8)
+    public static func prepareImageForAnalysis(_ image: UIImage, maxDimension: CGFloat = 800, quality: CGFloat = 0.7) -> (image: UIImage, data: Data)? {
+        return autoreleasepool { () -> (image: UIImage, data: Data)? in
+            let size = image.size
+            guard size.width > 0 && size.height > 0 else { return nil }
+            
+            let scaleRatio = min(1.0, maxDimension / max(size.width, size.height))
+            let targetSize = CGSize(width: max(1, floor(size.width * scaleRatio)), height: max(1, floor(size.height * scaleRatio)))
+            
+            UIGraphicsBeginImageContextWithOptions(targetSize, false, 1.0)
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+            let downscaled = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            guard let finalImage = downscaled,
+                  let jpegData = finalImage.jpegData(compressionQuality: quality) else {
+                return nil
             }
             
-            var detectedLabel = ""
-            var detectedFrench = ""
-            var detectedEmoji = "🔍"
-            var detectedArticle = "un"
-            var highestConfidence: Float = 0.0
-            var recognizedText = ""
+            let resultImage = UIImage(data: jpegData) ?? finalImage
+            return (resultImage, jpegData)
+        }
+    }
+    
+    /// Analyse et reconnaît les objets en local sans serveur
+    public func recognizeObject(in image: UIImage, completion: @escaping (VisionAnalysisResult) -> Void) {
+        visionQueue.async { [weak self] in
+            guard let self = self else { return }
             
-            // 1. Classification d'images par Apple Vision (iOS 13+)
-            if #available(iOS 13.0, *) {
-                let classifyRequest = VNClassifyImageRequest()
-                let textRequest = VNRecognizeTextRequest()
-                textRequest.recognitionLevel = .fast
-                textRequest.usesLanguageCorrection = true
-                
-                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-                try? handler.perform([classifyRequest, textRequest])
-                
-                // Traitement OCR
-                if let textResults = textRequest.results {
-                    let lines = textResults.compactMap { $0.topCandidates(1).first?.string }
-                    recognizedText = lines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            autoreleasepool {
+                // Redimensionnement automatique si nécessaire pour préserver la RAM
+                let readyImage = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7)?.image ?? image
+                guard let cgImage = readyImage.cgImage else {
+                    let fallback = VisionAnalysisResult(
+                        objectLabel: "inconnu",
+                        naturalSpokenResponse: "Je n'ai pas réussi à analyser l'image.",
+                        detectedText: "",
+                        confidence: 0.0
+                    )
+                    DispatchQueue.main.async { completion(fallback) }
+                    return
                 }
                 
-                // Traitement Classification
-                if let observations = classifyRequest.results {
-                    for obs in observations where obs.confidence > 0.05 {
-                        let idLower = obs.identifier.lowercased().replacingOccurrences(of: "_", with: " ")
-                        for (key, meta) in self.objectDictionary {
-                            if idLower.contains(key) || key.contains(idLower) {
-                                if obs.confidence > highestConfidence {
-                                    highestConfidence = obs.confidence
-                                    detectedLabel = key
-                                    detectedFrench = meta.french
-                                    detectedEmoji = meta.emoji
-                                    detectedArticle = meta.article
+                var detectedLabel = ""
+                var detectedFrench = ""
+                var detectedEmoji = "🔍"
+                var detectedArticle = "un"
+                var highestConfidence: Float = 0.0
+                var recognizedText = ""
+                
+                // 1. Classification d'images par Apple Vision (iOS 13+)
+                if #available(iOS 13.0, *) {
+                    let classifyRequest = VNClassifyImageRequest()
+                    let textRequest = VNRecognizeTextRequest()
+                    textRequest.recognitionLevel = .fast
+                    textRequest.usesLanguageCorrection = true
+                    
+                    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+                    try? handler.perform([classifyRequest, textRequest])
+                    
+                    // Traitement OCR
+                    if let textResults = textRequest.results {
+                        let lines = textResults.compactMap { $0.topCandidates(1).first?.string }
+                        recognizedText = lines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    
+                    // Traitement Classification
+                    if let observations = classifyRequest.results {
+                        for obs in observations where obs.confidence > 0.05 {
+                            let idLower = obs.identifier.lowercased().replacingOccurrences(of: "_", with: " ")
+                            for (key, meta) in self.objectDictionary {
+                                if idLower.contains(key) || key.contains(idLower) {
+                                    if obs.confidence > highestConfidence {
+                                        highestConfidence = obs.confidence
+                                        detectedLabel = key
+                                        detectedFrench = meta.french
+                                        detectedEmoji = meta.emoji
+                                        detectedArticle = meta.article
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
             
             // Fallback Heuristique / OCR si la classification n'a rien détecté de précis
             if detectedFrench.isEmpty {

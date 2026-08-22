@@ -37,23 +37,35 @@ public struct ChatBubbleView: View {
     
     private var userBubble: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            Text(message.content)
-                .font(.system(size: 16, weight: .regular, design: .rounded))
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color(red: 0.12, green: 0.53, blue: 0.98), // Apple iMessage Blue
-                            Color(red: 0.05, green: 0.45, blue: 0.90)
-                        ]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+            VStack(alignment: .trailing, spacing: 6) {
+                if let data = message.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: 220, maxHeight: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                
+                if !message.content.isEmpty && message.content != "📷 [Photo analysée]" {
+                    Text(message.content)
+                        .font(.system(size: 16, weight: .regular, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            }
+            .padding(.horizontal, message.imageData != nil ? 6 : 16)
+            .padding(.vertical, message.imageData != nil ? 6 : 10)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.12, green: 0.53, blue: 0.98), // Apple iMessage Blue
+                        Color(red: 0.05, green: 0.45, blue: 0.90)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+            .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
             
             Text(message.formattedTime)
                 .font(.system(size: 11, weight: .regular, design: .rounded))

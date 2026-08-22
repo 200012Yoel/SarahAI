@@ -850,26 +850,40 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         picker.dismiss(animated: true, completion: nil)
         
-        guard let image = (info[.editedImage] ?? info[.originalImage]) as? UIImage else { return }
-        
-        // 1. Message de l'utilisateur avec photo
-        let userPhotoMsg = Message(content: "📷 [Photo analysée]", isFromUser: true)
-        appendMessage(userPhotoMsg)
+        guard let rawImage = (info[.editedImage] ?? info[.originalImage]) as? UIImage else { return }
         
         statusLabel.text = "● Analyse visuelle..."
         statusLabel.textColor = .yellow
         
-        // 2. Reconnaissance d'objets légère 100% Locale
-        LocalVisionEngine.shared.recognizeObject(in: image) { [weak self] result in
-            guard let self = self else { return }
-            self.statusLabel.text = "● En ligne"
-            self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+        // Traitement asynchrone en arrière-plan avec compression et réduction mémoire anti-crash (iPhone 5S / 7)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let processed = LocalVisionEngine.prepareImageForAnalysis(rawImage, maxDimension: 800, quality: 0.7) else { return }
             
-            let responseText = result.naturalSpokenResponse
-            let aiMsg = Message(content: responseText, isFromUser: false)
-            self.appendMessage(aiMsg)
-            self.speak(text: responseText)
-            self.saveState()
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                
+                // 1. Message de l'utilisateur avec photo immédiatement affichée dans la discussion
+                let userPhotoMsg = Message(
+                    content: "📷 [Photo analysée]",
+                    isFromUser: true,
+                    timestamp: Date(),
+                    imageData: processed.data
+                )
+                self.appendMessage(userPhotoMsg)
+                
+                // 2. Reconnaissance d'objets légère 100% Locale
+                LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
+                    guard let self = self else { return }
+                    self.statusLabel.text = "● En ligne"
+                    self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                    
+                    let responseText = result.naturalSpokenResponse
+                    let aiMsg = Message(content: responseText, isFromUser: false)
+                    self.appendMessage(aiMsg)
+                    self.speak(text: responseText)
+                    self.saveState()
+                }
+            }
         }
     }
     
@@ -1315,8 +1329,12 @@ final class LegacyDrawerCell: UITableViewCell {
 
 final class LegacyUserCell: UITableViewCell {
     private let bubbleView = UIView()
+    private let stackView = UIStackView()
+    private let photoImageView = UIImageView()
     private let messageLabel = UILabel()
     private let timeLabel = UILabel()
+    private var imageHeightConstraint: NSLayoutConstraint!
+    private var imageWidthConstraint: NSLayoutConstraint!
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -1329,26 +1347,45 @@ final class LegacyUserCell: UITableViewCell {
         bubbleView.clipsToBounds = true
         contentView.addSubview(bubbleView)
         
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .vertical
+        stackView.spacing = 6
+        stackView.alignment = .fill
+        bubbleView.addSubview(stackView)
+        
+        photoImageView.translatesAutoresizingMaskIntoConstraints = false
+        photoImageView.contentMode = .scaleAspectFill
+        photoImageView.layer.cornerRadius = 14
+        photoImageView.clipsToBounds = true
+        photoImageView.backgroundColor = UIColor.black.withAlphaComponent(0.2)
+        stackView.addArrangedSubview(photoImageView)
+        
         messageLabel.translatesAutoresizingMaskIntoConstraints = false
         messageLabel.numberOfLines = 0
         messageLabel.textColor = .white
         messageLabel.font = UIFont.systemFont(ofSize: 15)
-        bubbleView.addSubview(messageLabel)
+        stackView.addArrangedSubview(messageLabel)
         
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
         timeLabel.textColor = UIColor(white: 0.5, alpha: 1.0)
         timeLabel.font = UIFont.systemFont(ofSize: 10)
         contentView.addSubview(timeLabel)
         
+        imageHeightConstraint = photoImageView.heightAnchor.constraint(equalToConstant: 160)
+        imageWidthConstraint = photoImageView.widthAnchor.constraint(equalToConstant: 210)
+        
         NSLayoutConstraint.activate([
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubbleView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
             bubbleView.leadingAnchor.constraint(greaterThanOrEqualTo: contentView.leadingAnchor, constant: 50),
             
-            messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10),
-            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -10),
-            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 14),
-            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -14),
+            stackView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
+            stackView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
+            stackView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 10),
+            stackView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -10),
+            
+            imageHeightConstraint,
+            imageWidthConstraint,
             
             timeLabel.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 2),
             timeLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -4),
@@ -1359,8 +1396,28 @@ final class LegacyUserCell: UITableViewCell {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
     func configure(with message: Message) {
-        messageLabel.text = message.content
         timeLabel.text = message.formattedTime
+        
+        if let data = message.imageData, let img = UIImage(data: data) {
+            photoImageView.isHidden = false
+            imageHeightConstraint.isActive = true
+            imageWidthConstraint.isActive = true
+            photoImageView.image = img
+            
+            if message.content == "📷 [Photo analysée]" || message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                messageLabel.isHidden = true
+            } else {
+                messageLabel.isHidden = false
+                messageLabel.text = message.content
+            }
+        } else {
+            photoImageView.isHidden = true
+            imageHeightConstraint.isActive = false
+            imageWidthConstraint.isActive = false
+            photoImageView.image = nil
+            messageLabel.isHidden = false
+            messageLabel.text = message.content
+        }
     }
 }
 
