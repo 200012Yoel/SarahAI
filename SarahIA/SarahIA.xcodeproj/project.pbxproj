@@ -48,6 +48,8 @@
 		A1B2C3D40001000100000038 /* MessageBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000038 /* MessageBar.swift */; };
 		A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000039 /* KeyboardObserver.swift */; };
 		A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000040 /* LegacyChatViewController.swift */; };
+		A1B2C3D40001000100000041 /* LiveCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000041 /* LiveCameraManager.swift */; };
+		A1B2C3D40001000100000042 /* ScreenShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000042 /* ScreenShareService.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -99,6 +101,8 @@
 		A1B2C3D40002000100000038 /* MessageBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBar.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000039 /* KeyboardObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardObserver.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000040 /* LegacyChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyChatViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000041 /* LiveCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCameraManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000042 /* ScreenShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareService.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -184,6 +188,8 @@
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
 				A1B2C3D40002000100000039 /* KeyboardObserver.swift */,
+				A1B2C3D40002000100000041 /* LiveCameraManager.swift */,
+				A1B2C3D40002000100000042 /* ScreenShareService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -396,6 +402,8 @@
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
 				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 				A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */,
+				A1B2C3D40001000100000041 /* LiveCameraManager.swift in Sources */,
+				A1B2C3D40001000100000042 /* ScreenShareService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

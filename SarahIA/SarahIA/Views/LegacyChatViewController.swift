@@ -817,17 +817,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(alert, animated: true, completion: nil)
     }
     
-    // MARK: - Reconnaissance d'Objets par Caméra (Local Vision Engine)
+    // MARK: - Reconnaissance d'Objets par Caméra (Local Vision Engine) & Partage d'Écran
     
     @objc private func cameraButtonTapped() {
         dismissKeyboard()
-        let alert = UIAlertController(title: "📷 Reconnaissance Visuelle", message: "Prenez une photo pour que Sarah identifie l'objet en local :", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "📷 Vision & Partage d'Écran", message: "Choisissez le mode d'analyse visuelle pour Sarah :", preferredStyle: .actionSheet)
         
         if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            alert.addAction(UIAlertAction(title: "📸 Ouvrir la caméra", style: .default, handler: { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "📸 Prendre une photo", style: .default, handler: { [weak self] _ in
                 self?.presentImagePicker(sourceType: .camera)
             }))
         }
+        
+        alert.addAction(UIAlertAction(title: "🖥️ Partager et analyser mon écran", style: .default, handler: { [weak self] _ in
+            self?.startScreenShareAnalysis()
+        }))
         
         if UIImagePickerController.isSourceTypeAvailable(.photoLibrary) {
             alert.addAction(UIAlertAction(title: "🖼️ Choisir depuis les photos", style: .default, handler: { [weak self] _ in
@@ -837,6 +841,34 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+    
+    @objc private func startScreenShareAnalysis() {
+        dismissKeyboard()
+        statusLabel.text = "● Capture d'écran..."
+        statusLabel.textColor = .yellow
+        
+        ScreenShareService.shared.shareAndAnalyzeScreen(from: self) { [weak self] result, _, data in
+            guard let self = self else { return }
+            self.statusLabel.text = "● En ligne"
+            self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            
+            // 1. Bulle utilisateur avec capture d'écran
+            let userMsg = Message(
+                content: "🖥️ [Partage d'écran avec Sarah]",
+                isFromUser: true,
+                timestamp: Date(),
+                imageData: data
+            )
+            self.appendMessage(userMsg)
+            
+            // 2. Bulle de réponse formulée par Sarah
+            let responseText = result.naturalSpokenResponse
+            let aiMsg = Message(content: responseText, isFromUser: false)
+            self.appendMessage(aiMsg)
+            self.speak(text: responseText)
+            self.saveState()
+        }
     }
     
     private func presentImagePicker(sourceType: UIImagePickerController.SourceType) {
@@ -895,6 +927,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🖥️ Partage d'écran avec Sarah", style: .default, handler: { [weak self] _ in
+            self?.startScreenShareAnalysis()
+        }))
         sheet.addAction(UIAlertAction(title: "📷 Reconnaissance photo", style: .default, handler: { [weak self] _ in
             self?.cameraButtonTapped()
         }))
