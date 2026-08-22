@@ -50,6 +50,10 @@
 	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Sarah AI utilise la reconnaissance vocale pour transcrire votre voix en texte.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Sarah AI a besoin de la caméra pour analyser les objets, lire les documents et décrire ce qu'elle voit.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sarah AI a besoin de l'accès à vos photos pour analyser et décrire les images que vous choisissez.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

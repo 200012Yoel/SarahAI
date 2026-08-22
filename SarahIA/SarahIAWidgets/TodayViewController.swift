@@ -79,6 +79,23 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
             name: UserDefaults.didChangeNotification,
             object: nil
         )
+        
+        // Écoute des notifications inter-processus Darwin (iOS 12 Today View)
+        let observer = UnsafeRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            observer,
+            { (_, observer, _, _, _) in
+                guard let observer = observer else { return }
+                let mySelf = Unmanaged<TodayViewController>.fromOpaque(observer).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    mySelf.reloadWidgetData()
+                }
+            },
+            "com.sarahia.app.widgetupdate" as CFString,
+            nil,
+            .deliverImmediately
+        )
     }
     
     @objc private func widgetDataDidChange() {

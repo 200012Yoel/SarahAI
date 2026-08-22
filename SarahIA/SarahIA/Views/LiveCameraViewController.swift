@@ -38,7 +38,7 @@ public final class LiveCameraViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
         setupUI()
-        setupCamera()
+        checkCameraPermissionAndSetup()
     }
     
     public override func viewWillAppear(_ animated: Bool) {
@@ -227,7 +227,30 @@ public final class LiveCameraViewController: UIViewController {
         ])
     }
     
-    // MARK: - Configuration Caméra Basse Résolution
+    // MARK: - Vérification Permissions & Configuration Caméra
+    
+    private func checkCameraPermissionAndSetup() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            setupCamera()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.setupCamera()
+                    } else {
+                        self?.statusBanner.text = "⚠️ Accès à la caméra refusé"
+                        self?.statusBanner.textColor = .systemRed
+                    }
+                }
+            }
+        case .denied, .restricted:
+            statusBanner.text = "⚠️ Caméra désactivée dans Réglages"
+            statusBanner.textColor = .systemRed
+        @unknown default:
+            setupCamera()
+        }
+    }
     
     private func setupCamera() {
         LiveCameraManager.shared.setupSession(previewView: previewContainer) { [weak self] success in

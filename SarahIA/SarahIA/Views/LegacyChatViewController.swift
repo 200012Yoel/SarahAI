@@ -86,6 +86,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         setupGestures()
         setupDeepLinkObserver()
         loadPersistedState()
+        saveState()
         prewarmAudioSession()
     }
     
@@ -710,11 +711,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func newChatTapped() {
-        if messages.isEmpty {
-            if isDrawerOpen { toggleDrawer() }
-            return
-        }
-        
         var newConv = Conversation(title: "Nouvelle discussion")
         currentConversationId = newConv.id
         conversations.insert(newConv, at: 0)
@@ -724,6 +720,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         saveState()
         tableView.reloadData()
+        drawerTableView.reloadData()
         
         if isDrawerOpen {
             toggleDrawer()
@@ -801,6 +798,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             
             let confirmation = Message(content: "C'est appris ! 🧠 Dès que vous me direz « \(trigger) », je répondrai : « \(response) ».", isFromUser: false)
             self?.appendMessage(confirmation)
+            self?.saveState()
         }))
         alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
