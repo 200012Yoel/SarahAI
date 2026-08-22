@@ -8,7 +8,7 @@ import Speech
 /// - Voix féminine naturelle avec intonation réaliste
 /// - Titrage automatique des discussions
 /// - 100% compatible iOS 12.0+ (iPhone 5S, 6, 7, 8, etc.)
-public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
+public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
     // MARK: - Composants UI Principaux
     private let topBar = UIView()
@@ -25,6 +25,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let composerContainer = UIView()
     private let actionPlusButton = UIButton(type: .system)
     private let inputTextField = UITextField()
+    private let cameraButton = UIButton(type: .system)
     private let micButton = UIButton(type: .system)
     private let sendButton = UIButton(type: .system)
     
@@ -107,8 +108,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if !isKeyboardPresented {
-            let bottomInset = view.safeAreaInsets.bottom
-            composerBottomConstraint?.constant = -(bottomInset > 0 ? (bottomInset + 8) : 16)
+            composerBottomConstraint?.constant = -8
         }
     }
     
@@ -196,12 +196,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         composerContainer.clipsToBounds = true
         view.addSubview(composerContainer)
         
+        // Stack View Horizontale pour la saisie et les boutons (évite toute superposition de boutons sur iPhone 5S/7/8 jusqu'à 14/15)
+        let composerStack = UIStackView()
+        composerStack.translatesAutoresizingMaskIntoConstraints = false
+        composerStack.axis = .horizontal
+        composerStack.spacing = 6
+        composerStack.alignment = .center
+        composerStack.distribution = .fill
+        composerContainer.addSubview(composerStack)
+        
         // Bouton Plus ➕
         actionPlusButton.translatesAutoresizingMaskIntoConstraints = false
         actionPlusButton.setTitle("➕", for: .normal)
         actionPlusButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
         actionPlusButton.addTarget(self, action: #selector(actionPlusTapped), for: .touchUpInside)
-        composerContainer.addSubview(actionPlusButton)
+        actionPlusButton.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        actionPlusButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        composerStack.addArrangedSubview(actionPlusButton)
         
         // Champ de Texte
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
@@ -216,14 +227,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         inputTextField.returnKeyType = .send
         inputTextField.delegate = self
         inputTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
-        composerContainer.addSubview(inputTextField)
+        inputTextField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        inputTextField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        composerStack.addArrangedSubview(inputTextField)
+        
+        // Bouton Caméra 📷 (Reconnaissance d'objets ultra-rapide et locale)
+        cameraButton.translatesAutoresizingMaskIntoConstraints = false
+        if #available(iOS 13.0, *), let camImg = UIImage(systemName: "camera.fill") {
+            cameraButton.setImage(camImg, for: .normal)
+            cameraButton.tintColor = UIColor(white: 0.85, alpha: 1.0)
+        } else {
+            cameraButton.setTitle("📷", for: .normal)
+            cameraButton.titleLabel?.font = UIFont.systemFont(ofSize: 17)
+        }
+        cameraButton.backgroundColor = UIColor(red: 0.18, green: 0.18, blue: 0.22, alpha: 1.0)
+        cameraButton.layer.cornerRadius = 15
+        cameraButton.clipsToBounds = true
+        cameraButton.addTarget(self, action: #selector(cameraButtonTapped), for: .touchUpInside)
+        cameraButton.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        cameraButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        composerStack.addArrangedSubview(cameraButton)
         
         // Bouton Micro 🎙️
         micButton.translatesAutoresizingMaskIntoConstraints = false
         micButton.setTitle("🎙️", for: .normal)
         micButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        micButton.backgroundColor = UIColor(red: 0.18, green: 0.18, blue: 0.22, alpha: 1.0)
+        micButton.layer.cornerRadius = 15
+        micButton.clipsToBounds = true
         micButton.addTarget(self, action: #selector(toggleMicTapped), for: .touchUpInside)
-        composerContainer.addSubview(micButton)
+        micButton.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        micButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+        composerStack.addArrangedSubview(micButton)
         
         // Bouton Envoyer ⬆
         sendButton.translatesAutoresizingMaskIntoConstraints = false
@@ -234,32 +269,34 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sendButton.layer.cornerRadius = 16
         sendButton.clipsToBounds = true
         sendButton.addTarget(self, action: #selector(sendButtonTapped), for: .touchUpInside)
-        composerContainer.addSubview(sendButton)
+        sendButton.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        sendButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        composerStack.addArrangedSubview(sendButton)
         
-        // Layout Constraints
-        let composerBottom = composerContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16)
+        // Layout Constraints adaptatives iPhone 5S/7 jusqu'à iPhone 14/15/16
+        let composerBottom = composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         self.composerBottomConstraint = composerBottom
         
         NSLayoutConstraint.activate([
-            // TopBar
+            // TopBar avec ancrage safeAreaLayoutGuide pour s'adapter à la fois aux petits écrans et au Dynamic Island
             topBar.topAnchor.constraint(equalTo: view.topAnchor),
             topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            topBar.heightAnchor.constraint(equalToConstant: 80),
+            topBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 52),
             
-            menuButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 14),
-            menuButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
+            menuButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 14),
+            menuButton.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 26),
             menuButton.widthAnchor.constraint(equalToConstant: 36),
             menuButton.heightAnchor.constraint(equalToConstant: 36),
             
             titleLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
-            titleLabel.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -22),
+            titleLabel.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
             
             statusLabel.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
             statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             
-            settingsHeaderButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
-            settingsHeaderButton.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -10),
+            settingsHeaderButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            settingsHeaderButton.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 26),
             settingsHeaderButton.widthAnchor.constraint(equalToConstant: 36),
             settingsHeaderButton.heightAnchor.constraint(equalToConstant: 36),
             
@@ -282,30 +319,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             suggestionsStackView.heightAnchor.constraint(equalTo: suggestionsScrollView.heightAnchor),
             
             // Composer Container
-            composerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            composerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            composerContainer.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 10),
+            composerContainer.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -10),
             composerBottom,
             composerContainer.heightAnchor.constraint(equalToConstant: 46),
             
-            actionPlusButton.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 8),
-            actionPlusButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            actionPlusButton.widthAnchor.constraint(equalToConstant: 30),
-            actionPlusButton.heightAnchor.constraint(equalToConstant: 30),
-            
-            inputTextField.leadingAnchor.constraint(equalTo: actionPlusButton.trailingAnchor, constant: 6),
-            inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -6),
-            inputTextField.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            inputTextField.heightAnchor.constraint(equalToConstant: 38),
-            
-            micButton.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -6),
-            micButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            micButton.widthAnchor.constraint(equalToConstant: 30),
-            micButton.heightAnchor.constraint(equalToConstant: 30),
-            
-            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -7),
-            sendButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            sendButton.widthAnchor.constraint(equalToConstant: 32),
-            sendButton.heightAnchor.constraint(equalToConstant: 32)
+            // Composer Stack
+            composerStack.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 8),
+            composerStack.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -7),
+            composerStack.topAnchor.constraint(equalTo: composerContainer.topAnchor),
+            composerStack.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor)
         ])
     }
     
@@ -627,7 +650,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
         
         isKeyboardPresented = true
-        let bottomPadding: CGFloat = -frame.height - 8
+        let bottomInset = view.safeAreaInsets.bottom
+        let bottomPadding: CGFloat = -(frame.height - bottomInset + 8)
         composerBottomConstraint?.constant = bottomPadding
         
         UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
@@ -644,8 +668,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
         
         isKeyboardPresented = false
-        let bottomInset = view.safeAreaInsets.bottom
-        composerBottomConstraint?.constant = -(bottomInset > 0 ? (bottomInset + 8) : 16)
+        composerBottomConstraint?.constant = -8
         
         UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState, .curveEaseOut], animations: {
             self.view.layoutIfNeeded()
@@ -794,8 +817,73 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(alert, animated: true, completion: nil)
     }
     
+    // MARK: - Reconnaissance d'Objets par Caméra (Local Vision Engine)
+    
+    @objc private func cameraButtonTapped() {
+        dismissKeyboard()
+        let alert = UIAlertController(title: "📷 Reconnaissance Visuelle", message: "Prenez une photo pour que Sarah identifie l'objet en local :", preferredStyle: .actionSheet)
+        
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            alert.addAction(UIAlertAction(title: "📸 Ouvrir la caméra", style: .default, handler: { [weak self] _ in
+                self?.presentImagePicker(sourceType: .camera)
+            }))
+        }
+        
+        if UIImagePickerController.isSourceTypeAvailable(.photoLibrary) {
+            alert.addAction(UIAlertAction(title: "🖼️ Choisir depuis les photos", style: .default, handler: { [weak self] _ in
+                self?.presentImagePicker(sourceType: .photoLibrary)
+            }))
+        }
+        
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    private func presentImagePicker(sourceType: UIImagePickerController.SourceType) {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = self
+        picker.allowsEditing = false
+        present(picker, animated: true, completion: nil)
+    }
+    
+    public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        picker.dismiss(animated: true, completion: nil)
+        
+        guard let image = (info[.editedImage] ?? info[.originalImage]) as? UIImage else { return }
+        
+        // 1. Message de l'utilisateur avec photo
+        let userPhotoMsg = Message(content: "📷 [Photo analysée]", isFromUser: true)
+        appendMessage(userPhotoMsg)
+        
+        statusLabel.text = "● Analyse visuelle..."
+        statusLabel.textColor = .yellow
+        
+        // 2. Reconnaissance d'objets légère 100% Locale
+        LocalVisionEngine.shared.recognizeObject(in: image) { [weak self] result in
+            guard let self = self else { return }
+            self.statusLabel.text = "● En ligne"
+            self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            
+            let responseText = result.naturalSpokenResponse
+            let aiMsg = Message(content: responseText, isFromUser: false)
+            self.appendMessage(aiMsg)
+            self.speak(text: responseText)
+            self.saveState()
+        }
+    }
+    
+    public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true, completion: nil)
+    }
+    
+    // MARK: - Actions Rapides (+)
+    
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "📷 Reconnaissance photo", style: .default, handler: { [weak self] _ in
+            self?.cameraButtonTapped()
+        }))
         sheet.addAction(UIAlertAction(title: "🔦 Lampe torche (On/Off)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Allume la torche"
             self?.sendButtonTapped()

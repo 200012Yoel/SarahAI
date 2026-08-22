@@ -113,11 +113,12 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
         mainStack.distribution = .fill
         view.addSubview(mainStack)
         
+        let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 6),
-            mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -6)
+            mainStack.topAnchor.constraint(equalTo: guide.topAnchor, constant: 6),
+            mainStack.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 10),
+            mainStack.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -10),
+            mainStack.bottomAnchor.constraint(lessThanOrEqualTo: guide.bottomAnchor, constant: -6)
         ])
         
         setupHeader()
@@ -396,9 +397,9 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
     private func reloadWidgetData() {
         let stats = SarahWidgetBridge.shared.getStats()
         
-        convsNumberLabel.text = "\(stats.totalConversations)"
-        questionsNumberLabel.text = "\(stats.totalMessages)"
-        memoriesNumberLabel.text = "\(stats.learnedMemoriesCount)"
+        convsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.totalConversations)
+        questionsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.totalMessages)
+        memoriesNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.learnedMemoriesCount)
         usageBadge.text = "\(stats.usagePercentage)% Actif"
         
         // Mise à jour du graphique 7 jours

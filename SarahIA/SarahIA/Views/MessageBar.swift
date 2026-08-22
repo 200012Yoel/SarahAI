@@ -7,6 +7,7 @@ public struct MessageBar: View {
     var isRecording: Bool
     var onSend: (String) -> Void
     var onToggleMic: () -> Void
+    var onCamera: (() -> Void)? = nil
     var onPlusTapped: (() -> Void)? = nil
     
     public init(
@@ -14,12 +15,14 @@ public struct MessageBar: View {
         isRecording: Bool,
         onSend: @escaping (String) -> Void,
         onToggleMic: @escaping () -> Void,
+        onCamera: (() -> Void)? = nil,
         onPlusTapped: (() -> Void)? = nil
     ) {
         self._text = text
         self.isRecording = isRecording
         self.onSend = onSend
         self.onToggleMic = onToggleMic
+        self.onCamera = onCamera
         self.onPlusTapped = onPlusTapped
     }
     
@@ -53,7 +56,24 @@ public struct MessageBar: View {
                 .disableAutocorrection(false)
                 .padding(.horizontal, 4)
             
-            // 3. Bouton Dictée Vocale / Microphone
+            // 3. Bouton Caméra (camera.fill)
+            Button(action: {
+                HapticService.shared.buttonTap()
+                onCamera?()
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.85))
+                }
+            }
+            .buttonStyle(ScaleBounceButtonStyle())
+            
+            // 4. Bouton Dictée Vocale / Microphone
             Button(action: {
                 onToggleMic()
             }) {

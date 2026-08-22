@@ -57,7 +57,7 @@ public struct SarahUsageStatsWidgetView: View {
                 
                 // Nombre de discussions
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(entry.stats.totalConversations)")
+                    Text(SarahWidgetBridge.formatCompactNumber(entry.stats.totalConversations))
                         .font(.system(size: 26, weight: .heavy))
                         .foregroundColor(.white)
                     Text("Discussions actives")
@@ -70,7 +70,7 @@ public struct SarahUsageStatsWidgetView: View {
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 9))
                         .foregroundColor(.purple)
-                    Text("\(entry.stats.learnedMemoriesCount) souvenirs")
+                    Text("\(SarahWidgetBridge.formatCompactNumber(entry.stats.learnedMemoriesCount)) souvenirs")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.purple)
                 }
@@ -169,7 +169,7 @@ public struct SarahCompactStatsWidgetView: View {
             
             Spacer()
             
-            Text("\(entry.stats.totalConversations)")
+            Text(SarahWidgetBridge.formatCompactNumber(entry.stats.totalConversations))
                 .font(.system(size: 32, weight: .heavy))
                 .foregroundColor(.white)
             
@@ -213,7 +213,7 @@ public struct SarahMemoryWidgetView: View {
                 
                 Spacer()
                 
-                Text("\(entry.stats.learnedMemoriesCount) souvenirs")
+                Text("\(SarahWidgetBridge.formatCompactNumber(entry.stats.learnedMemoriesCount)) souvenirs")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.purple)
                     .padding(.horizontal, 6)
@@ -369,7 +369,7 @@ public struct SarahLastMessageWidgetView: View {
                 
                 Spacer()
                 
-                Text("\(entry.stats.totalMessages) messages")
+                Text("\(SarahWidgetBridge.formatCompactNumber(entry.stats.totalMessages)) messages")
                     .font(.system(size: 10))
                     .foregroundColor(.purple)
             }

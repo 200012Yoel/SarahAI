@@ -176,4 +176,38 @@ public final class SarahWidgetBridge {
         }
         #endif
     }
+    
+    // MARK: - Formatage des Grands Nombres (1K, 2M...)
+    
+    /// Formate un nombre pour un affichage compact et harmonisé sur les widgets :
+    /// - Si < 1 000 : affichage direct (ex: 850)
+    /// - Si >= 1 000 et < 1 000 000 : suffixe K (ex: 1.5K, 12K)
+    /// - Si >= 1 000 000 : suffixe M (ex: 2M, 3.4M)
+    public static func formatCompactNumber(_ number: Int) -> String {
+        let absNum = abs(number)
+        let sign = number < 0 ? "-" : ""
+        
+        if absNum >= 1_000_000 {
+            let millions = Double(absNum) / 1_000_000.0
+            if millions.truncatingRemainder(dividingBy: 1.0) == 0 {
+                return "\(sign)\(Int(millions))M"
+            } else {
+                let formatted = String(format: "%.1f", millions)
+                let cleaned = formatted.hasSuffix(".0") ? String(formatted.dropLast(2)) : formatted
+                return "\(sign)\(cleaned)M"
+            }
+        } else if absNum >= 1_000 {
+            let thousands = Double(absNum) / 1_000.0
+            if thousands.truncatingRemainder(dividingBy: 1.0) == 0 {
+                return "\(sign)\(Int(thousands))K"
+            } else {
+                let formatted = String(format: "%.1f", thousands)
+                let cleaned = formatted.hasSuffix(".0") ? String(formatted.dropLast(2)) : formatted
+                return "\(sign)\(cleaned)K"
+            }
+        } else {
+            return "\(number)"
+        }
+    }
 }
+
