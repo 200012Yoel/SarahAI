@@ -3,7 +3,9 @@ import WidgetKit
 import SwiftUI
 
 @available(iOS 14.0, *)
+@main
 struct SarahIAWidgetsBundle: WidgetBundle {
+    @WidgetBundleBuilder
     var body: some Widget {
         SarahUsageStatsWidget()
         SarahStatusWidget()
@@ -16,3 +18,4 @@ struct SarahIAWidgetsBundle: WidgetBundle {
     }
 }
 #endif
+

@@ -62,14 +62,36 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
         }
         
         setupUI()
+        setupRealTimeObservers()
         reloadWidgetData()
+    }
+    
+    private func setupRealTimeObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(widgetDataDidChange),
+            name: NSNotification.Name("SarahWidgetStatsDidUpdate"),
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(widgetDataDidChange),
+            name: UserDefaults.didChangeNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func widgetDataDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            self?.reloadWidgetData()
+        }
     }
     
     public override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         reloadWidgetData()
         liveTimer?.invalidate()
-        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.reloadWidgetData()
         }
     }
