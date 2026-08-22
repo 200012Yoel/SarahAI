@@ -230,6 +230,7 @@ public final class LocalVisionEngine {
             }
         }
     }
+}
     
     /// Version asynchrone moderne
     @available(iOS 13.0, *)
@@ -241,4 +242,5 @@ public final class LocalVisionEngine {
         }
     }
 }
+
 
