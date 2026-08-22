@@ -417,12 +417,32 @@ public class TodayViewController: UIViewController, NCWidgetProviding {
     // MARK: - Rafraîchissement des Données
     
     private func reloadWidgetData() {
+        var convs = 1
+        var msgs = 0
+        var memories = 0
+        var usage = 68
+        
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.sarahia.app") {
+            if sharedDefaults.object(forKey: "totalConversations") != nil {
+                convs = max(1, sharedDefaults.integer(forKey: "totalConversations"))
+            }
+            if sharedDefaults.object(forKey: "totalMessages") != nil {
+                msgs = sharedDefaults.integer(forKey: "totalMessages")
+            }
+            if sharedDefaults.object(forKey: "learnedMemoriesCount") != nil {
+                memories = sharedDefaults.integer(forKey: "learnedMemoriesCount")
+            }
+            if sharedDefaults.object(forKey: "usagePercentage") != nil {
+                usage = sharedDefaults.integer(forKey: "usagePercentage")
+            }
+        }
+        
         let stats = SarahWidgetBridge.shared.getStats()
         
-        convsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.totalConversations)
-        questionsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.totalMessages)
-        memoriesNumberLabel.text = SarahWidgetBridge.formatCompactNumber(stats.learnedMemoriesCount)
-        usageBadge.text = "\(stats.usagePercentage)% Actif"
+        convsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(convs > 0 ? convs : stats.totalConversations)
+        questionsNumberLabel.text = SarahWidgetBridge.formatCompactNumber(msgs > 0 ? msgs : stats.totalMessages)
+        memoriesNumberLabel.text = SarahWidgetBridge.formatCompactNumber(memories > 0 ? memories : stats.learnedMemoriesCount)
+        usageBadge.text = "\(usage > 0 ? usage : stats.usagePercentage)% Actif"
         
         // Mise à jour du graphique 7 jours
         let activity = stats.weeklyActivity

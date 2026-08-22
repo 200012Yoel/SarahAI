@@ -821,26 +821,40 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func cameraButtonTapped() {
         dismissKeyboard()
-        let alert = UIAlertController(title: "📷 Vision & Partage d'Écran", message: "Choisissez le mode d'analyse visuelle pour Sarah :", preferredStyle: .actionSheet)
+        HapticService.shared.buttonTap()
         
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            alert.addAction(UIAlertAction(title: "📸 Prendre une photo", style: .default, handler: { [weak self] _ in
-                self?.presentImagePicker(sourceType: .camera)
-            }))
+        let cameraVC = LiveCameraViewController()
+        cameraVC.modalPresentationStyle = .fullScreen
+        
+        cameraVC.onPhotoAnalyzed = { [weak self] image, result in
+            guard let self = self else { return }
+            
+            let processedData = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7)?.data ?? image.jpegData(compressionQuality: 0.7)
+            
+            // 1. Bulle photo de l'utilisateur
+            let userPhotoMsg = Message(
+                content: "📷 [Photo analysée]",
+                isFromUser: true,
+                timestamp: Date(),
+                imageData: processedData
+            )
+            self.appendMessage(userPhotoMsg)
+            
+            // 2. Réponse formulée par Sarah
+            let responseText = result.naturalSpokenResponse
+            let aiMsg = Message(content: responseText, isFromUser: false)
+            self.appendMessage(aiMsg)
+            self.speak(text: responseText)
+            self.saveState()
         }
         
-        alert.addAction(UIAlertAction(title: "🖥️ Partager et analyser mon écran", style: .default, handler: { [weak self] _ in
-            self?.startScreenShareAnalysis()
-        }))
-        
-        if UIImagePickerController.isSourceTypeAvailable(.photoLibrary) {
-            alert.addAction(UIAlertAction(title: "🖼️ Choisir depuis les photos", style: .default, handler: { [weak self] _ in
-                self?.presentImagePicker(sourceType: .photoLibrary)
-            }))
+        cameraVC.onScreenShareRequested = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                self?.startScreenShareAnalysis()
+            }
         }
         
-        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
+        present(cameraVC, animated: true, completion: nil)
     }
     
     @objc private func startScreenShareAnalysis() {
@@ -1201,11 +1215,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             totalQuestions += messages.filter { $0.isFromUser }.count
         }
         
+        let totalConvs = max(1, conversations.count)
+        let totalMsgs = totalQuestions
+        let memoriesCount = state.learnedMemories.count
+        
+        // Synchronisation directe immédiate avec l'App Group partagé
+        if let sharedDefaults = UserDefaults(suiteName: "group.com.sarahia.app") {
+            sharedDefaults.set(totalConvs, forKey: "totalConversations")
+            sharedDefaults.set(totalMsgs, forKey: "totalMessages")
+            sharedDefaults.set(memoriesCount, forKey: "learnedMemoriesCount")
+            sharedDefaults.synchronize()
+        }
+        
         let lastMemoryTuple: (trigger: String, response: String)? = state.learnedMemories.first.map { ($0.key, $0.value) }
         SarahWidgetBridge.shared.syncStats(
-            conversationsCount: max(1, conversations.count),
-            messagesCount: totalQuestions,
-            memoriesCount: state.learnedMemories.count,
+            conversationsCount: totalConvs,
+            messagesCount: totalMsgs,
+            memoriesCount: memoriesCount,
             lastMemory: lastMemoryTuple,
             lastMessage: messages.last?.content
         )
