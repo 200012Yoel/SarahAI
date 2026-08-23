@@ -240,6 +240,7 @@ public struct ChatScreenView: View {
 }
 
 /// Wrapper UIKit pour afficher LiveCameraViewController en SwiftUI
+@available(iOS 14.0, *)
 public struct CameraRepresentable: UIViewControllerRepresentable {
     public var onPhotoAnalyzed: (UIImage, LocalVisionEngine.VisionAnalysisResult) -> Void
     public var onScreenShare: () -> Void

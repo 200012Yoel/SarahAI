@@ -1,6 +1,9 @@
 import Foundation
 import UIKit
 import CoreImage
+#if canImport(Darwin)
+import Darwin
+#endif
 
 /// Service de Serveur Local & Synchronisation P2P par QR Code (100% Hors-Ligne & Wi-Fi Local) :
 /// - Démarre un serveur HTTP local ultra-léger sur socket natif POSIX / CFSocket
@@ -94,23 +97,21 @@ public final class LocalSyncServerService: NSObject {
             IPPROTO_TCP,
             CFSocketCallBackType.acceptCallBack.rawValue,
             { (socket, callbackType, address, data, info) in
-                guard let info = info, callbackType == .acceptCallBack else { return }
+                guard let info = info, callbackType == .acceptCallBack, let data = data else { return }
                 let service = Unmanaged<LocalSyncServerService>.fromOpaque(info).takeUnretainedValue()
-                if let nativeHandlePointer = data?.assumingMemoryBound(to: CFSocketNativeHandle.self) {
-                    let nativeHandle = nativeHandlePointer.pointee
-                    service.handleIncomingConnection(nativeHandle)
-                }
+                let nativeHandle = data.load(as: CFSocketNativeHandle.self)
+                service.handleIncomingConnection(nativeHandle)
             },
             &context
         ) else {
             return false
         }
         
-        var reuse = 1
-        setsockopt(CFSocketGetNative(socket), SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int>.size))
+        var reuse: Int32 = 1
+        setsockopt(CFSocketGetNative(socket), SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
         
         var address = sockaddr_in()
-        address.sin_len = __uint8_t(MemoryLayout<sockaddr_in>.size)
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
         address.sin_port = serverPort.bigEndian
         address.sin_addr.s_addr = INADDR_ANY.bigEndian
@@ -152,19 +153,25 @@ public final class LocalSyncServerService: NSObject {
                 if let jsonData = try? encoder.encode(state) {
                     let headers = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: \(jsonData.count)\r\nConnection: close\r\n\r\n"
                     if let headerData = headers.data(using: .utf8) {
-                        headerData.withUnsafeBytes { ptr in
-                            _ = send(handle, ptr.baseAddress, headerData.count, 0)
+                        headerData.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                            if let base = ptr.baseAddress {
+                                _ = send(handle, base, headerData.count, 0)
+                            }
                         }
-                        jsonData.withUnsafeBytes { ptr in
-                            _ = send(handle, ptr.baseAddress, jsonData.count, 0)
+                        jsonData.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                            if let base = ptr.baseAddress {
+                                _ = send(handle, base, jsonData.count, 0)
+                            }
                         }
                     }
                 }
             } else {
                 let notFound = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 if let data = notFound.data(using: .utf8) {
-                    data.withUnsafeBytes { ptr in
-                        _ = send(handle, ptr.baseAddress, data.count, 0)
+                    data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+                        if let base = ptr.baseAddress {
+                            _ = send(handle, base, data.count, 0)
+                        }
                     }
                 }
             }
