@@ -260,7 +260,7 @@ public final class LocalVisionEngine {
 }
     
     /// Version asynchrone moderne
-    @available(iOS 15.0, *)
+    @available(iOS 13.0, *)
     public func analyzeImageAsync(_ image: UIImage) async -> VisionAnalysisResult {
         await withCheckedContinuation { continuation in
             recognizeObject(in: image) { result in

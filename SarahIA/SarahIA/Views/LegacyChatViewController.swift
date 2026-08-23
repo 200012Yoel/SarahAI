@@ -1033,10 +1033,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     // MARK: - Caméra & Vision par Ordinateur
     
-    @objc private func cameraButtonTapped() {
-        openLiveCamera()
-    }
-    
     public func openLiveCamera() {
         HapticService.shared.buttonTap()
         let cameraVC = LiveCameraViewController()

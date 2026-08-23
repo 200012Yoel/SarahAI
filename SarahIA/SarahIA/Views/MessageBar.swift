@@ -132,7 +132,7 @@ public struct MessageBar: View {
             Capsule()
                 .stroke(
                     LinearGradient(
-                        colors: [Color(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.4), Color.white.opacity(0.12)],
+                        colors: [Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.4), Color.white.opacity(0.12)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -140,7 +140,7 @@ public struct MessageBar: View {
                 )
         )
         .padding(.horizontal, 16)
-        .shadow(color: Color(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.12), radius: 12, x: 0, y: 4)
+        .shadow(color: Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.12), radius: 12, x: 0, y: 4)
         .shadow(color: Color.black.opacity(0.45), radius: 15, x: 0, y: 6)
     }
     
