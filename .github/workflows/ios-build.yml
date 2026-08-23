@@ -87,11 +87,12 @@ jobs:
 
           APP_TARGET_DIR="/tmp/Payload/$(basename "$APP_PATH")"
 
-          # Normalisation des Plists d'extensions (Widgets) si présentes
+          # Normalisation des Plists d'extensions (Widgets pour iPhone 14 / iOS 14+)
           if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
             for plugin in "$APP_TARGET_DIR/PlugIns"/*.appex; do
               if [ -d "$plugin" ] && [ -f "$plugin/Info.plist" ]; then
-                plutil -replace MinimumOSVersion -string "12.0" "$plugin/Info.plist" 2>/dev/null || true
+                plutil -replace MinimumOSVersion -string "14.0" "$plugin/Info.plist" 2>/dev/null || true
+                codesign -f -s - "$plugin" 2>/dev/null || true
               fi
             done
           fi
@@ -105,6 +106,9 @@ jobs:
             plutil -replace CFBundleDisplayName -string "Sarah IA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
+
+          # Signature ad-hoc du bundle principal
+          codesign -f -s - "$APP_TARGET_DIR" 2>/dev/null || true
 
           echo "=== Structure du Bundle Final dans l'IPA ==="
           ls -la "$APP_TARGET_DIR"
