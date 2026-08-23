@@ -44,18 +44,18 @@ while ($elapsed -lt $maxWaitSeconds) {
         $runsResponse = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 10 -ErrorAction SilentlyContinue
         
         if ($runsResponse -and $runsResponse.workflow_runs) {
-            $latestRun = $runsResponse.workflow_runs | Where-Object { $_.name -like "*iOS*" } | Select-Object -First 1
-            if (-not $latestRun) { $latestRun = $runsResponse.workflow_runs[0] }
-            
-            # Vérifier si le run correspond au commit HEAD actuel
-            $isMatchingCommit = ($currentHead -and ($latestRun.head_sha -eq $currentHead))
-            
-            # Si le build trouvé est un ancien commit et qu'on vient de lancer (moins de 45s), attendre le nouveau
-            if (-not $isMatchingCommit -and $elapsed -lt 45) {
+            $matchingRuns = $runsResponse.workflow_runs | Where-Object { 
+                ($_.name -like "*$Type*" -or $_.name -like "*iOS*" -or $_.name -like "*Android*")
+            }
+            $targetRun = $matchingRuns | Where-Object { $_.head_sha -eq $currentHead } | Select-Object -First 1
+            if (-not $targetRun -and $elapsed -lt 90) {
+                # Le run n'a pas encore démarré sur GitHub, continuer à attendre
                 Start-Sleep -Seconds $interval
                 $elapsed += $interval
                 continue
             }
+            $latestRun = if ($targetRun) { $targetRun } else { $matchingRuns | Select-Object -First 1 }
+            if (-not $latestRun) { $latestRun = $runsResponse.workflow_runs[0] }
             
             if ($latestRun.status -eq "completed") {
                 if ($latestRun.conclusion -eq "success") {

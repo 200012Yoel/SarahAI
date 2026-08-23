@@ -49,6 +49,8 @@ class WebSearchService {
                         return@Thread
                     }
                 }
+            }
+            
             // 0.8. Billets de Train / SNCF / Trainline
             val trainTriggers = listOf("billet de train", "billets de train", "billet train", "train pour", "train de ", "sncf", "trainline", "trajet en train")
             if (trainTriggers.any { norm.contains(it) } || (norm.contains("train") && (norm.contains("paris") || norm.contains("billet") || norm.contains("deauville")))) {

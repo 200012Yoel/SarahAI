@@ -142,7 +142,6 @@ public final class SarahWidgetBridge {
         
         // 2. Pont UIPasteboard partagé (100% fiable sur iOS 12 même sans certificat payant)
         if let pasteboard = UIPasteboard(name: UIPasteboard.Name("com.sarahia.app.widgetstats"), create: true) {
-            pasteboard.isPersistent = true
             pasteboard.string = summaryStr
         }
         
