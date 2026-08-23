@@ -32,8 +32,9 @@ jobs:
 
       - name: Configure Universal iOS 12.0+ Target
         run: |
-          echo "=== Normalisation MinimumOSVersion 12.0 dans les Plists ==="
-          find . -name "Info.plist" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
+          echo "=== Normalisation des MinimumOSVersion dans les Plists ==="
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
+          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "14.0" {} \; 2>/dev/null || true
 
       - name: Build Universal App Mach-O
         run: |
@@ -57,11 +58,11 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            build > "$GITHUB_WORKSPACE/xcodebuild.log" 2>&1 || true
+            clean build > "$GITHUB_WORKSPACE/xcodebuild.log" 2>&1 || true
 
           grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
           if [ ! -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
-            tail -n 80 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
+            tail -n 100 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
           fi
 
           if grep -q "BUILD FAILED" "$GITHUB_WORKSPACE/xcodebuild.log"; then

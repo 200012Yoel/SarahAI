@@ -6,7 +6,6 @@ import NotificationCenter
 /// - Graphique d'activité sur 7 jours avec barres verticales
 /// - Compteur de souvenirs mémorisés dans le Brain Vault
 /// - Raccourcis rapides interactifs (Vocal 🎙️, Nouveau ➕, Torche 🔦, Batterie 🔋)
-@objc(TodayViewController)
 public class TodayViewController: UIViewController, NCWidgetProviding {
     
     // MARK: - Éléments UI Principaux
