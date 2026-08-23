@@ -6,6 +6,10 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Locale
+
+private fun String.capitalized(): String =
+    this.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
 
 data class WebSearchResultItem(
     val title: String,
@@ -62,16 +66,16 @@ class WebSearchService {
                     val parts = afterDe.split(sep, limit = 2)
                     if (parts.isNotEmpty()) {
                         val rawOrig = parts[0].replace(Regex("\\b(et|un billet|des billets|billet de train|billet|train|pour)\\b"), "").trim()
-                        if (rawOrig.isNotEmpty()) origin = rawOrig.capitalize()
+                        if (rawOrig.isNotEmpty()) origin = rawOrig.capitalized()
                     }
                     if (parts.size > 1) {
                         val rawDest = parts[1].replace(Regex("\\b(et|vers|pour)\\b"), "").trim().trim(':', '?', '.', '!')
-                        if (rawDest.isNotEmpty()) destination = rawDest.capitalize()
+                        if (rawDest.isNotEmpty()) destination = rawDest.capitalized()
                     }
                 } else if (norm.contains(" a ") || norm.contains(" pour ")) {
                     val sep = if (norm.contains(" a ")) " a " else " pour "
                     val rawDest = norm.substringAfter(sep).replace(Regex("\\b(et|vers|pour)\\b"), "").trim().trim(':', '?', '.', '!')
-                    if (rawDest.isNotEmpty()) destination = rawDest.capitalize()
+                    if (rawDest.isNotEmpty()) destination = rawDest.capitalized()
                 }
 
                 val encOrig = URLEncoder.encode(origin, "UTF-8")
@@ -113,7 +117,7 @@ class WebSearchService {
             }
 
             val topic = extractCoreSearchTopic(cleanQuery)
-            val displayTopic = if (topic.isNotEmpty()) topic.capitalize() else cleanQuery
+            val displayTopic = if (topic.isNotEmpty()) topic.capitalized() else cleanQuery
 
             // 2. Essai Wikipedia REST API
             val wikiResult = fetchWikipediaSummary(topic)
@@ -176,7 +180,7 @@ class WebSearchService {
             val first = results.getJSONObject(0)
             val lat = first.getDouble("latitude")
             val lon = first.getDouble("longitude")
-            val name = first.optString("name", city.capitalize())
+            val name = first.optString("name", city.capitalized())
             val country = first.optString("country", "")
 
             val forecastUrl = URL("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto")
