@@ -155,7 +155,7 @@ public final class ChatViewModel: ObservableObject {
         storageService.saveState(state)
         
         // Synchronisation en temps réel des statistiques vers les Widgets iOS
-        let totalQuestions = self.conversations.reduce(0) { $0 + $1.messages.filter { $0.isFromUser }.count } + (self.conversations.contains(where: { $0.id == self.currentConversationId }) ? 0 : self.messages.filter { $0.isFromUser }.count)
+        let totalQuestions = max(self.conversations.reduce(0) { $0 + $1.messages.filter { $0.isFromUser }.count }, self.messages.filter { $0.isFromUser }.count)
         let lastMemoryTuple: (trigger: String, response: String)? = self.learnedMemories.first.map { ($0.key, $0.value) }
         SarahWidgetBridge.shared.syncStats(
             conversationsCount: max(1, self.conversations.count),
@@ -539,10 +539,39 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Partage d'Écran Universel & Analyse Visuelle
+    
+    public func startScreenShareAnalysis() {
+        haptics.buttonTap()
+        guard let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? UIApplication.shared.windows.first,
+              let rootVC = window.rootViewController else { return }
+        
+        isTyping = true
+        ScreenShareService.shared.shareAndAnalyzeScreen(from: rootVC) { [weak self] result, _, data in
+            guard let self = self else { return }
+            
+            let userMsg = Message(
+                content: "🖥️ [Partage d'écran avec Sarah]",
+                isFromUser: true,
+                timestamp: Date(),
+                imageData: data
+            )
+            self.appendMessage(userMsg)
+            
+            let responseText = result.naturalSpokenResponse
+            let aiMsg = Message(content: responseText, isFromUser: false)
+            self.appendMessage(aiMsg)
+            self.isTyping = false
+            SpeechManager.shared.speak(text: responseText)
+        }
+    }
+    
     public func sendQuickSuggestion(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed == "Présente-toi" || trimmed == "Qui es-tu ?" || trimmed.contains("présentation") {
             introduceSarah()
+        } else if trimmed.contains("écran") || trimmed.contains("partage") {
+            startScreenShareAnalysis()
         } else {
             inputText = text
         }

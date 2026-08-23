@@ -120,14 +120,28 @@ public struct MessageBar: View {
         .padding(.leading, 10)
         .padding(.trailing, 8)
         .padding(.vertical, 8)
-        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.13, green: 0.13, blue: 0.16), Color(red: 0.08, green: 0.08, blue: 0.10)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.4), Color.white.opacity(0.12)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
+                )
         )
         .padding(.horizontal, 16)
-        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
+        .shadow(color: Color(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.12), radius: 12, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.45), radius: 15, x: 0, y: 6)
     }
     
     private func submitMessage() {

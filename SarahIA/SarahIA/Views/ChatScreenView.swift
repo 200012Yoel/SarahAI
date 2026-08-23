@@ -6,6 +6,9 @@ public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
     
+    @State private var isShowingCamera: Bool = false
+    @State private var isShowingActionSheet: Bool = false
+    
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
@@ -27,7 +30,7 @@ public struct ChatScreenView: View {
                         viewModel.toggleSpeechForMessage(message.content)
                     },
                     onSelectSuggestion: { suggestionText in
-                        viewModel.inputText = suggestionText
+                        viewModel.sendQuickSuggestion(suggestionText)
                     },
                     onIntroduceSarah: {
                         viewModel.introduceSarah()
@@ -46,6 +49,12 @@ public struct ChatScreenView: View {
                     },
                     onToggleMic: {
                         viewModel.toggleMicrophone()
+                    },
+                    onCamera: {
+                        isShowingCamera = true
+                    },
+                    onPlusTapped: {
+                        isShowingActionSheet = true
                     }
                 )
                 .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
@@ -54,6 +63,47 @@ public struct ChatScreenView: View {
             .background(Color.black)
         }
         .ignoresSafeArea(.keyboard)
+        .actionSheet(isPresented: $isShowingActionSheet) {
+            ActionSheet(
+                title: Text("Actions Rapides"),
+                buttons: [
+                    .default(Text("🌐 Recherche sur Internet")) {
+                        viewModel.inputText = "Cherche sur internet : "
+                    },
+                    .default(Text("🖥️ Partager mon écran avec Sarah")) {
+                        viewModel.startScreenShareAnalysis()
+                    },
+                    .default(Text("📷 Vision par caméra")) {
+                        isShowingCamera = true
+                    },
+                    .cancel(Text("Annuler"))
+                ]
+            )
+        }
+        .fullScreenCover(isPresented: $isShowingCamera) {
+            CameraRepresentable(onPhotoAnalyzed: { image, result in
+                let processedData = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7)?.data ?? image.jpegData(compressionQuality: 0.7)
+                let userMsg = Message(
+                    content: "📷 [Photo analysée]",
+                    isFromUser: true,
+                    timestamp: Date(),
+                    imageData: processedData
+                )
+                viewModel.sendMessage("Photo analysée : \(result.objectLabel)")
+            }, onScreenShare: {
+                isShowingCamera = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    viewModel.startScreenShareAnalysis()
+                }
+            })
+            .ignoresSafeArea()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchCamera"))) { _ in
+            isShowingCamera = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchScreenShare"))) { _ in
+            viewModel.startScreenShareAnalysis()
+        }
     }
     
     // MARK: - Topbar
@@ -145,4 +195,27 @@ public struct ChatScreenView: View {
             return "Prête"
         }
     }
+}
+
+/// Wrapper UIKit pour afficher LiveCameraViewController en SwiftUI
+public struct CameraRepresentable: UIViewControllerRepresentable {
+    public var onPhotoAnalyzed: (UIImage, LocalVisionEngine.VisionAnalysisResult) -> Void
+    public var onScreenShare: () -> Void
+    
+    public init(
+        onPhotoAnalyzed: @escaping (UIImage, LocalVisionEngine.VisionAnalysisResult) -> Void,
+        onScreenShare: @escaping () -> Void
+    ) {
+        self.onPhotoAnalyzed = onPhotoAnalyzed
+        self.onScreenShare = onScreenShare
+    }
+    
+    public func makeUIViewController(context: Context) -> LiveCameraViewController {
+        let vc = LiveCameraViewController()
+        vc.onPhotoAnalyzed = onPhotoAnalyzed
+        vc.onScreenShareRequested = onScreenShare
+        return vc
+    }
+    
+    public func updateUIViewController(_ uiViewController: LiveCameraViewController, context: Context) {}
 }

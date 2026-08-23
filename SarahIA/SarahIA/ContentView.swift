@@ -52,15 +52,15 @@ public struct ContentView: View {
                     RoundedRectangle(cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0)
                         .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
                 )
-                // Geste de glissement pour ouvrir/fermer le tiroir
+                // Geste de glissement pour ouvrir/fermer le tiroir (avec minimumDistance pour ne jamais bloquer les clics de boutons sur iPhone 14)
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 20, coordinateSpace: .local)
                         .onChanged { value in
                             let translation = value.translation.width
                             if viewModel.isDrawerOpen {
                                 let newP = max(0.0, min(1.0, 1.0 + (translation / sidebarWidth)))
                                 viewModel.drawerProgress = CGFloat(newP)
-                            } else if value.startLocation.x < 44 {
+                            } else if value.startLocation.x < 35 && translation > 0 {
                                 let newP = max(0.0, min(1.0, translation / sidebarWidth))
                                 viewModel.drawerProgress = CGFloat(newP)
                             }

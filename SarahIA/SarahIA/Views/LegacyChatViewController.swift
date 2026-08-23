@@ -100,9 +100,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 self.newChatTapped()
             case "memory":
                 self.openMemoryVault()
+            case "camera":
+                self.cameraButtonTapped()
+            case "screenshare":
+                self.startScreenShareAnalysis()
             default:
                 break
             }
+        }
+        
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahLaunchCamera"), object: nil, queue: .main) { [weak self] _ in
+            self?.cameraButtonTapped()
+        }
+        
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahLaunchScreenShare"), object: nil, queue: .main) { [weak self] _ in
+            self?.startScreenShareAnalysis()
         }
     }
     
@@ -939,6 +951,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🌐 Recherche sur Internet", style: .default, handler: { [weak self] _ in
+            self?.promptWebSearch()
+        }))
+        sheet.addAction(UIAlertAction(title: "📻 Écouter la radio en direct", style: .default, handler: { [weak self] _ in
+            self?.promptRadioSelection()
+        }))
+        sheet.addAction(UIAlertAction(title: "🎙️ Apple Podcasts", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Ouvre Apple Podcast"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "🎵 Lancer de la musique", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Mets de la musique"
+            self?.sendButtonTapped()
+        }))
         sheet.addAction(UIAlertAction(title: "🖥️ Partage d'écran avec Sarah", style: .default, handler: { [weak self] _ in
             self?.startScreenShareAnalysis()
         }))
@@ -962,6 +988,71 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }))
         sheet.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(sheet, animated: true, completion: nil)
+    }
+    
+    private func promptRadioSelection() {
+        let radioSheet = UIAlertController(title: "📻 Choisir une Radio en Direct", message: "Sélectionnez votre station :", preferredStyle: .actionSheet)
+        let stations = [
+            ("NRJ", "Mets NRJ"),
+            ("France Inter", "Mets France Inter"),
+            ("Skyrock", "Mets Skyrock"),
+            ("RTL", "Mets RTL"),
+            ("Nostalgie", "Mets Nostalgie"),
+            ("Fun Radio", "Mets Fun Radio"),
+            ("FIP", "Mets FIP"),
+            ("Jazz Radio", "Mets Jazz Radio"),
+            ("Radio Classique", "Mets Radio Classique"),
+            ("France Info", "Mets France Info"),
+            ("⏹️ Arrêter la radio", "Arrête la radio")
+        ]
+        for st in stations {
+            radioSheet.addAction(UIAlertAction(title: st.0, style: .default, handler: { [weak self] _ in
+                self?.inputTextField.text = st.1
+                self?.sendButtonTapped()
+            }))
+        }
+        radioSheet.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(radioSheet, animated: true, completion: nil)
+    }
+    
+    private func promptWebSearch() {
+        let alert = UIAlertController(
+            title: "🌐 Recherche Web Intégrée",
+            message: "Entrez votre recherche (Sarah interroge le Web, Wikipédia et DuckDuckGo) :",
+            preferredStyle: .alert
+        )
+        alert.addTextField { $0.placeholder = "Ex: Qui a inventé l'iPhone ?" }
+        alert.addAction(UIAlertAction(title: "Rechercher", style: .default, handler: { [weak self] _ in
+            guard let query = alert.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return }
+            self?.inputTextField.text = "Cherche sur internet : \(query)"
+            self?.sendButtonTapped()
+        }))
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
+    }
+    
+    // MARK: - Caméra & Vision par Ordinateur
+    
+    @objc private func cameraButtonTapped() {
+        openLiveCamera()
+    }
+    
+    public func openLiveCamera() {
+        HapticService.shared.buttonTap()
+        let cameraVC = LiveCameraViewController()
+        cameraVC.modalPresentationStyle = .fullScreen
+        cameraVC.onPhotoAnalyzed = { [weak self] image, result in
+            guard let self = self else { return }
+            let photoMsg = Message(content: "📷 Photo analysée : \(result.objectLabel)", isFromUser: true)
+            self.appendMessage(photoMsg)
+            let aiMsg = Message(content: result.naturalSpokenResponse, isFromUser: false)
+            self.appendMessage(aiMsg)
+            self.speak(text: result.naturalSpokenResponse)
+        }
+        cameraVC.onScreenShareRequested = { [weak self] in
+            self?.startScreenShareAnalysis()
+        }
+        present(cameraVC, animated: true, completion: nil)
     }
     
     // MARK: - Envoi & Traitement des Messages
@@ -998,6 +1089,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.text = "● Réflexion..."
         statusLabel.textColor = .yellow
         
+        let norm = text.lowercased()
+        
+        // 0. Commande d'activation Caméra en direct
+        if norm.contains("camera") || norm.contains("appareil photo") || norm.contains("ouvre la camera") || norm.contains("active la camera") || norm.contains("lance la camera") || norm.contains("prends une photo") {
+            statusLabel.text = "● En ligne"
+            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            let aiMsg = Message(content: "📷 J'active la caméra immédiatement ! Pointez l'objectif vers ce que vous souhaitez que j'analyse.", isFromUser: false)
+            appendMessage(aiMsg)
+            speak(text: "J'active la caméra !")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                self?.openLiveCamera()
+            }
+            return
+        }
+        
+        // 1. Vérification si recherche Web explicite
+        if AIService.shared.isWebSearchIntent(norm) {
+            statusLabel.text = "● Recherche sur le Web..."
+            WebSearchService.shared.searchWeb(query: text) { [weak self] webSummary, _ in
+                guard let self = self else { return }
+                self.statusLabel.text = "● En ligne"
+                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                
+                SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: webSummary, topicType: "web_search")
+                let aiMsg = Message(content: webSummary, isFromUser: false)
+                self.appendMessage(aiMsg)
+                self.speak(text: webSummary)
+            }
+            return
+        }
+        
+        // 2. Traitement standard synchrone / local
         DispatchQueue.global(qos: .userInitiated).async {
             let response = AIService.shared.generateSyncResponse(for: text)
             SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response)
@@ -1063,7 +1186,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("Session audio: \(error)")
@@ -1073,10 +1196,19 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         guard let recognitionRequest = recognitionRequest else { return }
         recognitionRequest.shouldReportPartialResults = true
         
+        audioEngine.reset()
         let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
         inputNode.removeTap(onBus: 0)
+        
+        // Configuration audio 100% sécurisée pour iPhone 5S (iOS 12)
+        var recordingFormat = inputNode.inputFormat(forBus: 0)
+        if recordingFormat.sampleRate == 0 || recordingFormat.channelCount == 0 {
+            recordingFormat = inputNode.outputFormat(forBus: 0)
+        }
+        if recordingFormat.sampleRate == 0 || recordingFormat.channelCount == 0 {
+            recordingFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) ?? recordingFormat
+        }
+        
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
             recognitionRequest.append(buffer)
         }
@@ -1099,6 +1231,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             try audioEngine.start()
         } catch {
             print("AudioEngine: \(error)")
+            stopAudioRecording()
         }
     }
     
@@ -1198,6 +1331,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             conversations[idx].updatedAt = Date()
         }
         
+        if let idx = conversations.firstIndex(where: { $0.id == currentConversationId }) {
+            conversations[idx].messages = messages
+        }
+        
         var state = StorageService.shared.loadState()
         state.conversations = conversations
         state.currentConversationId = currentConversationId
@@ -1209,12 +1346,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         for conv in conversations {
             totalQuestions += conv.messages.filter { $0.isFromUser }.count
         }
-        if !conversations.contains(where: { $0.id == currentConversationId }) {
-            totalQuestions += messages.filter { $0.isFromUser }.count
-        }
-        
+        let currentConvQuestions = messages.filter { $0.isFromUser }.count
+        let totalMsgs = max(totalQuestions, currentConvQuestions)
         let totalConvs = max(1, conversations.count)
-        let totalMsgs = totalQuestions
         let memoriesCount = state.learnedMemories.count
         
         // Synchronisation directe immédiate avec l'App Group partagé

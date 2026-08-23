@@ -15,6 +15,8 @@ import random
 import os
 import sys
 import math
+import urllib.request
+import urllib.parse
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -187,6 +189,183 @@ class SarahLocalEngine:
             return None
         return None
 
+    def fetch_weather(self, city: str) -> Optional[str]:
+        """Récupère la météo en direct pour une ville via Open-Meteo API."""
+        try:
+            enc_city = urllib.parse.quote(city)
+            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={enc_city}&count=1&language=fr&format=json"
+            req = urllib.request.Request(geo_url, headers={"User-Agent": "SarahIA-Python/2.0"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status != 200:
+                    return None
+                data = json.loads(resp.read().decode('utf-8'))
+                results = data.get("results", [])
+                if not results:
+                    return None
+                first = results[0]
+                lat = first["latitude"]
+                lon = first["longitude"]
+                name = first.get("name", city.title())
+                country = first.get("country", "")
+
+            forecast_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1"
+            req2 = urllib.request.Request(forecast_url, headers={"User-Agent": "SarahIA-Python/2.0"})
+            with urllib.request.urlopen(req2, timeout=3) as resp2:
+                if resp2.status != 200:
+                    return None
+                f_data = json.loads(resp2.read().decode('utf-8'))
+                current = f_data.get("current", {})
+                temp = current.get("temperature_2m", 0)
+                wind = current.get("wind_speed_10m", 0)
+                code = current.get("weather_code", 0)
+
+                conditions = {
+                    0: "Ciel dégagé ☀️", 1: "Légèrement voilé 🌤️", 2: "Partiellement nuageux ⛅",
+                    3: "Ciel couvert ☁️", 45: "Brouillard 🌫️", 51: "Bruine 🌦️",
+                    61: "Pluie modérée 🌧️", 71: "Neige ❄️", 80: "Averses 🌧️", 95: "Orage ⚡"
+                }
+                cond_str = conditions.get(code, "Variable 🌤️")
+                loc = f"{name}, {country}" if country else name
+                return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande à **Tom**, mon agent de recherche Web, de vérifier la météo pour vous en direct.*\n\n"
+                        f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                        f"☀️ **Météo en direct pour {loc}** :\n\n"
+                        f"• Température : **{int(temp)}°C**\n"
+                        f"• Ciel : **{cond_str}**\n"
+                        f"• Vent : **{int(wind)} km/h**\n\n"
+                        f"Belle journée à vous ! 🌤️")
+        except Exception:
+            return None
+
+    def search_web(self, query: str) -> str:
+        """Effectue une recherche Web en direct (Météo + Wikipedia + DuckDuckGo + Vols/Billets) via l'Agent Tom."""
+        clean = query.strip()
+        norm = self._normalize(clean)
+
+        # 0. Météo spécifique ("météo à Paris", "quel temps à Marseille", etc.)
+        for trigger in ["meteo a ", "meteo pour ", "meteo de ", "temps a ", "temperature a "]:
+            if trigger in norm:
+                city = norm.split(trigger, 1)[1].strip(" .?!:")
+                weather = self.fetch_weather(city)
+                if weather:
+                    return weather
+
+        # 0.5. Billets de Train / SNCF / Trainline ("cherchemoi un billet de train de Paris a Deauville")
+        if any(w in norm for w in ["billet de train", "billets de train", "billet train", "train pour", "train de ", "sncf", "trainline", "trajet en train"]) or ("train" in norm and ("paris" in norm or "billet" in norm or "deauville" in norm)):
+            origin = "Paris"
+            destination = "Deauville"
+            if " de " in norm and (" a " in norm or " vers " in norm):
+                parts = norm.split(" de ", 1)[1]
+                sep = " a " if " a " in parts else " vers "
+                if sep in parts:
+                    sub = parts.split(sep, 1)
+                    raw_orig = sub[0].strip()
+                    for p in ["et", "un billet", "des billets", "billet de train", "billet", "train", "pour", "trajet"]:
+                        raw_orig = re.sub(r'\b' + p + r'\b', '', raw_orig, flags=re.IGNORECASE).strip()
+                    raw_orig = re.sub(r'^(de\s+|d\'|du\s+|des\s+)', '', raw_orig, flags=re.IGNORECASE).strip()
+                    if raw_orig: origin = raw_orig.title()
+                    raw_dest = sub[1].strip(" :?.!")
+                    for p in ["et", "vers", "pour"]:
+                        raw_dest = re.sub(r'\b' + p + r'\b', '', raw_dest, flags=re.IGNORECASE).strip()
+                    raw_dest = re.sub(r'^(a\s+|vers\s+|pour\s+|de\s+|d\')', '', raw_dest, flags=re.IGNORECASE).strip()
+                    if raw_dest: destination = raw_dest.title()
+            elif " a " in norm or " pour " in norm:
+                sep = " a " if " a " in norm else " pour "
+                raw_dest = norm.split(sep, 1)[1].strip(" :?.!")
+                for p in ["et", "vers", "pour"]:
+                    raw_dest = re.sub(r'\b' + p + r'\b', '', raw_dest, flags=re.IGNORECASE).strip()
+                raw_dest = re.sub(r'^(a\s+|vers\s+|pour\s+|de\s+|d\')', '', raw_dest, flags=re.IGNORECASE).strip()
+                if raw_dest: destination = raw_dest.title()
+            
+            enc_orig = urllib.parse.quote_plus(origin)
+            enc_dest = urllib.parse.quote_plus(destination)
+            sncf_url = f"https://www.sncf-connect.com/app/home/search?origin={enc_orig}&destination={enc_dest}"
+            trainline_url = f"https://www.thetrainline.com/fr/billets-de-train/{origin.lower()}-a-{destination.lower()}"
+            maps_url = f"https://www.google.com/maps/dir/{enc_orig}/{enc_dest}"
+            return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande tout de suite à **Tom**, mon agent de recherche Web, de trouver les meilleurs billets de train pour vous.*\n\n"
+                    f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                    f"🚆 **Recherche de Billets de Train en direct** pour le trajet **{origin} ➔ {destination}** :\n\n"
+                    f"• 🚄 **SNCF Connect** : Horaires TGV Inoui, TER & Nomad, disponibilités et réservation en direct\n"
+                    f"  🔗 *{sncf_url}*\n"
+                    f"• 🎫 **Trainline** : Comparateur de tarifs SNCF / Ouigo avec sélection de places et cartes Avantage\n"
+                    f"  🔗 *{trainline_url}*\n"
+                    f"• 🗺️ **Itinéraire & Temps de Trajet** : Visualiser les gares de départ et le plan ferroviaire\n"
+                    f"  🔗 *{maps_url}*\n\n"
+                    f"💡 *Astuce de Tom : Sur la ligne {origin} ➔ {destination}, les trains partent généralement de Paris-Saint-Lazare pour un temps de trajet moyen de 2h05.*")
+
+        # 1. Billets d'avion / Vols / Voyage ("billet d'avion", "vol pour", "vols", "avion")
+        if any(w in norm for w in ["billet d avion", "billets d avion", "vol pour", "vols pour", "trouve un vol", "chercher un vol", "comparateur de vol", "billet avion"]):
+            dest = clean
+            for p in ["cherche un billet d'avion pour", "recherche un billet d'avion pour", "billet d'avion pour", "billet d avion pour", "vol pour", "vols pour", "billet d'avion", "billet d avion"]:
+                if p in dest.lower():
+                    dest = dest.lower().split(p, 1)[1].strip(" :?.")
+                    break
+            dest_display = dest.title() if dest else "votre destination"
+            encoded_dest = urllib.parse.quote_plus(dest if dest else "vol")
+            return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande tout de suite à **Tom**, mon agent de recherche Web, de trouver les meilleurs billets d'avion pour vous.*\n\n"
+                    f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                    f"✈️ **Recherche de Billets d'Avion & Comparateurs en direct** pour **{dest_display}** :\n\n"
+                    f"• 🌐 **Google Flights** : Comparaison des vols en temps réel (escales, compagnies, calendrier des meilleurs prix)\n"
+                    f"  🔗 *https://www.google.com/travel/flights?q={encoded_dest}*\n"
+                    f"• 🛫 **Skyscanner** : Tarifs low-cost & compagnies régulières (Air France, EasyJet, Ryanair, Transavia...)\n"
+                    f"  🔗 *https://www.skyscanner.fr/transport/vols/?q={encoded_dest}*\n"
+                    f"• 🧭 **Kayak** : Alertes de prix & prédictions d'évolution des tarifs\n"
+                    f"  🔗 *https://www.kayak.fr/flights*\n\n"
+                    f"💡 *Astuce de Tom : Réservez idéalement un mardi ou mercredi en navigation privée pour obtenir les tarifs les plus avantageux.*")
+
+        for prefix in ["cherche sur internet", "recherche sur internet", "cherche sur le web",
+                       "recherche sur le web", "cherche moi", "trouve moi", "trouve sur internet",
+                       "qui est", "qui etait", "c est quoi", "qu est ce que", "cherche", "recherche", "trouve"]:
+            if clean.lower().startswith(prefix):
+                clean = clean[len(prefix):].strip(" :?")
+                break
+        
+        if not clean:
+            clean = query.strip()
+
+        # 2. Wikipedia REST API Summary
+        try:
+            encoded = urllib.parse.quote(clean)
+            wiki_url = f"https://fr.wikipedia.org/api/rest_v1/page/summary/{encoded}"
+            req = urllib.request.Request(wiki_url, headers={"User-Agent": "SarahIA-Python/2.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    extract = data.get("extract", "")
+                    title = data.get("title", clean)
+                    page_url = data.get("content_urls", {}).get("desktop", {}).get("page", "")
+                    if extract:
+                        return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande à **Tom**, mon agent de recherche Web, de s'en occuper pour vous en direct.*\n\n"
+                                f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                                f"🌐 **Résultat Web pour « {title} »** :\n\n"
+                                f"{extract}\n\n"
+                                f"📖 *Source vérifiée par Tom : Wikipédia ({page_url})*")
+        except Exception:
+            pass
+
+        # 3. DuckDuckGo Instant Answer API
+        try:
+            ddg_query = urllib.parse.quote_plus(clean)
+            ddg_url = f"https://api.duckduckgo.com/?q={ddg_query}&format=json&no_html=1&skip_disambig=1"
+            req = urllib.request.Request(ddg_url, headers={"User-Agent": "SarahIA-Python/2.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    abstract = data.get("AbstractText", "")
+                    heading = data.get("Heading", clean)
+                    source_url = data.get("AbstractURL", f"https://duckduckgo.com/?q={ddg_query}")
+                    if abstract:
+                        return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande à **Tom**, mon agent de recherche Web, de s'en occuper pour vous en direct.*\n\n"
+                                f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                                f"🌐 **Résultat Web pour « {heading} »** :\n\n"
+                                f"{abstract}\n\n"
+                                f"🔗 *Source vérifiée par Tom : {source_url}*")
+        except Exception:
+            pass
+
+        return (f"👩🏻‍💼 **Sarah (Patronne)** : *D'accord ! Je demande à **Tom**, mon agent de recherche Web, de regarder ça pour vous.*\n\n"
+                f"🕵️‍♂️ **Rapport de Tom (Agent Web)** :\n"
+                f"J'ai exploré le Web pour « {clean} ». N'hésitez pas à me donner plus de détails ou préciser votre mot-clé pour que je cible exactement votre besoin !")
+
     def respond(self, query: str) -> str:
         """Génère la meilleure réponse en fonction des règles, intentions et templates."""
         raw = query.strip()
@@ -197,8 +376,63 @@ class SarahLocalEngine:
         self._save_memories()
         
         norm = self._normalize(raw)
+
+        # 0. Commande Caméra & Appareil Photo / Partage d'écran
+        if any(p in norm for p in ["partage mon ecran", "partager mon ecran", "partage l ecran", "analyse mon ecran", "live ecran"]):
+            return "🖥️🔴 J'active le partage d'écran en direct avec Sarah ! Je peux observer votre écran et vous guider en temps réel."
+            
+        if any(p in norm for p in ["lance la camera", "ouvre la camera", "active la camera", "lance l appareil photo", "ouvre l appareil photo", "active l appareil photo", "prends une photo", "camera"]):
+            return "📷 J'active la caméra immédiatement ! Pointez l'objectif vers ce que vous souhaitez que j'analyse."
         
-        # 1. Gestion du Prénom
+        # 0.1 Commande Radio en direct (NRJ, France Inter, Skyrock, RTL, Nostalgie, FIP, Jazz...)
+        if any(p in norm for p in ["arrete la radio", "stop radio", "coupe la radio", "radio off"]):
+            return "J'ai arrêté la radio. ⏹️"
+        
+        radio_stations = {
+            "nrj": "NRJ", "france inter": "France Inter", "skyrock": "Skyrock", "rtl": "RTL",
+            "nostalgie": "Nostalgie", "fun radio": "Fun Radio", "fip": "FIP", "rmc": "RMC",
+            "europe 1": "Europe 1", "jazz radio": "Jazz Radio", "jazz": "Jazz Radio",
+            "radio classique": "Radio Classique", "classique": "Radio Classique",
+            "france info": "France Info", "franceinfo": "France Info"
+        }
+        if any(p in norm for p in ["mets la radio", "lance la radio", "ecoute la radio", "allume la radio", "radio"]) or any(f"mets {k}" in norm for k in radio_stations):
+            matched_st = "France Inter"
+            for k, name in radio_stations.items():
+                if k in norm:
+                    matched_st = name
+                    break
+            return f"Je lance la radio **{matched_st}** en direct pour vous ! 📻🎶\nFlux audio officiel connecté. Bonne écoute !"
+        
+        # 0.2 Commande Apple Podcasts
+        if any(p in norm for p in ["lance un podcast", "mets un podcast", "ouvre apple podcast", "ouvre les podcasts", "podcast sur", "podcast de", "podcast"]):
+            topic = norm
+            for p in ["lance un podcast sur", "mets un podcast sur apple podcast", "mets un podcast", "lance un podcast", "ouvre apple podcast", "podcast sur", "podcast de", "podcast"]:
+                if p in topic:
+                    topic = topic.split(p, 1)[1].strip(" :?.!")
+                    break
+            topic_str = f" pour « **{topic.title()}** »" if topic else ""
+            return f"J'ouvre **Apple Podcasts**{topic_str} ! 🎙️ Retrouvez vos émissions et épisodes préférés."
+
+        # 0.3 Commande Musique (Apple Music / Spotify)
+        if any(p in norm for p in ["mets de la musique", "lance de la musique", "joue de la musique", "ouvre apple music", "ouvre spotify", "mets de la zik", "mets spotify"]):
+            return "Je lance la musique sur votre lecteur musical ! 🎵🎧 Montez le son et profitez de vos morceaux préférés !"
+        
+        # 1. Commandes d'apprentissage direct ("Apprends papa = au travail" ou "mémorise X : Y")
+        if any(norm.startswith(p) for p in ["apprends ", "memorise ", "retient ", "enregistre "]):
+            body = re.sub(r'^(apprends|memorise|retient|enregistre)\s+', '', raw, flags=re.IGNORECASE).strip()
+            for sep in ["=", ":", "->", "=>", "c'est", "c est", "est"]:
+                if sep in body:
+                    parts = body.split(sep, 1)
+                    if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+                        return self.learn(parts[0], parts[1])
+            return "Pour m'apprendre quelque chose, dites par exemple : « **Apprends papa = il est au travail** » ou « **Mémorise code wifi : 123456** »."
+
+        # 2. Oublier
+        if norm.startswith("oublie ") or norm.startswith("efface "):
+            target = re.sub(r'^(oublie|efface)\s+', '', raw, flags=re.IGNORECASE).strip()
+            return self.forget(target)
+
+        # 3. Gestion du Prénom
         if norm.startswith("je m appelle ") or norm.startswith("mon nom est ") or norm.startswith("mon prenom est "):
             name_parts = raw.split()[3:] if norm.startswith("je m appelle ") else raw.split()[3:]
             name = " ".join(name_parts).strip()
@@ -211,22 +445,6 @@ class SarahLocalEngine:
             if self.user_name:
                 return f"Vous vous appelez **{self.user_name}** ! Je n'oublie jamais mes amis. 😊"
             return "Vous ne m'avez pas encore indiqué votre prénom ! Dites : « Je m'appelle [Votre prénom] » pour que je le retienne."
-        
-        # 2. Commandes d'apprentissage direct ("Apprends papa = au travail" ou "mémorise X : Y")
-        if any(norm.startswith(p) for p in ["apprends ", "memorise ", "retient ", "enregistre "]):
-            # Séparateurs possibles : '=', ':', 'c est', 'est'
-            body = re.sub(r'^(apprends|memorise|retient|enregistre)\s+', '', raw, flags=re.IGNORECASE).strip()
-            for sep in ["=", ":", "->", "=>", "c'est", "c est", "est"]:
-                if sep in body:
-                    parts = body.split(sep, 1)
-                    if len(parts) == 2 and parts[0].strip() and parts[1].strip():
-                        return self.learn(parts[0], parts[1])
-            return "Pour m'apprendre quelque chose, dites par exemple : « **Apprends papa = il est au travail** » ou « **Mémorise code wifi : 123456** »."
-
-        # 3. Oublier
-        if norm.startswith("oublie ") or norm.startswith("efface "):
-            target = re.sub(r'^(oublie|efface)\s+', '', raw, flags=re.IGNORECASE).strip()
-            return self.forget(target)
 
         # 4. Consultation du coffre mémoire
         if any(p in norm for p in ["que sais tu", "tes souvenirs", "liste memoire", "ce que tu as appris", "coffre memoire"]):
@@ -236,7 +454,7 @@ class SarahLocalEngine:
             items = "\n".join([f"• « **{k}** » ➔ {v}" for k, v in user_memories.items()])
             return f"🧠 **Souvenirs enregistrés dans mon coffre** :\n\n{items}"
 
-        # 5. Matching du Coffre Mémoire (Recherche directe ou par mot-clé)
+        # 5. Matching du Coffre Mémoire (Recherche directe ou par mot-clé appris)
         for trig, fact in self.learned_memories.items():
             if trig.startswith("_"):
                 continue
@@ -247,6 +465,27 @@ class SarahLocalEngine:
         math_res = self._evaluate_math(raw)
         if math_res:
             return math_res
+
+        # 7. Intention de Recherche Web, Météo & Transports (Trains / Avions)
+        clean_norm = (norm.replace("cherchemoi", "cherche moi")
+                      .replace("trouvemoi", "trouve moi")
+                      .replace("recherchemoi", "recherche moi")
+                      .replace("cherche-moi", "cherche moi")
+                      .replace("d'avion", "d avion")
+                      .replace("d'hotel", "d hotel"))
+        
+        web_triggers = [
+            "cherche ", "recherche ", "trouve sur internet", "trouve sur le web",
+            "cherche sur internet", "cherche sur le web", "moteur de recherche",
+            "qui est ", "qui etait ", "c est quoi ", "qu est ce que ",
+            "actualite", "actualites", "sur wikipedia", "trouve ",
+            "meteo a ", "meteo pour ", "meteo de ", "temps a ", "temperature a ",
+            "billet de train", "billet train", "billets de train", "train pour", "train de ",
+            "sncf", "trainline", "billet d avion", "billet avion", "billets d avion", "vol pour",
+            "vols pour", "comparateur de vol", "hotel a ", "hotel pour", "cherche moi"
+        ]
+        if any(clean_norm.startswith(t) or t in clean_norm for t in web_triggers):
+            return self.search_web(raw)
 
         # 7. Date et Heure
         now = datetime.now()

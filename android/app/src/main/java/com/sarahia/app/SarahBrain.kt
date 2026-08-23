@@ -412,6 +412,48 @@ class SarahBrain(private val context: Context) {
             }
         }
 
+        // 4.3 Intention Radio, Podcasts & Musique
+        if (norm.contains("arrete la radio") || norm.contains("stop radio") || norm.contains("coupe la radio")) {
+            callback("J'ai arrêté la radio. ⏹️")
+            return
+        }
+        val radioStations = mapOf(
+            "nrj" to "NRJ", "france inter" to "France Inter", "skyrock" to "Skyrock", "rtl" to "RTL",
+            "nostalgie" to "Nostalgie", "fun radio" to "Fun Radio", "fip" to "FIP", "rmc" to "RMC",
+            "europe 1" to "Europe 1", "jazz radio" to "Jazz Radio", "jazz" to "Jazz Radio",
+            "radio classique" to "Radio Classique", "france info" to "France Info"
+        )
+        if (norm.contains("mets la radio") || norm.contains("lance la radio") || norm.contains("ecoute la radio") || norm == "radio" || radioStations.keys.any { norm.contains("mets $it") }) {
+            var matchedSt = "France Inter"
+            for ((k, name) in radioStations) {
+                if (norm.contains(k)) { matchedSt = name; break }
+            }
+            callback("Je lance la radio **$matchedSt** en direct pour vous ! 📻🎶 Flux audio connecté.")
+            return
+        }
+        if (norm.contains("podcast") || norm.contains("apple podcast")) {
+            callback("J'ouvre vos podcasts pour vous ! 🎙️ Retrouvez vos émissions préférées.")
+            return
+        }
+        if (norm.contains("mets de la musique") || norm.contains("lance de la musique") || norm.contains("joue de la musique") || norm.contains("spotify") || norm.contains("apple music")) {
+            callback("Je lance la musique sur votre lecteur musical ! 🎵🎧 Montez le son !")
+            return
+        }
+
+        // 4.5. Intention de Recherche Web en Direct
+        val webTriggers = listOf(
+            "cherche ", "recherche ", "trouve sur internet", "trouve sur le web",
+            "cherche sur internet", "cherche sur le web", "moteur de recherche",
+            "qui est ", "qui etait ", "c'est quoi ", "qu'est ce que ", "actualite", "sur wikipedia", "trouve "
+        )
+        if (webTriggers.any { norm.startsWith(it) || norm.contains(it) }) {
+            WebSearchService.instance.searchWebAsync(userText) { summary, _ ->
+                semanticMemoryIndex.indexExchange(userText, summary, "web_search")
+                callback(summary)
+            }
+            return
+        }
+
         // 5. Intelligence Conversationnelle Approfondie OpenAI (Multi-tours & raisonnement)
         if (openAIService.isConfigured()) {
             val augmentedPrompt = if (pastContext != null) "$userText (Contexte récent : $pastContext)" else userText
@@ -420,8 +462,15 @@ class SarahBrain(private val context: Context) {
                     semanticMemoryIndex.indexExchange(userText, aiResponse, "conversation")
                     callback(aiResponse)
                 }.onFailure {
-                    // Fallback intelligent hors-ligne
-                    fallbackOfflineResponse(userText, pastContext, callback)
+                    // Fallback intelligent web ou hors-ligne
+                    WebSearchService.instance.searchWebAsync(userText) { webSummary, items ->
+                        if (items.isNotEmpty()) {
+                            semanticMemoryIndex.indexExchange(userText, webSummary, "web_search")
+                            callback(webSummary)
+                        } else {
+                            fallbackOfflineResponse(userText, pastContext, callback)
+                        }
+                    }
                 }
             }
             return

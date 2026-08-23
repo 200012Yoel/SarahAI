@@ -81,6 +81,30 @@ public final class AIService {
     
     // MARK: - Moteur de Réponses Synchrones 100% Hors-Ligne (iOS 12+)
     
+    /// Détecte si la requête de l'utilisateur correspond à une intention de recherche sur Internet
+    public func isWebSearchIntent(_ normalized: String) -> Bool {
+        let norm = normalized
+            .replacingOccurrences(of: "cherchemoi", with: "cherche moi")
+            .replacingOccurrences(of: "trouvemoi", with: "trouve moi")
+            .replacingOccurrences(of: "recherchemoi", with: "recherche moi")
+            .replacingOccurrences(of: "cherche-moi", with: "cherche moi")
+            .replacingOccurrences(of: "d'avion", with: "d avion")
+            .replacingOccurrences(of: "d'hotel", with: "d hotel")
+            
+        let triggers = [
+            "cherche ", "recherche ", "trouve sur internet", "trouve sur le web",
+            "cherche sur internet", "cherche sur le web", "recherche sur internet",
+            "recherche sur le web", "moteur de recherche", "qui est ", "qui etait ",
+            "c est quoi ", "qu est ce que ", "donne moi des infos sur ",
+            "actualite", "actualites", "dernieres nouvelles", "cours de", "prix de",
+            "meteo a ", "meteo pour ", "sur wikipedia", "cherche moi", "trouve moi",
+            "billet de train", "billet train", "billets de train", "train pour", "train de", "trains",
+            "sncf", "trainline", "billet d avion", "billet avion", "billets d avion", "vol pour",
+            "vols pour", "comparateur de vol", "hotel a ", "hotel pour"
+        ]
+        return triggers.contains { norm.contains($0) || norm.starts(with: $0) }
+    }
+    
     /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
     public func generateSyncResponse(for question: String) -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -220,7 +244,17 @@ public final class AIService {
             return reply
         }
         
-        // 3. Traitement local synchrone prioritaire (Zéro latence)
+        // 3. MOTEUR DE RECHERCHE WEB EN DIRECT (Si intention de recherche explicite)
+        if isWebSearchIntent(normalized) {
+            let (webSummary, _) = await WebSearchService.shared.searchWebAsync(query: trimmed)
+            if !webSummary.isEmpty {
+                SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: webSummary, topicType: "web_search")
+                recordExchange(userText: trimmed, assistantResponse: webSummary)
+                return webSummary
+            }
+        }
+        
+        // 4. Traitement local synchrone prioritaire (Zéro latence)
         let syncResponse = generateSyncResponse(for: question)
         let defaultGenericAnswers = defaultResponses + thanksResponses + identityResponses + moodResponsesOk + chitChatResponses
         
@@ -229,7 +263,7 @@ public final class AIService {
             return syncResponse
         }
         
-        // 4. OpenAI si configuré et disponible
+        // 5. OpenAI si configuré et disponible
         let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
         if openAI.isConfigured {
             do {
@@ -239,8 +273,15 @@ public final class AIService {
                 recordExchange(userText: trimmed, assistantResponse: aiResponse)
                 return aiResponse
             } catch {
-                print("⚠️ [AIService] OpenAI indisponible, utilisation du moteur local ultra-rapide.")
+                print("⚠️ [AIService] OpenAI indisponible, tentative recherche web ou moteur local.")
             }
+        }
+        
+        // 6. Fallback vers Recherche Web si requête inconnue et connexion active
+        let (autoWebSummary, autoResults) = await WebSearchService.shared.searchWebAsync(query: trimmed)
+        if !autoResults.isEmpty && !autoWebSummary.isEmpty {
+            recordExchange(userText: trimmed, assistantResponse: autoWebSummary)
+            return autoWebSummary
         }
         
         return syncResponse
@@ -358,6 +399,80 @@ public final class AIService {
     // MARK: - Évaluation des Actions Contextuelles Vocales (Hardware & Système)
     
     private func evaluateContextualAction(normalized: String, trimmed: String) -> String? {
+        // 0. Caméra & Appareil Photo en direct
+        if normalized.contains("lance la camera") || normalized.contains("ouvre la camera") || normalized.contains("active la camera") ||
+           normalized.contains("lance l appareil photo") || normalized.contains("ouvre l appareil photo") || normalized.contains("active l appareil photo") ||
+           normalized.contains("prends une photo") || normalized.contains("regarde avec la camera") || normalized.contains("regarde ce que je te montre") ||
+           normalized == "camera" || normalized == "appareil photo" || normalized.contains("lancer la camera") {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchCamera"), object: nil)
+            }
+            return "J'active la caméra immédiatement ! 📷 Pointez ce que vous souhaitez que j'analyse."
+        }
+        
+        // 0.1 Partage d'Écran
+        if normalized.contains("partage mon ecran") || normalized.contains("partage l ecran") || normalized.contains("partager mon ecran") ||
+           normalized.contains("analyse mon ecran") || normalized.contains("regarde mon ecran") {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchScreenShare"), object: nil)
+            }
+            return "J'analyse votre écran tout de suite ! 🖥️"
+        }
+        
+        // 0.2 Radio en direct (NRJ, France Inter, Skyrock, RTL, Nostalgie, FIP, Jazz...)
+        if normalized.contains("arrete la radio") || normalized.contains("stop radio") || normalized.contains("coupe la radio") || normalized == "radio off" {
+            return MediaStreamingService.shared.stopRadio()
+        }
+        
+        if normalized.contains("mets la radio") || normalized.contains("lance la radio") || normalized.contains("ecoute la radio") ||
+           normalized.contains("ecouter la radio") || normalized.contains("allume la radio") || normalized == "radio" ||
+           normalized.contains("mets nrj") || normalized.contains("mets france inter") || normalized.contains("mets skyrock") ||
+           normalized.contains("mets rtl") || normalized.contains("mets nostalgie") || normalized.contains("mets fun radio") ||
+           normalized.contains("mets fip") || normalized.contains("mets rmc") || normalized.contains("mets europe 1") ||
+           normalized.contains("mets jazz radio") || normalized.contains("mets radio classique") || normalized.contains("mets france info") {
+            let stationQuery = normalized.replacingOccurrences(of: "mets la radio", with: "")
+                .replacingOccurrences(of: "lance la radio", with: "")
+                .replacingOccurrences(of: "mets", with: "")
+                .replacingOccurrences(of: "la radio", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return MediaStreamingService.shared.playRadio(stationName: stationQuery.isEmpty ? nil : stationQuery)
+        }
+        
+        // 0.3 Apple Podcasts & Émissions
+        if normalized.contains("lance un podcast") || normalized.contains("mets un podcast") || normalized.contains("ouvre apple podcast") ||
+           normalized.contains("ouvre les podcasts") || normalized.contains("podcast sur") || normalized.contains("podcast de") ||
+           normalized.contains("ecouter un podcast") || normalized == "podcast" || normalized == "podcasts" {
+            var podcastTopic = normalized.replacingOccurrences(of: "lance un podcast", with: "")
+                .replacingOccurrences(of: "mets un podcast sur apple podcast", with: "")
+                .replacingOccurrences(of: "mets un podcast", with: "")
+                .replacingOccurrences(of: "ouvre apple podcast", with: "")
+                .replacingOccurrences(of: "ouvre les podcasts", with: "")
+                .replacingOccurrences(of: "sur apple podcast", with: "")
+                .replacingOccurrences(of: "podcast", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return MediaStreamingService.shared.launchApplePodcasts(query: podcastTopic.isEmpty ? nil : podcastTopic)
+        }
+        
+        // 0.4 Musique & Lecteur Audio (Apple Music / Spotify)
+        if normalized.contains("mets de la musique") || normalized.contains("lance de la musique") || normalized.contains("joue de la musique") ||
+           normalized.contains("ouvre apple music") || normalized.contains("ouvre spotify") || normalized.contains("mets de la zik") ||
+           normalized.contains("mets spotify") || normalized.contains("lance spotify") || normalized.contains("musique") && (normalized.contains("mets") || normalized.contains("lance")) {
+            var musicQuery = normalized.replacingOccurrences(of: "mets de la musique", with: "")
+                .replacingOccurrences(of: "lance de la musique", with: "")
+                .replacingOccurrences(of: "joue de la musique", with: "")
+                .replacingOccurrences(of: "mets spotify", with: "")
+                .replacingOccurrences(of: "mets", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return MediaStreamingService.shared.launchMusic(query: musicQuery.isEmpty ? nil : musicQuery)
+        }
+        
+        // 0.5 Caméra & Appareil Photo
+        if normalized.contains("lance la camera") || normalized.contains("ouvre la camera") || normalized.contains("active la camera") ||
+           normalized.contains("lance l appareil photo") || normalized.contains("ouvre l appareil photo") || normalized.contains("active l appareil photo") ||
+           normalized == "camera" || normalized == "appareil photo" {
+            return "📷 J'active la caméra immédiatement ! Pointez l'objectif vers ce que vous souhaitez que j'analyse."
+        }
+        
         // 1. Lampe Torche / Flash Caméra
         if normalized.contains("allume la torche") || normalized.contains("allume la lampe") || normalized.contains("allumer la torche") || normalized.contains("allume le flash") || normalized.contains("active la torche") || normalized == "torche on" {
             return device.toggleTorch(enable: true)

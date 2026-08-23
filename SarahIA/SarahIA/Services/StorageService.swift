@@ -92,7 +92,7 @@ public final class StorageService {
     
     /// Sauvegarde l'état complet de l'application de manière atomique et thread-safe.
     public func saveState(_ state: AppPersistedState) {
-        ioQueue.async { [weak self] in
+        ioQueue.sync { [weak self] in
             guard let self = self else { return }
             do {
                 let encoder = JSONEncoder()

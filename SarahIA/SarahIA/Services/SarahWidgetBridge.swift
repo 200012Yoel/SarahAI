@@ -120,6 +120,7 @@ public final class SarahWidgetBridge {
     /// Enregistre les données statistiques sur tous les supports partagés (App Group prioritaire)
     public func saveStats(_ stats: WidgetStatsData) {
         let encoded = (try? JSONEncoder().encode(stats)) ?? Data()
+        let summaryStr = "\(stats.totalConversations)|\(stats.totalMessages)|\(stats.learnedMemoriesCount)|\(stats.usagePercentage)|\(stats.lastUpdated.timeIntervalSince1970)"
         
         // 1. Sauvegarde systématique dans l'App Group partagé group.com.sarahia.app
         if let groupDefaults = sharedDefaults {
@@ -141,13 +142,16 @@ public final class SarahWidgetBridge {
         
         // 2. Pont UIPasteboard partagé (100% fiable sur iOS 12 même sans certificat payant)
         if let pasteboard = UIPasteboard(name: UIPasteboard.Name("com.sarahia.app.widgetstats"), create: true) {
-            if !encoded.isEmpty {
-                pasteboard.setData(encoded, forPasteboardType: "public.json")
-            }
-            pasteboard.string = "\(stats.totalConversations)|\(stats.totalMessages)|\(stats.learnedMemoriesCount)|\(stats.usagePercentage)|\(stats.lastUpdated.timeIntervalSince1970)"
+            pasteboard.isPersistent = true
+            pasteboard.string = summaryStr
         }
         
         // 3. Sauvegarde Standard UserDefaults & Fichiers
+        UserDefaults.standard.set(stats.totalConversations, forKey: "totalConversations")
+        UserDefaults.standard.set(stats.totalMessages, forKey: "totalMessages")
+        UserDefaults.standard.set(stats.learnedMemoriesCount, forKey: "learnedMemoriesCount")
+        UserDefaults.standard.set(stats.usagePercentage, forKey: "usagePercentage")
+        UserDefaults.standard.set(summaryStr, forKey: "com.sarahia.widget_summary")
         if !encoded.isEmpty {
             UserDefaults.standard.setValue(encoded, forKey: statsKey)
             UserDefaults.standard.synchronize()
@@ -160,14 +164,14 @@ public final class SarahWidgetBridge {
     
     /// Récupère les données statistiques pour l'affichage des widgets (lecture exclusive App Group prioritaire)
     public func getStats() -> WidgetStatsData {
+        var candidates: [WidgetStatsData] = []
+        
         // 1. Lecture directe et prioritaire depuis l'App Group partagé
         if let groupDefaults = sharedDefaults {
             if let data = groupDefaults.data(forKey: statsKey),
                let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
-                return decoded
-            }
-            
-            if groupDefaults.object(forKey: "totalConversations") != nil || groupDefaults.object(forKey: "totalMessages") != nil {
+                candidates.append(decoded)
+            } else if groupDefaults.object(forKey: "totalConversations") != nil || groupDefaults.object(forKey: "totalMessages") != nil {
                 let convs = groupDefaults.integer(forKey: "totalConversations")
                 let msgs = groupDefaults.integer(forKey: "totalMessages")
                 let memories = groupDefaults.integer(forKey: "learnedMemoriesCount")
@@ -178,7 +182,7 @@ public final class SarahWidgetBridge {
                 let resp = groupDefaults.string(forKey: "lastMemoryResponse")
                 let timestamp = groupDefaults.double(forKey: "lastUpdatedTimestamp")
                 
-                return WidgetStatsData(
+                candidates.append(WidgetStatsData(
                     totalConversations: max(1, convs),
                     totalMessages: msgs,
                     activeMinutesToday: 12,
@@ -189,7 +193,7 @@ public final class SarahWidgetBridge {
                     lastMemoryResponse: resp?.isEmpty == false ? resp : nil,
                     lastMessageSnippet: snippet?.isEmpty == false ? snippet : nil,
                     lastUpdated: timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : Date()
-                )
+                ))
             }
         }
         
@@ -197,34 +201,42 @@ public final class SarahWidgetBridge {
         if let pasteboard = UIPasteboard(name: UIPasteboard.Name("com.sarahia.app.widgetstats"), create: false) {
             if let data = pasteboard.data(forPasteboardType: "public.json"),
                let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
-                return decoded
-            }
-            if let str = pasteboard.string {
+                candidates.append(decoded)
+            } else if let str = pasteboard.string {
                 let parts = str.components(separatedBy: "|")
                 if parts.count >= 4 {
                     let convs = Int(parts[0]) ?? 1
                     let msgs = Int(parts[1]) ?? 0
                     let memories = Int(parts[2]) ?? 0
                     let usage = Int(parts[3]) ?? 68
-                    return WidgetStatsData(
+                    let timestamp = parts.count >= 5 ? (Double(parts[4]) ?? 0) : 0
+                    candidates.append(WidgetStatsData(
                         totalConversations: max(1, convs),
                         totalMessages: msgs,
                         activeMinutesToday: 12,
                         usagePercentage: usage,
                         weeklyActivity: [4, 7, 12, 9, 15, 8, max(5, msgs)],
                         learnedMemoriesCount: memories,
-                        lastUpdated: Date()
-                    )
+                        lastUpdated: timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : Date()
+                    ))
                 }
             }
         }
-        
-        var candidates: [WidgetStatsData] = []
         
         // 3. Lecture Standard UserDefaults de secours
         if let data = UserDefaults.standard.data(forKey: statsKey),
            let decoded = try? JSONDecoder().decode(WidgetStatsData.self, from: data) {
             candidates.append(decoded)
+        } else if UserDefaults.standard.object(forKey: "totalConversations") != nil {
+            let convs = UserDefaults.standard.integer(forKey: "totalConversations")
+            let msgs = UserDefaults.standard.integer(forKey: "totalMessages")
+            let memories = UserDefaults.standard.integer(forKey: "learnedMemoriesCount")
+            candidates.append(WidgetStatsData(
+                totalConversations: max(1, convs),
+                totalMessages: msgs,
+                learnedMemoriesCount: memories,
+                lastUpdated: Date()
+            ))
         }
         
         // 4. Lecture Fichiers partagés de secours

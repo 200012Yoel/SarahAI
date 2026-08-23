@@ -145,7 +145,7 @@ public final class LocalVisionEngine {
                 var highestConfidence: Float = 0.0
                 var recognizedText = ""
                 
-                // 1. Classification d'images par Apple Vision (iOS 13+)
+                // 1. Classification & Reconnaissance OCR Apple Vision (iOS 13+)
                 if #available(iOS 13.0, *) {
                     let classifyRequest = VNClassifyImageRequest()
                     let textRequest = VNRecognizeTextRequest()
@@ -177,6 +177,33 @@ public final class LocalVisionEngine {
                                 }
                             }
                         }
+                    }
+                } else {
+                    // Support Dédié iOS 12 (iPhone 5S / 6 / 6 Plus)
+                    let barcodeRequest = VNDetectBarcodesRequest()
+                    let faceRequest = VNDetectFaceRectanglesRequest()
+                    let rectRequest = VNDetectRectanglesRequest()
+                    
+                    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+                    try? handler.perform([barcodeRequest, faceRequest, rectRequest])
+                    
+                    if let barcodes = barcodeRequest.results, let firstBarcode = barcodes.first as? VNBarcodeObservation, let payload = firstBarcode.payloadStringValue {
+                        detectedFrench = "code-barres ou QR code"
+                        detectedEmoji = "📱"
+                        detectedArticle = "un"
+                        recognizedText = payload
+                        highestConfidence = 0.95
+                    } else if let faces = faceRequest.results, !faces.isEmpty {
+                        let count = faces.count
+                        detectedFrench = count > 1 ? "\(count) personnes" : "personne"
+                        detectedEmoji = "👤"
+                        detectedArticle = count > 1 ? "des" : "une"
+                        highestConfidence = 0.90
+                    } else if let rects = rectRequest.results, !rects.isEmpty {
+                        detectedFrench = "document ou cadre"
+                        detectedEmoji = "📄"
+                        detectedArticle = "un"
+                        highestConfidence = 0.80
                     }
                 }
             

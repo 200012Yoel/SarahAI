@@ -4,11 +4,12 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 
-/// Gestionnaire de session Caméra Live Ultra-Optimisé & Léger :
-/// - Compatible 100% avec les appareils d'entrée de gamme (iPhone 5S, 6, 7, 8 jusqu'à iPhone 14/15)
-/// - Résolution 480p/720p adaptative pour éviter tout pic RAM / Crash OOM sur 1 Go de RAM
-/// - Thread dédié en arrière-plan pour la capture et le traitement des tampons CMSampleBuffer
-/// - Déchargement automatique et immédiat des tampons mémoire via autoreleasepool
+/// Gestionnaire de session Caméra Live Ultra-Optimisé, Léger & Universel :
+/// - Compatible 100% avec TOUS les iPhone (iPhone 5S, 6, 7, 8, SE, X, 11, 12, 13, 14, 15, 16 sur iOS 12 -> iOS 18)
+/// - Reconnexion automatique en cas d'interruption (App Switcher, Verrouillage, Appel)
+/// - Résolution adaptative (.vga640x480 / .medium) anti-crash OOM sur 1 Go de RAM
+/// - Réutilisation d'un CIContext unique pour éliminer les fuites de mémoire et micro-gels
+/// - Support complet des caméras multiples (Wide, Dual, Triple, TrueDepth, UltraWide)
 public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     public static let shared = LiveCameraManager()
@@ -22,20 +23,69 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
     private let videoDataOutput = AVCaptureVideoDataOutput()
     private var previewLayer: AVCaptureVideoPreviewLayer?
     
+    // Contexte CIContext unique réutilisable pour éviter la surconsommation GPU/RAM
+    private let ciContext = CIContext(options: [
+        CIContextOption.useSoftwareRenderer: false,
+        CIContextOption.priorityRequestLow: true
+    ])
+    
     private var isSessionConfigured = false
     private var lastFrameTime: TimeInterval = 0
-    private let frameThrottleInterval: TimeInterval = 0.4 // Max 2.5 fps pour l'analyse IA
+    private let frameThrottleInterval: TimeInterval = 0.35 // Max 3 fps pour l'analyse IA
     
     private var onFrameCaptured: ((UIImage) -> Void)?
     
-    // MARK: - Initialisation
+    // MARK: - Initialisation & Notifications d'Interruption
+    
     private override init() {
         super.init()
+        setupInterruptionObservers()
+    }
+    
+    private func setupInterruptionObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionWasInterrupted(_:)),
+            name: .AVCaptureSessionWasInterrupted,
+            object: captureSession
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionInterruptionEnded(_:)),
+            name: .AVCaptureSessionInterruptionEnded,
+            object: captureSession
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionRuntimeError(_:)),
+            name: .AVCaptureSessionRuntimeError,
+            object: captureSession
+        )
+    }
+    
+    @objc private func sessionWasInterrupted(_ notification: Notification) {
+        print("⚠️ [LiveCameraManager] Session caméra interrompue")
+    }
+    
+    @objc private func sessionInterruptionEnded(_ notification: Notification) {
+        print("✅ [LiveCameraManager] Fin de l'interruption caméra, reprise...")
+        startSession()
+    }
+    
+    @objc private func sessionRuntimeError(_ notification: Notification) {
+        guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError else { return }
+        print("❌ [LiveCameraManager] Erreur runtime caméra: \(error)")
+        if error.code == .mediaServicesWereReset {
+            sessionQueue.async { [weak self] in
+                self?.isSessionConfigured = false
+                self?.setupSession(completion: { _ in })
+            }
+        }
     }
     
     // MARK: - Configuration Sécurisée de la Session
     
-    /// Prépare la session caméra avec une résolution optimisée pour iPhone 5S (480p/720p)
+    /// Prépare la session caméra avec une résolution optimisée pour iPhone 5S et iPhone 14
     public func setupSession(previewView: UIView? = nil, completion: @escaping (Bool) -> Void) {
         sessionQueue.async { [weak self] in
             guard let self = self else {
@@ -57,7 +107,7 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             
             self.captureSession.beginConfiguration()
             
-            // 1. Choix du preset basse consommation mémoire (480p / 720p)
+            // 1. Choix du preset adapté (VGA 640x480 / Medium)
             if self.captureSession.canSetSessionPreset(.vga640x480) {
                 self.captureSession.sessionPreset = .vga640x480
             } else if self.captureSession.canSetSessionPreset(.medium) {
@@ -66,28 +116,29 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
                 self.captureSession.sessionPreset = .hd1280x720
             }
             
-            // 2. Sélection de la caméra arrière par défaut
-            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
-                    ?? AVCaptureDevice.default(for: .video) else {
+            // 2. Sélection de la caméra (arrière par défaut, ou frontale)
+            let camera = self.getDevice(for: .back) ?? self.getDevice(for: .front) ?? AVCaptureDevice.default(for: .video)
+            guard let validCamera = camera else {
+                print("❌ [LiveCameraManager] Aucune caméra disponible sur cet appareil.")
                 self.captureSession.commitConfiguration()
                 DispatchQueue.main.async { completion(false) }
                 return
             }
             
             do {
-                let input = try AVCaptureDeviceInput(device: camera)
+                let input = try AVCaptureDeviceInput(device: validCamera)
                 if self.captureSession.canAddInput(input) {
                     self.captureSession.addInput(input)
                     self.videoDeviceInput = input
                 }
             } catch {
-                print("❌ [LiveCameraManager] Erreur configuration caméra: \(error)")
+                print("❌ [LiveCameraManager] Erreur configuration input caméra: \(error)")
                 self.captureSession.commitConfiguration()
                 DispatchQueue.main.async { completion(false) }
                 return
             }
             
-            // 3. Configuration de la sortie vidéo avec abandon automatique des images en retard
+            // 3. Configuration de la sortie vidéo
             self.videoDataOutput.alwaysDiscardsLateVideoFrames = true
             self.videoDataOutput.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA)
@@ -98,6 +149,13 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
                 self.captureSession.addOutput(self.videoDataOutput)
             }
             
+            // 4. Orientation portrait
+            if let connection = self.videoDataOutput.connection(with: .video) {
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+            }
+            
             self.captureSession.commitConfiguration()
             self.isSessionConfigured = true
             
@@ -106,6 +164,93 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
                     self.attachPreview(to: view)
                 }
                 completion(true)
+            }
+        }
+    }
+    
+    /// Détection multi-générations matérielle (iPhone 5S -> iPhone 14/15/16)
+    private func getDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
+        // 1. AVCaptureDevice.default direct
+        if let dev = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+            return dev
+        }
+        
+        // 2. DiscoverySession avec tous les types de capteurs
+        if #available(iOS 10.0, *) {
+            var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+            if #available(iOS 10.2, *) {
+                types.append(.builtInDualCamera)
+            }
+            if #available(iOS 11.1, *) {
+                types.append(.builtInTrueDepthCamera)
+            }
+            if #available(iOS 13.0, *) {
+                types.append(.builtInTripleCamera)
+                types.append(.builtInUltraWideCamera)
+                types.append(.builtInDualWideCamera)
+            }
+            let session = AVCaptureDevice.DiscoverySession(
+                deviceTypes: types,
+                mediaType: .video,
+                position: position
+            )
+            if let dev = session.devices.first(where: { $0.position == position }) ?? session.devices.first {
+                return dev
+            }
+        }
+        
+        // 3. Fallback universel iOS 10, 11, 12 sur iPhone 5S
+        let allDevices = AVCaptureDevice.devices(for: .video)
+        return allDevices.first(where: { $0.position == position }) ?? AVCaptureDevice.default(for: .video)
+    }
+    
+    /// Bascule entre la caméra avant et arrière
+    public func switchCamera(completion: @escaping (Bool) -> Void) {
+        sessionQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            guard let currentInput = self.videoDeviceInput else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            let newPosition: AVCaptureDevice.Position = (currentInput.device.position == .back) ? .front : .back
+            guard let newDevice = self.getDevice(for: newPosition) else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            
+            do {
+                let newInput = try AVCaptureDeviceInput(device: newDevice)
+                self.captureSession.beginConfiguration()
+                self.captureSession.removeInput(currentInput)
+                
+                if self.captureSession.canAddInput(newInput) {
+                    self.captureSession.addInput(newInput)
+                    self.videoDeviceInput = newInput
+                    
+                    if let connection = self.videoDataOutput.connection(with: .video) {
+                        if connection.isVideoOrientationSupported {
+                            connection.videoOrientation = .portrait
+                        }
+                        if connection.isVideoMirroringSupported {
+                            connection.isVideoMirrored = (newPosition == .front)
+                        }
+                    }
+                    
+                    self.captureSession.commitConfiguration()
+                    DispatchQueue.main.async { completion(true) }
+                } else {
+                    self.captureSession.addInput(currentInput)
+                    self.captureSession.commitConfiguration()
+                    DispatchQueue.main.async { completion(false) }
+                }
+            } catch {
+                print("❌ [LiveCameraManager] Erreur bascule caméra: \(error)")
+                DispatchQueue.main.async { completion(false) }
             }
         }
     }
@@ -130,9 +275,9 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         }
     }
     
-    // MARK: - Aperçu Vidéo (Preview)
+    // MARK: - Aperçu Vidéo (Preview Layer)
     
-    private func attachPreview(to view: UIView) {
+    public func attachPreview(to view: UIView) {
         if previewLayer == nil {
             let layer = AVCaptureVideoPreviewLayer(session: captureSession)
             layer.videoGravity = .resizeAspectFill
@@ -141,14 +286,25 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         
         guard let pLayer = previewLayer else { return }
         pLayer.frame = view.bounds
-        if pLayer.superlayer == nil {
+        if let conn = pLayer.connection, conn.isVideoOrientationSupported {
+            conn.videoOrientation = .portrait
+        }
+        if pLayer.superlayer !== view.layer {
+            pLayer.removeFromSuperlayer()
             view.layer.insertSublayer(pLayer, at: 0)
         }
     }
     
     public func updatePreviewLayout(bounds: CGRect) {
         DispatchQueue.main.async { [weak self] in
-            self?.previewLayer?.frame = bounds
+            guard let self = self, let pLayer = self.previewLayer else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            pLayer.frame = bounds
+            if let conn = pLayer.connection, conn.isVideoOrientationSupported {
+                conn.videoOrientation = .portrait
+            }
+            CATransaction.commit()
         }
     }
     
@@ -161,8 +317,7 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
                 return
             }
             
-            self.onFrameCaptured = { [weak self] image in
-                self?.onFrameCaptured = nil
+            self.onFrameCaptured = { image in
                 DispatchQueue.main.async {
                     completion(image)
                 }
@@ -170,14 +325,14 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         }
     }
     
-    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate (Traitement Léger)
+    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
     
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         autoreleasepool {
             let now = CACurrentMediaTime()
             let isSnapshotRequested = (onFrameCaptured != nil)
             
-            // Si pas de snapshot et que le throttle n'est pas écoulé -> libération immédiate du buffer
+            // Si pas de snapshot et throttle non écoulé -> sortie immédiate
             if !isSnapshotRequested && (now - lastFrameTime < frameThrottleInterval) {
                 return
             }
@@ -186,14 +341,13 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             
             guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             
-            // Conversion optimisée CVPixelBuffer -> CIImage -> CGImage
             let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-            let context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
+            guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
             
-            guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
-            let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+            let isFront = (videoDeviceInput?.device.position == .front)
+            let orientation: UIImage.Orientation = isFront ? .leftMirrored : .right
+            let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
             
-            // Déclenchement du callback de snapshot
             if let callback = onFrameCaptured {
                 onFrameCaptured = nil
                 callback(uiImage)
