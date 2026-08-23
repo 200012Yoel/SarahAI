@@ -10,6 +10,7 @@ public struct SidebarView: View {
     @State private var newTitleText: String = ""
     @State private var isShowingRenameAlert: Bool = false
     @State private var isShowingWidgets: Bool = false
+    @State private var isShowingSyncQR: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -166,6 +167,23 @@ public struct SidebarView: View {
                         
                         Spacer()
                         
+                        // Bouton Circulaire Synchronisation QR 📱
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            isShowingSyncQR = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
+                                    .frame(width: 44, height: 44)
+                                
+                                Image(systemName: "qrcode")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .buttonStyle(ScaleBounceButtonStyle())
+                        
                         // Bouton Circulaire Widgets 📊 (#btnWidgets)
                         Button(action: {
                             HapticService.shared.buttonTap()
@@ -220,6 +238,9 @@ public struct SidebarView: View {
         }
         .sheet(isPresented: $isShowingWidgets) {
             WidgetsGalleryView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isShowingSyncQR) {
+            LocalSyncQRView(viewModel: viewModel)
         }
         // Modale Native de Renommage
         .alert("Renommer la discussion", isPresented: $isShowingRenameAlert) {

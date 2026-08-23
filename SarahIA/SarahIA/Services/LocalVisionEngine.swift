@@ -145,24 +145,34 @@ public final class LocalVisionEngine {
                 var highestConfidence: Float = 0.0
                 var recognizedText = ""
                 
-                // 1. Classification & Reconnaissance OCR Apple Vision (iOS 13+)
+                // 1. Classification, QR Code & Reconnaissance OCR Apple Vision (iOS 13+)
                 if #available(iOS 13.0, *) {
+                    let barcodeRequest = VNDetectBarcodesRequest()
                     let classifyRequest = VNClassifyImageRequest()
                     let textRequest = VNRecognizeTextRequest()
                     textRequest.recognitionLevel = .fast
                     textRequest.usesLanguageCorrection = true
                     
                     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-                    try? handler.perform([classifyRequest, textRequest])
+                    try? handler.perform([barcodeRequest, classifyRequest, textRequest])
+                    
+                    // Traitement QR Code / Code-Barres prioritaire
+                    if let barcodes = barcodeRequest.results as? [VNBarcodeObservation], let firstBarcode = barcodes.first, let payload = firstBarcode.payloadStringValue {
+                        detectedFrench = "QR Code de synchronisation"
+                        detectedEmoji = "📱"
+                        detectedArticle = "un"
+                        recognizedText = payload
+                        highestConfidence = 0.99
+                    }
                     
                     // Traitement OCR
-                    if let textResults = textRequest.results {
+                    if recognizedText.isEmpty, let textResults = textRequest.results {
                         let lines = textResults.compactMap { $0.topCandidates(1).first?.string }
                         recognizedText = lines.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                     
                     // Traitement Classification
-                    if let observations = classifyRequest.results {
+                    if detectedFrench.isEmpty, let observations = classifyRequest.results {
                         for obs in observations where obs.confidence > 0.05 {
                             let idLower = obs.identifier.lowercased().replacingOccurrences(of: "_", with: " ")
                             for (key, meta) in self.objectDictionary {
@@ -188,11 +198,11 @@ public final class LocalVisionEngine {
                     try? handler.perform([barcodeRequest, faceRequest, rectRequest])
                     
                     if let barcodes = barcodeRequest.results, let firstBarcode = barcodes.first as? VNBarcodeObservation, let payload = firstBarcode.payloadStringValue {
-                        detectedFrench = "code-barres ou QR code"
+                        detectedFrench = "QR Code de synchronisation"
                         detectedEmoji = "📱"
                         detectedArticle = "un"
                         recognizedText = payload
-                        highestConfidence = 0.95
+                        highestConfidence = 0.99
                     } else if let faces = faceRequest.results, !faces.isEmpty {
                         let count = faces.count
                         detectedFrench = count > 1 ? "\(count) personnes" : "personne"

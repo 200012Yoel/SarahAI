@@ -757,8 +757,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.openMemoryVault()
         }))
         
-        alert.addAction(UIAlertAction(title: "📊 Statistiques d'usage", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "📊 8 Widgets Sarah IA", style: .default, handler: { [weak self] _ in
             self?.widgetsModalTapped()
+        }))
+        
+        alert.addAction(UIAlertAction(title: "📱 Synchronisation QR Code (P2P Local)", style: .default, handler: { [weak self] _ in
+            self?.openSyncQRModal()
         }))
         
         alert.addAction(UIAlertAction(title: "🗑️ Nouvelle discussion", style: .destructive, handler: { [weak self] _ in
@@ -767,6 +771,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+    
+    private func openSyncQRModal() {
+        dismissKeyboard()
+        HapticService.shared.buttonTap()
+        let vc = LegacyLocalSyncViewController()
+        vc.modalPresentationStyle = .fullScreen
+        vc.onScanRequested = { [weak self] in
+            self?.cameraButtonTapped()
+        }
+        vc.onSyncCompleted = { [weak self] in
+            self?.loadPersistedState()
+        }
+        present(vc, animated: true, completion: nil)
     }
     
     private func openMemoryVault() {
@@ -980,6 +998,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }))
         sheet.addAction(UIAlertAction(title: "📊 8 Widgets Sarah IA", style: .default, handler: { [weak self] _ in
             self?.widgetsModalTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "📱 Synchronisation QR Code (P2P)", style: .default, handler: { [weak self] _ in
+            self?.openSyncQRModal()
         }))
         sheet.addAction(UIAlertAction(title: "📷 Reconnaissance photo", style: .default, handler: { [weak self] _ in
             self?.cameraButtonTapped()

@@ -9,6 +9,7 @@ public struct ChatScreenView: View {
     @State private var isShowingCamera: Bool = false
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingWidgetsGallery: Bool = false
+    @State private var isShowingSyncQR: Bool = false
     
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
@@ -102,6 +103,9 @@ public struct ChatScreenView: View {
                     .default(Text("📊 8 Widgets Sarah IA")) {
                         isShowingWidgetsGallery = true
                     },
+                    .default(Text("📱 Synchronisation QR Code (P2P)")) {
+                        isShowingSyncQR = true
+                    },
                     .default(Text("📷 Vision par caméra")) {
                         isShowingCamera = true
                     },
@@ -114,6 +118,9 @@ public struct ChatScreenView: View {
         }
         .sheet(isPresented: $isShowingWidgetsGallery) {
             WidgetsGalleryView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $isShowingSyncQR) {
+            LocalSyncQRView(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $isShowingCamera) {
             CameraRepresentable(onPhotoAnalyzed: { image, result in

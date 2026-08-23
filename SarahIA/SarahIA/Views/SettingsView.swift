@@ -124,6 +124,36 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
+                    Section(header: Text("Transfert & Synchronisation (P2P Local)").foregroundColor(.sarahCyan)) {
+                        NavigationLink(destination: LocalSyncQRView(viewModel: viewModel)) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.2))
+                                        .frame(width: 32, height: 32)
+                                    Image(systemName: "qrcode.viewfinder")
+                                        .foregroundColor(Color(red: 0.04, green: 0.52, blue: 1.0))
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Synchronisation QR Code")
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundColor(.white)
+                                    Text("Transférer toutes les discussions vers un autre iPhone")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
                     Section(header: Text("Historique & Réinitialisation").foregroundColor(.sarahCyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
