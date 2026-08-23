@@ -44,7 +44,7 @@ jobs:
 
           cd "$PROJECT_DIR"
 
-          set +e
+          set -o pipefail
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "SarahIA" \
@@ -58,17 +58,13 @@ jobs:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_SUPPRESS_WARNINGS=YES \
             clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
           BUILD_EXIT_CODE=$?
 
-          grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
-          if [ ! -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
-            tail -n 120 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
-          fi
-
           if [ $BUILD_EXIT_CODE -ne 0 ] || grep -q "BUILD FAILED" "$GITHUB_WORKSPACE/xcodebuild.log"; then
             echo "❌ BUILD FAILED DETECTED (Exit code: $BUILD_EXIT_CODE)"
-            cat "$GITHUB_WORKSPACE/xcode_errors.txt"
+            grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" || tail -n 120 "$GITHUB_WORKSPACE/xcodebuild.log"
             exit 1
           fi
 

@@ -687,13 +687,13 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
-					WidgetKit,
+					"WidgetKit",
 					"-weak_framework",
-					SwiftUI,
+					"SwiftUI",
 					"-weak_framework",
-					Combine,
+					"Combine",
 					"-framework",
-					NotificationCenter,
+					"NotificationCenter",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
 				PRODUCT_NAME = SarahIAWidgets;
@@ -728,13 +728,13 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
-					WidgetKit,
+					"WidgetKit",
 					"-weak_framework",
-					SwiftUI,
+					"SwiftUI",
 					"-weak_framework",
-					Combine,
+					"Combine",
 					"-framework",
-					NotificationCenter,
+					"NotificationCenter",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
 				PRODUCT_NAME = SarahIAWidgets;
