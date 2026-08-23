@@ -43,7 +43,7 @@ public final class MediaStreamingService {
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .duckOthers])
+            try session.setCategory(.playback, mode: .default, options: [.allowBluetooth, .duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("MediaStreamingService audio session error: \(error)")

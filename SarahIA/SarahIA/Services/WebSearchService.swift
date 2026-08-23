@@ -34,9 +34,9 @@ public final class WebSearchService {
         self.urlSession = URLSession(configuration: config)
     }
     
-    // MARK: - API Asynchrone Moderne (iOS 13+)
+    // MARK: - API Asynchrone Moderne (iOS 15+)
     
-    @available(iOS 13.0, *)
+    @available(iOS 15.0, *)
     public func searchWebAsync(query: String) async -> (summary: String, results: [WebSearchResult]) {
         await withCheckedContinuation { continuation in
             searchWeb(query: query) { summary, results in
