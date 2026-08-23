@@ -504,10 +504,10 @@ public final class LegacyWidgetsViewController: UIViewController {
     private func reloadWidgetsData() {
         self.stats = SarahWidgetBridge.shared.getStats()
         // Animation de rafraîchissement
-        UIView.animate(withDuration: 0.25) {
+        UIView.animate(withDuration: 0.25, animations: {
             self.refreshButton.transform = CGAffineTransform(rotationAngle: .pi)
-        } { _ in
+        }, completion: { _ in
             self.refreshButton.transform = .identity
-        }
+        })
     }
 }

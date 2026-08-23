@@ -56,4 +56,14 @@ public final class HapticService {
     public func buttonTap() {
         lightGenerator.impactOccurred()
     }
+    
+    /// Retour tactile de succès de notification / synchronisation
+    public func notificationSuccess() {
+        notificationGenerator.notificationOccurred(.success)
+    }
+    
+    /// Retour tactile d'erreur de notification
+    public func notificationError() {
+        notificationGenerator.notificationOccurred(.error)
+    }
 }

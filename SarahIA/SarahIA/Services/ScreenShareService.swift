@@ -43,7 +43,7 @@ public final class ScreenShareService: NSObject {
         )
         
         // 1. Essai ReplayKit si disponible
-        if screenRecorder.isAvailable && #available(iOS 11.0, *) {
+        if #available(iOS 11.0, *), screenRecorder.isAvailable {
             screenRecorder.isMicrophoneEnabled = true
             
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
