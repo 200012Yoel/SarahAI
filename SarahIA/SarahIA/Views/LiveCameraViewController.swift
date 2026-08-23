@@ -442,13 +442,21 @@ public final class LiveCameraViewController: UIViewController {
                 if result.detectedText.contains("sarahsync://") || result.detectedText.contains("sarahpayload://") || result.detectedText.contains("sarah://sync") {
                     self.statusBanner.text = "⚡ Synchronisation Sarah en cours..."
                     self.statusBanner.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
-                    SpeechManager.shared.speak(text: "QR Code Sarah détecté ! Synchronisation des discussions en cours...")
+                    if #available(iOS 13.0, *) {
+                        SpeechManager.shared.speak(text: "QR Code Sarah détecté ! Synchronisation des discussions en cours...")
+                    } else {
+                        TTSService.shared.speak(text: "QR Code Sarah détecté ! Synchronisation des discussions en cours...")
+                    }
                     
                     LocalSyncServerService.shared.performSync(with: result.detectedText) { [weak self] success, message in
                         guard let self = self else { return }
                         if success {
                             HapticService.shared.notificationSuccess()
-                            SpeechManager.shared.speak(text: "Synchronisation terminée avec succès !")
+                            if #available(iOS 13.0, *) {
+                                SpeechManager.shared.speak(text: "Synchronisation terminée avec succès !")
+                            } else {
+                                TTSService.shared.speak(text: "Synchronisation terminée avec succès !")
+                            }
                             self.dismiss(animated: true) {
                                 self.onPhotoAnalyzed?(image, result)
                             }
