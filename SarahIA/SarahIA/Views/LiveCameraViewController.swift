@@ -417,13 +417,26 @@ public final class LiveCameraViewController: UIViewController {
         present(picker, animated: true, completion: nil)
     }
     
+    // MARK: - Synthèse Vocale Universelle (iOS 12 à 18)
+    private var cameraSpeechSynthesizer: AVSpeechSynthesizer?
+    
+    private func speakCameraMessage(_ text: String) {
+        if cameraSpeechSynthesizer == nil {
+            cameraSpeechSynthesizer = AVSpeechSynthesizer()
+        }
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        cameraSpeechSynthesizer?.speak(utterance)
+    }
+    
     @objc private func shutterButtonTapped() {
         guard !isAnalyzing else { return }
         isAnalyzing = true
-        HapticService.shared.buttonTap()
+        HapticService.shared.triggerSelectionFeedback()
         
-        statusBanner.text = "● Analyse en cours..."
-        statusBanner.textColor = .yellow
+        statusBanner.text = "🔍 Analyse de la scène..."
+        statusBanner.textColor = .systemYellow
         shutterButton.alpha = 0.5
         
         LiveCameraManager.shared.captureSnapshot { [weak self] capturedImage in
@@ -442,21 +455,13 @@ public final class LiveCameraViewController: UIViewController {
                 if result.detectedText.contains("sarahsync://") || result.detectedText.contains("sarahpayload://") || result.detectedText.contains("sarah://sync") {
                     self.statusBanner.text = "⚡ Synchronisation Sarah en cours..."
                     self.statusBanner.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
-                    if #available(iOS 13.0, *) {
-                        SpeechManager.shared.speak(text: "QR Code Sarah détecté ! Synchronisation des discussions en cours...")
-                    } else {
-                        TTSService.shared.speak(text: "QR Code Sarah détecté ! Synchronisation des discussions en cours...")
-                    }
+                    self.speakCameraMessage("QR Code Sarah détecté ! Synchronisation des discussions en cours...")
                     
                     LocalSyncServerService.shared.performSync(with: result.detectedText) { [weak self] success, message in
                         guard let self = self else { return }
                         if success {
                             HapticService.shared.notificationSuccess()
-                            if #available(iOS 13.0, *) {
-                                SpeechManager.shared.speak(text: "Synchronisation terminée avec succès !")
-                            } else {
-                                TTSService.shared.speak(text: "Synchronisation terminée avec succès !")
-                            }
+                            self.speakCameraMessage("Synchronisation terminée avec succès !")
                             self.dismiss(animated: true) {
                                 self.onPhotoAnalyzed?(image, result)
                             }
