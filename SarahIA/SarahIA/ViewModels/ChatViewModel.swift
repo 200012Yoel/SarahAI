@@ -100,7 +100,7 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Persistance des Données & Restauration
     
     /// Restaure l'ensemble des discussions et l'état depuis le stockage local
-    private func restorePersistedState() {
+    public func restorePersistedState() {
         let savedState = storageService.loadState()
         
         self.learnedMemories = savedState.learnedMemories
