@@ -266,8 +266,9 @@ public final class LiveCameraViewController: UIViewController {
         let point = gesture.location(in: previewContainer)
         showFocusIndicator(at: point)
         
+        guard previewContainer.bounds.width > 0 && previewContainer.bounds.height > 0 else { return }
         guard let device = AVCaptureDevice.default(for: .video), device.isFocusPointOfInterestSupported else { return }
-        let focusPoint = CGPoint(x: point.y / previewContainer.bounds.height, y: 1.0 - (point.x / previewContainer.bounds.width))
+        let focusPoint = CGPoint(x: max(0.0, min(1.0, point.y / previewContainer.bounds.height)), y: max(0.0, min(1.0, 1.0 - (point.x / previewContainer.bounds.width))))
         
         do {
             try device.lockForConfiguration()
@@ -380,7 +381,7 @@ public final class LiveCameraViewController: UIViewController {
         HapticService.shared.buttonTap()
         let sheet = UIAlertController(title: "Partage & Options Visuelles", message: "Partagez votre écran en direct ou ajustez la caméra :", preferredStyle: .actionSheet)
         
-        sheet.addAction(UIAlertAction(title: "🔴 Commencer le partage d'écran (Live avec Sarah)", style: .default, handler: { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: "🖥️ Lancer le partage d'écran", style: .default, handler: { [weak self] _ in
             self?.handleScreenShareFromCamera()
         }))
         

@@ -71,24 +71,42 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Widgets Sarah IA (iOS 15 & 16+)").foregroundColor(.sarahCyan)) {
+                    Section(header: Text("Widgets Sarah IA (iPhone 5S à 16)").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Aperçu du Widget Statistiques & Graphique :")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.white)
+                            NavigationLink(destination: WidgetsGalleryView(viewModel: viewModel)) {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.sarahCyan.opacity(0.2))
+                                            .frame(width: 32, height: 32)
+                                        Image(systemName: "square.grid.2x2.fill")
+                                            .foregroundColor(.sarahCyan)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Galerie des 8 Widgets")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundColor(.white)
+                                        Text("Voir et tester tous les 8 widgets actifs")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            
+                            Divider().background(Color.white.opacity(0.1))
                             
                             // Prévisualisation du Widget Largeur Moyenne
                             SarahUsageStatsWidgetView(
                                 entry: SarahWidgetEntry(
                                     date: Date(),
-                                    stats: WidgetStatsData(
-                                        totalConversations: max(1, viewModel.conversations.count),
-                                        totalMessages: max(4, viewModel.messages.count),
-                                        activeMinutesToday: 32,
-                                        usagePercentage: 84,
-                                        weeklyActivity: [3, 7, 5, 12, 8, 15, 18],
-                                        learnedMemoriesCount: viewModel.learnedMemories.count
-                                    )
+                                    stats: SarahWidgetBridge.shared.getStats()
                                 )
                             )
                             .frame(height: 120)
@@ -97,7 +115,7 @@ public struct SettingsView: View {
                             .cornerRadius(16)
                             .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
                             
-                            Text("💡 Pour l'ajouter à votre écran d'accueil : maintenez votre doigt sur l'écran d'accueil de l'iPhone, appuyez sur « + » en haut à gauche et choisissez « Sarah IA ».")
+                            Text("💡 Les 8 widgets sont actifs en temps réel. Maintenez l'écran d'accueil appuyé et appuyez sur « + » pour les ajouter.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.gray)
                                 .lineSpacing(3)

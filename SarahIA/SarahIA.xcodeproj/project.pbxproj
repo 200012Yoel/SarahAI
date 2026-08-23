@@ -54,6 +54,8 @@
 		A1B2C3D40001000100000044 /* WebSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000044 /* WebSearchService.swift */; };
 		A1B2C3D40001000100000045 /* MediaStreamingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000045 /* MediaStreamingService.swift */; };
 		A1B2C3D40001000100000046 /* SarahBrainEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000046 /* SarahBrainEngine.swift */; };
+		A1B2C3D40001000100000047 /* WidgetsGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */; };
+		A1B2C3D40001000100000048 /* LegacyWidgetsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -111,6 +113,8 @@
 		A1B2C3D40002000100000044 /* WebSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearchService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000045 /* MediaStreamingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStreamingService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000046 /* SarahBrainEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahBrainEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetsGalleryView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyWidgetsViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -219,6 +223,8 @@
 				A1B2C3D40002000100000038 /* MessageBar.swift */,
 				A1B2C3D40002000100000040 /* LegacyChatViewController.swift */,
 				A1B2C3D40002000100000043 /* LiveCameraViewController.swift */,
+				A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */,
+				A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -420,6 +426,8 @@
 				A1B2C3D40001000100000044 /* WebSearchService.swift in Sources */,
 				A1B2C3D40001000100000045 /* MediaStreamingService.swift in Sources */,
 				A1B2C3D40001000100000046 /* SarahBrainEngine.swift in Sources */,
+				A1B2C3D40001000100000047 /* WidgetsGalleryView.swift in Sources */,
+				A1B2C3D40001000100000048 /* LegacyWidgetsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

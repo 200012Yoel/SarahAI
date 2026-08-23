@@ -8,6 +8,7 @@ public struct ChatScreenView: View {
     
     @State private var isShowingCamera: Bool = false
     @State private var isShowingActionSheet: Bool = false
+    @State private var isShowingWidgetsGallery: Bool = false
     
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
@@ -20,6 +21,34 @@ public struct ChatScreenView: View {
             VStack(spacing: 0) {
                 // 1. Topbar Native
                 topBar
+                
+                // 1.1 Bandeau Live Partage d'Écran Actif (Temps Réel)
+                if viewModel.isScreenSharingActive {
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                        
+                        Text("🔴 Partage d'écran en direct (Temps Réel)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Button("Arrêter") {
+                            viewModel.stopLiveScreenSharing()
+                        }
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.red.opacity(0.8)))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(Color(red: 0.15, green: 0.05, blue: 0.05))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
                 
                 // 2. Fil de discussion (MessageList)
                 MessageList(
@@ -67,18 +96,24 @@ public struct ChatScreenView: View {
             ActionSheet(
                 title: Text("Actions Rapides"),
                 buttons: [
-                    .default(Text("🌐 Recherche sur Internet")) {
-                        viewModel.inputText = "Cherche sur internet : "
+                    .default(Text("🖥️ Lancer le partage d'écran")) {
+                        viewModel.startLiveScreenSharing()
                     },
-                    .default(Text("🖥️ Partager mon écran avec Sarah")) {
-                        viewModel.startScreenShareAnalysis()
+                    .default(Text("📊 8 Widgets Sarah IA")) {
+                        isShowingWidgetsGallery = true
                     },
                     .default(Text("📷 Vision par caméra")) {
                         isShowingCamera = true
                     },
+                    .default(Text("🌐 Recherche sur Internet")) {
+                        viewModel.inputText = "Cherche sur internet : "
+                    },
                     .cancel(Text("Annuler"))
                 ]
             )
+        }
+        .sheet(isPresented: $isShowingWidgetsGallery) {
+            WidgetsGalleryView(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $isShowingCamera) {
             CameraRepresentable(onPhotoAnalyzed: { image, result in
@@ -93,7 +128,7 @@ public struct ChatScreenView: View {
             }, onScreenShare: {
                 isShowingCamera = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    viewModel.startScreenShareAnalysis()
+                    viewModel.startLiveScreenSharing()
                 }
             })
             .ignoresSafeArea()
@@ -102,7 +137,7 @@ public struct ChatScreenView: View {
             isShowingCamera = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchScreenShare"))) { _ in
-            viewModel.startScreenShareAnalysis()
+            viewModel.startLiveScreenSharing()
         }
     }
     

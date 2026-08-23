@@ -87,8 +87,14 @@ jobs:
 
           APP_TARGET_DIR="/tmp/Payload/$(basename "$APP_PATH")"
 
-          # Suppression explicite de tout PlugIns / Extension incompatible iOS 12
-          rm -rf "$APP_TARGET_DIR/PlugIns"
+          # Normalisation des Plists d'extensions (Widgets) si présentes
+          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
+            for plugin in "$APP_TARGET_DIR/PlugIns"/*.appex; do
+              if [ -d "$plugin" ] && [ -f "$plugin/Info.plist" ]; then
+                plutil -replace MinimumOSVersion -string "12.0" "$plugin/Info.plist" 2>/dev/null || true
+              fi
+            done
+          fi
 
           INFOPLIST_TARGET="$APP_TARGET_DIR/Info.plist"
           if [ -f "$INFOPLIST_TARGET" ]; then

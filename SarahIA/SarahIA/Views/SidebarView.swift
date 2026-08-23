@@ -9,6 +9,7 @@ public struct SidebarView: View {
     @State private var conversationToRename: Conversation? = nil
     @State private var newTitleText: String = ""
     @State private var isShowingRenameAlert: Bool = false
+    @State private var isShowingWidgets: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -165,6 +166,23 @@ public struct SidebarView: View {
                         
                         Spacer()
                         
+                        // Bouton Circulaire Widgets 📊 (#btnWidgets)
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            isShowingWidgets = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
+                                    .frame(width: 44, height: 44)
+                                
+                                Image(systemName: "square.grid.2x2")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundColor(.sarahCyan)
+                            }
+                        }
+                        .buttonStyle(ScaleBounceButtonStyle())
+                        
                         // Bouton Circulaire Paramètres (#btnSettings)
                         Button(action: {
                             HapticService.shared.buttonTap()
@@ -199,6 +217,9 @@ public struct SidebarView: View {
                 }
                 .frame(width: sidebarWidth)
             }
+        }
+        .sheet(isPresented: $isShowingWidgets) {
+            WidgetsGalleryView(viewModel: viewModel)
         }
         // Modale Native de Renommage
         .alert("Renommer la discussion", isPresented: $isShowingRenameAlert) {

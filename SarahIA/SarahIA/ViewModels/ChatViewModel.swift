@@ -43,6 +43,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var drawerProgress: CGFloat = 0.0 // 0.0 à 1.0 pour animation fluide au geste
     @Published public var searchQuery: String = ""
     @Published public var isSearchActive: Bool = false
+    @Published public var isScreenSharingActive: Bool = false
     
     // MARK: - Services
     private let aiService = AIService.shared
@@ -539,30 +540,65 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Partage d'Écran Universel & Analyse Visuelle
+    // MARK: - Partage d'Écran Universel & Analyse Visuelle en Temps Réel
     
     public func startScreenShareAnalysis() {
+        startLiveScreenSharing()
+    }
+    
+    public func startLiveScreenSharing() {
         haptics.buttonTap()
         guard let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? UIApplication.shared.windows.first,
               let rootVC = window.rootViewController else { return }
         
+        isScreenSharingActive = true
         isTyping = true
-        ScreenShareService.shared.shareAndAnalyzeScreen(from: rootVC) { [weak self] result, _, data in
+        
+        // 1. Message immédiat dans le chat
+        let initialMsg = Message(
+            content: "🖥️ [Partage d'écran en direct avec Sarah (Temps Réel)]",
+            isFromUser: true,
+            timestamp: Date()
+        )
+        self.appendMessage(initialMsg)
+        
+        let introText = "🔴 Partage d'écran en direct activé ! J'observe votre écran en continu."
+        let aiMsg = Message(content: introText, isFromUser: false)
+        self.appendMessage(aiMsg)
+        self.isTyping = false
+        SpeechManager.shared.speak(text: introText)
+        
+        // 2. Démarrage de la capture ReplayKit / Window Sampling continue
+        ScreenShareService.shared.startLiveScreenSharing(from: rootVC, onFrameAnalyzed: { [weak self] result, image in
+            guard let self = self, self.isScreenSharingActive else { return }
+            
+            if !result.detectedText.isEmpty || result.objectLabel != "inconnu" {
+                let frameMsg = Message(
+                    content: result.naturalSpokenResponse,
+                    isFromUser: false,
+                    imageData: image.jpegData(compressionQuality: 0.6)
+                )
+                self.appendMessage(frameMsg)
+                SpeechManager.shared.speak(text: result.naturalSpokenResponse)
+            }
+        }) { [weak self] success, message in
             guard let self = self else { return }
-            
-            let userMsg = Message(
-                content: "🖥️ [Partage d'écran avec Sarah]",
-                isFromUser: true,
-                timestamp: Date(),
-                imageData: data
-            )
-            self.appendMessage(userMsg)
-            
-            let responseText = result.naturalSpokenResponse
-            let aiMsg = Message(content: responseText, isFromUser: false)
-            self.appendMessage(aiMsg)
-            self.isTyping = false
-            SpeechManager.shared.speak(text: responseText)
+            if !success {
+                self.isScreenSharingActive = false
+                let err = Message(content: "⚠️ \(message)", isFromUser: false)
+                self.appendMessage(err)
+            }
+        }
+    }
+    
+    public func stopLiveScreenSharing() {
+        haptics.buttonTap()
+        ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
+            guard let self = self else { return }
+            self.isScreenSharingActive = false
+            let stopMsg = Message(content: "⏹️ Partage d'écran terminé.", isFromUser: false)
+            self.appendMessage(stopMsg)
+            SpeechManager.shared.speak(text: "Partage d'écran terminé.")
         }
     }
     
@@ -571,7 +607,7 @@ public final class ChatViewModel: ObservableObject {
         if trimmed == "Présente-toi" || trimmed == "Qui es-tu ?" || trimmed.contains("présentation") {
             introduceSarah()
         } else if trimmed.contains("écran") || trimmed.contains("partage") {
-            startScreenShareAnalysis()
+            startLiveScreenSharing()
         } else {
             inputText = text
         }

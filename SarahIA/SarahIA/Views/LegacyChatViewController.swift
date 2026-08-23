@@ -817,14 +817,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func widgetsModalTapped() {
-        let stats = SarahWidgetBridge.shared.getStats()
-        let alert = UIAlertController(
-            title: "📊 Dashboard Widgets Sarah IA",
-            message: "• Discussions actives : \(stats.totalConversations)\n• Messages échangés : \(stats.totalMessages)\n• Souvenirs mémorisés : \(stats.learnedMemoriesCount)\n• Taux d'activité : \(stats.usagePercentage)%\n• Graphique d'activité : 7j synchronisés\n• Latence IA locale : < 0.2s (60 FPS)\n\nSur iOS 14+, ces 8 widgets sont directement ajoutables sur votre Écran d'accueil !",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "Parfait", style: .default, handler: nil))
-        present(alert, animated: true, completion: nil)
+        dismissKeyboard()
+        HapticService.shared.buttonTap()
+        let vc = LegacyWidgetsViewController()
+        vc.modalPresentationStyle = .fullScreen
+        vc.onVoiceTapped = { [weak self] in
+            self?.toggleMicTapped()
+        }
+        vc.onTorchTapped = {
+            _ = DeviceController.shared.toggleTorch(enable: nil)
+        }
+        vc.onMemoryTapped = { [weak self] in
+            self?.openMemoryVault()
+        }
+        vc.onScreenShareTapped = { [weak self] in
+            self?.startScreenShareAnalysis()
+        }
+        present(vc, animated: true, completion: nil)
     }
     
     // MARK: - Reconnaissance d'Objets par Caméra (Local Vision Engine) & Partage d'Écran
@@ -869,29 +878,44 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func startScreenShareAnalysis() {
         dismissKeyboard()
-        statusLabel.text = "● Capture d'écran..."
-        statusLabel.textColor = .yellow
+        HapticService.shared.buttonTap()
         
-        ScreenShareService.shared.shareAndAnalyzeScreen(from: self) { [weak self] result, _, data in
+        statusLabel.text = "● 🔴 Écran partagé"
+        statusLabel.textColor = .systemRed
+        
+        let introText = "🔴 Partage d'écran en direct activé ! J'observe votre écran en continu."
+        let userMsg = Message(
+            content: "🖥️ [Lancement du partage d'écran en temps réel]",
+            isFromUser: true,
+            timestamp: Date()
+        )
+        self.appendMessage(userMsg)
+        
+        let aiMsg = Message(content: introText, isFromUser: false)
+        self.appendMessage(aiMsg)
+        self.speak(text: introText)
+        self.saveState()
+        
+        ScreenShareService.shared.startLiveScreenSharing(from: self, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self else { return }
-            self.statusLabel.text = "● En ligne"
-            self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-            
-            // 1. Bulle utilisateur avec capture d'écran
-            let userMsg = Message(
-                content: "🖥️ [Partage d'écran avec Sarah]",
-                isFromUser: true,
-                timestamp: Date(),
-                imageData: data
-            )
-            self.appendMessage(userMsg)
-            
-            // 2. Bulle de réponse formulée par Sarah
-            let responseText = result.naturalSpokenResponse
-            let aiMsg = Message(content: responseText, isFromUser: false)
-            self.appendMessage(aiMsg)
-            self.speak(text: responseText)
-            self.saveState()
+            if !result.detectedText.isEmpty || result.objectLabel != "inconnu" {
+                let frameMsg = Message(
+                    content: result.naturalSpokenResponse,
+                    isFromUser: false,
+                    imageData: image.jpegData(compressionQuality: 0.6)
+                )
+                self.appendMessage(frameMsg)
+                self.speak(text: result.naturalSpokenResponse)
+                self.saveState()
+            }
+        }) { [weak self] success, message in
+            guard let self = self else { return }
+            if !success {
+                self.statusLabel.text = "● En ligne"
+                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                let errMsg = Message(content: "⚠️ \(message)", isFromUser: false)
+                self.appendMessage(errMsg)
+            }
         }
     }
     
@@ -951,6 +975,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🖥️ Lancer le partage d'écran", style: .default, handler: { [weak self] _ in
+            self?.startScreenShareAnalysis()
+        }))
+        sheet.addAction(UIAlertAction(title: "📊 8 Widgets Sarah IA", style: .default, handler: { [weak self] _ in
+            self?.widgetsModalTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "📷 Reconnaissance photo", style: .default, handler: { [weak self] _ in
+            self?.cameraButtonTapped()
+        }))
         sheet.addAction(UIAlertAction(title: "🌐 Recherche sur Internet", style: .default, handler: { [weak self] _ in
             self?.promptWebSearch()
         }))
@@ -964,12 +997,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sheet.addAction(UIAlertAction(title: "🎵 Lancer de la musique", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Mets de la musique"
             self?.sendButtonTapped()
-        }))
-        sheet.addAction(UIAlertAction(title: "🖥️ Partage d'écran avec Sarah", style: .default, handler: { [weak self] _ in
-            self?.startScreenShareAnalysis()
-        }))
-        sheet.addAction(UIAlertAction(title: "📷 Reconnaissance photo", style: .default, handler: { [weak self] _ in
-            self?.cameraButtonTapped()
         }))
         sheet.addAction(UIAlertAction(title: "🔦 Lampe torche (On/Off)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Allume la torche"

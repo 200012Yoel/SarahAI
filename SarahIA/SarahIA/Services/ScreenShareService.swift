@@ -16,6 +16,7 @@ public final class ScreenShareService: NSObject {
     public private(set) var isScreenSharingActive: Bool = false
     private var liveTimer: Timer?
     private var liveFrameCount: Int = 0
+    private var lastAnalyzedText: String = ""
     
     private override init() {
         super.init()
@@ -23,64 +24,94 @@ public final class ScreenShareService: NSObject {
     
     // MARK: - 1. Lancement du Partage d'Écran en Direct (Live Screen Broadcast)
     
-    /// Démarre le partage d'écran en direct avec Sarah
+    /// Démarre le partage d'écran en direct avec Sarah (Temps Réel)
     public func startLiveScreenSharing(
         from viewController: UIViewController,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)? = nil,
         completion: @escaping (Bool, String) -> Void
     ) {
-        guard screenRecorder.isAvailable else {
-            completion(false, "L'enregistrement d'écran n'est pas disponible sur cet appareil.")
+        if isScreenSharingActive {
+            completion(true, "🔴 Le partage d'écran en direct est déjà actif !")
             return
         }
         
-        // Configuration ReplayKit pour capture continue
-        screenRecorder.isMicrophoneEnabled = true
+        isScreenSharingActive = true
+        NotificationCenter.default.post(
+            name: NSNotification.Name("SarahScreenShareStatusChanged"),
+            object: nil,
+            userInfo: ["isActive": true]
+        )
         
-        if #available(iOS 12.0, *) {
-            // Affichage du sélecteur de diffusion système iOS
-            let picker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 60, height: 60))
-            picker.showsMicrophoneButton = true
-            viewController.view.addSubview(picker)
-            picker.center = viewController.view.center
-            picker.isHidden = true
+        // 1. Essai ReplayKit si disponible
+        if screenRecorder.isAvailable && #available(iOS 11.0, *) {
+            screenRecorder.isMicrophoneEnabled = true
             
-            for subview in picker.subviews {
-                if let button = subview as? UIButton {
-                    button.sendActions(for: .allTouchEvents)
-                }
-            }
-        }
-        
-        // Capture des images d'écran en continu (ReplayKit Live Handler)
-        if #available(iOS 11.0, *) {
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
-                guard let self = self, error == nil else { return }
+                guard let self = self, self.isScreenSharingActive, error == nil else { return }
                 
                 if sampleBufferType == .video {
                     self.liveFrameCount += 1
-                    // Analyser 1 frame toutes les 30 frames (~1 fois par seconde) pour économiser la batterie sur iPhone 5S
-                    if self.liveFrameCount % 30 == 0 {
+                    // Analyser 1 frame toutes les 35 frames (~1-2 fois par seconde) pour économiser batterie et CPU sur iPhone 5S/7
+                    if self.liveFrameCount % 35 == 0 {
                         if let image = self.imageFromSampleBuffer(sampleBuffer) {
-                            LocalVisionEngine.shared.recognizeObject(in: image) { result in
-                                onFrameAnalyzed?(result, image)
-                            }
+                            self.processLiveFrame(image, onFrameAnalyzed: onFrameAnalyzed)
                         }
                     }
                 }
             }) { [weak self] error in
+                guard let self = self else { return }
                 if let err = error {
-                    self?.isScreenSharingActive = false
-                    completion(false, "Impossible de démarrer le partage : \(err.localizedDescription)")
+                    print("⚠️ [ScreenShareService] ReplayKit capture fallback: \(err.localizedDescription)")
+                    // Démarrage du Fallback universel par échantillonnage de fenêtre
+                    self.startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
+                    completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
                 } else {
-                    self?.isScreenSharingActive = true
                     completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
                 }
             }
         } else {
-            // Fallback iOS 10
-            isScreenSharingActive = true
-            completion(true, "Partage d'écran activé !")
+            // 2. Fallback universel ultra-fluide pour iOS 12 (iPhone 5S, 6) ou en cas de restriction ReplayKit
+            startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
+            completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
+        }
+    }
+    
+    /// Boucle d'échantillonnage vidéo universelle ultra-rapide (compatible 100% iPhone 5S / 7 / 8)
+    private func startUniversalWindowSampling(
+        from viewController: UIViewController,
+        onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
+    ) {
+        liveTimer?.invalidate()
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            guard let self = self, self.isScreenSharingActive else { return }
+            
+            DispatchQueue.main.async {
+                guard let screenshot = self.captureScreen(from: viewController.view.window ?? viewController.view) else { return }
+                self.processLiveFrame(screenshot, onFrameAnalyzed: onFrameAnalyzed)
+            }
+        }
+    }
+    
+    private func processLiveFrame(
+        _ image: UIImage,
+        onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
+    ) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self, self.isScreenSharingActive else { return }
+            guard let processed = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7) else { return }
+            
+            LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
+                guard let self = self, self.isScreenSharingActive else { return }
+                
+                // Ne notifier vocalement que si un changement de contexte ou texte pertinent est détecté
+                if !result.detectedText.isEmpty && result.detectedText != self.lastAnalyzedText {
+                    self.lastAnalyzedText = result.detectedText
+                }
+                
+                DispatchQueue.main.async {
+                    onFrameAnalyzed?(result, processed.image)
+                }
+            }
         }
     }
     
@@ -91,15 +122,22 @@ public final class ScreenShareService: NSObject {
             return
         }
         
-        if #available(iOS 11.0, *) {
-            screenRecorder.stopCapture { [weak self] error in
-                self?.isScreenSharingActive = false
-                self?.liveTimer?.invalidate()
-                self?.liveTimer = nil
+        isScreenSharingActive = false
+        liveTimer?.invalidate()
+        liveTimer = nil
+        liveFrameCount = 0
+        
+        NotificationCenter.default.post(
+            name: NSNotification.Name("SarahScreenShareStatusChanged"),
+            object: nil,
+            userInfo: ["isActive": false]
+        )
+        
+        if #available(iOS 11.0, *), screenRecorder.isRecording {
+            screenRecorder.stopCapture { error in
                 completion?(error == nil)
             }
         } else {
-            isScreenSharingActive = false
             completion?(true)
         }
     }
@@ -166,8 +204,9 @@ public final class ScreenShareService: NSObject {
     private func imageFromSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> UIImage? {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
         let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        let context = CIContext()
+        let context = CIContext(options: [CIContextOption.useSoftwareRenderer: false, CIContextOption.priorityRequestLow: true])
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
         return UIImage(cgImage: cgImage)
     }
 }
+
