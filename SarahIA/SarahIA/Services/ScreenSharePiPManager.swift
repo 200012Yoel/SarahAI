@@ -5,17 +5,20 @@ import AVKit
 import CoreMedia
 import CoreVideo
 
-/// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran
-/// - Compatible de iOS 12 à iOS 18
-/// - Maintient le clone vidéo flottant système sur l'écran d'accueil et dans les autres applications
+/// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran en Direct
+/// - Utilise AVPictureInPictureController avec AVSampleBufferDisplayLayer natif (iOS 15+)
+/// - Fallback AVPlayerLayer fluide pour iOS 14
+/// - Activation automatique lors du passage à l'écran d'accueil iOS (Home Screen)
+/// - Compatible universel de iOS 12 (iPhone 5s) à iOS 18 (iPhone 16 Pro)
 public final class ScreenSharePiPManager: NSObject {
     
     public static let shared = ScreenSharePiPManager()
     
-    // Layers et Vues
+    // Layers d'affichage
     public let sampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
     private var pipController: AnyObject?
     private var pipDelegateHelper: AnyObject?
+    private var sampleBufferPlaybackDelegate: AnyObject?
     private var playerLayer: AVPlayerLayer?
     private var dummyPlayer: AVPlayer?
     
@@ -31,6 +34,7 @@ public final class ScreenSharePiPManager: NSObject {
     private override init() {
         super.init()
         configureAudioSessionForPiP()
+        setupLifecycleObservers()
     }
     
     private func configureAudioSessionForPiP() {
@@ -40,6 +44,21 @@ public final class ScreenSharePiPManager: NSObject {
             try audioSession.setActive(true)
         } catch {
             print("⚠️ [ScreenSharePiPManager] Configuration audio PiP: \(error)")
+        }
+    }
+    
+    private func setupLifecycleObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+    }
+    
+    @objc private func handleAppDidEnterBackground() {
+        if ScreenShareService.shared.isScreenSharingActive {
+            startPictureInPicture()
         }
     }
     
@@ -56,13 +75,35 @@ public final class ScreenSharePiPManager: NSObject {
             containerView.layer.insertSublayer(sampleBufferDisplayLayer, at: 0)
         }
         
-        if #available(iOS 14.0, *) {
-            setupNativePiP(in: containerView)
+        if #available(iOS 15.0, *) {
+            setupSampleBufferPiP()
+        } else if #available(iOS 14.0, *) {
+            setupPlayerLayerPiP(in: containerView)
         }
     }
     
+    @available(iOS 15.0, *)
+    private func setupSampleBufferPiP() {
+        guard pipController == nil else { return }
+        
+        let playbackDelegate = SampleBufferPiPPlaybackDelegate(manager: self)
+        self.sampleBufferPlaybackDelegate = playbackDelegate
+        
+        let contentSource = AVPictureInPictureController.ContentSource(
+            sampleBufferDisplayLayer: sampleBufferDisplayLayer,
+            playbackDelegate: playbackDelegate
+        )
+        
+        let controller = AVPictureInPictureController(contentSource: contentSource)
+        let helper = PiPDelegateHelper(manager: self)
+        self.pipDelegateHelper = helper
+        controller.delegate = helper
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        self.pipController = controller
+    }
+    
     @available(iOS 14.0, *)
-    private func setupNativePiP(in containerView: UIView) {
+    private func setupPlayerLayerPiP(in containerView: UIView) {
         guard pipController == nil else { return }
         
         guard let blankURL = createBlankVideoAsset() else { return }
@@ -124,7 +165,7 @@ public final class ScreenSharePiPManager: NSObject {
         }
     }
     
-    // MARK: - Injection de Trames Vidéo
+    // MARK: - Injection Haute Performance des Trames Vidéo
     
     public func enqueueSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard isPiPSupported else { return }
@@ -238,7 +279,40 @@ public final class ScreenSharePiPManager: NSObject {
     }
 }
 
-// MARK: - Helper Délégué Isolé iOS 14+ (Résout les conflits de protocoles de compilation)
+// MARK: - Délégué de Lecture SampleBuffer PiP (iOS 15+)
+
+@available(iOS 15.0, *)
+private final class SampleBufferPiPPlaybackDelegate: NSObject, AVPictureInPictureSampleBufferPlaybackDelegate {
+    
+    weak var manager: ScreenSharePiPManager?
+    
+    init(manager: ScreenSharePiPManager) {
+        self.manager = manager
+        super.init()
+    }
+    
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
+        // En direct continu
+    }
+    
+    func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
+        return CMTimeRange(start: .zero, duration: .positiveInfinity)
+    }
+    
+    func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
+        return false
+    }
+    
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
+        // Redimensionnement automatique de la fenêtre flottante
+    }
+    
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
+}
+
+// MARK: - Délégué PiP Standard (iOS 14+)
 
 @available(iOS 14.0, *)
 private final class PiPDelegateHelper: NSObject, AVPictureInPictureControllerDelegate {

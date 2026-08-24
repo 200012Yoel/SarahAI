@@ -159,17 +159,10 @@ public final class ScreenShareService: NSObject {
     public func broadcastAndProcessFrame(_ image: UIImage) {
         self.latestCapturedImage = image
         
-        // 1. Envoi au contrôleur PiP
+        // 1. Envoi immédiat au contrôleur Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
         
-        // 2. Sauvegarde atomique dans l'App Group pour les extensions
-        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier),
-           let jpegData = image.jpegData(compressionQuality: 0.6) {
-            let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
-            try? jpegData.write(to: fileURL, options: .atomic)
-        }
-        
-        // 3. Dispatch immédiat sur le thread principal pour mise à jour UI réactive
+        // 2. Publication réactive locale instantanée sur le thread principal pour l'UI
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
             
@@ -186,6 +179,15 @@ public final class ScreenShareService: NSObject {
                 confidence: 0.9
             )
             self.currentFrameCallback?(defaultResult, image)
+        }
+        
+        // 3. Sauvegarde atomique non-bloquante dans l'App Group en arrière-plan
+        DispatchQueue.global(qos: .utility).async {
+            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier),
+               let jpegData = image.jpegData(compressionQuality: 0.55) {
+                let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
+                try? jpegData.write(to: fileURL, options: .atomic)
+            }
         }
         
         // 4. Analyse IA Vision en tâche de fond
