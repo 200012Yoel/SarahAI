@@ -148,6 +148,14 @@ public final class StorageService {
         }
     }
     
+    /// Met à jour rapidement les paramètres vocaux
+    public func updateVoiceSettings(rate: Float, pitch: Float) {
+        var state = loadState()
+        state.voiceSettings.speechRate = rate
+        state.voiceSettings.speechPitch = pitch
+        saveState(state)
+    }
+    
     /// Efface l'historique et réinitialise l'état
     public func clearState() {
         ioQueue.async { [weak self] in
