@@ -95,13 +95,16 @@ public final class ScreenShareService: NSObject {
         // 1. Essai ReplayKit si disponible
         if #available(iOS 11.0, *), screenRecorder.isAvailable {
             screenRecorder.isMicrophoneEnabled = true
+            ScreenSharePiPManager.shared.setupPiP(in: viewController.view)
+            ScreenSharePiPManager.shared.startPictureInPicture()
             
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
                 guard let self = self, self.isScreenSharingActive, error == nil else { return }
                 
                 if sampleBufferType == .video {
                     self.liveFrameCount += 1
-                    // Analyser 1 frame toutes les 35 frames (~1-2 fois par seconde) pour économiser batterie et CPU
+                    ScreenSharePiPManager.shared.enqueueSampleBuffer(sampleBuffer)
+                    
                     if self.liveFrameCount % 35 == 0 {
                         if let image = self.imageFromSampleBuffer(sampleBuffer) {
                             self.processLiveFrame(image, onFrameAnalyzed: onFrameAnalyzed)
@@ -110,33 +113,33 @@ public final class ScreenShareService: NSObject {
                 }
             }) { [weak self] error in
                 guard let self = self else { return }
-                if let err = error {
-                    print("⚠️ [ScreenShareService] ReplayKit capture fallback: \(err.localizedDescription)")
-                    // Démarrage du Fallback universel par échantillonnage de fenêtre
+                if error != nil {
+                    // Fallback par échantillonnage universel
                     self.startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
-                    completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
-                } else {
-                    completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
                 }
+                completion(true, "🔴 Partage d'écran en direct activé !")
             }
         } else {
-            // 2. Fallback universel ultra-fluide pour iOS 12 (iPhone 5S, 6) ou en cas de restriction ReplayKit
+            // 2. Fallback universel (iOS 12 / iPhone 5s)
+            ScreenSharePiPManager.shared.setupPiP(in: viewController.view)
+            ScreenSharePiPManager.shared.startPictureInPicture()
             startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
-            completion(true, "🔴 Partage d'écran en direct activé ! Sarah analyse votre écran en continu.")
+            completion(true, "🔴 Partage d'écran en direct activé !")
         }
     }
     
-    /// Boucle d'échantillonnage vidéo universelle ultra-rapide (compatible 100% iPhone 5S / 7 / 8)
+    /// Boucle d'échantillonnage vidéo universelle ultra-rapide
     private func startUniversalWindowSampling(
         from viewController: UIViewController,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
     ) {
         liveTimer?.invalidate()
-        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+        liveTimer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
             guard let self = self, self.isScreenSharingActive else { return }
             
             DispatchQueue.main.async {
-                guard let screenshot = self.captureScreen(from: viewController.view.window ?? viewController.view) else { return }
+                guard let targetView = viewController.view.window ?? viewController.view,
+                      let screenshot = self.captureScreen(from: targetView) else { return }
                 self.processLiveFrame(screenshot, onFrameAnalyzed: onFrameAnalyzed)
             }
         }
@@ -146,17 +149,15 @@ public final class ScreenShareService: NSObject {
         _ image: UIImage,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
     ) {
+        // Envoi au flux Picture-in-Picture flottant
+        ScreenSharePiPManager.shared.enqueueImage(image)
+        
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
             guard let processed = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7) else { return }
             
             LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
                 guard let self = self, self.isScreenSharingActive else { return }
-                
-                // Ne notifier vocalement que si un changement de contexte ou texte pertinent est détecté
-                if !result.detectedText.isEmpty && result.detectedText != self.lastAnalyzedText {
-                    self.lastAnalyzedText = result.detectedText
-                }
                 
                 DispatchQueue.main.async {
                     onFrameAnalyzed?(result, processed.image)
@@ -176,6 +177,9 @@ public final class ScreenShareService: NSObject {
         liveTimer?.invalidate()
         liveTimer = nil
         liveFrameCount = 0
+        currentFrameCallback = nil
+        
+        ScreenSharePiPManager.shared.stopPictureInPicture()
         
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
