@@ -2,11 +2,11 @@ import Foundation
 import UIKit
 import AVFoundation
 
-/// Contrôleur d'Interface Caméra Temps Réel 100% Conforme à la Maquette (iOS 12 -> 18) :
-/// - Aperçu vidéo plein écran haute fluidité avec mise au point et exposition automatiques continues
-/// - Boutons supérieurs droits (Bascule Caméra Avant/Arrière, Masquage/Démasquage Temps Réel, Badge Roulette/Drapeaux)
-/// - Barre d'actions inférieure flottante (Bouton Bleu Vidéo, Partage d'Écran, Capsule Vocale Électrique Glowing, Microphone, Fermeture ✕)
-/// - Reconnexion instantanée sans crash lors du masquage/démasquage physique ou logiciel de l'objectif
+/// Contrôleur d'Interface Caméra Temps Réel Haute Précision & Responsive :
+/// - Compatible 100% avec les écrans compacts (iPhone 5S / SE : 320pt) jusqu'aux plus grands (iPhone 14/15/16 Pro Max)
+/// - Aperçu vidéo plein écran haute fluidité à 60 FPS matériels
+/// - Contrôles supérieurs droits : Bascule caméra 🔄, Masquage/Démasquage direct 📷, Badge Roulette/Sarah 🎯
+/// - Barre d'actions inférieure flottante : Bouton Vidéo Bleu, Partage d'Écran, Capsule Vocale Glowing, Micro, Fermeture ✕
 public final class LiveCameraViewController: UIViewController {
     
     // MARK: - Callbacks
@@ -17,6 +17,7 @@ public final class LiveCameraViewController: UIViewController {
     private let previewContainer = UIView()
     private let cameraHiddenOverlay = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     private let cameraHiddenIcon = UIImageView()
+    private let cameraHiddenLabel = UILabel()
     private let focusIndicator = UIView()
     
     // MARK: - Boutons Supérieurs Droits (Top Right)
@@ -44,7 +45,6 @@ public final class LiveCameraViewController: UIViewController {
     private var isAnalyzing: Bool = false
     private var isListeningVoice: Bool = false
     
-    // Synthèse Vocale Dédiée Universelle
     private var speechSynthesizer: AVSpeechSynthesizer?
     
     // MARK: - Cycle de Vie
@@ -69,6 +69,7 @@ public final class LiveCameraViewController: UIViewController {
         super.viewDidLayoutSubviews()
         LiveCameraManager.shared.updatePreviewLayout(bounds: previewContainer.bounds)
         voicePulseLayer.frame = voiceWaveformPill.bounds
+        voicePulseLayer.cornerRadius = voiceWaveformPill.bounds.height / 2
     }
     
     public override func viewWillDisappear(_ animated: Bool) {
@@ -80,9 +81,16 @@ public final class LiveCameraViewController: UIViewController {
         LiveCameraManager.shared.stopSession()
     }
     
-    // MARK: - Configuration UI (100% Fidèle aux Captures)
+    // MARK: - Configuration UI Responsive Multi-Écrans
     
     private func setupUI() {
+        let isSmallScreen = UIScreen.main.bounds.width <= 360 // iPhone 5S, SE 1st gen
+        let btnSize: CGFloat = isSmallScreen ? 38 : 44
+        let videoBtnSize: CGFloat = isSmallScreen ? 44 : 50
+        let pillWidth: CGFloat = isSmallScreen ? 76 : 94
+        let pillHeight: CGFloat = isSmallScreen ? 40 : 46
+        let stackSpacing: CGFloat = isSmallScreen ? 6 : 10
+        
         // 1. Conteneur Vidéo Plein Écran
         previewContainer.translatesAutoresizingMaskIntoConstraints = false
         previewContainer.backgroundColor = .black
@@ -101,11 +109,18 @@ public final class LiveCameraViewController: UIViewController {
         cameraHiddenIcon.contentMode = .scaleAspectFit
         cameraHiddenOverlay.contentView.addSubview(cameraHiddenIcon)
         
+        cameraHiddenLabel.translatesAutoresizingMaskIntoConstraints = false
+        cameraHiddenLabel.text = "Caméra en veille"
+        cameraHiddenLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        cameraHiddenLabel.textColor = UIColor.white.withAlphaComponent(0.8)
+        cameraHiddenLabel.textAlignment = .center
+        cameraHiddenOverlay.contentView.addSubview(cameraHiddenLabel)
+        
         // 1.2 Anneau de focus animé
-        focusIndicator.frame = CGRect(x: 0, y: 0, width: 64, height: 64)
+        focusIndicator.frame = CGRect(x: 0, y: 0, width: 60, height: 60)
         focusIndicator.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.9).cgColor
         focusIndicator.layer.borderWidth = 1.8
-        focusIndicator.layer.cornerRadius = 32
+        focusIndicator.layer.cornerRadius = 30
         focusIndicator.alpha = 0.0
         focusIndicator.isUserInteractionEnabled = false
         previewContainer.addSubview(focusIndicator)
@@ -113,10 +128,10 @@ public final class LiveCameraViewController: UIViewController {
         // 2. Bannière de Statut Flottante en haut
         statusBanner.translatesAutoresizingMaskIntoConstraints = false
         statusBanner.text = ""
-        statusBanner.font = UIFont.systemFont(ofSize: 14, weight: .medium)
+        statusBanner.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
         statusBanner.textColor = .white
         statusBanner.textAlignment = .center
-        statusBanner.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        statusBanner.backgroundColor = UIColor.black.withAlphaComponent(0.65)
         statusBanner.layer.cornerRadius = 14
         statusBanner.clipsToBounds = true
         statusBanner.alpha = 0.0
@@ -125,24 +140,24 @@ public final class LiveCameraViewController: UIViewController {
         // 3. Groupe Supérieur Droit (Top Right Controls)
         topButtonsStack.translatesAutoresizingMaskIntoConstraints = false
         topButtonsStack.axis = .horizontal
-        topButtonsStack.spacing = 10
+        topButtonsStack.spacing = stackSpacing
         topButtonsStack.alignment = .center
         topButtonsStack.distribution = .equalSpacing
         view.addSubview(topButtonsStack)
         
         // 3.1 Bouton Bascule Caméra (🔄)
-        configureCircularGlassButton(flipCameraButton, iconName: "arrow.triangle.2.circlepath", fallbackText: "🔄", size: 44)
+        configureCircularGlassButton(flipCameraButton, iconName: "arrow.triangle.2.circlepath", fallbackText: "🔄", size: btnSize)
         flipCameraButton.addTarget(self, action: #selector(flipCameraTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(flipCameraButton)
         
         // 3.2 Bouton Masquer / Démasquer Caméra (🚫📷)
-        configureCircularGlassButton(hideCameraButton, iconName: "camera.fill", fallbackText: "📷", size: 44)
+        configureCircularGlassButton(hideCameraButton, iconName: "camera.fill", fallbackText: "📷", size: btnSize)
         hideCameraButton.addTarget(self, action: #selector(toggleHideCameraTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(hideCameraButton)
         
         // 3.3 Badge Roulette / Avatar
         badgeButton.translatesAutoresizingMaskIntoConstraints = false
-        badgeButton.layer.cornerRadius = 22
+        badgeButton.layer.cornerRadius = btnSize / 2
         badgeButton.layer.borderWidth = 1.5
         badgeButton.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.8).cgColor
         badgeButton.backgroundColor = UIColor(white: 0.12, alpha: 0.85)
@@ -157,10 +172,10 @@ public final class LiveCameraViewController: UIViewController {
         NSLayoutConstraint.activate([
             badgeIcon.centerXAnchor.constraint(equalTo: badgeButton.centerXAnchor),
             badgeIcon.centerYAnchor.constraint(equalTo: badgeButton.centerYAnchor),
-            badgeIcon.widthAnchor.constraint(equalToConstant: 22),
-            badgeIcon.heightAnchor.constraint(equalToConstant: 22),
-            badgeButton.widthAnchor.constraint(equalToConstant: 44),
-            badgeButton.heightAnchor.constraint(equalToConstant: 44)
+            badgeIcon.widthAnchor.constraint(equalToConstant: btnSize * 0.5),
+            badgeIcon.heightAnchor.constraint(equalToConstant: btnSize * 0.5),
+            badgeButton.widthAnchor.constraint(equalToConstant: btnSize),
+            badgeButton.heightAnchor.constraint(equalToConstant: btnSize)
         ])
         badgeButton.addTarget(self, action: #selector(badgeTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(badgeButton)
@@ -172,7 +187,7 @@ public final class LiveCameraViewController: UIViewController {
         
         dockStack.translatesAutoresizingMaskIntoConstraints = false
         dockStack.axis = .horizontal
-        dockStack.spacing = 10
+        dockStack.spacing = stackSpacing
         dockStack.alignment = .center
         dockStack.distribution = .equalSpacing
         bottomDock.addSubview(dockStack)
@@ -180,7 +195,7 @@ public final class LiveCameraViewController: UIViewController {
         // 4.1 Bouton Bleu Vidéo (Gauche)
         videoActionButton.translatesAutoresizingMaskIntoConstraints = false
         videoActionButton.backgroundColor = UIColor(red: 0.20, green: 0.38, blue: 0.88, alpha: 1.0)
-        videoActionButton.layer.cornerRadius = 25
+        videoActionButton.layer.cornerRadius = videoBtnSize / 2
         videoActionButton.clipsToBounds = true
         let videoIcon = UIImageView()
         if #available(iOS 13.0, *) {
@@ -193,30 +208,30 @@ public final class LiveCameraViewController: UIViewController {
         NSLayoutConstraint.activate([
             videoIcon.centerXAnchor.constraint(equalTo: videoActionButton.centerXAnchor),
             videoIcon.centerYAnchor.constraint(equalTo: videoActionButton.centerYAnchor),
-            videoIcon.widthAnchor.constraint(equalToConstant: 22),
-            videoIcon.heightAnchor.constraint(equalToConstant: 22),
-            videoActionButton.widthAnchor.constraint(equalToConstant: 50),
-            videoActionButton.heightAnchor.constraint(equalToConstant: 50)
+            videoIcon.widthAnchor.constraint(equalToConstant: videoBtnSize * 0.46),
+            videoIcon.heightAnchor.constraint(equalToConstant: videoBtnSize * 0.46),
+            videoActionButton.widthAnchor.constraint(equalToConstant: videoBtnSize),
+            videoActionButton.heightAnchor.constraint(equalToConstant: videoBtnSize)
         ])
         videoActionButton.addTarget(self, action: #selector(captureAndAnalyzeTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(videoActionButton)
         
         // 4.2 Bouton Partage d'Écran (Flèche Haute)
-        configureCircularGlassButton(screenShareButton, iconName: "arrow.up.to.line", fallbackText: "⬆️", size: 44)
+        configureCircularGlassButton(screenShareButton, iconName: "arrow.up.to.line", fallbackText: "⬆️", size: btnSize)
         screenShareButton.addTarget(self, action: #selector(screenShareButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(screenShareButton)
         
         // 4.3 Capsule Vocale Centrale Glowing (Noir avec lueur bleue en bas)
-        setupGlowingVoicePill()
+        setupGlowingVoicePill(width: pillWidth, height: pillHeight)
         dockStack.addArrangedSubview(voiceWaveformPill)
         
         // 4.4 Bouton Microphone
-        configureCircularGlassButton(micToggleButton, iconName: "mic.fill", fallbackText: "🎙️", size: 44)
+        configureCircularGlassButton(micToggleButton, iconName: "mic.fill", fallbackText: "🎙️", size: btnSize)
         micToggleButton.addTarget(self, action: #selector(micButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(micToggleButton)
         
         // 4.5 Bouton Fermer ✕
-        configureCircularGlassButton(closeButton, iconName: "xmark", fallbackText: "✕", size: 44)
+        configureCircularGlassButton(closeButton, iconName: "xmark", fallbackText: "✕", size: btnSize)
         closeButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(closeButton)
         
@@ -236,24 +251,27 @@ public final class LiveCameraViewController: UIViewController {
             cameraHiddenOverlay.bottomAnchor.constraint(equalTo: previewContainer.bottomAnchor),
             
             cameraHiddenIcon.centerXAnchor.constraint(equalTo: cameraHiddenOverlay.centerXAnchor),
-            cameraHiddenIcon.centerYAnchor.constraint(equalTo: cameraHiddenOverlay.centerYAnchor),
-            cameraHiddenIcon.widthAnchor.constraint(equalToConstant: 64),
-            cameraHiddenIcon.heightAnchor.constraint(equalToConstant: 64),
+            cameraHiddenIcon.centerYAnchor.constraint(equalTo: cameraHiddenOverlay.centerYAnchor, constant: -16),
+            cameraHiddenIcon.widthAnchor.constraint(equalToConstant: 56),
+            cameraHiddenIcon.heightAnchor.constraint(equalToConstant: 56),
             
-            topButtonsStack.topAnchor.constraint(equalTo: topSafeArea, constant: 12),
-            topButtonsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            topButtonsStack.heightAnchor.constraint(equalToConstant: 44),
+            cameraHiddenLabel.topAnchor.constraint(equalTo: cameraHiddenIcon.bottomAnchor, constant: 10),
+            cameraHiddenLabel.centerXAnchor.constraint(equalTo: cameraHiddenOverlay.centerXAnchor),
             
-            statusBanner.topAnchor.constraint(equalTo: topSafeArea, constant: 14),
+            topButtonsStack.topAnchor.constraint(equalTo: topSafeArea, constant: 10),
+            topButtonsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            topButtonsStack.heightAnchor.constraint(equalToConstant: btnSize),
+            
+            statusBanner.topAnchor.constraint(equalTo: topSafeArea, constant: 12),
             statusBanner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            statusBanner.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
-            statusBanner.trailingAnchor.constraint(lessThanOrEqualTo: topButtonsStack.leadingAnchor, constant: -12),
-            statusBanner.heightAnchor.constraint(equalToConstant: 32),
+            statusBanner.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 16),
+            statusBanner.trailingAnchor.constraint(lessThanOrEqualTo: topButtonsStack.leadingAnchor, constant: -8),
+            statusBanner.heightAnchor.constraint(equalToConstant: 30),
             
-            bottomDock.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            bottomDock.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            bottomDock.bottomAnchor.constraint(equalTo: bottomSafeArea, constant: -16),
-            bottomDock.heightAnchor.constraint(equalToConstant: 60),
+            bottomDock.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            bottomDock.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            bottomDock.bottomAnchor.constraint(equalTo: bottomSafeArea, constant: -12),
+            bottomDock.heightAnchor.constraint(equalToConstant: videoBtnSize + 10),
             
             dockStack.centerXAnchor.constraint(equalTo: bottomDock.centerXAnchor),
             dockStack.centerYAnchor.constraint(equalTo: bottomDock.centerYAnchor),
@@ -264,21 +282,22 @@ public final class LiveCameraViewController: UIViewController {
     
     private func configureCircularGlassButton(_ button: UIButton, iconName: String, fallbackText: String = "", size: CGFloat) {
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.backgroundColor = UIColor(white: 0.15, alpha: 0.75)
+        button.backgroundColor = UIColor(white: 0.15, alpha: 0.78)
         button.layer.cornerRadius = size / 2
         button.layer.borderWidth = 0.5
-        button.layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
         button.clipsToBounds = true
         
         if #available(iOS 13.0, *) {
-            let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+            let pointSize: CGFloat = size <= 40 ? 15 : 17
+            let config = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
             let icon = UIImage(systemName: iconName, withConfiguration: config) ?? UIImage(systemName: iconName)
             button.setImage(icon, for: .normal)
             button.tintColor = .white
         } else {
             button.setTitle(fallbackText.isEmpty ? iconName : fallbackText, for: .normal)
             button.setTitleColor(.white, for: .normal)
-            button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .bold)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
         }
         
         NSLayoutConstraint.activate([
@@ -287,9 +306,9 @@ public final class LiveCameraViewController: UIViewController {
         ])
     }
     
-    private func setupGlowingVoicePill() {
+    private func setupGlowingVoicePill(width: CGFloat, height: CGFloat) {
         voiceWaveformPill.translatesAutoresizingMaskIntoConstraints = false
-        voiceWaveformPill.layer.cornerRadius = 23
+        voiceWaveformPill.layer.cornerRadius = height / 2
         voiceWaveformPill.clipsToBounds = true
         voiceWaveformPill.backgroundColor = .black
         
@@ -305,8 +324,8 @@ public final class LiveCameraViewController: UIViewController {
         voiceWaveformPill.layer.insertSublayer(voicePulseLayer, at: 0)
         
         NSLayoutConstraint.activate([
-            voiceWaveformPill.widthAnchor.constraint(equalToConstant: 96),
-            voiceWaveformPill.heightAnchor.constraint(equalToConstant: 46)
+            voiceWaveformPill.widthAnchor.constraint(equalToConstant: width),
+            voiceWaveformPill.heightAnchor.constraint(equalToConstant: height)
         ])
         
         voiceWaveformPill.addTarget(self, action: #selector(voicePillTapped), for: .touchUpInside)
@@ -329,7 +348,6 @@ public final class LiveCameraViewController: UIViewController {
         
         LiveCameraManager.shared.focusAndExpose(at: devicePoint)
         
-        // Animation anneau de focus
         focusIndicator.center = touchPoint
         focusIndicator.transform = CGAffineTransform(scaleX: 1.3, y: 1.3)
         focusIndicator.alpha = 1.0
@@ -337,7 +355,7 @@ public final class LiveCameraViewController: UIViewController {
         UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut, animations: {
             self.focusIndicator.transform = .identity
         }) { _ in
-            UIView.animate(withDuration: 0.25, delay: 0.5, options: .curveEaseIn, animations: {
+            UIView.animate(withDuration: 0.25, delay: 0.4, options: .curveEaseIn, animations: {
                 self.focusIndicator.alpha = 0.0
             }, completion: nil)
         }
@@ -387,7 +405,7 @@ public final class LiveCameraViewController: UIViewController {
         HapticService.shared.buttonTap()
         isCameraHidden.toggle()
         
-        UIView.animate(withDuration: 0.3) {
+        UIView.animate(withDuration: 0.25) {
             self.cameraHiddenOverlay.alpha = self.isCameraHidden ? 1.0 : 0.0
         }
         
@@ -404,7 +422,7 @@ public final class LiveCameraViewController: UIViewController {
     
     @objc private func badgeTapped() {
         HapticService.shared.buttonTap()
-        showStatus("Vision Sarah IA 2.0")
+        showStatus("Vision Sarah IA")
     }
     
     @objc private func captureAndAnalyzeTapped() {
@@ -412,7 +430,7 @@ public final class LiveCameraViewController: UIViewController {
         isAnalyzing = true
         HapticService.shared.buttonTap()
         
-        showStatus("🔍 Analyse de la scène...")
+        showStatus("🔍 Analyse en cours...")
         videoActionButton.alpha = 0.6
         
         LiveCameraManager.shared.captureSnapshot { [weak self] capturedImage in
@@ -428,7 +446,6 @@ public final class LiveCameraViewController: UIViewController {
                 self.isAnalyzing = false
                 self.videoActionButton.alpha = 1.0
                 
-                // Détection d'un QR Code de synchronisation Sarah
                 if result.detectedText.contains("sarahsync://") || result.detectedText.contains("sarahpayload://") || result.detectedText.contains("sarah://sync") {
                     self.showStatus("⚡ Synchronisation Sarah...")
                     self.speak("QR Code Sarah détecté ! Synchronisation des discussions en cours...")
@@ -463,11 +480,10 @@ public final class LiveCameraViewController: UIViewController {
             showStatus("🎙️ Sarah vous écoute et observe...")
             speak("Je regarde ce que vous me montrez. Posez-moi une question !")
             
-            // Animation pulsation
             let pulse = CABasicAnimation(keyPath: "transform.scale")
             pulse.duration = 0.8
             pulse.fromValue = 1.0
-            pulse.toValue = 1.06
+            pulse.toValue = 1.05
             pulse.autoreverses = true
             pulse.repeatCount = .infinity
             voiceWaveformPill.layer.add(pulse, forKey: "pulse")
@@ -487,7 +503,7 @@ public final class LiveCameraViewController: UIViewController {
             self.dismiss(animated: true) {
                 self.onScreenShareRequested?()
                 ScreenShareService.shared.startLiveScreenSharing(from: self) { success, message in
-                    print("📺 Screen share result: \(message)")
+                    print("📺 Screen share: \(message)")
                 }
             }
         }
@@ -509,6 +525,7 @@ public final class LiveCameraViewController: UIViewController {
     
     @objc private func closeButtonTapped() {
         HapticService.shared.buttonTap()
+        LiveCameraManager.shared.stopSession()
         dismiss(animated: true, completion: nil)
     }
     
@@ -517,10 +534,10 @@ public final class LiveCameraViewController: UIViewController {
     private func showStatus(_ text: String, isError: Bool = false) {
         statusBanner.text = "  \(text)  "
         statusBanner.textColor = isError ? .systemRed : .white
-        UIView.animate(withDuration: 0.25) {
+        UIView.animate(withDuration: 0.2) {
             self.statusBanner.alpha = 1.0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
             UIView.animate(withDuration: 0.3) {
                 self?.statusBanner.alpha = 0.0
             }
