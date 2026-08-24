@@ -1135,6 +1135,43 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self.floatingMirrorImageView.image = img
             CATransaction.commit()
         }
+        
+        NotificationCenter.default.addObserver(
+            forName: ScreenShareService.statusDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notif in
+            guard let self = self else { return }
+            if let rawStatus = notif.userInfo?["status"] as? String,
+               let st = ScreenShareStatus(rawValue: rawStatus) {
+                self.updateScreenShareStatusUI(st)
+            }
+        }
+    }
+    
+    private func updateScreenShareStatusUI(_ status: ScreenShareStatus) {
+        switch status {
+        case .disconnected:
+            statusLabel.text = "● En ligne"
+            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            floatingMirrorDot.backgroundColor = .systemGreen
+            floatingMirrorTitle.text = "🔴 Rendu Écran"
+        case .connecting:
+            statusLabel.text = "● 🟡 Connexion..."
+            statusLabel.textColor = .systemYellow
+            floatingMirrorDot.backgroundColor = .systemYellow
+            floatingMirrorStatus.text = "👁️ Connexion..."
+        case .connected:
+            statusLabel.text = "● 🟢 Connecté"
+            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            floatingMirrorDot.backgroundColor = .systemGreen
+            floatingMirrorStatus.text = "👁️ Connecté"
+        case .active:
+            statusLabel.text = "● 🔴 En direct"
+            statusLabel.textColor = .systemRed
+            floatingMirrorDot.backgroundColor = .systemRed
+            floatingMirrorTitle.text = "🔴 En direct"
+        }
     }
     
     @objc private func handleFloatingMirrorPan(_ gesture: UIPanGestureRecognizer) {
@@ -1150,8 +1187,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
             self?.floatingMirrorView.isHidden = true
-            self?.statusLabel.text = "● En ligne"
-            self?.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            self?.updateScreenShareStatusUI(.disconnected)
         }
     }
     

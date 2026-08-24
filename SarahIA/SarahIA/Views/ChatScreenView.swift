@@ -31,10 +31,10 @@ public struct ChatScreenView: View {
                     if viewModel.isScreenSharingActive {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(Color.red)
+                                .fill(viewModel.screenShareStatus == .active ? Color.red : Color.green)
                                 .frame(width: 8, height: 8)
                             
-                            Text("🔴 Partage d'écran en direct")
+                            Text(viewModel.screenShareStatus == .active ? "🔴 Partage d'écran en direct" : "🟢 Connecté au partage d'écran")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.white)
                             
@@ -106,8 +106,10 @@ public struct ChatScreenView: View {
                 if viewModel.isScreenSharingActive {
                     VStack(spacing: 4) {
                         HStack {
-                            Circle().fill(Color.red).frame(width: 7, height: 7)
-                            Text("🔴 Rendu Écran")
+                            Circle()
+                                .fill(viewModel.screenShareStatus == .active ? Color.red : Color.green)
+                                .frame(width: 7, height: 7)
+                            Text(viewModel.screenShareStatus == .active ? "🔴 En direct" : "🟢 Connecté")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                             Spacer()

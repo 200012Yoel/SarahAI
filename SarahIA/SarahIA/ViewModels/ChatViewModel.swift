@@ -44,6 +44,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var searchQuery: String = ""
     @Published public var isSearchActive: Bool = false
     @Published public var isScreenSharingActive: Bool = false
+    @Published public var screenShareStatus: ScreenShareStatus = .disconnected
     @Published public var lastScreenShareImage: UIImage? = nil
     @Published public var lastScreenShareAnalysis: String = ""
     
@@ -98,8 +99,16 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
-        NotificationCenter.default.publisher(for: ScreenShareService.liveFrameNotification)
-            .compactMap { $0.userInfo?["image"] as? UIImage }
+        ScreenShareStateObserver.shared.$status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] st in
+                self?.screenShareStatus = st
+                self?.isScreenSharingActive = (st != .disconnected)
+            }
+            .store(in: &cancellables)
+            
+        ScreenShareStateObserver.shared.$latestImage
+            .compactMap { $0 }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] image in
                 guard let self = self, self.isScreenSharingActive else { return }

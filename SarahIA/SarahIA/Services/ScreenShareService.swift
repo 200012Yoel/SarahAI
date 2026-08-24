@@ -6,11 +6,27 @@ import AVFoundation
 import Combine
 #endif
 
+/// États de connexion de la session de partage d'écran
+public enum ScreenShareStatus: String, Codable {
+    case disconnected = "Déconnecté"
+    case connecting = "Connexion..."
+    case connected = "Connecté"
+    case active = "En direct"
+    
+    public var badgeTitle: String {
+        switch self {
+        case .disconnected: return "● En ligne"
+        case .connecting: return "● 🟡 Connexion..."
+        case .connected: return "● 🟢 Connecté"
+        case .active: return "● 🔴 En direct"
+        }
+    }
+}
+
 /// Service de Partage d'Écran et Live Streaming avec Sarah :
-/// - Découplage complet de la lecture de trames sur une file dédiée d'arrière-plan (decodeQueue)
-/// - Décodage JPEG instantané sans blocage de l'interface graphique
-/// - Capture persistante en arrière-plan (Home Screen et hors app) via ReplayKit et Darwin IPC
-/// - Rendu ultra-fluide à 0ms sans artefact visuel ni saccade
+/// - Synchronisation centralisée des états (disconnected / connecting / connected / active)
+/// - Diffusion réactive instantanée sans blocage UI
+/// - Rendu vidéo ultra-fluide dans l'app et en Picture-in-Picture
 public final class ScreenShareService: NSObject {
     
     public static let shared = ScreenShareService()
@@ -19,10 +35,26 @@ public final class ScreenShareService: NSObject {
     public static let appGroupIdentifier = "group.com.sarahia.shared"
     public static let darwinNotificationName = "group.com.sarahia.broadcast.frame"
     public static let liveFrameNotification = NSNotification.Name("SarahLiveScreenFrameUpdated")
+    public static let statusDidChangeNotification = NSNotification.Name("SarahScreenShareStatusDidChange")
     
     private let screenRecorder = RPScreenRecorder.shared()
     public private(set) var isScreenSharingActive: Bool = false
     public private(set) var latestCapturedImage: UIImage?
+    
+    public private(set) var status: ScreenShareStatus = .disconnected {
+        didSet {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Self.statusDidChangeNotification,
+                    object: nil,
+                    userInfo: [
+                        "status": self.status.rawValue,
+                        "isActive": self.isScreenSharingActive
+                    ]
+                )
+            }
+        }
+    }
     
     // Files et minuteries d'arrière-plan
     private let decodeQueue = DispatchQueue(label: "com.sarahia.screenshare.decode", qos: .userInteractive)
@@ -76,7 +108,7 @@ public final class ScreenShareService: NSObject {
     
     // MARK: - Lancement du Partage d'Écran en Direct
     
-    /// Démarre le partage d'écran en direct avec injection immédiate de la 1ère trame
+    /// Démarre le partage d'écran en direct avec synchronisation de l'état
     public func startLiveScreenSharing(
         from viewController: UIViewController,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)? = nil,
@@ -88,6 +120,7 @@ public final class ScreenShareService: NSObject {
         }
         
         isScreenSharingActive = true
+        status = .connecting
         currentFrameCallback = onFrameAnalyzed
         
         // 1. Notification de statut
@@ -101,14 +134,17 @@ public final class ScreenShareService: NSObject {
         let targetView = viewController.view.window ?? viewController.view
         if let initialSnapshot = self.captureScreen(from: targetView) {
             self.latestCapturedImage = initialSnapshot
+            self.status = .active
             self.broadcastAndProcessFrame(initialSnapshot)
+        } else {
+            self.status = .connected
         }
         
         // 3. Initialisation et démarrage du Picture-in-Picture persistant
         ScreenSharePiPManager.shared.setupPiP(in: viewController.view)
         ScreenSharePiPManager.shared.startPictureInPicture()
         
-        // 4. Lancement de la minuterie DispatchSource haute performance (1.5 FPS)
+        // 4. Lancement de la minuterie DispatchSource haute performance (1.6 FPS)
         startHighPerformanceBackgroundSampling(from: viewController)
         
         // 5. ReplayKit In-App Capture en parallèle
@@ -158,6 +194,9 @@ public final class ScreenShareService: NSObject {
     /// Traite et diffuse la trame décodée sans latence
     public func broadcastAndProcessFrame(_ image: UIImage) {
         self.latestCapturedImage = image
+        if status != .active {
+            status = .active
+        }
         
         // 1. Envoi immédiat au contrôleur Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
@@ -181,7 +220,7 @@ public final class ScreenShareService: NSObject {
             self.currentFrameCallback?(defaultResult, image)
         }
         
-        // 3. Sauvegarde atomique non-bloquante dans l'App Group en arrière-plan
+        // 3. Sauvegarde atomique non-bloquante dans l'App Group en tâche de fond
         DispatchQueue.global(qos: .utility).async {
             if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier),
                let jpegData = image.jpegData(compressionQuality: 0.55) {
@@ -213,6 +252,7 @@ public final class ScreenShareService: NSObject {
     
     public func stopLiveScreenSharing(completion: ((Bool) -> Void)? = nil) {
         isScreenSharingActive = false
+        status = .disconnected
         dispatchTimer?.cancel()
         dispatchTimer = nil
         currentFrameCallback = nil
@@ -278,3 +318,39 @@ public final class ScreenShareService: NSObject {
         return UIImage(cgImage: cgImage)
     }
 }
+
+#if canImport(Combine)
+@available(iOS 13.0, *)
+public final class ScreenShareStateObserver: ObservableObject {
+    public static let shared = ScreenShareStateObserver()
+    @Published public var status: ScreenShareStatus = .disconnected
+    @Published public var isActive: Bool = false
+    @Published public var latestImage: UIImage? = nil
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    private init() {
+        NotificationCenter.default.publisher(for: ScreenShareService.statusDidChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self else { return }
+                if let rawStatus = notif.userInfo?["status"] as? String,
+                   let st = ScreenShareStatus(rawValue: rawStatus) {
+                    self.status = st
+                }
+                if let active = notif.userInfo?["isActive"] as? Bool {
+                    self.isActive = active
+                }
+            }
+            .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: ScreenShareService.liveFrameNotification)
+            .compactMap { $0.userInfo?["image"] as? UIImage }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] img in
+                self?.latestImage = img
+            }
+            .store(in: &cancellables)
+    }
+}
+#endif
