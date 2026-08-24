@@ -31,9 +31,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         
         window.makeKeyAndVisible()
         
-        // Notifications
+        // Notifications & Surveillance Batterie
         UNUserNotificationCenter.current().delegate = self
         NotificationService.shared.clearBadge()
+        BatteryMonitorManager.shared.startMonitoring()
         
         return true
     }
