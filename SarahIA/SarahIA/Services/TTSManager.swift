@@ -29,13 +29,15 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
     private func setupVoiceProfiles() {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
-        
         let maleNames = ["thomas", "nicolas", "paul", "aurelien", "aurélien", "antoine", "remi", "alain", "pierre"]
         
         // 1. Profil Tom (Masculin)
         let maleFrenchVoices = frenchVoices.filter { voice in
             let lower = voice.name.lowercased()
-            return maleNames.contains(where: { lower.contains($0) }) || voice.gender == .male
+            if #available(iOS 13.0, *) {
+                return maleNames.contains(where: { lower.contains($0) }) || voice.gender == .male
+            }
+            return maleNames.contains(where: { lower.contains($0) })
         }
         
         if #available(iOS 16.0, *) {
@@ -44,9 +46,13 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
                 ?? maleFrenchVoices.first(where: { $0.name.contains("Thomas") || $0.name.contains("Nicolas") })
                 ?? maleFrenchVoices.first
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
-        } else {
+        } else if #available(iOS 13.0, *) {
             tomVoice = maleFrenchVoices.first(where: { $0.gender == .male })
                 ?? maleFrenchVoices.first(where: { $0.name.contains("Thomas") || $0.name.contains("Nicolas") })
+                ?? maleFrenchVoices.first
+                ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        } else {
+            tomVoice = maleFrenchVoices.first(where: { $0.name.contains("Thomas") || $0.name.contains("Nicolas") })
                 ?? maleFrenchVoices.first
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         }
@@ -54,7 +60,10 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
         // 2. Profil Sarah (Féminin)
         let femaleFrenchVoices = frenchVoices.filter { voice in
             let lower = voice.name.lowercased()
-            return !maleNames.contains(where: { lower.contains($0) }) && voice.gender != .male
+            if #available(iOS 13.0, *) {
+                return !maleNames.contains(where: { lower.contains($0) }) && voice.gender != .male
+            }
+            return !maleNames.contains(where: { lower.contains($0) })
         }
         
         if #available(iOS 16.0, *) {
@@ -63,9 +72,13 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
                 ?? femaleFrenchVoices.first(where: { $0.gender == .female })
                 ?? femaleFrenchVoices.first
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
-        } else {
+        } else if #available(iOS 13.0, *) {
             sarahVoice = femaleFrenchVoices.first(where: { $0.gender == .female })
                 ?? femaleFrenchVoices.first(where: { $0.name.contains("Amélie") || $0.name.contains("Audrey") })
+                ?? femaleFrenchVoices.first
+                ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        } else {
+            sarahVoice = femaleFrenchVoices.first(where: { $0.name.contains("Amélie") || $0.name.contains("Audrey") })
                 ?? femaleFrenchVoices.first
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         }
