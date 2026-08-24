@@ -558,12 +558,6 @@ public final class LiveCameraViewController: UIViewController {
     }
     
     private func speak(_ text: String) {
-        if speechSynthesizer == nil {
-            speechSynthesizer = AVSpeechSynthesizer()
-        }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        speechSynthesizer?.speak(utterance)
+        TTSManager.shared.speakAsTom(text)
     }
 }
