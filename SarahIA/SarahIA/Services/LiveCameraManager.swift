@@ -458,6 +458,26 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         }
     }
     
+    public func toggleTorch() -> Bool {
+        guard let device = videoDeviceInput?.device, device.hasTorch else { return false }
+        do {
+            try device.lockForConfiguration()
+            let newState: AVCaptureDevice.TorchMode = (device.torchMode == .on) ? .off : .on
+            if device.isTorchModeSupported(newState) {
+                device.torchMode = newState
+            }
+            device.unlockForConfiguration()
+            return device.torchMode == .on
+        } catch {
+            print("⚠️ [LiveCameraManager] Erreur torche: \(error)")
+            return false
+        }
+    }
+    
+    public var isTorchActive: Bool {
+        return videoDeviceInput?.device.isTorchActive ?? false
+    }
+    
     public func focusAndExpose(at point: CGPoint) {
         sessionQueue.async { [weak self] in
             guard let device = self?.videoDeviceInput?.device else { return }

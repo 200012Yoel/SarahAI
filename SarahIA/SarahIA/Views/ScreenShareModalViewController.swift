@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ReplayKit
 
 /// Modal Plein Écran de Confirmation du Partage d'Écran (100% Conforme à la Capture d'Écran iOS) :
 /// - Avertissement officiel d'enregistrement de l'écran et des notifications
@@ -123,10 +124,27 @@ public final class ScreenShareModalViewController: UIViewController {
         // 4.6 Bouton « Démarrer le partage »
         startButton.translatesAutoresizingMaskIntoConstraints = false
         startButton.setTitle("Démarrer le partage", for: .normal)
-        startButton.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .regular)
+        startButton.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
         startButton.setTitleColor(UIColor.white, for: .normal)
         startButton.addTarget(self, action: #selector(startSharingTapped), for: .touchUpInside)
         cardView.addSubview(startButton)
+        
+        // 4.7 Intégration transparente de RPSystemBroadcastPickerView
+        if #available(iOS 12.0, *) {
+            let broadcastPicker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 290, height: 50))
+            broadcastPicker.preferredExtension = "com.sarahia.app.broadcast"
+            broadcastPicker.showsMicrophoneButton = true
+            broadcastPicker.translatesAutoresizingMaskIntoConstraints = false
+            broadcastPicker.alpha = 0.02 // Transparent mais capte l'interaction native iOS
+            cardView.addSubview(broadcastPicker)
+            
+            NSLayoutConstraint.activate([
+                broadcastPicker.topAnchor.constraint(equalTo: startButton.topAnchor),
+                broadcastPicker.leadingAnchor.constraint(equalTo: startButton.leadingAnchor),
+                broadcastPicker.trailingAnchor.constraint(equalTo: startButton.trailingAnchor),
+                broadcastPicker.bottomAnchor.constraint(equalTo: startButton.bottomAnchor)
+            ])
+        }
         
         // MARK: - Layout Constraints
         NSLayoutConstraint.activate([
