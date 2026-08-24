@@ -332,7 +332,9 @@ public struct ChatScreenView: View {
     }
     
     private var statusColor: Color {
-        if viewModel.isMicRunning {
+        if viewModel.isScreenSharingActive {
+            return viewModel.screenShareStatus == .active ? .red : .green
+        } else if viewModel.isMicRunning {
             return .red
         } else if viewModel.isSpeaking {
             return .sarahCyan
@@ -344,7 +346,9 @@ public struct ChatScreenView: View {
     }
     
     private var statusText: String {
-        if viewModel.isMicRunning {
+        if viewModel.isScreenSharingActive {
+            return viewModel.screenShareStatus == .active ? "Écran partagé (En direct)" : "Écran partagé (Connecté)"
+        } else if viewModel.isMicRunning {
             return "Écoute en direct..."
         } else if viewModel.isSpeaking {
             return "Parle..."

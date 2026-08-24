@@ -726,7 +726,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
             guard let self = self else { return }
-            self.statusLabel.text = "● En ligne"
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
             let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
             self.appendMessage(aiMsg)
             self.speak(text: summary)
@@ -744,7 +744,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
             guard let self = self else { return }
-            self.statusLabel.text = "● En ligne"
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
             let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
             self.appendMessage(aiMsg)
             self.speak(text: summary)
@@ -1149,28 +1149,48 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
+    private func updateStatusLabelSafely(text: String, color: UIColor) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if ScreenShareService.shared.isScreenSharingActive {
+                self.statusLabel.text = ScreenShareService.shared.status.badgeTitle
+                self.statusLabel.textColor = (ScreenShareService.shared.status == .active ? .systemRed : .systemGreen)
+            } else {
+                self.statusLabel.text = text
+                self.statusLabel.textColor = color
+            }
+        }
+    }
+    
     private func updateScreenShareStatusUI(_ status: ScreenShareStatus) {
-        switch status {
-        case .disconnected:
-            statusLabel.text = "● En ligne"
-            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-            floatingMirrorDot.backgroundColor = .systemGreen
-            floatingMirrorTitle.text = "🔴 Rendu Écran"
-        case .connecting:
-            statusLabel.text = "● 🟡 Connexion..."
-            statusLabel.textColor = .systemYellow
-            floatingMirrorDot.backgroundColor = .systemYellow
-            floatingMirrorStatus.text = "👁️ Connexion..."
-        case .connected:
-            statusLabel.text = "● 🟢 Connecté"
-            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-            floatingMirrorDot.backgroundColor = .systemGreen
-            floatingMirrorStatus.text = "👁️ Connecté"
-        case .active:
-            statusLabel.text = "● 🔴 En direct"
-            statusLabel.textColor = .systemRed
-            floatingMirrorDot.backgroundColor = .systemRed
-            floatingMirrorTitle.text = "🔴 En direct"
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            switch status {
+            case .disconnected:
+                self.statusLabel.text = "● En ligne"
+                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                self.floatingMirrorDot.backgroundColor = .systemGreen
+                self.floatingMirrorTitle.text = "🔴 Rendu Écran"
+                self.floatingMirrorStatus.text = "👁️ Déconnecté"
+            case .connecting:
+                self.statusLabel.text = "● 🟡 Connexion..."
+                self.statusLabel.textColor = .systemYellow
+                self.floatingMirrorDot.backgroundColor = .systemYellow
+                self.floatingMirrorTitle.text = "🟡 Connexion..."
+                self.floatingMirrorStatus.text = "👁️ Connexion..."
+            case .connected:
+                self.statusLabel.text = "● 🟢 Connecté"
+                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                self.floatingMirrorDot.backgroundColor = .systemGreen
+                self.floatingMirrorTitle.text = "🟢 Connecté"
+                self.floatingMirrorStatus.text = "👁️ Connecté"
+            case .active:
+                self.statusLabel.text = "● 🔴 En direct"
+                self.statusLabel.textColor = .systemRed
+                self.floatingMirrorDot.backgroundColor = .systemRed
+                self.floatingMirrorTitle.text = "🔴 En direct"
+                self.floatingMirrorStatus.text = "👁️ En direct"
+            }
         }
     }
     
@@ -1478,8 +1498,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // 0. Commande d'activation Caméra en direct
         if norm.contains("camera") || norm.contains("appareil photo") || norm.contains("ouvre la camera") || norm.contains("active la camera") || norm.contains("lance la camera") || norm.contains("prends une photo") {
-            statusLabel.text = "● En ligne"
-            statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
             let aiMsg = Message(content: "📷 J'active la caméra immédiatement ! Pointez l'objectif vers ce que vous souhaitez que j'analyse.", isFromUser: false)
             appendMessage(aiMsg)
             speak(text: "J'active la caméra !")
@@ -1494,8 +1513,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             statusLabel.text = "● Recherche sur le Web..."
             WebSearchService.shared.searchWeb(query: text) { [weak self] webSummary, _ in
                 guard let self = self else { return }
-                self.statusLabel.text = "● En ligne"
-                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
                 
                 SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: webSummary, topicType: "web_search")
                 let aiMsg = Message(content: webSummary, isFromUser: false)
@@ -1510,8 +1528,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             let response = AIService.shared.generateSyncResponse(for: text)
             SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response)
             DispatchQueue.main.async {
-                self.statusLabel.text = "● En ligne"
-                self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+                self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
                 
                 // Mettre à jour le titre dynamique avec le contexte de la réponse si premier tour
                 if isFirstUserMessage {
