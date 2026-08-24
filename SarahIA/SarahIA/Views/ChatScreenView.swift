@@ -124,7 +124,7 @@ public struct ChatScreenView: View {
                         if !viewModel.lastScreenShareAnalysis.isEmpty {
                             Text("👁️ \(viewModel.lastScreenShareAnalysis)")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.cyan)
+                                .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
                                 .lineLimit(1)
                                 .padding(.horizontal, 4)
                                 .padding(.bottom, 4)
@@ -135,7 +135,7 @@ public struct ChatScreenView: View {
                     .cornerRadius(14)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.cyan.opacity(0.8), lineWidth: 1.5)
+                            .stroke(Color(red: 0.0, green: 0.78, blue: 1.0, opacity: 0.8), lineWidth: 1.5)
                     )
                     .shadow(color: Color.black.opacity(0.6), radius: 8, x: 0, y: 4)
                     .offset(mirrorDragOffset)
