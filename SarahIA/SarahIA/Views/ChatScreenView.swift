@@ -97,6 +97,15 @@ public struct ChatScreenView: View {
             ActionSheet(
                 title: Text("Actions Rapides"),
                 buttons: [
+                    .default(Text("🌤️ Météo GPS en direct")) {
+                        viewModel.sendMessage("Quel temps fait-il ?")
+                    },
+                    .default(Text("🚨 Alertes Pikoud HaOref (Israël)")) {
+                        viewModel.sendMessage("Y a-t-il des alertes en Israël ?")
+                    },
+                    .default(Text("📰 Actualités (Franceinfo & i24)")) {
+                        viewModel.sendMessage("Donne-moi les actualités")
+                    },
                     .default(Text("🖥️ Lancer le partage d'écran")) {
                         viewModel.startLiveScreenSharing()
                     },

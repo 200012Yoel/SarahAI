@@ -154,6 +154,48 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
+                    Section(header: Text("Services Connectés & Veille en Direct").foregroundColor(.sarahCyan)) {
+                        HStack(spacing: 12) {
+                            Text("🌤️")
+                                .font(.system(size: 20))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Météo GPS Temps Réel")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Dites « Quel temps fait-il ? » ou « Météo »")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Text("🚨")
+                                .font(.system(size: 20))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Alertes Pikoud HaOref (Israël)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Dites « Alertes en Israël » ou « Statut sécurité »")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Text("📰")
+                                .font(.system(size: 20))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Actualités (i24NEWS & Franceinfo)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text("Dites « Donne-moi les actualités » ou « Les infos »")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
                     Section(header: Text("Historique & Réinitialisation").foregroundColor(.sarahCyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()

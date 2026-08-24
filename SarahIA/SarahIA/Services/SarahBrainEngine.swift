@@ -142,13 +142,28 @@ public final class SarahBrainEngine {
             return BrainIntent(primaryTopic: "vision_ocr", requiresVisionAgent: true)
         }
         
+        // Intent Alertes de Sécurité Pikoud HaOref (Israël)
+        if norm.contains("alerte") || norm.contains("pikoud") || norm.contains("sirene") || norm.contains("tzeva adom") || (norm.contains("israel") && (norm.contains("securite") || norm.contains("attaque") || norm.contains("roquette"))) {
+            return BrainIntent(primaryTopic: "red_alert")
+        }
+        
+        // Intent Météo GPS Temps Réel
+        if norm.contains("meteo") || norm.contains("quel temps") || norm.contains("temperature") || norm.contains("pleuvoir") || norm.contains("il pleut") || norm.contains("il fait froid") || norm.contains("il fait chaud") {
+            return BrainIntent(primaryTopic: "weather")
+        }
+        
+        // Intent Actualités en Direct (Franceinfo & i24NEWS)
+        if norm.contains("actualite") || norm.contains("actualites") || norm.contains("les infos") || norm.contains("les informations") || norm.contains("dernieres nouvelles") || norm.contains("titres du jour") || norm.contains("franceinfo") || norm.contains("i24") {
+            return BrainIntent(primaryTopic: "news")
+        }
+        
         // Intent Radio / Podcasts / Musique
         if norm.contains("radio") || norm.contains("podcast") || norm.contains("musique") || norm.contains("spotify") || norm.contains("apple music") || norm.contains("skyrock") || norm.contains("france inter") || norm.contains("nrj") || norm.contains("rtl") {
             return BrainIntent(primaryTopic: "media_stream", requiresMediaStream: true)
         }
         
         // Intent Recherche Web (Agent Tom)
-        if AIService.shared.isWebSearchIntent(norm) || norm.contains("train") || norm.contains("sncf") || norm.contains("vol") || norm.contains("billet") || norm.contains("meteo") || norm.contains("qui est") || norm.contains("c est quoi") {
+        if AIService.shared.isWebSearchIntent(norm) || norm.contains("train") || norm.contains("sncf") || norm.contains("vol") || norm.contains("billet") || norm.contains("qui est") || norm.contains("c est quoi") {
             return BrainIntent(primaryTopic: "web_search", requiresWebAgent: true)
         }
         
@@ -210,8 +225,38 @@ public final class SarahBrainEngine {
         completion(report)
     }
     
-    // Pipeline D : Cognition Locale & Intent Router
+    // Pipeline D : Cognition Locale & Nouveaux Services Connectés
     private func processLocalCognitionPipeline(query: String, intent: BrainIntent, completion: @escaping (BrainExecutionReport) -> Void) {
+        if intent.primaryTopic == "red_alert" {
+            RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
+                let report = BrainExecutionReport(leadAgent: "Sarah (Pikoud HaOref)", finalNaturalResponse: summary, sources: ["Pikoud HaOref (Front Intérieur)"])
+                self?.recordExchange(query: query, response: summary)
+                completion(report)
+            }
+            return
+        }
+        
+        if intent.primaryTopic == "weather" {
+            WeatherService.shared.fetchWeather { [weak self] weatherInfo in
+                let summary = weatherInfo?.naturalSpokenSummary ?? "Je n'ai pas pu obtenir la météo locale pour l'instant."
+                let report = BrainExecutionReport(leadAgent: "Sarah (Météo)", finalNaturalResponse: summary, sources: ["Open-Meteo & GPS"])
+                self?.recordExchange(query: query, response: summary)
+                completion(report)
+            }
+            return
+        }
+        
+        if intent.primaryTopic == "news" {
+            let norm = normalize(query)
+            let src: NewsService.NewsSource = (norm.contains("i24") || norm.contains("israel")) ? .i24news : .franceinfo
+            NewsService.shared.getSpokenNewsSummary(preferredSource: src) { [weak self] summary in
+                let report = BrainExecutionReport(leadAgent: "Sarah (Actualités)", finalNaturalResponse: summary, sources: [src.rawValue])
+                self?.recordExchange(query: query, response: summary)
+                completion(report)
+            }
+            return
+        }
+        
         let response = AIService.shared.generateSyncResponse(for: query)
         let report = BrainExecutionReport(leadAgent: "Sarah", finalNaturalResponse: response)
         recordExchange(query: query, response: response)

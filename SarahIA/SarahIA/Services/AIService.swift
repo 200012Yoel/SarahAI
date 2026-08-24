@@ -232,7 +232,54 @@ public final class AIService {
             return contextualActionResponse
         }
         
-        // 2. Traduction multilingue temps réel si demandé
+        // 2. Alertes en direct Pikoud HaOref (Front Intérieur Israël)
+        if normalized.contains("alerte") || normalized.contains("pikoud") || normalized.contains("sirene") || normalized.contains("tzeva adom") || (normalized.contains("israel") && (normalized.contains("securite") || normalized.contains("attaque") || normalized.contains("roquette"))) {
+            let status = await withCheckedContinuation { continuation in
+                RedAlertService.shared.getSecurityStatusSummary { summary in
+                    continuation.resume(returning: summary)
+                }
+            }
+            recordExchange(userText: trimmed, assistantResponse: status)
+            return status
+        }
+        
+        // 3. Météo connectée par GPS / Ville
+        if normalized.contains("meteo") || normalized.contains("quel temps") || normalized.contains("temperature") || normalized.contains("prevision") || normalized.contains("pleuvoir") || normalized.contains("il pleut") || normalized.contains("il fait froid") || normalized.contains("il fait chaud") {
+            var cityQuery: String? = nil
+            if normalized.contains(" a ") {
+                let parts = trimmed.components(separatedBy: " à ")
+                if parts.count > 1 { cityQuery = parts.last?.trimmingCharacters(in: .punctuationCharacters) }
+            } else if normalized.contains(" pour ") {
+                let parts = trimmed.components(separatedBy: " pour ")
+                if parts.count > 1 { cityQuery = parts.last?.trimmingCharacters(in: .punctuationCharacters) }
+            }
+            
+            let weatherResult = await withCheckedContinuation { continuation in
+                WeatherService.shared.fetchWeather(for: cityQuery) { info in
+                    continuation.resume(returning: info?.naturalSpokenSummary)
+                }
+            }
+            if let weatherSummary = weatherResult {
+                recordExchange(userText: trimmed, assistantResponse: weatherSummary)
+                return weatherSummary
+            }
+        }
+        
+        // 4. Actualités & Informations en direct (Franceinfo & i24NEWS)
+        if normalized.contains("actualite") || normalized.contains("actualites") || normalized.contains("les infos") || normalized.contains("les informations") || normalized.contains("dernieres nouvelles") || normalized.contains("titres du jour") || normalized.contains("franceinfo") || normalized.contains("i24") {
+            let preferredSrc: NewsService.NewsSource? = (normalized.contains("i24") || normalized.contains("israel")) ? .i24news : .franceinfo
+            let newsResult = await withCheckedContinuation { continuation in
+                NewsService.shared.getSpokenNewsSummary(preferredSource: preferredSrc) { summary in
+                    continuation.resume(returning: summary)
+                }
+            }
+            if !newsResult.isEmpty {
+                recordExchange(userText: trimmed, assistantResponse: newsResult)
+                return newsResult
+            }
+        }
+        
+        // 5. Traduction multilingue temps réel si demandé
         if let translationReq = translation.parseTranslationIntent(input: trimmed) {
             let translated = await translation.translate(
                 text: translationReq.textToTranslate,
@@ -244,7 +291,7 @@ public final class AIService {
             return reply
         }
         
-        // 3. MOTEUR DE RECHERCHE WEB EN DIRECT (Si intention de recherche explicite)
+        // 6. MOTEUR DE RECHERCHE WEB EN DIRECT (Si intention de recherche explicite)
         if isWebSearchIntent(normalized) {
             let (webSummary, _) = await WebSearchService.shared.searchWebAsync(query: trimmed)
             if !webSummary.isEmpty {
@@ -254,7 +301,7 @@ public final class AIService {
             }
         }
         
-        // 4. Traitement local synchrone prioritaire (Zéro latence)
+        // 7. Traitement local synchrone prioritaire (Zéro latence)
         let syncResponse = generateSyncResponse(for: question)
         let defaultGenericAnswers = defaultResponses + thanksResponses + identityResponses + moodResponsesOk + chitChatResponses
         

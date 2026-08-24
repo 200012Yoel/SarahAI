@@ -993,6 +993,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func actionPlusTapped() {
         let sheet = UIAlertController(title: "Actions Rapides", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "🌤️ Météo GPS en direct", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Quel temps fait-il ?"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "🚨 Alertes Pikoud HaOref (Israël)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Y a-t-il des alertes en Israël ?"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "📰 Actualités (Franceinfo & i24)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Donne-moi les actualités"
+            self?.sendButtonTapped()
+        }))
         sheet.addAction(UIAlertAction(title: "🖥️ Lancer le partage d'écran", style: .default, handler: { [weak self] _ in
             self?.startScreenShareAnalysis()
         }))

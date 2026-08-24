@@ -59,6 +59,9 @@
 		A1B2C3D40001000100000049 /* LocalSyncServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000049 /* LocalSyncServerService.swift */; };
 		A1B2C3D4000100010000004A /* LocalSyncQRView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004A /* LocalSyncQRView.swift */; };
 		A1B2C3D4000100010000004B /* LegacyLocalSyncViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */; };
+		A1B2C3D4000100010000004C /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004C /* WeatherService.swift */; };
+		A1B2C3D4000100010000004D /* RedAlertService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004D /* RedAlertService.swift */; };
+		A1B2C3D4000100010000004E /* NewsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004E /* NewsService.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -121,6 +124,9 @@
 		A1B2C3D40002000100000049 /* LocalSyncServerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncServerService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004A /* LocalSyncQRView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncQRView.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyLocalSyncViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000004C /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000004D /* RedAlertService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedAlertService.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000004E /* NewsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsService.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -212,6 +218,9 @@
 				A1B2C3D40002000100000045 /* MediaStreamingService.swift */,
 				A1B2C3D40002000100000046 /* SarahBrainEngine.swift */,
 				A1B2C3D40002000100000049 /* LocalSyncServerService.swift */,
+				A1B2C3D4000200010000004C /* WeatherService.swift */,
+				A1B2C3D4000200010000004D /* RedAlertService.swift */,
+				A1B2C3D4000200010000004E /* NewsService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -440,6 +449,9 @@
 				A1B2C3D40001000100000049 /* LocalSyncServerService.swift in Sources */,
 				A1B2C3D4000100010000004A /* LocalSyncQRView.swift in Sources */,
 				A1B2C3D4000100010000004B /* LegacyLocalSyncViewController.swift in Sources */,
+				A1B2C3D4000100010000004C /* WeatherService.swift in Sources */,
+				A1B2C3D4000100010000004D /* RedAlertService.swift in Sources */,
+				A1B2C3D4000100010000004E /* NewsService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
