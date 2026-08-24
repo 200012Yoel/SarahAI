@@ -8,13 +8,17 @@ import Combine
 /// Gestionnaire Matériel Universel de la Torche / Flashlight (iOS 12 -> 18)
 /// - Détection précise de l'état physique via AVCaptureDevice.torchMode et isTorchActive
 /// - Bascule sécurisée avec AVCaptureDevice lockForConfiguration
-/// - Persistance matérielle en arrière-plan (reste allumée même en quittant l'application)
+/// - Persistance matérielle en arrière-plan (reste allumée même en quittant l'application via UIBackgroundTaskIdentifier)
+/// - Maintien actif du pipeline matériel via AVCaptureSession dédiée
 /// - Synchronisation réactive immédiate sur le thread principal
 public final class FlashlightManager: NSObject {
     
     public static let shared = FlashlightManager()
     
     private var backgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
+    private var captureSession: AVCaptureSession?
+    private var deviceInput: AVCaptureDeviceInput?
+    
     private var captureDevice: AVCaptureDevice? {
         return AVCaptureDevice.default(for: .video)
     }
@@ -45,8 +49,20 @@ public final class FlashlightManager: NSObject {
     private func setupLifecycleObservers() {
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(handleAppWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(handleAppDidEnterBackground),
             name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
             object: nil
         )
         NotificationCenter.default.addObserver(
@@ -57,10 +73,22 @@ public final class FlashlightManager: NSObject {
         )
     }
     
-    @objc private func handleAppDidEnterBackground() {
-        // Maintient la torche allumée même quand l'utilisateur quitte l'application
+    @objc private func handleAppWillResignActive() {
         if isTorchOn {
             startBackgroundTask()
+            reinforceTorchState(true)
+        }
+    }
+    
+    @objc private func handleAppDidEnterBackground() {
+        if isTorchOn {
+            startBackgroundTask()
+            reinforceTorchState(true)
+        }
+    }
+    
+    @objc private func handleAppWillEnterForeground() {
+        if isTorchOn {
             reinforceTorchState(true)
         }
     }
@@ -77,7 +105,7 @@ public final class FlashlightManager: NSObject {
         isTorchOn = (device.torchMode == .on || device.isTorchActive)
     }
     
-    /// Bascule l'état de la torche entre Allumé et Éteint avec mise à jour immédiate
+    /// Bascule l'état de la torche entre Allumé et Éteint avec persistance arrière-plan garantie
     @discardableResult
     public func toggleTorch() -> Bool {
         guard let device = captureDevice, device.hasTorch, device.isTorchAvailable else {
@@ -89,13 +117,16 @@ public final class FlashlightManager: NSObject {
             if device.torchMode == .on || device.isTorchActive {
                 device.torchMode = .off
                 isTorchOn = false
+                device.unlockForConfiguration()
+                teardownCaptureSession()
                 endBackgroundTask()
             } else {
+                setupCaptureSessionIfNeeded(for: device)
                 try device.setTorchModeOn(level: 1.0)
                 isTorchOn = true
+                device.unlockForConfiguration()
                 startBackgroundTask()
             }
-            device.unlockForConfiguration()
             HapticService.shared.buttonTap()
             return isTorchOn
         } catch {
@@ -110,15 +141,18 @@ public final class FlashlightManager: NSObject {
         do {
             try device.lockForConfiguration()
             if on {
+                setupCaptureSessionIfNeeded(for: device)
                 try device.setTorchModeOn(level: 1.0)
                 isTorchOn = true
+                device.unlockForConfiguration()
                 startBackgroundTask()
             } else {
                 device.torchMode = .off
                 isTorchOn = false
+                device.unlockForConfiguration()
+                teardownCaptureSession()
                 endBackgroundTask()
             }
-            device.unlockForConfiguration()
         } catch {
             print("⚠️ [FlashlightManager] Erreur torche: \(error.localizedDescription)")
             device.unlockForConfiguration()
@@ -130,6 +164,7 @@ public final class FlashlightManager: NSObject {
         do {
             try device.lockForConfiguration()
             if on {
+                setupCaptureSessionIfNeeded(for: device)
                 try device.setTorchModeOn(level: 1.0)
             } else {
                 device.torchMode = .off
@@ -140,9 +175,44 @@ public final class FlashlightManager: NSObject {
         }
     }
     
+    private func setupCaptureSessionIfNeeded(for device: AVCaptureDevice) {
+        guard captureSession == nil else {
+            if let session = captureSession, !session.isRunning {
+                DispatchQueue.global(qos: .userInitiated).async {
+                    session.startRunning()
+                }
+            }
+            return
+        }
+        
+        let session = AVCaptureSession()
+        session.beginConfiguration()
+        if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
+            session.addInput(input)
+            self.deviceInput = input
+        }
+        session.commitConfiguration()
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            session.startRunning()
+        }
+        self.captureSession = session
+    }
+    
+    private func teardownCaptureSession() {
+        if let session = captureSession {
+            DispatchQueue.global(qos: .userInitiated).async {
+                session.stopRunning()
+            }
+            self.captureSession = nil
+            self.deviceInput = nil
+        }
+    }
+    
     private func startBackgroundTask() {
         guard backgroundTaskIdentifier == .invalid else { return }
-        backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(withName: "PersistentHardwareTorch") { [weak self] in
+        backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask(withName: "SarahPersistentTorch") { [weak self] in
+            // Si le temps système est écoulé, on termine proprement la tâche
             self?.endBackgroundTask()
         }
     }

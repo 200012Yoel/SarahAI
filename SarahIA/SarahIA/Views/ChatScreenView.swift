@@ -5,6 +5,7 @@ import SwiftUI
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
+    @ObservedObject private var screenTracker = ScreenShareStateTracker.shared
     
     @State private var isShowingCamera: Bool = false
     @State private var isShowingYouTubePlayer: Bool = false
@@ -28,13 +29,13 @@ public struct ChatScreenView: View {
                     topBar
                     
                     // 1.1 Bandeau Live Partage d'Écran Actif (Temps Réel)
-                    if viewModel.isScreenSharingActive {
+                    if screenTracker.isActive || viewModel.isScreenSharingActive {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(viewModel.screenShareStatus == .active ? Color.red : Color.green)
+                                .fill(screenTracker.status == .active ? Color.red : Color.green)
                                 .frame(width: 8, height: 8)
                             
-                            Text(viewModel.screenShareStatus == .active ? "🔴 Partage d'écran en direct" : "🟢 Connecté au partage d'écran")
+                            Text(screenTracker.status == .active ? "🔴 Partage d'écran en direct" : "🟢 Connecté au partage d'écran")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.white)
                             
@@ -103,13 +104,13 @@ public struct ChatScreenView: View {
                 .background(Color.black)
                 
                 // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct
-                if viewModel.isScreenSharingActive {
+                if screenTracker.isActive || viewModel.isScreenSharingActive {
                     VStack(spacing: 4) {
                         HStack {
                             Circle()
-                                .fill(viewModel.screenShareStatus == .active ? Color.red : Color.green)
+                                .fill(screenTracker.status == .active ? Color.red : (screenTracker.status == .connected ? Color.green : Color.yellow))
                                 .frame(width: 7, height: 7)
-                            Text(viewModel.screenShareStatus == .active ? "🔴 En direct" : "🟢 Connecté")
+                            Text(screenTracker.status == .active ? "🔴 En direct" : (screenTracker.status == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                             Spacer()
@@ -122,7 +123,7 @@ public struct ChatScreenView: View {
                         .padding(.horizontal, 8)
                         .padding(.top, 6)
                         
-                        if let img = viewModel.lastScreenShareImage {
+                        if let img = screenTracker.latestImage ?? viewModel.lastScreenShareImage {
                             Image(uiImage: img)
                                 .resizable()
                                 .scaledToFit()
@@ -137,7 +138,7 @@ public struct ChatScreenView: View {
                                 VStack(spacing: 6) {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    Text("Capture...")
+                                    Text("En direct...")
                                         .font(.system(size: 9, weight: .semibold))
                                         .foregroundColor(.white.opacity(0.8))
                                 }
@@ -161,29 +162,31 @@ public struct ChatScreenView: View {
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 4)
-                                .background(Color.red.opacity(0.85))
-                                .cornerRadius(6)
+                                .background(Capsule().fill(Color.red.opacity(0.85)))
                         }
-                        .padding(.horizontal, 6)
+                        .padding(.horizontal, 8)
                         .padding(.bottom, 6)
                     }
                     .frame(width: 136)
-                    .background(Color.black.opacity(0.92))
+                    .background(Color(red: 0.10, green: 0.10, blue: 0.12))
                     .cornerRadius(14)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color(red: 0.0, green: 0.78, blue: 1.0, opacity: 0.8), lineWidth: 1.5)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
                     )
-                    .shadow(color: Color.black.opacity(0.6), radius: 8, x: 0, y: 4)
+                    .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
                     .offset(mirrorDragOffset)
                     .gesture(
                         DragGesture()
                             .onChanged { value in
                                 mirrorDragOffset = value.translation
                             }
+                            .onEnded { _ in
+                                // Maintient la position après glissement
+                            }
                     )
+                    .padding(.top, 60)
                     .padding(.trailing, 16)
-                    .padding(.top, 65)
                 }
             }
         }

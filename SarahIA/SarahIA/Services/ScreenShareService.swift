@@ -52,6 +52,11 @@ public final class ScreenShareService: NSObject {
                         "isActive": self.isScreenSharingActive
                     ]
                 )
+                #if canImport(Combine)
+                if #available(iOS 13.0, *) {
+                    ScreenShareStateTracker.shared.updateStatus(self.status, active: self.isScreenSharingActive)
+                }
+                #endif
             }
         }
     }
@@ -198,6 +203,14 @@ public final class ScreenShareService: NSObject {
             status = .active
         }
         
+        #if canImport(Combine)
+        if #available(iOS 13.0, *) {
+            DispatchQueue.main.async {
+                ScreenShareStateTracker.shared.latestImage = image
+            }
+        }
+        #endif
+        
         // 1. Envoi immédiat au contrôleur Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
         
@@ -264,6 +277,12 @@ public final class ScreenShareService: NSObject {
             userInfo: ["isActive": false]
         )
         
+        #if canImport(Combine)
+        if #available(iOS 13.0, *) {
+            ScreenShareStateTracker.shared.updateStatus(.disconnected, active: false)
+        }
+        #endif
+        
         ScreenSharePiPManager.shared.stopPictureInPicture()
         
         if #available(iOS 11.0, *), screenRecorder.isRecording {
@@ -321,8 +340,9 @@ public final class ScreenShareService: NSObject {
 
 #if canImport(Combine)
 @available(iOS 13.0, *)
-public final class ScreenShareStateObserver: ObservableObject {
-    public static let shared = ScreenShareStateObserver()
+public final class ScreenShareStateTracker: ObservableObject {
+    public static let shared = ScreenShareStateTracker()
+    
     @Published public var status: ScreenShareStatus = .disconnected
     @Published public var isActive: Bool = false
     @Published public var latestImage: UIImage? = nil
@@ -352,5 +372,14 @@ public final class ScreenShareStateObserver: ObservableObject {
             }
             .store(in: &cancellables)
     }
+    
+    public func updateStatus(_ newStatus: ScreenShareStatus, active: Bool) {
+        DispatchQueue.main.async {
+            self.status = newStatus
+            self.isActive = active
+        }
+    }
 }
+
+public typealias ScreenShareStateObserver = ScreenShareStateTracker
 #endif
