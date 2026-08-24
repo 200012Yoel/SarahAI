@@ -1496,7 +1496,60 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let norm = text.lowercased()
         
-        // 0. Commande d'activation Caméra en direct
+        // 0.1 Commandes Torche Matérielle
+        if norm.contains("allume la torche") || norm.contains("allume la lampe") || norm.contains("allumer la torche") || norm.contains("active la torche") {
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
+            _ = FlashlightManager.shared.toggleTorch()
+            let aiMsg = Message(content: FlashlightManager.shared.isTorchOn ? "🔦 J'ai allumé la torche." : "🔦 La torche est éteinte.", isFromUser: false)
+            appendMessage(aiMsg)
+            speak(text: FlashlightManager.shared.isTorchOn ? "Torche allumée." : "Torche éteinte.")
+            return
+        }
+        if norm.contains("eteins la torche") || norm.contains("éteins la torche") || norm.contains("coupe la torche") || norm.contains("éteindre la torche") || norm.contains("eteindre la torche") {
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
+            FlashlightManager.shared.setTorch(on: false)
+            let aiMsg = Message(content: "🔦 J'ai éteint la torche.", isFromUser: false)
+            appendMessage(aiMsg)
+            speak(text: "Torche éteinte.")
+            return
+        }
+        
+        // 0.2 Commande Partage d'Écran en Direct
+        if norm.contains("partage d'ecran") || norm.contains("partage d'écran") || norm.contains("partage l'ecran") || norm.contains("partage l'écran") || norm.contains("lance le partage") {
+            let aiMsg = Message(content: "🔴 J'active le partage d'écran en direct !", isFromUser: false)
+            appendMessage(aiMsg)
+            speak(text: "Partage d'écran activé !")
+            startScreenShareAnalysis()
+            return
+        }
+        
+        // 0.3 Commande Pikoud HaOref (Alertes directes)
+        if norm.contains("pikoud") || norm.contains("pikud") || norm.contains("alerte israel") || norm.contains("alertes israel") || norm.contains("tsahal") {
+            statusLabel.text = "● Vérification des alertes..."
+            RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
+                guard let self = self else { return }
+                self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
+                let aiMsg = Message(content: summary, isFromUser: false)
+                self.appendMessage(aiMsg)
+                self.speak(text: summary)
+            }
+            return
+        }
+        
+        // 0.4 Commande i24NEWS (Actualités directes)
+        if norm.contains("i24") || norm.contains("i24news") || norm.contains("actualites") || norm.contains("actualités") || norm.contains("infos du jour") {
+            statusLabel.text = "● Chargement i24NEWS..."
+            NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] newsSummary in
+                guard let self = self else { return }
+                self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
+                let aiMsg = Message(content: newsSummary, isFromUser: false)
+                self.appendMessage(aiMsg)
+                self.speak(text: newsSummary)
+            }
+            return
+        }
+        
+        // 0.5 Commande d'activation Caméra en direct
         if norm.contains("camera") || norm.contains("appareil photo") || norm.contains("ouvre la camera") || norm.contains("active la camera") || norm.contains("lance la camera") || norm.contains("prends une photo") {
             self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
             let aiMsg = Message(content: "📷 J'active la caméra immédiatement ! Pointez l'objectif vers ce que vous souhaitez que j'analyse.", isFromUser: false)
