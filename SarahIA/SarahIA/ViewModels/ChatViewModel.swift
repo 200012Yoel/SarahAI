@@ -89,7 +89,7 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
-        AppleSpeechRecognizer.shared.$isListening
+        ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
                 self?.isMicRunning = listening
