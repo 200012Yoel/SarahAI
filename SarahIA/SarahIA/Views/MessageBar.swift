@@ -12,6 +12,8 @@ public struct MessageBar: View {
     var onPikudHaOref: (() -> Void)? = nil
     var onI24News: (() -> Void)? = nil
     
+    @ObservedObject private var flashlight: ObservableFlashlight
+    
     public init(
         text: Binding<String>,
         isRecording: Bool,
@@ -30,9 +32,8 @@ public struct MessageBar: View {
         self.onPlusTapped = onPlusTapped
         self.onPikudHaOref = onPikudHaOref
         self.onI24News = onI24News
+        self._flashlight = ObservedObject(wrappedValue: ObservableFlashlight.shared)
     }
-    
-    @ObservedObject private var flashlight = ObservableFlashlight.shared
     
     public var body: some View {
         VStack(spacing: 8) {
