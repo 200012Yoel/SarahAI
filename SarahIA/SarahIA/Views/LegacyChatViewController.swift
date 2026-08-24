@@ -1487,6 +1487,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.inputTextField.text = "Donne-moi les actualités"
             self?.sendButtonTapped()
         }))
+        sheet.addAction(UIAlertAction(title: "✨ Que sais-tu faire ?", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Que sais-tu faire ?"
+            self?.sendButtonTapped()
+        }))
+        sheet.addAction(UIAlertAction(title: "🚨 Alertes Pikoud HaOref", style: .default, handler: { [weak self] _ in
+            self?.fetchPikudAlertsDirectly()
+        }))
+        sheet.addAction(UIAlertAction(title: "📰 Actualités i24NEWS", style: .default, handler: { [weak self] _ in
+            self?.fetchI24NewsDirectly()
+        }))
         sheet.addAction(UIAlertAction(title: "📺 Sarah Vidéos (YouTube)", style: .default, handler: { [weak self] _ in
             self?.openYouTubePlayer()
         }))
@@ -1574,6 +1584,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }))
         alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+    
+    // MARK: - Actualités & Alertes en Direct
+    
+    public func fetchPikudAlertsDirectly() {
+        HapticService.shared.buttonTap()
+        let userMsg = Message(content: "🚨 [Vérification des alertes Pikoud HaOref]", isFromUser: true)
+        appendMessage(userMsg)
+        showTypingIndicator()
+        
+        RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
+            guard let self = self else { return }
+            self.hideTypingIndicator()
+            let aiMsg = Message(content: summary, isFromUser: false)
+            self.appendMessage(aiMsg)
+            TTSManager.shared.speakAsSarah(summary)
+        }
+    }
+    
+    public func fetchI24NewsDirectly() {
+        HapticService.shared.buttonTap()
+        let userMsg = Message(content: "📰 [Dernières actualités i24NEWS]", isFromUser: true)
+        appendMessage(userMsg)
+        showTypingIndicator()
+        
+        NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
+            guard let self = self else { return }
+            self.hideTypingIndicator()
+            let aiMsg = Message(content: summary, isFromUser: false)
+            self.appendMessage(aiMsg)
+            TTSManager.shared.speakAsSarah(summary)
+        }
     }
     
     // MARK: - Visionneur Vidéo YouTube Intégré

@@ -162,6 +162,30 @@ public struct MessageBar: View {
                             )
                         }
                         .fixedSize(horizontal: true, vertical: false)
+                        
+                        // 0.5 Bouton Que sais-tu faire ?
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            onSend("Que sais-tu faire ?")
+                        }) {
+                            HStack(spacing: 5) {
+                                Text("✨")
+                                    .font(.system(size: isCompact ? 11 : 12))
+                                Text("Que sais-tu faire ?")
+                                    .font(.system(size: isCompact ? 11 : 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                            }
+                            .padding(.horizontal, isCompact ? 10 : 12)
+                            .padding(.vertical, 6)
+                            .background(Color(red: 0.22, green: 0.14, blue: 0.32))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.purple.opacity(0.4), lineWidth: 1)
+                            )
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                     .padding(.horizontal, isCompact ? 12 : 16)
                 }

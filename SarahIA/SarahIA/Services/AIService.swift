@@ -188,7 +188,25 @@ public final class AIService {
             }
         }
         
-        if normalized.contains("que sais tu") || normalized.contains("tes souvenirs") || normalized.contains("liste memoire") || normalized.contains("ce que tu as appris") {
+        // 5.1 CAPACITÉS & FONCTIONNALITÉS GLOBALES DE SARAH IA
+        if normalized.contains("que sais-tu faire") || normalized.contains("que sais tu faire") || normalized.contains("que peux-tu faire") || normalized.contains("que peux tu faire") || normalized.contains("quelles sont tes fonctionnalites") || normalized.contains("tes fonctionnalites") || normalized.contains("tes capacites") || normalized.contains("aide moi") || normalized.contains("aide-moi") || normalized.contains("ce que tu sais faire") {
+            let capabilities = """
+            Voici tout ce que je sais faire pour vous assister au quotidien :
+
+            📱 **Partage d'écran en direct & Rendu PiP** : Visualisation en temps réel de votre écran avec fenêtre flottante persistante à la sortie de l'application.
+            📷 **Reconnaissance visuelle avec Tom** : Analyse d'objets, de documents, de textes et scan de QR codes en direct via la caméra.
+            🔦 **Gestion matérielle de la torche** : Allumage/extinction instantanés avec maintien actif en arrière-plan.
+            🚨 **Alertes en direct Pikoud HaOref** : Suivi en direct des alertes de sécurité et consignes du Front Intérieur en Israël.
+            📰 **Flux d'actualités i24NEWS & Franceinfo** : Derniers titres et dépêches d'information résumés vocalement.
+            🔋 **Surveillance de la batterie** : Contrôle du niveau d'énergie avec alerte vocale.
+            🎙️ **Synthèse & Reconnaissance vocale 100% naturelle** : Dialogue fluide au tac au tac avec interruption vocale (Barge-In).
+            """
+            recordExchange(userText: trimmed, assistantResponse: capabilities)
+            return capabilities
+        }
+        
+        // 5.2 GESTION DU COFFRE MÉMOIRE (Souvenirs appris uniquement)
+        if normalized.contains("tes souvenirs") || normalized.contains("liste memoire") || normalized.contains("ce que tu as appris") || normalized.contains("qu'as-tu appris") {
             let allMemories = getAllCombinedMemories()
             if allMemories.isEmpty {
                 let reply = "Je n'ai pas encore appris de réponses personnalisées. Dites par exemple : « Apprends papa = il est au travail » pour commencer !"
