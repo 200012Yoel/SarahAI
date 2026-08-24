@@ -1,6 +1,10 @@
 import SwiftUI
 
-/// Vue feuille des paramètres vocaux et personnalisation de Sarah AI
+/// Vue Réglages épurée et optimisée de Sarah AI :
+/// - Synthèse vocale et réglages des voix Sarah (Siri féminine) et Tom (Siri masculine)
+/// - Contrôles de vitesse, tonalité et détection vocale VAD
+/// - Actions de test direct des voix Sarah et Tom
+/// - Réinitialisation de la conversation
 @available(iOS 15.0, *)
 public struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -21,7 +25,8 @@ public struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
-                    Section(header: Text("Voix Locale de Sarah").foregroundColor(.sarahCyan)) {
+                    // 1. Profil Vocal de Sarah (Assistant Principal)
+                    Section(header: Text("Voix de Sarah (Féminine)").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Vitesse d'élocution")
@@ -46,21 +51,41 @@ public struct SettingsView: View {
                         
                         Button(action: {
                             HapticService.shared.buttonTap()
-                            viewModel.testVoiceSettings(rate: Float(speechRate), pitch: Float(speechPitch))
+                            TTSManager.shared.speakAsSarah("Bonjour ! Je suis Sarah, votre assistante vocale.")
                         }) {
                             HStack {
-                                Image(systemName: "play.circle.fill")
-                                Text("Tester la voix")
+                                Image(systemName: "speaker.wave.2.fill")
+                                Text("Tester la voix de Sarah")
                             }
                             .foregroundColor(.sarahCyan)
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Microphone & VAD Full-Duplex").foregroundColor(.sarahCyan)) {
+                    // 2. Profil Vocal de Tom (Assistant Vision & Caméra)
+                    Section(header: Text("Voix de Tom (Masculine / Vision)").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
+                        Text("Tom prend le relais dès que vous activez la caméra ou le partage d'écran pour analyser les objets en direct.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            TTSManager.shared.speakAsTom("Salut ! C'est Tom. Je suis prêt pour l'analyse visuelle et la caméra.")
+                        }) {
+                            HStack {
+                                Image(systemName: "eye.circle.fill")
+                                Text("Tester la voix de Tom")
+                            }
+                            .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
+                    // 3. Microphone & Détection Vocale Full-Duplex
+                    Section(header: Text("Microphone & Détection Vocale").foregroundColor(.sarahCyan)) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("Sensibilité de détection vocale")
+                                Text("Sensibilité VAD Full-Duplex")
                                 Spacer()
                                 Text("\(Int(vadSensitivity * 100))%")
                                     .foregroundColor(.gray)
@@ -71,132 +96,8 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    Section(header: Text("Widgets Sarah IA (iPhone 5S à 16)").foregroundColor(.sarahCyan)) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            NavigationLink(destination: WidgetsGalleryView(viewModel: viewModel)) {
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color.sarahCyan.opacity(0.2))
-                                            .frame(width: 32, height: 32)
-                                        Image(systemName: "square.grid.2x2.fill")
-                                            .foregroundColor(.sarahCyan)
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Galerie des 8 Widgets")
-                                            .font(.system(size: 15, weight: .bold))
-                                            .foregroundColor(.white)
-                                        Text("Voir et tester tous les 8 widgets actifs")
-                                            .font(.system(size: 11))
-                                            .foregroundColor(.gray)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                            
-                            Divider().background(Color.white.opacity(0.1))
-                            
-                            // Prévisualisation du Widget Largeur Moyenne
-                            SarahUsageStatsWidgetView(
-                                entry: SarahWidgetEntry(
-                                    date: Date(),
-                                    stats: SarahWidgetBridge.shared.getStats()
-                                )
-                            )
-                            .frame(height: 120)
-                            .padding(12)
-                            .background(Color(red: 0.08, green: 0.08, blue: 0.10))
-                            .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                            
-                            Text("💡 Les 8 widgets sont actifs en temps réel. Maintenez l'écran d'accueil appuyé et appuyez sur « + » pour les ajouter.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                                .lineSpacing(3)
-                        }
-                        .padding(.vertical, 6)
-                    }
-                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
-                    
-                    Section(header: Text("Transfert & Synchronisation (P2P Local)").foregroundColor(.sarahCyan)) {
-                        NavigationLink(destination: LocalSyncQRView(viewModel: viewModel)) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.2))
-                                        .frame(width: 32, height: 32)
-                                    Image(systemName: "qrcode.viewfinder")
-                                        .foregroundColor(Color(red: 0.04, green: 0.52, blue: 1.0))
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Synchronisation QR Code")
-                                        .font(.system(size: 15, weight: .bold))
-                                        .foregroundColor(.white)
-                                    Text("Transférer toutes les discussions vers un autre iPhone")
-                                        .font(.system(size: 11))
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                    }
-                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
-                    
-                    Section(header: Text("Services Connectés & Veille en Direct").foregroundColor(.sarahCyan)) {
-                        HStack(spacing: 12) {
-                            Text("🌤️")
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Météo GPS Temps Réel")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Dites « Quel temps fait-il ? » ou « Météo »")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        
-                        HStack(spacing: 12) {
-                            Text("🚨")
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Alertes Pikoud HaOref (Israël)")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Dites « Alertes en Israël » ou « Statut sécurité »")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        
-                        HStack(spacing: 12) {
-                            Text("📰")
-                                .font(.system(size: 20))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Actualités (i24NEWS & Franceinfo)")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
-                                Text("Dites « Donne-moi les actualités » ou « Les infos »")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                    }
-                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
-                    
-                    Section(header: Text("Historique & Réinitialisation").foregroundColor(.sarahCyan)) {
+                    // 4. Historique & Réinitialisation
+                    Section(header: Text("Historique de Discussion").foregroundColor(.sarahCyan)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()

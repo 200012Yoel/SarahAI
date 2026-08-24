@@ -9,6 +9,8 @@ public struct MessageBar: View {
     var onToggleMic: () -> Void
     var onCamera: (() -> Void)? = nil
     var onPlusTapped: (() -> Void)? = nil
+    var onPikudHaOref: (() -> Void)? = nil
+    var onI24News: (() -> Void)? = nil
     
     public init(
         text: Binding<String>,
@@ -16,7 +18,9 @@ public struct MessageBar: View {
         onSend: @escaping (String) -> Void,
         onToggleMic: @escaping () -> Void,
         onCamera: (() -> Void)? = nil,
-        onPlusTapped: (() -> Void)? = nil
+        onPlusTapped: (() -> Void)? = nil,
+        onPikudHaOref: (() -> Void)? = nil,
+        onI24News: (() -> Void)? = nil
     ) {
         self._text = text
         self.isRecording = isRecording
@@ -24,6 +28,8 @@ public struct MessageBar: View {
         self.onToggleMic = onToggleMic
         self.onCamera = onCamera
         self.onPlusTapped = onPlusTapped
+        self.onPikudHaOref = onPikudHaOref
+        self.onI24News = onI24News
     }
     
     @ObservedObject private var flashlight = ObservableFlashlight.shared
@@ -68,10 +74,14 @@ public struct MessageBar: View {
                         )
                     }
                     
-                    // 0.2 Bouton d'Alerte Pikoud HaOref
+                    // 0.2 Bouton d'Alerte Pikoud HaOref (Interrogation Directe)
                     Button(action: {
                         HapticService.shared.buttonTap()
-                        onSend("Y a-t-il des alertes Pikoud HaOref en Israël en ce moment ?")
+                        if let onPikud = onPikudHaOref {
+                            onPikud()
+                        } else {
+                            onSend("Y a-t-il des alertes Pikoud HaOref en Israël en ce moment ?")
+                        }
                     }) {
                         HStack(spacing: 5) {
                             Text("🚨")
@@ -89,10 +99,14 @@ public struct MessageBar: View {
                         )
                     }
                     
-                    // 0.3 Bouton i24NEWS en Direct
+                    // 0.3 Bouton i24NEWS en Direct (Interrogation Directe)
                     Button(action: {
                         HapticService.shared.buttonTap()
-                        onSend("Donne-moi les dernières actualités de i24NEWS")
+                        if let onNews = onI24News {
+                            onNews()
+                        } else {
+                            onSend("Donne-moi les dernières actualités de i24NEWS")
+                        }
                     }) {
                         HStack(spacing: 5) {
                             Text("📰")

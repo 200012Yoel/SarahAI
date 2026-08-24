@@ -717,13 +717,39 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func pikudHaOrefTapped() {
-        inputTextField.text = "Y a-t-il des alertes Pikoud HaOref en Israël en ce moment ?"
-        sendButtonTapped()
+        dismissKeyboard()
+        HapticService.shared.buttonTap()
+        
+        let userMsg = Message(content: "🚨 [Vérification des alertes Pikoud HaOref]", isFromUser: true, timestamp: Date())
+        self.appendMessage(userMsg)
+        self.statusLabel.text = "● Sarah vérifie les alertes..."
+        
+        RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
+            guard let self = self else { return }
+            self.statusLabel.text = "● En ligne"
+            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
+            self.appendMessage(aiMsg)
+            self.speak(text: summary)
+            self.saveState()
+        }
     }
     
     @objc private func i24NewsTapped() {
-        inputTextField.text = "Donne-moi les dernières actualités de i24NEWS"
-        sendButtonTapped()
+        dismissKeyboard()
+        HapticService.shared.buttonTap()
+        
+        let userMsg = Message(content: "📰 [Dernières actualités i24NEWS]", isFromUser: true, timestamp: Date())
+        self.appendMessage(userMsg)
+        self.statusLabel.text = "● Sarah consulte i24NEWS..."
+        
+        NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
+            guard let self = self else { return }
+            self.statusLabel.text = "● En ligne"
+            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
+            self.appendMessage(aiMsg)
+            self.speak(text: summary)
+            self.saveState()
+        }
     }
     
     @objc private func suggestionTapped(_ sender: UIButton) {

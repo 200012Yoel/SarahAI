@@ -89,6 +89,12 @@ public struct ChatScreenView: View {
                         },
                         onPlusTapped: {
                             isShowingActionSheet = true
+                        },
+                        onPikudHaOref: {
+                            viewModel.fetchPikudHaOrefAlerts()
+                        },
+                        onI24News: {
+                            viewModel.fetchI24NewsHeadlines()
                         }
                     )
                     .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))

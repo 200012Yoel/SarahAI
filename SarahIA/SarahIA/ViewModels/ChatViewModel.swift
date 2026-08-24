@@ -551,6 +551,42 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Actions Rapides Directes (Pikoud HaOref & i24NEWS)
+    
+    public func fetchPikudHaOrefAlerts() {
+        haptics.buttonTap()
+        let userMsg = Message(content: "🚨 [Vérification des alertes Pikoud HaOref]", isFromUser: true, timestamp: Date())
+        appendMessage(userMsg)
+        isTyping = true
+        beginAIBgTask()
+        
+        RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
+            guard let self = self else { return }
+            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
+            self.appendMessage(aiMsg)
+            self.isTyping = false
+            SpeechManager.shared.speak(text: summary)
+            self.endAIBgTask()
+        }
+    }
+    
+    public func fetchI24NewsHeadlines() {
+        haptics.buttonTap()
+        let userMsg = Message(content: "📰 [Dernières actualités i24NEWS]", isFromUser: true, timestamp: Date())
+        appendMessage(userMsg)
+        isTyping = true
+        beginAIBgTask()
+        
+        NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
+            guard let self = self else { return }
+            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
+            self.appendMessage(aiMsg)
+            self.isTyping = false
+            SpeechManager.shared.speak(text: summary)
+            self.endAIBgTask()
+        }
+    }
+    
     // MARK: - Partage d'Écran Universel & Analyse Visuelle en Temps Réel
     
     public func startScreenShareAnalysis() {
