@@ -256,6 +256,17 @@ public final class ChatViewModel: ObservableObject {
         persistCurrentState()
     }
     
+    public func deleteAllConversations() {
+        haptics.memoryDeleted()
+        ttsService.stopSpeaking()
+        conversations.removeAll()
+        messages.removeAll()
+        currentConversationId = nil
+        inputText = ""
+        aiService.syncHistoryFromMessages([])
+        persistCurrentState()
+    }
+    
     public func archiveConversation(_ conv: Conversation) {
         haptics.buttonTap()
         if let index = conversations.firstIndex(where: { $0.id == conv.id }) {

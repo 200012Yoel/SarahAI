@@ -816,25 +816,9 @@ public final class AIService {
     
     public func generateSmartTitle(from userText: String, responseText: String? = nil) -> String {
         let clean = userText.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-        let norm = normalizeText(clean)
+        guard !clean.isEmpty else { return "Nouvelle discussion" }
         
-        if norm.contains("batterie") { return "🔋 Niveau de batterie" }
-        if norm.contains("torche") || norm.contains("lampe") || norm.contains("flash") { return "🔦 Lampe torche" }
-        if norm.contains("heure") || norm.contains("date") || norm.contains("jour") { return "⏰ Heure & Date" }
-        if norm.contains("meteo") || norm.contains("temps") || norm.contains("pluie") || norm.contains("soleil") { return "☀️ Météo" }
-        if norm.contains("blague") || norm.contains("rire") || norm.contains("humour") { return "😂 Blague & Humour" }
-        if norm.contains("histoire") || norm.contains("conte") { return "📖 Petite histoire" }
-        if norm.contains("poeme") || norm.contains("chante") || norm.contains("chanson") { return "🎵 Poème & Musique" }
-        if norm.contains("citation") || norm.contains("motivation") || norm.contains("proverbe") { return "✨ Pensée inspirante" }
-        if norm.contains("presse papier") || norm.contains("copie") { return "📋 Presse-papier" }
-        if norm.contains("traduis") || norm.contains("traduction") || norm.contains("en anglais") || norm.contains("en hebreu") { return "🌐 Traduction" }
-        if norm.contains("apprends") || norm.contains("enseigne") || norm.contains("souvenir") || norm.contains("memoire") { return "🧠 Apprentissage" }
-        if norm.contains("calcule") || norm.contains("combien font") || norm.contains("fois") || norm.contains("+") || norm.contains("*") { return "🧮 Calcul mathématique" }
-        if norm.contains("fatigue") || norm.contains("moral") || norm.contains("triste") || norm.contains("content") || norm.contains("heureux") { return "💬 Humeur & Partage" }
-        if norm.contains("qui es tu") || norm.contains("sarah") || norm.contains("presentation") || norm.contains("que sais tu faire") { return "👩🏻‍💼 Découverte de Sarah" }
-        if norm.contains("apple") || norm.contains("steve jobs") || norm.contains("iphone") { return "🍎 Univers Apple" }
-        if norm.contains("capitale") || norm.contains("pays") || norm.contains("monde") { return "🌍 Géographie & Culture" }
-        
+        // Supprimer les salutations d'accroche pour garder la question essentielle
         var stripped = clean
         let prefixesToRemove = ["bonjour,", "bonjour", "salut,", "salut", "coucou,", "coucou", "hello,", "hello", "dis moi,", "dis moi", "dis-moi,", "dis-moi", "est-ce que tu peux", "peux-tu", "est ce que tu peux", "pourrais-tu", "stp", "s'il te plait", "s'il vous plait"]
         for prefix in prefixesToRemove {
@@ -843,15 +827,13 @@ public final class AIService {
             }
         }
         
-        if stripped.isEmpty {
-            return "💬 Discussion avec Sarah"
-        }
+        let finalTitle = stripped.isEmpty ? clean : stripped
+        let capitalized = finalTitle.prefix(1).uppercased() + finalTitle.dropFirst()
         
-        let capitalized = stripped.prefix(1).uppercased() + stripped.dropFirst()
-        if capitalized.count > 28 {
-            return "💡 " + String(capitalized.prefix(28)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        if capitalized.count > 34 {
+            return String(capitalized.prefix(34)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
         }
-        return "💡 " + capitalized
+        return capitalized
     }
     
     // MARK: - Évaluation Mathématique Avancée (NSExpression)

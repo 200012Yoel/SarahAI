@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec mise à l'échelle dynamique et anti-débordement sur iPhone 5s à 16 Pro Max.
+/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec gestion instantanée des discussions multiples et 0 discussion.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -9,6 +9,7 @@ public struct SidebarView: View {
     @State private var conversationToRename: Conversation? = nil
     @State private var newTitleText: String = ""
     @State private var isShowingRenameAlert: Bool = false
+    @State private var isShowingClearAllAlert: Bool = false
     @State private var isShowingWidgets: Bool = false
     @State private var isShowingSyncQR: Bool = false
     
@@ -28,8 +29,8 @@ public struct SidebarView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header: Titre "Sarah IA" + Bouton Recherche Circulaire
-                    HStack(alignment: .center, spacing: 10) {
+                    // Header: Titre "Sarah IA" + Boutons d'actions
+                    HStack(alignment: .center, spacing: 8) {
                         Text("Sarah IA")
                             .font(.system(size: isCompact ? 22 : 24, weight: .bold))
                             .foregroundColor(.white)
@@ -37,6 +38,25 @@ public struct SidebarView: View {
                             .minimumScaleFactor(0.85)
                         
                         Spacer()
+                        
+                        // Bouton Vider tout (si discussions existantes)
+                        if !viewModel.conversations.isEmpty {
+                            Button(action: {
+                                HapticService.shared.buttonTap()
+                                isShowingClearAllAlert = true
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(red: 0.16, green: 0.12, blue: 0.12))
+                                        .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
+                                    
+                                    Image(systemName: "trash")
+                                        .font(.system(size: isCompact ? 13 : 15, weight: .medium))
+                                        .foregroundColor(Color.red.opacity(0.85))
+                                }
+                            }
+                            .buttonStyle(ScaleBounceButtonStyle())
+                        }
                         
                         // Bouton recherche circulaire
                         Button(action: {
@@ -50,7 +70,7 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
                                     .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
                                 
                                 Image(systemName: "magnifyingglass")
@@ -106,22 +126,50 @@ public struct SidebarView: View {
                                     .padding(.horizontal, horizontalPadding)
                                     .padding(.top, 8)
                                     .padding(.bottom, 4)
-                                
+                                    
                                 ForEach(viewModel.filteredPinnedConversations) { conv in
                                     conversationRow(conv, isPinned: true, isCompact: isCompact, padding: horizontalPadding)
                                 }
                             }
                             
                             // Section Récents
-                            Text("Récents")
-                                .font(.system(size: isCompact ? 18 : 20, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, horizontalPadding)
-                                .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 8 : 20)
-                                .padding(.bottom, 4)
+                            HStack {
+                                Text("Récents")
+                                    .font(.system(size: isCompact ? 18 : 20, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Text("\(viewModel.conversations.count) discussion\(viewModel.conversations.count > 1 ? "s" : "")")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(Color.gray.opacity(0.8))
+                            }
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 8 : 20)
+                            .padding(.bottom, 4)
                             
-                            if viewModel.filteredRecentConversations.isEmpty {
-                                Text(viewModel.searchQuery.isEmpty ? "Aucune discussion." : "Aucun résultat.")
+                            if viewModel.conversations.isEmpty {
+                                // État Vierge garanti : 0 discussion
+                                VStack(spacing: 12) {
+                                    Image(systemName: "bubble.left.and.bubble.right")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(Color.gray.opacity(0.5))
+                                        .padding(.top, 24)
+                                    
+                                    Text("0 discussion")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                    
+                                    Text("Posez une question pour démarrer une nouvelle conversation.")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 20)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
+                            } else if viewModel.filteredRecentConversations.isEmpty {
+                                Text(viewModel.searchQuery.isEmpty ? "Aucune discussion récente." : "Aucun résultat pour cette recherche.")
                                     .font(.system(size: isCompact ? 14 : 15))
                                     .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
                                     .padding(.horizontal, horizontalPadding)
@@ -140,12 +188,12 @@ public struct SidebarView: View {
                 }
                 .frame(width: sidebarWidth, alignment: .leading)
                 
-                // Barre Inférieure (.sb-bottom) avec dégradé et boutons proportionnels
+                // Barre Inférieure (.sb-bottom)
                 VStack(spacing: 0) {
                     Spacer()
                     
                     HStack(spacing: isCompact ? 5 : 8) {
-                        // Bouton Pill Bleu "Nouveau" (#btnNewChat)
+                        // Bouton Pill Bleu "Nouveau"
                         Button(action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
@@ -200,30 +248,13 @@ public struct SidebarView: View {
                                     .frame(width: btnSize, height: btnSize)
                                 
                                 Image(systemName: "qrcode")
-                                    .font(.system(size: isCompact ? 13 : 15, weight: .regular))
-                                    .foregroundColor(.white)
+                                    .font(.system(size: isCompact ? 12 : 14))
+                                    .foregroundColor(Color(red: 0.20, green: 0.85, blue: 1.0))
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        // Bouton Circulaire Widgets 📊 (#btnWidgets)
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            isShowingWidgets = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                    .frame(width: btnSize, height: btnSize)
-                                
-                                Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: isCompact ? 13 : 15, weight: .regular))
-                                    .foregroundColor(.sarahCyan)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                        
-                        // Bouton Circulaire Paramètres (#btnSettings)
+                        // Bouton Circulaire Paramètres ⚙️
                         Button(action: {
                             HapticService.shared.buttonTap()
                             isShowingSettings = true
@@ -233,16 +264,15 @@ public struct SidebarView: View {
                                     .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
                                     .frame(width: btnSize, height: btnSize)
                                 
-                                Image(systemName: "gearshape")
-                                    .font(.system(size: isCompact ? 14 : 16, weight: .regular))
-                                    .foregroundColor(.white)
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: isCompact ? 12 : 14))
+                                    .foregroundColor(.gray)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(.horizontal, isCompact ? 10 : 14)
-                    .padding(.top, 12)
-                    .padding(.bottom, max(14, geo.safeAreaInsets.bottom + 6))
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, isCompact ? 8 : 12)
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -257,27 +287,20 @@ public struct SidebarView: View {
                 }
                 .frame(width: sidebarWidth)
             }
+            .frame(width: sidebarWidth)
         }
-        .sheet(isPresented: $isShowingWidgets) {
-            WidgetsGalleryView(viewModel: viewModel)
+        .alert(isPresented: $isShowingClearAllAlert) {
+            Alert(
+                title: Text("Supprimer toutes les discussions ?"),
+                message: Text("Cette action est irréversible et réinitialisera l'historique à 0 discussion."),
+                primaryButton: .destructive(Text("Tout supprimer")) {
+                    viewModel.deleteAllConversations()
+                },
+                secondaryButton: .cancel(Text("Annuler"))
+            )
         }
         .sheet(isPresented: $isShowingSyncQR) {
             LocalSyncQRView(viewModel: viewModel)
-        }
-        // Modale Native de Renommage
-        .alert("Renommer la discussion", isPresented: $isShowingRenameAlert) {
-            TextField("Nouveau titre", text: $newTitleText)
-            Button("Annuler", role: .cancel) {
-                conversationToRename = nil
-            }
-            Button("Renommer") {
-                if let conv = conversationToRename {
-                    viewModel.renameConversation(conv, newTitle: newTitleText)
-                }
-                conversationToRename = nil
-            }
-        } message: {
-            Text("Saisissez un nouveau titre.")
         }
     }
     
