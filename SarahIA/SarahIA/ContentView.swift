@@ -10,7 +10,7 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = geo.size.width * 0.78
+            let sidebarWidth = max(250, min(geo.size.width * 0.82, 330))
             
             ZStack(alignment: .leading) {
                 // 1. CALQUE DU FOND : Menu Latéral (Sidebar)

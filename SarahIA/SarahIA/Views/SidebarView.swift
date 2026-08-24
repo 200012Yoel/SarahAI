@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI reproduisant fidèlement la maquette HTML/CSS.
+/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec mise à l'échelle dynamique et anti-débordement sur iPhone 5s à 16 Pro Max.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -19,23 +19,26 @@ public struct SidebarView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = geo.size.width * 0.78
+            let isCompact = geo.size.width <= 360
+            let sidebarWidth = max(250, min(geo.size.width * 0.82, 330))
+            let horizontalPadding: CGFloat = isCompact ? 14 : 20
             
             ZStack(alignment: .topLeading) {
                 // Background #000
                 Color.black.ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header: Titre "Sarah IA" + Bouton Recherche Circulaire 44pt
+                    // Header: Titre "Sarah IA" + Bouton Recherche Circulaire
                     HStack(alignment: .center, spacing: 10) {
                         Text("Sarah IA")
-                            .font(.system(size: 24, weight: .bold))
+                            .font(.system(size: isCompact ? 22 : 24, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                         
                         Spacer()
                         
-                        // Bouton recherche circulaire 38x38
+                        // Bouton recherche circulaire
                         Button(action: {
                             HapticService.shared.buttonTap()
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -48,29 +51,30 @@ public struct SidebarView: View {
                             ZStack {
                                 Circle()
                                     .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
-                                    .frame(width: 38, height: 38)
+                                    .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
                                 
                                 Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 16, weight: .medium))
+                                    .font(.system(size: isCompact ? 14 : 16, weight: .medium))
                                     .foregroundColor(.white)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 48)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, max(16, geo.safeAreaInsets.top + 8))
                     .padding(.bottom, 8)
                     
-                    // Barre de Recherche Animée (.sb-search.on)
+                    // Barre de Recherche Animée
                     if viewModel.isSearchActive {
                         HStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                                .font(.system(size: 15))
+                                .font(.system(size: 14))
                             
                             TextField("Rechercher", text: $viewModel.searchQuery)
-                                .font(.system(size: 16))
+                                .font(.system(size: isCompact ? 14 : 16))
                                 .foregroundColor(.white)
+                                .lineLimit(1)
                             
                             if !viewModel.searchQuery.isEmpty {
                                 Button(action: {
@@ -78,92 +82,95 @@ public struct SidebarView: View {
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.gray)
-                                        .font(.system(size: 16))
+                                        .font(.system(size: 15))
                                 }
                             }
                         }
-                        .padding(.horizontal, 14)
-                        .frame(height: 40)
-                        .background(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                        .cornerRadius(12)
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, 12)
+                        .frame(height: isCompact ? 36 : 40)
+                        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
+                        .cornerRadius(10)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.bottom, 10)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                     
-                    // Liste Déroulante des Discussions (.sb-scroll)
+                    // Liste Déroulante des Discussions
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 0) {
                             // Section Épinglés
                             if !viewModel.filteredPinnedConversations.isEmpty {
                                 Text("Épinglés")
-                                    .font(.system(size: 21, weight: .bold))
+                                    .font(.system(size: isCompact ? 18 : 20, weight: .bold))
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 6)
+                                    .padding(.horizontal, horizontalPadding)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 4)
                                 
                                 ForEach(viewModel.filteredPinnedConversations) { conv in
-                                    conversationRow(conv, isPinned: true)
+                                    conversationRow(conv, isPinned: true, isCompact: isCompact, padding: horizontalPadding)
                                 }
                             }
                             
                             // Section Récents
                             Text("Récents")
-                                .font(.system(size: 21, weight: .bold))
+                                .font(.system(size: isCompact ? 18 : 20, weight: .bold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 10 : 26)
-                                .padding(.bottom, 6)
+                                .padding(.horizontal, horizontalPadding)
+                                .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 8 : 20)
+                                .padding(.bottom, 4)
                             
                             if viewModel.filteredRecentConversations.isEmpty {
                                 Text(viewModel.searchQuery.isEmpty ? "Aucune discussion." : "Aucun résultat.")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58)) // #8e8e93
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 14)
+                                    .font(.system(size: isCompact ? 14 : 15))
+                                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
+                                    .padding(.horizontal, horizontalPadding)
+                                    .padding(.vertical, 12)
                             } else {
                                 ForEach(viewModel.filteredRecentConversations) { conv in
-                                    conversationRow(conv, isPinned: false)
+                                    conversationRow(conv, isPinned: false, isCompact: isCompact, padding: horizontalPadding)
                                 }
                             }
                             
-                            // Espace pour éviter que le contenu ne soit caché par les boutons du bas
+                            // Marge basse pour défilement complet au-dessus de la barre
                             Spacer()
-                                .frame(height: 130)
+                                .frame(height: 110)
                         }
                     }
                 }
                 .frame(width: sidebarWidth, alignment: .leading)
                 
-                // Barre Inférieure (.sb-bottom) avec dégradé
-                VStack {
+                // Barre Inférieure (.sb-bottom) avec dégradé et boutons proportionnels
+                VStack(spacing: 0) {
                     Spacer()
                     
-                    HStack(spacing: 8) {
+                    HStack(spacing: isCompact ? 5 : 8) {
                         // Bouton Pill Bleu "Nouveau" (#btnNewChat)
                         Button(action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
                             viewModel.switchToChat()
                         }) {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 4) {
                                 Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .font(.system(size: isCompact ? 13 : 15, weight: .semibold))
                                 
                                 Text("Nouveau")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(Color(red: 0.04, green: 0.52, blue: 1.0)) // #0a84ff
+                            .padding(.horizontal, isCompact ? 9 : 12)
+                            .padding(.vertical, isCompact ? 7 : 9)
+                            .background(Color(red: 0.04, green: 0.52, blue: 1.0))
                             .clipShape(Capsule())
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 2)
+                        
+                        let btnSize: CGFloat = isCompact ? 32 : 36
                         
                         // Bouton Circulaire Vidéos YouTube 📺
                         Button(action: {
@@ -172,11 +179,11 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
-                                    .frame(width: 38, height: 38)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .frame(width: btnSize, height: btnSize)
                                 
                                 Image(systemName: "play.tv.fill")
-                                    .font(.system(size: 14))
+                                    .font(.system(size: isCompact ? 12 : 14))
                                     .foregroundColor(.red)
                             }
                         }
@@ -189,11 +196,11 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
-                                    .frame(width: 38, height: 38)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .frame(width: btnSize, height: btnSize)
                                 
                                 Image(systemName: "qrcode")
-                                    .font(.system(size: 15, weight: .regular))
+                                    .font(.system(size: isCompact ? 13 : 15, weight: .regular))
                                     .foregroundColor(.white)
                             }
                         }
@@ -206,11 +213,11 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
-                                    .frame(width: 38, height: 38)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .frame(width: btnSize, height: btnSize)
                                 
                                 Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: 15, weight: .regular))
+                                    .font(.system(size: isCompact ? 13 : 15, weight: .regular))
                                     .foregroundColor(.sarahCyan)
                             }
                         }
@@ -223,19 +230,19 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
-                                    .frame(width: 38, height: 38)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .frame(width: btnSize, height: btnSize)
                                 
                                 Image(systemName: "gearshape")
-                                    .font(.system(size: 16, weight: .regular))
+                                    .font(.system(size: isCompact ? 14 : 16, weight: .regular))
                                     .foregroundColor(.white)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, isCompact ? 10 : 14)
                     .padding(.top, 12)
-                    .padding(.bottom, 26)
+                    .padding(.bottom, max(14, geo.safeAreaInsets.bottom + 6))
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -277,7 +284,7 @@ public struct SidebarView: View {
     // MARK: - Ligne de Discussion (.conv)
     
     @ViewBuilder
-    private func conversationRow(_ conv: Conversation, isPinned: Bool) -> some View {
+    private func conversationRow(_ conv: Conversation, isPinned: Bool, isCompact: Bool, padding: CGFloat) -> some View {
         let isSelected = (viewModel.currentConversationId == conv.id)
         
         Button(action: {
@@ -285,27 +292,28 @@ public struct SidebarView: View {
             viewModel.selectConversation(conv)
             viewModel.closeDrawer()
         }) {
-            HStack(spacing: 20) {
+            HStack(spacing: isCompact ? 10 : 14) {
                 if isPinned {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: isCompact ? 14 : 16))
                         .foregroundColor(.white.opacity(0.85))
                 }
                 
                 Text(conv.title)
-                    .font(.system(size: 19, weight: .regular))
+                    .font(.system(size: isCompact ? 15 : 17, weight: .regular))
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.85)
                 
                 Spacer()
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
+            .padding(.horizontal, padding)
+            .padding(.vertical, isCompact ? 10 : 12)
             .background(isSelected ? Color.white.opacity(0.09) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
-        // Menu Contextuel Natif iOS (.ctxMenu)
         .contextMenu {
             Button {
                 HapticService.shared.buttonTap()
