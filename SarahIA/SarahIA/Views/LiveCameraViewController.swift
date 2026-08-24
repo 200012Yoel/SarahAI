@@ -75,6 +75,7 @@ public final class LiveCameraViewController: UIViewController {
     
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        bringControlsToFront()
         // Message d'accueil léger et direct sans blocage audio
         TTSManager.shared.handOffToTom(
             sarahTransitionPhrase: "Je regarde ce que tu me montres.",
@@ -85,6 +86,15 @@ public final class LiveCameraViewController: UIViewController {
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         LiveCameraManager.shared.updatePreviewLayout(bounds: previewContainer.bounds)
+        bringControlsToFront()
+    }
+    
+    private func bringControlsToFront() {
+        view.bringSubviewToFront(previewContainer)
+        view.bringSubviewToFront(recognizedObjectCard)
+        view.bringSubviewToFront(statusBanner)
+        view.bringSubviewToFront(topBarView)
+        view.bringSubviewToFront(bottomDock)
     }
     
     public override func viewWillDisappear(_ animated: Bool) {
@@ -105,7 +115,7 @@ public final class LiveCameraViewController: UIViewController {
     private func setupUI() {
         let isSmallScreen = UIScreen.main.bounds.width <= 360 // iPhone 5S, SE
         let btnSize: CGFloat = isSmallScreen ? 38 : 44
-        let squareSize: CGFloat = isSmallScreen ? 50 : 58
+        let squareSize: CGFloat = isSmallScreen ? 54 : 62
         let captureBtnSize: CGFloat = isSmallScreen ? 46 : 52
         let stackSpacing: CGFloat = isSmallScreen ? 8 : 14
         
@@ -310,24 +320,26 @@ public final class LiveCameraViewController: UIViewController {
             cameraHiddenLabel.centerXAnchor.constraint(equalTo: cameraHiddenOverlay.centerXAnchor),
             
             topBarView.topAnchor.constraint(equalTo: topSafeArea, constant: 8),
-            topBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            topBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            topBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            topBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             topBarView.heightAnchor.constraint(equalToConstant: btnSize),
             
             closeButton.leadingAnchor.constraint(equalTo: topBarView.leadingAnchor),
             closeButton.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
             
+            liveVisionBadge.leadingAnchor.constraint(greaterThanOrEqualTo: closeButton.trailingAnchor, constant: 6),
+            liveVisionBadge.trailingAnchor.constraint(lessThanOrEqualTo: topButtonsStack.leadingAnchor, constant: -6),
             liveVisionBadge.centerXAnchor.constraint(equalTo: topBarView.centerXAnchor),
             liveVisionBadge.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
             liveVisionBadge.heightAnchor.constraint(equalToConstant: 30),
             
-            liveVisionDot.leadingAnchor.constraint(equalTo: liveVisionBadge.leadingAnchor, constant: 10),
+            liveVisionDot.leadingAnchor.constraint(equalTo: liveVisionBadge.leadingAnchor, constant: 8),
             liveVisionDot.centerYAnchor.constraint(equalTo: liveVisionBadge.centerYAnchor),
             liveVisionDot.widthAnchor.constraint(equalToConstant: 7),
             liveVisionDot.heightAnchor.constraint(equalToConstant: 7),
             
             liveVisionTitle.leadingAnchor.constraint(equalTo: liveVisionDot.trailingAnchor, constant: 6),
-            liveVisionTitle.trailingAnchor.constraint(equalTo: liveVisionBadge.trailingAnchor, constant: -10),
+            liveVisionTitle.trailingAnchor.constraint(equalTo: liveVisionBadge.trailingAnchor, constant: -8),
             liveVisionTitle.centerYAnchor.constraint(equalTo: liveVisionBadge.centerYAnchor),
             
             topButtonsStack.trailingAnchor.constraint(equalTo: topBarView.trailingAnchor),
@@ -347,10 +359,10 @@ public final class LiveCameraViewController: UIViewController {
             statusBanner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             statusBanner.heightAnchor.constraint(equalToConstant: 30),
             
-            bottomDock.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            bottomDock.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            bottomDock.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            bottomDock.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             bottomDock.bottomAnchor.constraint(equalTo: bottomSafeArea, constant: -12),
-            bottomDock.heightAnchor.constraint(equalToConstant: squareSize + 8),
+            bottomDock.heightAnchor.constraint(equalToConstant: squareSize + 10),
             
             dockStack.centerXAnchor.constraint(equalTo: bottomDock.centerXAnchor),
             dockStack.centerYAnchor.constraint(equalTo: bottomDock.centerYAnchor),
@@ -388,7 +400,7 @@ public final class LiveCameraViewController: UIViewController {
     // MARK: - Visualiseur & Monitoring Micro Temps Réel
     
     private func setupVoiceVisualizer() {
-        voiceWaveSquare.audioLevel = 0.35
+        voiceWaveSquare.audioLevel = 0.40
     }
     
     private func startMicLevelMonitoring() {
@@ -397,16 +409,13 @@ public final class LiveCameraViewController: UIViewController {
             guard let self = self, self.isVoiceActive, !self.isMicMuted else { return }
             
             if SpeechManager.shared.isSpeaking {
-                // Sarah / Tom parle : amplitude dynamique élevée
                 let randomLevel = Float.random(in: 0.65...0.95)
                 self.voiceWaveSquare.audioLevel = randomLevel
             } else if AppleSpeechRecognizer.shared.isListening {
-                // Écoute de l'utilisateur
                 let micLevel = max(0.25, AppleSpeechRecognizer.shared.micEnergyLevel)
                 self.voiceWaveSquare.audioLevel = micLevel
             } else {
-                // État de veille / respiration
-                self.voiceWaveSquare.audioLevel = 0.20
+                self.voiceWaveSquare.audioLevel = 0.25
             }
         }
     }
@@ -546,7 +555,6 @@ public final class LiveCameraViewController: UIViewController {
                 self.isAnalyzing = false
                 self.captureActionButton.alpha = 1.0
                 
-                // Affichage carte résultat
                 self.recognizedObjectLabel.text = "👁️ \(result.objectLabel)\n\(result.detectedText.prefix(60))"
                 UIView.animate(withDuration: 0.25) {
                     self.recognizedObjectCard.alpha = 1.0
@@ -634,10 +642,6 @@ public final class LiveCameraViewController: UIViewController {
     }
     
     private func speak(_ text: String) {
-<<<<<<< HEAD
-        TTSManager.shared.speakAsTom(text)
-=======
         TTSManager.shared.speakAsSarah(text)
->>>>>>> 88663f2 (Enhance Vision engine and Tom voice synthesis for real-time camera recognition)
     }
 }
