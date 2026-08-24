@@ -57,8 +57,23 @@ public final class LiveCameraViewController: UIViewController {
         view.backgroundColor = .black
         setupUI()
         setupGestures()
+        
+        // Attachement immédiat sans aucun délai d'attente
+        LiveCameraManager.shared.attachPreview(to: previewContainer)
         checkCameraPermissionAndSetup()
         setupVoiceVisualizer()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDismissAllNotification),
+            name: NSNotification.Name("SarahDismissAllModals"),
+            object: nil
+        )
+    }
+    
+    @objc private func handleDismissAllNotification() {
+        LiveCameraManager.shared.stopSession()
+        dismiss(animated: true, completion: nil)
     }
     
     public override func viewWillAppear(_ animated: Bool) {

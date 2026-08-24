@@ -110,6 +110,25 @@ public final class AIService {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)
         
+        // 0. COMMANDE D'ARRÊT & FERMETURE IMMÉDIATE ("Casse-toi", "Tais-toi", "Ferme-la", "Ferme les conf", "Arrête tout")
+        if normalized.contains("casse toi") || normalized.contains("casse-toi") || normalized.contains("cassetoi") ||
+           normalized.contains("tais toi") || normalized.contains("tais-toi") ||
+           normalized.contains("ferme la") || normalized.contains("ferme-la") ||
+           normalized.contains("ferme les conf") || normalized.contains("degage") ||
+           normalized.contains("arrete tout") || normalized.contains("ferme tout") ||
+           normalized == "chut" || normalized == "silence" || normalized == "stop" {
+            
+            DispatchQueue.main.async {
+                TTSManager.shared.stop()
+                SpeechManager.shared.stopSpeaking()
+                AppleSpeechRecognizer.shared.stopListening()
+                NotificationCenter.default.post(name: NSNotification.Name("SarahDismissAllModals"), object: nil)
+            }
+            let reply = "D'accord, je me casse !"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
+        }
+        
         // 1. DÉCLENCHEMENT D'ACTIONS CONTEXTUELLES MATÉRIELLES & SYSTÈME DIRECTES
         if let contextualActionResponse = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
             recordExchange(userText: trimmed, assistantResponse: contextualActionResponse)

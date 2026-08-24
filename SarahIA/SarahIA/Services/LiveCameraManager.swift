@@ -173,6 +173,12 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
     
     /// Prépare la session caméra avec une résolution optimisée pour iPhone 5S et iPhone 14
     public func setupSession(previewView: UIView? = nil, completion: @escaping (Bool) -> Void) {
+        if let view = previewView {
+            DispatchQueue.main.async {
+                self.attachPreview(to: view)
+            }
+        }
+        
         sessionQueue.async { [weak self] in
             guard let self = self else {
                 DispatchQueue.main.async { completion(false) }
@@ -180,6 +186,9 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             }
             
             if self.isSessionConfigured {
+                if !self.captureSession.isRunning {
+                    self.captureSession.startRunning()
+                }
                 if let view = previewView {
                     DispatchQueue.main.async {
                         self.attachPreview(to: view)
@@ -193,16 +202,14 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             
             self.captureSession.beginConfiguration()
             
-            // 1. Choix du preset adapté (VGA 640x480 / Medium)
+            // 1. Choix du preset ultra-rapide (VGA 640x480 / Medium)
             if self.captureSession.canSetSessionPreset(.vga640x480) {
                 self.captureSession.sessionPreset = .vga640x480
             } else if self.captureSession.canSetSessionPreset(.medium) {
                 self.captureSession.sessionPreset = .medium
-            } else if self.captureSession.canSetSessionPreset(.hd1280x720) {
-                self.captureSession.sessionPreset = .hd1280x720
             }
             
-            // 2. Sélection de la caméra (arrière par défaut, ou frontale)
+            // 2. Sélection de la caméra instantanée (arrière par défaut)
             let camera = self.getDevice(for: .back) ?? self.getDevice(for: .front) ?? AVCaptureDevice.default(for: .video)
             guard let validCamera = camera else {
                 print("❌ [LiveCameraManager] Aucune caméra disponible sur cet appareil.")
@@ -245,6 +252,9 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             
             self.captureSession.commitConfiguration()
             self.isSessionConfigured = true
+            if !self.captureSession.isRunning {
+                self.captureSession.startRunning()
+            }
             
             DispatchQueue.main.async {
                 if let view = previewView {
@@ -347,7 +357,8 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         }
         
         guard let pLayer = previewLayer else { return }
-        pLayer.frame = view.bounds
+        let targetFrame = view.bounds.isEmpty ? UIScreen.main.bounds : view.bounds
+        pLayer.frame = targetFrame
         if let conn = pLayer.connection, conn.isVideoOrientationSupported {
             conn.videoOrientation = .portrait
         }
