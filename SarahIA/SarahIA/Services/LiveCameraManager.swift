@@ -64,7 +64,7 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(subjectAreaDidChange(_:)),
-            name: AVCaptureDevice.subjectAreaDidChangeNotification,
+            name: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange,
             object: nil
         )
         NotificationCenter.default.addObserver(

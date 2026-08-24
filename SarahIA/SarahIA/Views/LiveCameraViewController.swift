@@ -94,7 +94,9 @@ public final class LiveCameraViewController: UIViewController {
         previewContainer.addSubview(cameraHiddenOverlay)
         
         cameraHiddenIcon.translatesAutoresizingMaskIntoConstraints = false
-        cameraHiddenIcon.image = UIImage(systemName: "camera.fill")
+        if #available(iOS 13.0, *) {
+            cameraHiddenIcon.image = UIImage(systemName: "camera.fill")
+        }
         cameraHiddenIcon.tintColor = UIColor.white.withAlphaComponent(0.6)
         cameraHiddenIcon.contentMode = .scaleAspectFit
         cameraHiddenOverlay.contentView.addSubview(cameraHiddenIcon)
@@ -129,12 +131,12 @@ public final class LiveCameraViewController: UIViewController {
         view.addSubview(topButtonsStack)
         
         // 3.1 Bouton Bascule Caméra (🔄)
-        configureCircularGlassButton(flipCameraButton, iconName: "arrow.triangle.2.circlepath", size: 44)
+        configureCircularGlassButton(flipCameraButton, iconName: "arrow.triangle.2.circlepath", fallbackText: "🔄", size: 44)
         flipCameraButton.addTarget(self, action: #selector(flipCameraTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(flipCameraButton)
         
         // 3.2 Bouton Masquer / Démasquer Caméra (🚫📷)
-        configureCircularGlassButton(hideCameraButton, iconName: "camera.fill", size: 44)
+        configureCircularGlassButton(hideCameraButton, iconName: "camera.fill", fallbackText: "📷", size: 44)
         hideCameraButton.addTarget(self, action: #selector(toggleHideCameraTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(hideCameraButton)
         
@@ -145,7 +147,10 @@ public final class LiveCameraViewController: UIViewController {
         badgeButton.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.8).cgColor
         badgeButton.backgroundColor = UIColor(white: 0.12, alpha: 0.85)
         badgeButton.clipsToBounds = true
-        let badgeIcon = UIImageView(image: UIImage(systemName: "circle.grid.cross.fill") ?? UIImage(systemName: "sparkles"))
+        let badgeIcon = UIImageView()
+        if #available(iOS 13.0, *) {
+            badgeIcon.image = UIImage(systemName: "circle.grid.cross.fill") ?? UIImage(systemName: "sparkles")
+        }
         badgeIcon.translatesAutoresizingMaskIntoConstraints = false
         badgeIcon.tintColor = UIColor(red: 0.95, green: 0.75, blue: 0.15, alpha: 1.0)
         badgeButton.addSubview(badgeIcon)
@@ -177,7 +182,10 @@ public final class LiveCameraViewController: UIViewController {
         videoActionButton.backgroundColor = UIColor(red: 0.20, green: 0.38, blue: 0.88, alpha: 1.0)
         videoActionButton.layer.cornerRadius = 25
         videoActionButton.clipsToBounds = true
-        let videoIcon = UIImageView(image: UIImage(systemName: "video.fill") ?? UIImage(systemName: "camera.fill"))
+        let videoIcon = UIImageView()
+        if #available(iOS 13.0, *) {
+            videoIcon.image = UIImage(systemName: "video.fill") ?? UIImage(systemName: "camera.fill")
+        }
         videoIcon.translatesAutoresizingMaskIntoConstraints = false
         videoIcon.tintColor = .white
         videoIcon.contentMode = .scaleAspectFit
@@ -194,7 +202,7 @@ public final class LiveCameraViewController: UIViewController {
         dockStack.addArrangedSubview(videoActionButton)
         
         // 4.2 Bouton Partage d'Écran (Flèche Haute)
-        configureCircularGlassButton(screenShareButton, iconName: "arrow.up.to.line", size: 44)
+        configureCircularGlassButton(screenShareButton, iconName: "arrow.up.to.line", fallbackText: "⬆️", size: 44)
         screenShareButton.addTarget(self, action: #selector(screenShareButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(screenShareButton)
         
@@ -203,12 +211,12 @@ public final class LiveCameraViewController: UIViewController {
         dockStack.addArrangedSubview(voiceWaveformPill)
         
         // 4.4 Bouton Microphone
-        configureCircularGlassButton(micToggleButton, iconName: "mic.fill", size: 44)
+        configureCircularGlassButton(micToggleButton, iconName: "mic.fill", fallbackText: "🎙️", size: 44)
         micToggleButton.addTarget(self, action: #selector(micButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(micToggleButton)
         
         // 4.5 Bouton Fermer ✕
-        configureCircularGlassButton(closeButton, iconName: "xmark", size: 44)
+        configureCircularGlassButton(closeButton, iconName: "xmark", fallbackText: "✕", size: 44)
         closeButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(closeButton)
         
@@ -254,7 +262,7 @@ public final class LiveCameraViewController: UIViewController {
         ])
     }
     
-    private func configureCircularGlassButton(_ button: UIButton, iconName: String, size: CGFloat) {
+    private func configureCircularGlassButton(_ button: UIButton, iconName: String, fallbackText: String = "", size: CGFloat) {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.backgroundColor = UIColor(white: 0.15, alpha: 0.75)
         button.layer.cornerRadius = size / 2
@@ -262,10 +270,16 @@ public final class LiveCameraViewController: UIViewController {
         button.layer.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
         button.clipsToBounds = true
         
-        let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
-        let icon = UIImage(systemName: iconName, withConfiguration: config) ?? UIImage(systemName: iconName)
-        button.setImage(icon, for: .normal)
-        button.tintColor = .white
+        if #available(iOS 13.0, *) {
+            let config = UIImage.SymbolConfiguration(pointSize: 17, weight: .semibold)
+            let icon = UIImage(systemName: iconName, withConfiguration: config) ?? UIImage(systemName: iconName)
+            button.setImage(icon, for: .normal)
+            button.tintColor = .white
+        } else {
+            button.setTitle(fallbackText.isEmpty ? iconName : fallbackText, for: .normal)
+            button.setTitleColor(.white, for: .normal)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .bold)
+        }
         
         NSLayoutConstraint.activate([
             button.widthAnchor.constraint(equalToConstant: size),
@@ -484,7 +498,11 @@ public final class LiveCameraViewController: UIViewController {
         HapticService.shared.buttonTap()
         isMicMuted.toggle()
         let iconName = isMicMuted ? "mic.slash.fill" : "mic.fill"
-        micToggleButton.setImage(UIImage(systemName: iconName), for: .normal)
+        if #available(iOS 13.0, *) {
+            micToggleButton.setImage(UIImage(systemName: iconName), for: .normal)
+        } else {
+            micToggleButton.setTitle(isMicMuted ? "🔇" : "🎙️", for: .normal)
+        }
         micToggleButton.tintColor = isMicMuted ? .systemRed : .white
         showStatus(isMicMuted ? "Microphone coupé" : "Microphone activé")
     }

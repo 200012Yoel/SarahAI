@@ -66,7 +66,9 @@ public final class ScreenShareModalViewController: UIViewController {
         
         // 4.1 Icône Broadcast
         broadcastIconView.translatesAutoresizingMaskIntoConstraints = false
-        broadcastIconView.image = UIImage(systemName: "record.circle") ?? UIImage(systemName: "circle.inset.filled")
+        if #available(iOS 13.0, *) {
+            broadcastIconView.image = UIImage(systemName: "record.circle") ?? UIImage(systemName: "circle.inset.filled")
+        }
         broadcastIconView.tintColor = .white
         broadcastIconView.contentMode = .scaleAspectFit
         cardView.addSubview(broadcastIconView)
@@ -89,7 +91,9 @@ public final class ScreenShareModalViewController: UIViewController {
         cardView.addSubview(appRow)
         
         appIconView.translatesAutoresizingMaskIntoConstraints = false
-        appIconView.image = UIImage(systemName: "sparkles") ?? UIImage(systemName: "star.fill")
+        if #available(iOS 13.0, *) {
+            appIconView.image = UIImage(systemName: "sparkles") ?? UIImage(systemName: "star.fill")
+        }
         appIconView.tintColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
         appIconView.backgroundColor = UIColor(white: 0.15, alpha: 0.9)
         appIconView.layer.cornerRadius = 8
@@ -104,7 +108,9 @@ public final class ScreenShareModalViewController: UIViewController {
         appRow.addSubview(appNameLabel)
         
         checkmarkIcon.translatesAutoresizingMaskIntoConstraints = false
-        checkmarkIcon.image = UIImage(systemName: "checkmark")
+        if #available(iOS 13.0, *) {
+            checkmarkIcon.image = UIImage(systemName: "checkmark")
+        }
         checkmarkIcon.tintColor = .white
         checkmarkIcon.contentMode = .scaleAspectFit
         appRow.addSubview(checkmarkIcon)
