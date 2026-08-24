@@ -4,7 +4,7 @@ import AVFoundation
 
 /// Handler universel de diffusion d'écran système en arrière-plan (Extension ReplayKit Broadcast)
 /// - Capture les trames CMSampleBuffer au niveau système (même sur l'écran d'accueil iOS et en dehors de Sarah)
-/// - Encode en JPEG optimisé et écrit de manière atomique dans le conteneur partagé App Group
+/// - Encode en JPEG haute performance à 12-15 FPS et écrit de manière atomique dans le conteneur partagé App Group
 /// - Notifie immédiatement l'application principale via Darwin Notification
 @objc(SampleHandler)
 public class SampleHandler: RPBroadcastSampleHandler {
@@ -12,7 +12,7 @@ public class SampleHandler: RPBroadcastSampleHandler {
     private let appGroupIdentifier = "group.com.sarahia.shared"
     private let darwinNotificationName = "group.com.sarahia.broadcast.frame"
     private var lastFrameTime: TimeInterval = 0
-    private let frameInterval: TimeInterval = 0.5 // 2 FPS fluide et économe en batterie
+    private let frameInterval: TimeInterval = 0.07 // ~14 FPS ultra-fluide au niveau système
     private let ciContext = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
     
     public override func broadcastStarted(withSetupInfo setupInfo: [String : NSObject]?) {
@@ -33,7 +33,7 @@ public class SampleHandler: RPBroadcastSampleHandler {
               let jpegData = ciContext.jpegRepresentation(
                 of: ciImage,
                 colorSpace: colorSpace,
-                options: [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.6]
+                options: [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.50]
               ) else {
             return
         }

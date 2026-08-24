@@ -8,14 +8,18 @@ import CoreVideo
 /// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran en Direct
 /// - Utilise AVPictureInPictureController avec AVSampleBufferDisplayLayer natif (iOS 15+)
 /// - Fallback AVPlayerLayer fluide pour iOS 14
-/// - Activation automatique lors du passage à l'écran d'accueil iOS (Home Screen)
-/// - Compatible universel de iOS 12 (iPhone 5s) à iOS 18 (iPhone 16 Pro)
+/// - Activation automatique lors du passage à l'écran d'accueil iOS (Home Screen / SpringBoard) ou sur toute autre application
+/// - Maintien du processus en tâche de fond via UIBackgroundTaskIdentifier et session audio de lecture
+/// - Compatible universel de iOS 12 (iPhone 5s) à iOS 18 (iPhone 16 Pro Max)
 public final class ScreenSharePiPManager: NSObject {
     
     public static let shared = ScreenSharePiPManager()
     
-    // Layers d'affichage
+    // Layers d'affichage et timebase
     public let sampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
+    private var timebase: CMTimebase?
+    private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    
     private var pipController: AnyObject?
     private var pipDelegateHelper: AnyObject?
     private var sampleBufferPlaybackDelegate: AnyObject?
@@ -33,9 +37,29 @@ public final class ScreenSharePiPManager: NSObject {
     
     private override init() {
         super.init()
+        setupTimebase()
         configureAudioSessionForPiP()
         setupLifecycleObservers()
     }
+    
+    // MARK: - Initialisation de la Base de Temps (Timebase)
+    
+    private func setupTimebase() {
+        var tb: CMTimebase?
+        let status = CMTimebaseCreateWithMasterClock(
+            allocator: kCFAllocatorDefault,
+            masterClock: CMClockGetHostTimeClock(),
+            timebaseOut: &tb
+        )
+        if status == noErr, let createdTimebase = tb {
+            CMTimebaseSetTime(createdTimebase, time: CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 600))
+            CMTimebaseSetRate(createdTimebase, rate: 1.0)
+            self.timebase = createdTimebase
+            self.sampleBufferDisplayLayer.controlTimebase = createdTimebase
+        }
+    }
+    
+    // MARK: - Configuration Audio & Cycle de Vie
     
     private func configureAudioSessionForPiP() {
         do {
@@ -60,17 +84,46 @@ public final class ScreenSharePiPManager: NSObject {
             name: UIApplication.didEnterBackgroundNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
     }
     
     @objc private func handleAppWillResignActive() {
         if ScreenShareService.shared.isScreenSharingActive {
+            startBackgroundTask()
             startPictureInPicture()
         }
     }
     
     @objc private func handleAppDidEnterBackground() {
         if ScreenShareService.shared.isScreenSharingActive {
+            startBackgroundTask()
             startPictureInPicture()
+        }
+    }
+    
+    @objc private func handleAppDidBecomeActive() {
+        if !ScreenShareService.shared.isScreenSharingActive {
+            endBackgroundTask()
+        }
+    }
+    
+    private func startBackgroundTask() {
+        if backgroundTaskId == .invalid {
+            backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "SarahScreenSharePiP") { [weak self] in
+                self?.endBackgroundTask()
+            }
+        }
+    }
+    
+    private func endBackgroundTask() {
+        if backgroundTaskId != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTaskId)
+            backgroundTaskId = .invalid
         }
     }
     
@@ -175,6 +228,7 @@ public final class ScreenSharePiPManager: NSObject {
                 controller.stopPictureInPicture()
             }
         }
+        endBackgroundTask()
     }
     
     // MARK: - Injection Haute Performance des Trames Vidéo
@@ -187,6 +241,7 @@ public final class ScreenSharePiPManager: NSObject {
             
             if self.sampleBufferDisplayLayer.status == .failed {
                 self.sampleBufferDisplayLayer.flush()
+                self.setupTimebase()
             }
             
             if self.sampleBufferDisplayLayer.isReadyForMoreMediaData {
@@ -348,10 +403,5 @@ private final class PiPDelegateHelper: NSObject, AVPictureInPictureControllerDel
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         manager?.isPiPActive = false
         NotificationCenter.default.post(name: NSNotification.Name("SarahPiPStatusChanged"), object: nil, userInfo: ["isActive": false])
-    }
-    
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
-        manager?.isPiPActive = false
-        print("⚠️ [ScreenSharePiPManager] Échec démarrage PiP: \(error.localizedDescription)")
     }
 }
