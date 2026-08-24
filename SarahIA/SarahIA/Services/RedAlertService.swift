@@ -11,7 +11,7 @@ public final class RedAlertService: NSObject {
     public static let shared = RedAlertService()
     
     // MARK: - Structures de Données
-    public struct AlertItem: Codable, Identifiable {
+    public struct AlertItem: Codable {
         public let id: String
         public let title: String
         public let description: String

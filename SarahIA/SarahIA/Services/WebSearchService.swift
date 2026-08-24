@@ -1,7 +1,7 @@
 import Foundation
 
 /// Modèle représentant un résultat de recherche Web
-public struct WebSearchResult: Codable, Identifiable {
+public struct WebSearchResult: Codable {
     public var id: String { url }
     public let title: String
     public let snippet: String

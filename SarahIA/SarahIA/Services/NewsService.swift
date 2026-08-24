@@ -8,12 +8,20 @@ public final class NewsService: NSObject, XMLParserDelegate {
     
     public static let shared = NewsService()
     
-    public struct NewsArticle: Identifiable {
-        public let id = UUID()
+    public struct NewsArticle: Codable {
+        public let id: String
         public let title: String
         public let summary: String
         public let source: String
         public let pubDate: String
+        
+        public init(id: String = UUID().uuidString, title: String, summary: String, source: String, pubDate: String) {
+            self.id = id
+            self.title = title
+            self.summary = summary
+            self.source = source
+            self.pubDate = pubDate
+        }
     }
     
     public enum NewsSource: String, CaseIterable {
