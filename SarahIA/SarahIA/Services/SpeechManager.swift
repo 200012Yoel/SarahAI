@@ -1,20 +1,27 @@
 import Foundation
 import AVFoundation
 import UIKit
+#if canImport(Combine)
 import Combine
+#endif
 
-/// Gestionnaire de synthèse vocale haute fidélité pour Sarah IA :
+/// Gestionnaire universel de synthèse vocale haute fidélité pour Sarah IA (iOS 12 -> 18) :
 /// - Voix féminine française naturelle (recherche prioritaire sur Amélie / Audrey / Hortense)
 /// - Contournement du mode silencieux via AudioSessionManager
 /// - Synthèse vocale fluide et naturelle pour le chat
-@available(iOS 13.0, *)
-public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = SpeechManager()
     
+    #if canImport(Combine)
     @Published public private(set) var isSpeaking: Bool = false
     @Published public private(set) var currentSpokenText: String? = nil
     @Published public private(set) var currentJawOpen: Float = 0.0
+    #else
+    public private(set) var isSpeaking: Bool = false
+    public private(set) var currentSpokenText: String? = nil
+    public private(set) var currentJawOpen: Float = 0.0
+    #endif
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -192,3 +199,8 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
         }
     }
 }
+
+#if canImport(Combine)
+@available(iOS 13.0, *)
+extension SpeechManager: ObservableObject {}
+#endif
