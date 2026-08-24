@@ -89,6 +89,9 @@ jobs:
             for plugin in "$APP_TARGET_DIR/PlugIns"/*.appex; do
               if [ -d "$plugin" ] && [ -f "$plugin/Info.plist" ]; then
                 plutil -replace MinimumOSVersion -string "14.0" "$plugin/Info.plist" 2>/dev/null || true
+                plutil -replace NSExtension.NSExtensionPointIdentifier -string "com.apple.widgetkit-extension" "$plugin/Info.plist" 2>/dev/null || true
+                plutil -remove NSExtension.NSExtensionPrincipalClass "$plugin/Info.plist" 2>/dev/null || true
+                plutil -remove NSExtension.NSExtensionMainStoryboard "$plugin/Info.plist" 2>/dev/null || true
                 codesign -f -s - "$plugin" 2>/dev/null || true
               fi
             done
