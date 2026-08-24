@@ -32,7 +32,6 @@ public struct SidebarView: View {
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
-                            .tracking(-0.5)
                         
                         Spacer()
                         
@@ -100,7 +99,6 @@ public struct SidebarView: View {
                                 Text("Épinglés")
                                     .font(.system(size: 21, weight: .bold))
                                     .foregroundColor(.white)
-                                    .tracking(-0.3)
                                     .padding(.horizontal, 24)
                                     .padding(.top, 10)
                                     .padding(.bottom, 6)
@@ -114,7 +112,6 @@ public struct SidebarView: View {
                             Text("Récents")
                                 .font(.system(size: 21, weight: .bold))
                                 .foregroundColor(.white)
-                                .tracking(-0.3)
                                 .padding(.horizontal, 24)
                                 .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 10 : 26)
                                 .padding(.bottom, 6)
@@ -297,7 +294,6 @@ public struct SidebarView: View {
                 
                 Text(conv.title)
                     .font(.system(size: 19, weight: .regular))
-                    .tracking(-0.2)
                     .foregroundColor(.white)
                     .lineLimit(1)
                 
