@@ -863,34 +863,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func openSettings() {
         dismissKeyboard()
-        let alert = UIAlertController(
-            title: "⚙️ Synthèse Vocale & Réglages de Sarah",
-            message: "• Voix : Féminine / Siri (Haute Définition)\n• Reconnaissance : Instantanée & Vague Siri\n• Mode : Natif iOS 12+ (60 FPS)",
-            preferredStyle: .actionSheet
-        )
-        
-        alert.addAction(UIAlertAction(title: "🔊 Tester la voix féminine", style: .default, handler: { [weak self] _ in
-            self?.speak(text: "Bonjour ! Je suis Sarah. Ma voix féminine est configurée avec une intonation naturelle et fluide pour vous répondre.")
-        }))
-        
-        alert.addAction(UIAlertAction(title: "🧠 Mémorisation & Apprentissage (Coffre)", style: .default, handler: { [weak self] _ in
-            self?.openMemoryVault()
-        }))
-        
-        alert.addAction(UIAlertAction(title: "📊 8 Widgets Sarah IA", style: .default, handler: { [weak self] _ in
-            self?.widgetsModalTapped()
-        }))
-        
-        alert.addAction(UIAlertAction(title: "📱 Synchronisation QR Code (P2P Local)", style: .default, handler: { [weak self] _ in
-            self?.openSyncQRModal()
-        }))
-        
-        alert.addAction(UIAlertAction(title: "🗑️ Nouvelle discussion", style: .destructive, handler: { [weak self] _ in
+        HapticService.shared.buttonTap()
+        let settingsVC = LegacySettingsViewController()
+        settingsVC.onNewChatRequested = { [weak self] in
             self?.newChatTapped()
-        }))
-        
-        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
+        }
+        settingsVC.onWidgetsRequested = { [weak self] in
+            self?.widgetsModalTapped()
+        }
+        settingsVC.onSyncQRRequested = { [weak self] in
+            self?.openSyncQRModal()
+        }
+        settingsVC.onMemoryVaultRequested = { [weak self] in
+            self?.openMemoryVault()
+        }
+        let nav = UINavigationController(rootViewController: settingsVC)
+        nav.modalPresentationStyle = .pageSheet
+        present(nav, animated: true, completion: nil)
     }
     
     private func openSyncQRModal() {

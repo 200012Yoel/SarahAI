@@ -81,7 +81,11 @@ public struct ContentView: View {
         }
         // Feuille de Paramètres Native (#sheet)
         .sheet(isPresented: $isShowingSettings) {
-            settingsSheetView
+            if #available(iOS 15.0, *) {
+                SettingsView(viewModel: viewModel)
+            } else {
+                settingsSheetView
+            }
         }
     }
     
