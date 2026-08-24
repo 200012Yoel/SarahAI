@@ -40,7 +40,7 @@ public struct MessageBar: View {
                         HStack(spacing: 5) {
                             Image(systemName: flashlight.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
                                 .font(.system(size: 12, weight: .bold))
-                            Text(flashlight.isTorchOn ? "Éteindre la torche" : "Allumer la torche")
+                            Text(flashlight.isTorchOn ? "Éteindre" : "Allume la torche")
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(flashlight.isTorchOn ? .black : .white)

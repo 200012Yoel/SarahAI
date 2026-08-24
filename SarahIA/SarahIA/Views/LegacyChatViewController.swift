@@ -631,10 +631,55 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerTableView.reloadData()
     }
     
-    // MARK: - Suggestions Horizontales
+    // MARK: - Suggestions Horizontales & Raccourcis Rapides
+    
+    private let torchQuickButton = UIButton(type: .system)
     
     private func setupSuggestions() {
-        for suggestion in quickSuggestions {
+        // 1. Bouton Torche Dynamique Stateful
+        updateTorchButtonUI()
+        torchQuickButton.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        torchQuickButton.layer.cornerRadius = 14
+        torchQuickButton.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        torchQuickButton.addTarget(self, action: #selector(toggleTorchQuickAction), for: .touchUpInside)
+        suggestionsStackView.addArrangedSubview(torchQuickButton)
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("FlashlightStateDidChange"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateTorchButtonUI()
+        }
+        
+        // 2. Bouton Pikoud HaOref
+        let pikudBtn = UIButton(type: .system)
+        pikudBtn.setTitle("🚨 Pikoud HaOref", for: .normal)
+        pikudBtn.setTitleColor(.white, for: .normal)
+        pikudBtn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        pikudBtn.backgroundColor = UIColor(red: 0.22, green: 0.08, blue: 0.08, alpha: 1.0)
+        pikudBtn.layer.cornerRadius = 14
+        pikudBtn.layer.borderWidth = 0.8
+        pikudBtn.layer.borderColor = UIColor.red.withAlphaComponent(0.4).cgColor
+        pikudBtn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        pikudBtn.addTarget(self, action: #selector(pikudHaOrefTapped), for: .touchUpInside)
+        suggestionsStackView.addArrangedSubview(pikudBtn)
+        
+        // 3. Bouton i24NEWS
+        let i24Btn = UIButton(type: .system)
+        i24Btn.setTitle("📰 i24NEWS", for: .normal)
+        i24Btn.setTitleColor(.white, for: .normal)
+        i24Btn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        i24Btn.backgroundColor = UIColor(red: 0.08, green: 0.16, blue: 0.28, alpha: 1.0)
+        i24Btn.layer.cornerRadius = 14
+        i24Btn.layer.borderWidth = 0.8
+        i24Btn.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.4).cgColor
+        i24Btn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+        i24Btn.addTarget(self, action: #selector(i24NewsTapped), for: .touchUpInside)
+        suggestionsStackView.addArrangedSubview(i24Btn)
+        
+        // 4. Autres suggestions
+        for suggestion in quickSuggestions where !suggestion.contains("torche") {
             let btn = UIButton(type: .system)
             btn.setTitle(suggestion, for: .normal)
             btn.setTitleColor(UIColor(white: 0.9, alpha: 1.0), for: .normal)
@@ -647,6 +692,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             btn.addTarget(self, action: #selector(suggestionTapped(_:)), for: .touchUpInside)
             suggestionsStackView.addArrangedSubview(btn)
         }
+    }
+    
+    private func updateTorchButtonUI() {
+        let isTorchOn = FlashlightManager.shared.isTorchOn
+        if isTorchOn {
+            torchQuickButton.setTitle("🔦 Éteindre", for: .normal)
+            torchQuickButton.setTitleColor(.black, for: .normal)
+            torchQuickButton.backgroundColor = UIColor(red: 0.98, green: 0.82, blue: 0.20, alpha: 1.0)
+            torchQuickButton.layer.borderWidth = 1.0
+            torchQuickButton.layer.borderColor = UIColor(red: 0.98, green: 0.82, blue: 0.20, alpha: 1.0).cgColor
+        } else {
+            torchQuickButton.setTitle("🔦 Allume la torche", for: .normal)
+            torchQuickButton.setTitleColor(UIColor(white: 0.9, alpha: 1.0), for: .normal)
+            torchQuickButton.backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
+            torchQuickButton.layer.borderWidth = 0.5
+            torchQuickButton.layer.borderColor = UIColor(white: 1.0, alpha: 0.12).cgColor
+        }
+    }
+    
+    @objc private func toggleTorchQuickAction() {
+        FlashlightManager.shared.toggleTorch()
+        updateTorchButtonUI()
+    }
+    
+    @objc private func pikudHaOrefTapped() {
+        inputTextField.text = "Y a-t-il des alertes Pikoud HaOref en Israël en ce moment ?"
+        sendButtonTapped()
+    }
+    
+    @objc private func i24NewsTapped() {
+        inputTextField.text = "Donne-moi les dernières actualités de i24NEWS"
+        sendButtonTapped()
     }
     
     @objc private func suggestionTapped(_ sender: UIButton) {

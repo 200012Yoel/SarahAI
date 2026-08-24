@@ -6,20 +6,22 @@ import Combine
 #endif
 
 /// Gestionnaire Matériel Universel de la Torche / Flashlight (iOS 12 -> 18)
-/// - Détection précise de l'état (allumé / éteint)
+/// - Détection précise de l'état physique via AVCaptureDevice.torchMode et isTorchActive
 /// - Bascule sécurisée avec AVCaptureDevice lockForConfiguration
-/// - Compatible de iOS 12 (iPhone 5S) à iOS 18 (iPhone 16 Pro)
+/// - Synchronisation réactive immédiate sur le thread principal
 public final class FlashlightManager: NSObject {
     
     public static let shared = FlashlightManager()
     
     public private(set) var isTorchOn: Bool = false {
         didSet {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("FlashlightStateDidChange"),
-                object: nil,
-                userInfo: ["isTorchOn": isTorchOn]
-            )
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("FlashlightStateDidChange"),
+                    object: nil,
+                    userInfo: ["isTorchOn": self.isTorchOn]
+                )
+            }
         }
     }
     
@@ -38,10 +40,10 @@ public final class FlashlightManager: NSObject {
             isTorchOn = false
             return
         }
-        isTorchOn = (device.torchMode == .on)
+        isTorchOn = (device.torchMode == .on || device.isTorchActive)
     }
     
-    /// Bascule l'état de la torche entre Allumé et Éteint
+    /// Bascule l'état de la torche entre Allumé et Éteint avec mise à jour immédiate
     @discardableResult
     public func toggleTorch() -> Bool {
         guard let device = AVCaptureDevice.default(for: .video), device.hasTorch, device.isTorchAvailable else {
@@ -50,11 +52,11 @@ public final class FlashlightManager: NSObject {
         
         do {
             try device.lockForConfiguration()
-            if device.torchMode == .on {
+            if device.torchMode == .on || device.isTorchActive {
                 device.torchMode = .off
                 isTorchOn = false
             } else {
-                try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
+                try device.setTorchModeOn(level: 1.0)
                 isTorchOn = true
             }
             device.unlockForConfiguration()
@@ -72,11 +74,12 @@ public final class FlashlightManager: NSObject {
         do {
             try device.lockForConfiguration()
             if on {
-                try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
+                try device.setTorchModeOn(level: 1.0)
+                isTorchOn = true
             } else {
                 device.torchMode = .off
+                isTorchOn = false
             }
-            isTorchOn = on
             device.unlockForConfiguration()
         } catch {
             print("⚠️ [FlashlightManager] Erreur torche: \(error.localizedDescription)")
@@ -100,7 +103,9 @@ public final class ObservableFlashlight: ObservableObject {
             queue: .main
         ) { [weak self] notif in
             if let on = notif.userInfo?["isTorchOn"] as? Bool {
-                self?.isTorchOn = on
+                DispatchQueue.main.async {
+                    self?.isTorchOn = on
+                }
             }
         }
     }
