@@ -27,15 +27,16 @@ public struct SidebarView: View {
                 
                 VStack(alignment: .leading, spacing: 0) {
                     // Header: Titre "Sarah IA" + Bouton Recherche Circulaire 44pt
-                    HStack(alignment: .center) {
+                    HStack(alignment: .center, spacing: 10) {
                         Text("Sarah IA")
-                            .font(.system(size: 30, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
+                            .lineLimit(1)
                             .tracking(-0.5)
                         
                         Spacer()
                         
-                        // Bouton recherche circulaire 44x44
+                        // Bouton recherche circulaire 38x38
                         Button(action: {
                             HapticService.shared.buttonTap()
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -47,19 +48,19 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .frame(width: 38, height: 38)
                                 
                                 Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 19, weight: .medium))
+                                    .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(.white)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 50)
-                    .padding(.bottom, 6)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 48)
+                    .padding(.bottom, 8)
                     
                     // Barre de Recherche Animée (.sb-search.on)
                     if viewModel.isSearchActive {
@@ -142,30 +143,47 @@ public struct SidebarView: View {
                 VStack {
                     Spacer()
                     
-                    HStack {
-                        // Bouton Pill Bleu "Chat" (#btnNewChat)
+                    HStack(spacing: 8) {
+                        // Bouton Pill Bleu "Nouveau" (#btnNewChat)
                         Button(action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
                             viewModel.switchToChat()
                         }) {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 6) {
                                 Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 20, weight: .semibold))
+                                    .font(.system(size: 15, weight: .semibold))
                                 
-                                Text("Chat")
-                                    .font(.system(size: 20, weight: .semibold))
+                                Text("Nouveau")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .lineLimit(1)
                             }
                             .foregroundColor(.white)
-                            .padding(.leading, 22)
-                            .padding(.trailing, 26)
-                            .padding(.vertical, 14)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
                             .background(Color(red: 0.04, green: 0.52, blue: 1.0)) // #0a84ff
                             .clipShape(Capsule())
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        Spacer()
+                        Spacer(minLength: 4)
+                        
+                        // Bouton Circulaire Vidéos YouTube 📺
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchYouTubePlayer"), object: "musique")
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .frame(width: 38, height: 38)
+                                
+                                Image(systemName: "play.tv.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .buttonStyle(ScaleBounceButtonStyle())
                         
                         // Bouton Circulaire Synchronisation QR 📱
                         Button(action: {
@@ -174,11 +192,11 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .frame(width: 38, height: 38)
                                 
                                 Image(systemName: "qrcode")
-                                    .font(.system(size: 18, weight: .regular))
+                                    .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(.white)
                             }
                         }
@@ -191,11 +209,11 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .frame(width: 38, height: 38)
                                 
                                 Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: 18, weight: .regular))
+                                    .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(.sarahCyan)
                             }
                         }
@@ -208,24 +226,24 @@ public struct SidebarView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
+                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14)) // #1c1c1e
+                                    .frame(width: 38, height: 38)
                                 
                                 Image(systemName: "gearshape")
-                                    .font(.system(size: 20, weight: .regular))
+                                    .font(.system(size: 16, weight: .regular))
                                     .foregroundColor(.white)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 14)
-                    .padding(.bottom, 34)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                    .padding(.bottom, 26)
                     .background(
                         LinearGradient(
                             gradient: Gradient(colors: [
                                 Color.black.opacity(0.0),
-                                Color.black.opacity(0.95),
+                                Color.black.opacity(0.92),
                                 Color.black
                             ]),
                             startPoint: .top,
