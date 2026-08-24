@@ -26,7 +26,7 @@ public struct MessageBar: View {
         self.onPlusTapped = onPlusTapped
     }
     
-    @ObservedObject private var flashlight = FlashlightManager.shared
+    @ObservedObject private var flashlight = ObservableFlashlight.shared
     
     public var body: some View {
         VStack(spacing: 8) {

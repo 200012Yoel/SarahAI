@@ -7,6 +7,7 @@ import AVFoundation
 /// - Détecte le seuil critique de 20%
 /// - Déclenche l'avertissement vocal de Sarah : "Attention, la batterie de ton téléphone est à 20%, pense à le brancher !"
 /// - Déclenchement unique par cycle de décharge pour éviter les répétitions intempestives
+/// - 100% universel de iOS 12.0 à iOS 18.0
 public final class BatteryMonitorManager: NSObject {
     
     public static let shared = BatteryMonitorManager()
@@ -91,7 +92,7 @@ public final class BatteryMonitorManager: NSObject {
     
     private func trigger20PercentSpokenAlert(percentage: Int) {
         DispatchQueue.main.async {
-            HapticService.shared.notificationWarning()
+            HapticService.shared.buttonTap()
             
             let message = "Attention, la batterie de ton téléphone est à \(percentage)%, pense à le brancher !"
             
