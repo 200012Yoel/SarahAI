@@ -12,14 +12,62 @@ public final class ScreenShareService: NSObject {
     
     public static let shared = ScreenShareService()
     
+    // App Group & IPC Darwin Notification
+    public static let appGroupIdentifier = "group.com.sarahia.shared"
+    public static let darwinNotificationName = "group.com.sarahia.broadcast.frame"
+    
     private let screenRecorder = RPScreenRecorder.shared()
     public private(set) var isScreenSharingActive: Bool = false
     private var liveTimer: Timer?
     private var liveFrameCount: Int = 0
     private var lastAnalyzedText: String = ""
+    private var lastDarwinFrameTimestamp: TimeInterval = 0
+    
+    private var currentFrameCallback: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
     
     private override init() {
         super.init()
+        setupDarwinIPCReceiver()
+    }
+    
+    // MARK: - Récepteur IPC Darwin Notification (Extension Broadcast ➔ App Principale)
+    
+    private func setupDarwinIPCReceiver() {
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        let name = CFNotificationName(Self.darwinNotificationName as CFString)
+        
+        CFNotificationCenterAddObserver(center, observer, { (center, observer, name, object, userInfo) in
+            guard let observer = observer else { return }
+            let service = Unmanaged<ScreenShareService>.fromOpaque(observer).takeUnretainedValue()
+            service.handleIncomingBroadcastFrame()
+        }, name.rawValue, nil, .deliverImmediately)
+    }
+    
+    private func handleIncomingBroadcastFrame() {
+        guard isScreenSharingActive else { return }
+        
+        let now = CACurrentMediaTime()
+        // Throttling 1.5 FPS pour préserver la batterie et le processeur
+        guard now - lastDarwinFrameTimestamp >= 0.6 else { return }
+        lastDarwinFrameTimestamp = now
+        
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self, self.isScreenSharingActive else { return }
+            
+            // Lecture du fichier partagé dans le conteneur App Group
+            guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier) else {
+                return
+            }
+            let frameURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
+            
+            guard let data = try? Data(contentsOf: frameURL, options: .alwaysMapped),
+                  let image = UIImage(data: data) else {
+                return
+            }
+            
+            self.processLiveFrame(image, onFrameAnalyzed: self.currentFrameCallback)
+        }
     }
     
     // MARK: - 1. Lancement du Partage d'Écran en Direct (Live Screen Broadcast)
@@ -36,6 +84,8 @@ public final class ScreenShareService: NSObject {
         }
         
         isScreenSharingActive = true
+        currentFrameCallback = onFrameAnalyzed
+        
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
             object: nil,
@@ -51,7 +101,7 @@ public final class ScreenShareService: NSObject {
                 
                 if sampleBufferType == .video {
                     self.liveFrameCount += 1
-                    // Analyser 1 frame toutes les 35 frames (~1-2 fois par seconde) pour économiser batterie et CPU sur iPhone 5S/7
+                    // Analyser 1 frame toutes les 35 frames (~1-2 fois par seconde) pour économiser batterie et CPU
                     if self.liveFrameCount % 35 == 0 {
                         if let image = self.imageFromSampleBuffer(sampleBuffer) {
                             self.processLiveFrame(image, onFrameAnalyzed: onFrameAnalyzed)

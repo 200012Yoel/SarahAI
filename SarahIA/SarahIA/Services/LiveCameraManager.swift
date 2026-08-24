@@ -40,74 +40,133 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
     
     private override init() {
         super.init()
-        setupInterruptionObservers()
+        setupResilientSessionObservers()
     }
     
-    private func setupInterruptionObservers() {
-        NotificationCenter.default.addObserver(
+    private func setupResilientSessionObservers() {
+        let center = NotificationCenter.default
+        
+        // 1. Interruption de la session (ex: appel entrant, mise en veille, obstruction matérielle)
+        center.addObserver(
             self,
             selector: #selector(sessionWasInterrupted(_:)),
             name: .AVCaptureSessionWasInterrupted,
             object: captureSession
         )
-        NotificationCenter.default.addObserver(
+        
+        // 2. Fin d'interruption (ex: fin d'appel, démasquage, retour au premier plan)
+        center.addObserver(
             self,
             selector: #selector(sessionInterruptionEnded(_:)),
             name: .AVCaptureSessionInterruptionEnded,
             object: captureSession
         )
-        NotificationCenter.default.addObserver(
+        
+        // 3. Erreurs d'exécution matérielle (ex: réinitialisation du serveur média, déconnexion capteur)
+        center.addObserver(
             self,
             selector: #selector(sessionRuntimeError(_:)),
             name: .AVCaptureSessionRuntimeError,
             object: captureSession
         )
-        NotificationCenter.default.addObserver(
+        
+        // 4. Détection du changement de sujet (démasquage de coque, mouvement)
+        center.addObserver(
             self,
             selector: #selector(subjectAreaDidChange(_:)),
             name: NSNotification.Name.AVCaptureDeviceSubjectAreaDidChange,
             object: nil
         )
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.startSession()
-            self?.resetContinuousAutoFocus()
-        }
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didEnterBackgroundNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.stopSession()
-        }
-    }
-    
-    @objc private func subjectAreaDidChange(_ notification: Notification) {
-        // Détecte quand l'appareil photo est masqué ou démasqué / objet bouge
-        resetContinuousAutoFocus()
+        
+        // 5. Cycles de vie de l'application
+        center.addObserver(
+            self,
+            selector: #selector(applicationWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(applicationDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        center.addObserver(
+            self,
+            selector: #selector(applicationDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
     }
     
     @objc private func sessionWasInterrupted(_ notification: Notification) {
-        print("⚠️ [LiveCameraManager] Session caméra interrompue")
+        if #available(iOS 9.0, *),
+           let reasonValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
+           let reason = AVCaptureSession.InterruptionReason(rawValue: reasonValue) {
+            print("⚠️ [LiveCameraManager] Session interrompue (Raison: \(reason.rawValue))")
+        } else {
+            print("⚠️ [LiveCameraManager] Session interrompue")
+        }
     }
     
     @objc private func sessionInterruptionEnded(_ notification: Notification) {
-        print("✅ [LiveCameraManager] Fin de l'interruption caméra, reprise...")
-        startSession()
+        print("✅ [LiveCameraManager] Fin d'interruption détectée. Reprise automatique de la capture...")
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            if !self.captureSession.isRunning {
+                self.captureSession.startRunning()
+            }
+            if let device = self.videoDeviceInput?.device {
+                self.configureDeviceForContinuousTracking(device)
+            }
+        }
     }
     
     @objc private func sessionRuntimeError(_ notification: Notification) {
         guard let error = notification.userInfo?[AVCaptureSessionErrorKey] as? AVError else { return }
-        print("❌ [LiveCameraManager] Erreur runtime caméra: \(error)")
-        if error.code == .mediaServicesWereReset {
-            sessionQueue.async { [weak self] in
-                self?.isSessionConfigured = false
-                self?.setupSession(completion: { _ in })
+        print("❌ [LiveCameraManager] Erreur runtime AVCaptureSession: \(error.localizedDescription) (Code: \(error.code.rawValue))")
+        
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Si les services médias ont été réinitialisés par iOS, reconstruire toute la chaîne AVCapture
+            if error.code == .mediaServicesWereReset {
+                print("🔄 [LiveCameraManager] Réinitialisation complète des services médias...")
+                self.isSessionConfigured = false
+                self.setupSession(completion: { _ in
+                    self.startSession()
+                })
+            } else {
+                // Tentative de redémarrage direct de la session
+                if !self.captureSession.isRunning {
+                    self.captureSession.startRunning()
+                }
             }
         }
+    }
+    
+    @objc private func subjectAreaDidChange(_ notification: Notification) {
+        // Déclenché automatiquement lors du retrait de la coque ou du démasquage physique
+        resetContinuousAutoFocus()
+    }
+    
+    @objc private func applicationWillEnterForeground() {
+        startSession()
+        resetContinuousAutoFocus()
+    }
+    
+    @objc private func applicationDidBecomeActive() {
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            if !self.captureSession.isRunning {
+                self.captureSession.startRunning()
+            }
+            self.resetContinuousAutoFocus()
+        }
+    }
+    
+    @objc private func applicationDidEnterBackground() {
+        stopSession()
     }
     
     // MARK: - Configuration Sécurisée de la Session
