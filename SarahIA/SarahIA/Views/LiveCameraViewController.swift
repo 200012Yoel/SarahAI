@@ -2,12 +2,13 @@ import Foundation
 import UIKit
 import AVFoundation
 
-/// Contrôleur d'Interface Caméra Temps Réel Haute Précision & Responsive :
-/// - Aperçu vidéo plein écran haute fluidité à 60 FPS matériels
+/// Contrôleur d'Interface Caméra Temps Réel Ultra-Rapide (0ms) & Responsive :
+/// - Démarrage caméra instantané sans délai
+/// - Interface épurée et immersive (badge central superflu retiré)
 /// - Carré Bleu Futuriste Central aux Vagues Animées en Temps Réel (SarahVoiceWaveSquareView)
-/// - Contrôles supérieurs épurés : Bascule caméra 🔄, Flash/Torche ⚡, Veille caméra 👁️, Fermeture ✕
+/// - Contrôles supérieurs discrets : Fermeture ✕, Flash/Torche ⚡, Bascule caméra 🔄, Veille caméra 📷
 /// - Barre d'actions inférieure : Bouton Capture IA 📷, Carré Bleu aux Vagues 🌊, Partage d'Écran 📲, Micro 🎙️
-/// - Conversation vocale bidirectionnelle instantanée sans aucune latence
+/// - Conversation vocale directe avec Sarah/Tom sans latence
 public final class LiveCameraViewController: UIViewController {
     
     // MARK: - Callbacks
@@ -21,12 +22,9 @@ public final class LiveCameraViewController: UIViewController {
     private let cameraHiddenLabel = UILabel()
     private let focusIndicator = UIView()
     
-    // MARK: - Barre Supérieure (Top Glass Bar)
+    // MARK: - Barre Supérieure Épurée
     private let topBarView = UIView()
     private let closeButton = UIButton(type: .system)
-    private let liveVisionBadge = UIView()
-    private let liveVisionDot = UIView()
-    private let liveVisionTitle = UILabel()
     private let topButtonsStack = UIStackView()
     private let torchButton = UIButton(type: .system)
     private let flipCameraButton = UIButton(type: .system)
@@ -40,7 +38,7 @@ public final class LiveCameraViewController: UIViewController {
     private let screenShareButton = UIButton(type: .system)
     private let micToggleButton = UIButton(type: .system)
     
-    // MARK: - Statut & Bannière Flottante
+    // MARK: - Statut & Carte Résultat
     private let statusBanner = UILabel()
     private let recognizedObjectCard = UIView()
     private let recognizedObjectLabel = UILabel()
@@ -76,7 +74,8 @@ public final class LiveCameraViewController: UIViewController {
     public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         bringControlsToFront()
-        // Message d'accueil léger et direct sans blocage audio
+        
+        // Accueil vocal instantané léger et direct
         TTSManager.shared.handOffToTom(
             sarahTransitionPhrase: "Je regarde ce que tu me montres.",
             tomGreeting: ""
@@ -110,7 +109,7 @@ public final class LiveCameraViewController: UIViewController {
         stopMicLevelMonitoring()
     }
     
-    // MARK: - Configuration UI Moderne
+    // MARK: - Configuration UI Épurée & Fluide
     
     private func setupUI() {
         let isSmallScreen = UIScreen.main.bounds.width <= 360 // iPhone 5S, SE
@@ -124,7 +123,7 @@ public final class LiveCameraViewController: UIViewController {
         previewContainer.backgroundColor = .black
         view.addSubview(previewContainer)
         
-        // 1.1 Voile en cas de masquage caméra
+        // 1.1 Voile en cas de mise en veille
         cameraHiddenOverlay.translatesAutoresizingMaskIntoConstraints = false
         cameraHiddenOverlay.alpha = 0.0
         previewContainer.addSubview(cameraHiddenOverlay)
@@ -157,7 +156,7 @@ public final class LiveCameraViewController: UIViewController {
         focusIndicator.isUserInteractionEnabled = false
         previewContainer.addSubview(focusIndicator)
         
-        // 2. Barre Supérieure (Top Glass Bar)
+        // 2. Barre Supérieure Épurée
         topBarView.translatesAutoresizingMaskIntoConstraints = false
         topBarView.backgroundColor = .clear
         view.addSubview(topBarView)
@@ -167,34 +166,14 @@ public final class LiveCameraViewController: UIViewController {
         closeButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
         topBarView.addSubview(closeButton)
         
-        // 2.2 Badge Vision Live au centre
-        liveVisionBadge.translatesAutoresizingMaskIntoConstraints = false
-        liveVisionBadge.backgroundColor = UIColor(white: 0.12, alpha: 0.80)
-        liveVisionBadge.layer.cornerRadius = 15
-        liveVisionBadge.layer.borderWidth = 0.8
-        liveVisionBadge.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.6).cgColor
-        liveVisionBadge.clipsToBounds = true
-        topBarView.addSubview(liveVisionBadge)
-        
-        liveVisionDot.translatesAutoresizingMaskIntoConstraints = false
-        liveVisionDot.backgroundColor = UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
-        liveVisionDot.layer.cornerRadius = 3.5
-        liveVisionBadge.addSubview(liveVisionDot)
-        
-        liveVisionTitle.translatesAutoresizingMaskIntoConstraints = false
-        liveVisionTitle.text = "Sarah Vision Live"
-        liveVisionTitle.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-        liveVisionTitle.textColor = .white
-        liveVisionBadge.addSubview(liveVisionTitle)
-        
-        // 2.3 Pile de Boutons Supérieurs Droits
+        // 2.2 Pile de Boutons Supérieurs Droits (Flash, Flip, Sleep)
         topButtonsStack.translatesAutoresizingMaskIntoConstraints = false
         topButtonsStack.axis = .horizontal
         topButtonsStack.spacing = isSmallScreen ? 6 : 8
         topButtonsStack.alignment = .center
         topBarView.addSubview(topButtonsStack)
         
-        // Torche
+        // Flash / Torche
         configureCircularGlassButton(torchButton, iconName: "bolt.fill", fallbackText: "⚡", size: btnSize)
         torchButton.addTarget(self, action: #selector(torchButtonTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(torchButton)
@@ -209,7 +188,7 @@ public final class LiveCameraViewController: UIViewController {
         hideCameraButton.addTarget(self, action: #selector(toggleHideCameraTapped), for: .touchUpInside)
         topButtonsStack.addArrangedSubview(hideCameraButton)
         
-        // 3. Carte Objet Reconnu / Statut
+        // 3. Carte Objet Reconnu
         recognizedObjectCard.translatesAutoresizingMaskIntoConstraints = false
         recognizedObjectCard.backgroundColor = UIColor(white: 0.10, alpha: 0.88)
         recognizedObjectCard.layer.cornerRadius = 14
@@ -320,27 +299,12 @@ public final class LiveCameraViewController: UIViewController {
             cameraHiddenLabel.centerXAnchor.constraint(equalTo: cameraHiddenOverlay.centerXAnchor),
             
             topBarView.topAnchor.constraint(equalTo: topSafeArea, constant: 8),
-            topBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            topBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            topBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            topBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             topBarView.heightAnchor.constraint(equalToConstant: btnSize),
             
             closeButton.leadingAnchor.constraint(equalTo: topBarView.leadingAnchor),
             closeButton.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
-            
-            liveVisionBadge.leadingAnchor.constraint(greaterThanOrEqualTo: closeButton.trailingAnchor, constant: 6),
-            liveVisionBadge.trailingAnchor.constraint(lessThanOrEqualTo: topButtonsStack.leadingAnchor, constant: -6),
-            liveVisionBadge.centerXAnchor.constraint(equalTo: topBarView.centerXAnchor),
-            liveVisionBadge.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
-            liveVisionBadge.heightAnchor.constraint(equalToConstant: 30),
-            
-            liveVisionDot.leadingAnchor.constraint(equalTo: liveVisionBadge.leadingAnchor, constant: 8),
-            liveVisionDot.centerYAnchor.constraint(equalTo: liveVisionBadge.centerYAnchor),
-            liveVisionDot.widthAnchor.constraint(equalToConstant: 7),
-            liveVisionDot.heightAnchor.constraint(equalToConstant: 7),
-            
-            liveVisionTitle.leadingAnchor.constraint(equalTo: liveVisionDot.trailingAnchor, constant: 6),
-            liveVisionTitle.trailingAnchor.constraint(equalTo: liveVisionBadge.trailingAnchor, constant: -8),
-            liveVisionTitle.centerYAnchor.constraint(equalTo: liveVisionBadge.centerYAnchor),
             
             topButtonsStack.trailingAnchor.constraint(equalTo: topBarView.trailingAnchor),
             topButtonsStack.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),

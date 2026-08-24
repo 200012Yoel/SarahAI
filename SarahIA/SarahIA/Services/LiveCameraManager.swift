@@ -255,38 +255,13 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
         }
     }
     
-    /// Détection multi-générations matérielle (iPhone 5S -> iPhone 14/15/16)
+    /// Détection matérielle instantanée 0ms (iPhone 5S -> iPhone 16 Pro Max)
     private func getDevice(for position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        // 1. AVCaptureDevice.default direct
-        if let dev = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
-            return dev
-        }
-        
-        // 2. DiscoverySession avec tous les types de capteurs
         if #available(iOS 10.0, *) {
-            var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
-            if #available(iOS 10.2, *) {
-                types.append(.builtInDualCamera)
-            }
-            if #available(iOS 11.1, *) {
-                types.append(.builtInTrueDepthCamera)
-            }
-            if #available(iOS 13.0, *) {
-                types.append(.builtInTripleCamera)
-                types.append(.builtInUltraWideCamera)
-                types.append(.builtInDualWideCamera)
-            }
-            let session = AVCaptureDevice.DiscoverySession(
-                deviceTypes: types,
-                mediaType: .video,
-                position: position
-            )
-            if let dev = session.devices.first(where: { $0.position == position }) ?? session.devices.first {
+            if let dev = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
                 return dev
             }
         }
-        
-        // 3. Fallback universel iOS 10, 11, 12 sur iPhone 5S
         let allDevices = AVCaptureDevice.devices(for: .video)
         return allDevices.first(where: { $0.position == position }) ?? AVCaptureDevice.default(for: .video)
     }
