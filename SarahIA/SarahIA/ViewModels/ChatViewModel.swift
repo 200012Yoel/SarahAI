@@ -338,14 +338,14 @@ public final class ChatViewModel: ObservableObject {
         }
         
         // 3. Liaison de l'énergie micro pour ondelettes audio
-        AppleSpeechRecognizer.shared.$micEnergyLevel
+        ObservableSpeechRecognizer.shared.$micEnergyLevel
             .receive(on: DispatchQueue.main)
             .sink { [weak self] level in
                 self?.micInputLevel = level
             }
             .store(in: &cancellables)
             
-        AppleSpeechRecognizer.shared.$isListening
+        ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
                 self?.isMicRunning = listening

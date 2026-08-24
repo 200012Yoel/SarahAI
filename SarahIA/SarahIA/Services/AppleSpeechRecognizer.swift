@@ -124,7 +124,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             state = .listening
             currentLiveText = ""
             hasDetectedSpeechInCurrentSession = false
-            HapticService.shared.listeningStarted()
+            HapticService.shared.speechStarted()
         } catch {
             state = .error("Impossible de démarrer l'AudioEngine: \(error.localizedDescription)")
             stopListening()
@@ -180,7 +180,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             isListening = false
             state = .idle
             micEnergyLevel = 0.0
-            HapticService.shared.listeningStopped()
+            HapticService.shared.speechFinished()
         }
     }
     

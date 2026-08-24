@@ -362,5 +362,6 @@ public final class ScreenShareStateTracker: ObservableObject {
     }
 }
 
+@available(iOS 13.0, *)
 public typealias ScreenShareStateObserver = ScreenShareStateTracker
 #endif
