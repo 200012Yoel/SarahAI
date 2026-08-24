@@ -52,11 +52,6 @@ public final class ScreenShareService: NSObject {
                         "isActive": self.isScreenSharingActive
                     ]
                 )
-                #if canImport(Combine)
-                if #available(iOS 13.0, *) {
-                    ScreenShareStateTracker.shared.updateStatus(self.status, active: self.isScreenSharingActive)
-                }
-                #endif
             }
         }
     }
@@ -203,14 +198,6 @@ public final class ScreenShareService: NSObject {
             status = .active
         }
         
-        #if canImport(Combine)
-        if #available(iOS 13.0, *) {
-            DispatchQueue.main.async {
-                ScreenShareStateTracker.shared.latestImage = image
-            }
-        }
-        #endif
-        
         // 1. Envoi immédiat au contrôleur Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
         
@@ -276,12 +263,6 @@ public final class ScreenShareService: NSObject {
             object: nil,
             userInfo: ["isActive": false]
         )
-        
-        #if canImport(Combine)
-        if #available(iOS 13.0, *) {
-            ScreenShareStateTracker.shared.updateStatus(.disconnected, active: false)
-        }
-        #endif
         
         ScreenSharePiPManager.shared.stopPictureInPicture()
         
