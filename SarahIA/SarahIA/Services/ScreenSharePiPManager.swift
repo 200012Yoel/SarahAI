@@ -162,17 +162,17 @@ public final class ScreenSharePiPManager: NSObject {
         let height = cgImage.height
         
         var pixelBuffer: CVPixelBuffer?
-        let attrs = [
-            kCVPixelBufferCGImageCompatibilityKey: kCFBooleanTrue,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: kCFBooleanTrue
-        ] as CFDictionary
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true
+        ]
         
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault,
             width,
             height,
-            kCVPixelFormatType_32ARGB,
-            attrs,
+            OSType(kCVPixelFormatType_32ARGB),
+            attrs as CFDictionary,
             &pixelBuffer
         )
         
