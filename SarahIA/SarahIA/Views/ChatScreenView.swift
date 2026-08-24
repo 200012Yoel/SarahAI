@@ -97,7 +97,7 @@ public struct ChatScreenView: View {
                 .background(Color.black)
                 
                 // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct
-                if viewModel.isScreenSharingActive, let img = viewModel.lastScreenShareImage {
+                if viewModel.isScreenSharingActive {
                     VStack(spacing: 4) {
                         HStack {
                             Circle().fill(Color.red).frame(width: 7, height: 7)
@@ -114,12 +114,27 @@ public struct ChatScreenView: View {
                         .padding(.horizontal, 8)
                         .padding(.top, 6)
                         
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 120, height: 180)
-                            .cornerRadius(8)
-                            .clipped()
+                        if let img = viewModel.lastScreenShareImage {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 120, height: 180)
+                                .cornerRadius(8)
+                                .clipped()
+                        } else {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(white: 0.15))
+                                    .frame(width: 120, height: 180)
+                                VStack(spacing: 6) {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    Text("Capture...")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
+                        }
                         
                         if !viewModel.lastScreenShareAnalysis.isEmpty {
                             Text("👁️ \(viewModel.lastScreenShareAnalysis)")

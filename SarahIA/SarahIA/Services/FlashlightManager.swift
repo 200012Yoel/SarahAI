@@ -111,7 +111,10 @@ public final class ObservableFlashlight: ObservableObject {
     }
     
     public func toggleTorch() {
-        _ = FlashlightManager.shared.toggleTorch()
+        let newState = FlashlightManager.shared.toggleTorch()
+        DispatchQueue.main.async {
+            self.isTorchOn = newState
+        }
     }
 }
 #endif

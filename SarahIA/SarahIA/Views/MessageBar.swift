@@ -109,6 +109,27 @@ public struct MessageBar: View {
                             Capsule().stroke(Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.4), lineWidth: 1)
                         )
                     }
+                    
+                    // 0.4 Bouton Niveau de Batterie
+                    Button(action: {
+                        HapticService.shared.buttonTap()
+                        onSend("Quel est le niveau de batterie ?")
+                    }) {
+                        HStack(spacing: 5) {
+                            Text("🔋")
+                                .font(.system(size: 12))
+                            Text("Batterie")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(red: 0.12, green: 0.22, blue: 0.15))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.green.opacity(0.4), lineWidth: 1)
+                        )
+                    }
                 }
                 .padding(.horizontal, 16)
             }
