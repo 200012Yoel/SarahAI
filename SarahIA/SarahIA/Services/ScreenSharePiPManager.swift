@@ -208,8 +208,21 @@ public final class ScreenSharePiPManager: NSObject {
     
     // MARK: - Contrôle du Picture-in-Picture
     
+    public func ensurePiPConfigured() {
+        guard isPiPSupported else { return }
+        if pipController == nil {
+            let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow })
+                ?? UIApplication.shared.keyWindow
+                ?? UIApplication.shared.windows.first
+            if let hostView = window?.rootViewController?.view ?? window?.subviews.first ?? window {
+                setupPiP(in: hostView)
+            }
+        }
+    }
+    
     public func startPictureInPicture() {
         guard isPiPSupported else { return }
+        ensurePiPConfigured()
         
         if #available(iOS 14.0, *),
            let controller = pipController as? AVPictureInPictureController,

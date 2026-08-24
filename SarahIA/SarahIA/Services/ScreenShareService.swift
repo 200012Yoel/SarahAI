@@ -83,14 +83,18 @@ public final class ScreenShareService: NSObject {
     }
     
     private func handleIncomingBroadcastFrame() {
-        guard isScreenSharingActive else { return }
-        
         let now = CACurrentMediaTime()
-        guard now - lastDarwinFrameTimestamp >= 0.08 else { return }
+        guard now - lastDarwinFrameTimestamp >= 0.06 else { return }
         lastDarwinFrameTimestamp = now
         
+        if !isScreenSharingActive {
+            isScreenSharingActive = true
+            status = .active
+            ScreenSharePiPManager.shared.startPictureInPicture()
+        }
+        
         decodeQueue.async { [weak self] in
-            guard let self = self, self.isScreenSharingActive else { return }
+            guard let self = self else { return }
             
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier) else {
                 return
