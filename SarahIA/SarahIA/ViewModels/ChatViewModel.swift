@@ -70,7 +70,7 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Liaison des Services
     
     private func bindServices() {
-        SpeechManager.shared.$isSpeaking
+        ObservableSpeechManager.shared.$isSpeaking
             .receive(on: DispatchQueue.main)
             .sink { [weak self] speaking in
                 self?.isSpeaking = speaking
@@ -82,7 +82,7 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
-        SpeechManager.shared.$currentSpokenText
+        ObservableSpeechManager.shared.$currentSpokenText
             .receive(on: DispatchQueue.main)
             .sink { [weak self] text in
                 self?.currentSpeakingText = text

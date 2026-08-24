@@ -13,15 +13,23 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = SpeechManager()
     
-    #if canImport(Combine)
-    @Published public private(set) var isSpeaking: Bool = false
-    @Published public private(set) var currentSpokenText: String? = nil
-    @Published public private(set) var currentJawOpen: Float = 0.0
-    #else
-    public private(set) var isSpeaking: Bool = false
-    public private(set) var currentSpokenText: String? = nil
+    public private(set) var isSpeaking: Bool = false {
+        didSet {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SarahSpeechStateDidChange"), object: nil)
+            }
+        }
+    }
+    
+    public private(set) var currentSpokenText: String? = nil {
+        didSet {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SarahSpeechStateDidChange"), object: nil)
+            }
+        }
+    }
+    
     public private(set) var currentJawOpen: Float = 0.0
-    #endif
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -202,5 +210,24 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
 
 #if canImport(Combine)
 @available(iOS 13.0, *)
-extension SpeechManager: ObservableObject {}
+public final class ObservableSpeechManager: ObservableObject {
+    public static let shared = ObservableSpeechManager()
+    
+    @Published public var isSpeaking: Bool = SpeechManager.shared.isSpeaking
+    @Published public var currentSpokenText: String? = SpeechManager.shared.currentSpokenText
+    @Published public var currentJawOpen: Float = SpeechManager.shared.currentJawOpen
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    private init() {
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahSpeechStateDidChange"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.isSpeaking = SpeechManager.shared.isSpeaking
+                self?.currentSpokenText = SpeechManager.shared.currentSpokenText
+                self?.currentJawOpen = SpeechManager.shared.currentJawOpen
+            }
+            .store(in: &cancellables)
+    }
+}
 #endif
