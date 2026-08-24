@@ -97,6 +97,15 @@ public final class ChatViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: ScreenShareService.liveFrameNotification)
+            .compactMap { $0.userInfo?["image"] as? UIImage }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] image in
+                guard let self = self, self.isScreenSharingActive else { return }
+                self.lastScreenShareImage = image
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -569,6 +578,12 @@ public final class ChatViewModel: ObservableObject {
         self.appendMessage(aiMsg)
         self.isTyping = false
         SpeechManager.shared.speak(text: introText)
+        
+        // 1. Snapshot synchrone immédiat sur la frame 1 (0ms)
+        if let initialSnapshot = ScreenShareService.shared.captureScreen(from: rootVC.view.window ?? rootVC.view) {
+            self.lastScreenShareImage = initialSnapshot
+            self.lastScreenShareAnalysis = "En direct"
+        }
         
         // 2. Démarrage de la capture ReplayKit / Window Sampling continue
         ScreenShareService.shared.startLiveScreenSharing(from: rootVC, onFrameAnalyzed: { [weak self] result, image in

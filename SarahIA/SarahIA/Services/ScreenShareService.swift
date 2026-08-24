@@ -2,27 +2,31 @@ import Foundation
 import UIKit
 import ReplayKit
 import AVFoundation
+#if canImport(Combine)
+import Combine
+#endif
 
 /// Service de Partage d'Écran et Live Streaming avec Sarah :
-/// - Enregistrement et capture en direct de l'écran (RPScreenRecorder & Universal Window Sampling)
-/// - Compatible avec tous les iPhone (iPhone 5S, 6, 7, 8, SE, X, 11, 12, 13, 14, 15, 16 sur iOS 12+)
-/// - Retransmission instantanée dans le widget flottant sans écran noir (0s de délai)
-/// - Analyse OCR et reconnaissance d'interface en temps réel
+/// - Capture en direct haute fréquence sans écran noir
+/// - Diffusion immédiate de la 1ère trame à 0ms
+/// - Notification locale réactive (SarahLiveScreenFrameUpdated) pour UIKit et SwiftUI
+/// - Compatible 100% universel de iOS 12 (iPhone 5s) à iOS 18 (iPhone 16 Pro)
 public final class ScreenShareService: NSObject {
     
     public static let shared = ScreenShareService()
     
-    // App Group & IPC Darwin Notification
+    // Notifications & App Group
     public static let appGroupIdentifier = "group.com.sarahia.shared"
     public static let darwinNotificationName = "group.com.sarahia.broadcast.frame"
+    public static let liveFrameNotification = NSNotification.Name("SarahLiveScreenFrameUpdated")
     
     private let screenRecorder = RPScreenRecorder.shared()
     public private(set) var isScreenSharingActive: Bool = false
+    public private(set) var latestCapturedImage: UIImage?
+    
     private var liveTimer: Timer?
-    private var liveFrameCount: Int = 0
     private var lastAnalyzedText: String = ""
     private var lastDarwinFrameTimestamp: TimeInterval = 0
-    
     private var currentFrameCallback: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
     
     private override init() {
@@ -30,7 +34,7 @@ public final class ScreenShareService: NSObject {
         setupDarwinIPCReceiver()
     }
     
-    // MARK: - Récepteur IPC Darwin Notification (Extension Broadcast ➔ App Principale)
+    // MARK: - Récepteur IPC Darwin Notification
     
     private func setupDarwinIPCReceiver() {
         let center = CFNotificationCenterGetDarwinNotifyCenter()
@@ -48,7 +52,7 @@ public final class ScreenShareService: NSObject {
         guard isScreenSharingActive else { return }
         
         let now = CACurrentMediaTime()
-        guard now - lastDarwinFrameTimestamp >= 0.6 else { return }
+        guard now - lastDarwinFrameTimestamp >= 0.5 else { return }
         lastDarwinFrameTimestamp = now
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -64,13 +68,13 @@ public final class ScreenShareService: NSObject {
                 return
             }
             
-            self.processLiveFrame(image, onFrameAnalyzed: self.currentFrameCallback)
+            self.broadcastAndProcessFrame(image)
         }
     }
     
-    // MARK: - 1. Lancement du Partage d'Écran en Direct
+    // MARK: - Lancement du Partage d'Écran en Direct
     
-    /// Démarre le partage d'écran en direct avec affichage immédiat de la première trame
+    /// Démarre le partage d'écran en direct avec injection immédiate de la première trame
     public func startLiveScreenSharing(
         from viewController: UIViewController,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)? = nil,
@@ -84,98 +88,89 @@ public final class ScreenShareService: NSObject {
         isScreenSharingActive = true
         currentFrameCallback = onFrameAnalyzed
         
+        // 1. Notification de statut
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
             object: nil,
             userInfo: ["isActive": true]
         )
         
-        // 0. Capture et affichage IMMÉDIAT de la première trame (Zéro écran noir)
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let targetView = viewController.view.window ?? viewController.view
-            if let initialSnapshot = self.captureScreen(from: targetView) {
-                let initialResult = LocalVisionEngine.VisionAnalysisResult(
-                    objectLabel: "écran d'accueil",
-                    naturalSpokenResponse: "Partage d'écran actif.",
-                    detectedText: "",
-                    confidence: 0.95
-                )
-                onFrameAnalyzed?(initialResult, initialSnapshot)
-                ScreenSharePiPManager.shared.enqueueImage(initialSnapshot)
-            }
+        // 2. Capture synchrone IMMÉDIATE de la 1ère trame (Élimine le délai et l'écran noir)
+        let targetView = viewController.view.window ?? viewController.view
+        if let initialSnapshot = self.captureScreen(from: targetView) {
+            self.latestCapturedImage = initialSnapshot
+            self.broadcastAndProcessFrame(initialSnapshot)
         }
         
-        // 1. Initialisation du Picture-in-Picture
+        // 3. Initialisation du Picture-in-Picture
         ScreenSharePiPManager.shared.setupPiP(in: viewController.view)
         ScreenSharePiPManager.shared.startPictureInPicture()
         
-        // 2. Échantillonnage ReplayKit / Window continue
+        // 4. Lancement de la boucle continue d'échantillonnage (1 image / 1.0 seconde)
+        startUniversalWindowSampling(from: viewController)
+        
+        // 5. Tentative ReplayKit en parallèle si supporté
         if #available(iOS 11.0, *), screenRecorder.isAvailable {
             screenRecorder.isMicrophoneEnabled = true
-            
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
                 guard let self = self, self.isScreenSharingActive, error == nil else { return }
                 
                 if sampleBufferType == .video {
-                    self.liveFrameCount += 1
                     ScreenSharePiPManager.shared.enqueueSampleBuffer(sampleBuffer)
-                    
-                    if self.liveFrameCount % 30 == 0 {
-                        if let image = self.imageFromSampleBuffer(sampleBuffer) {
-                            self.processLiveFrame(image, onFrameAnalyzed: onFrameAnalyzed)
-                        }
+                    if let image = self.imageFromSampleBuffer(sampleBuffer) {
+                        self.broadcastAndProcessFrame(image)
                     }
                 }
-            }) { [weak self] error in
-                guard let self = self else { return }
-                if error != nil {
-                    // Fallback échantillonnage fenêtre
-                    self.startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
-                }
+            }) { error in
                 completion(true, "🔴 Partage d'écran en direct activé !")
             }
         } else {
-            // Fallback universel (iOS 12 / iPhone 5s)
-            startUniversalWindowSampling(from: viewController, onFrameAnalyzed: onFrameAnalyzed)
             completion(true, "🔴 Partage d'écran en direct activé !")
         }
     }
     
-    /// Boucle d'échantillonnage vidéo universelle ultra-rapide (rafraîchie toutes les 1.0s)
-    private func startUniversalWindowSampling(
-        from viewController: UIViewController,
-        onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
-    ) {
+    /// Échantillonnage continu et infaillible de la fenêtre (Toutes les 1.0s)
+    private func startUniversalWindowSampling(from viewController: UIViewController) {
         liveTimer?.invalidate()
         liveTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self, self.isScreenSharingActive else { return }
             
             DispatchQueue.main.async {
-                guard let targetView = viewController.view.window ?? viewController.view,
-                      let screenshot = self.captureScreen(from: targetView) else { return }
-                self.processLiveFrame(screenshot, onFrameAnalyzed: onFrameAnalyzed)
+                let targetView = viewController.view.window ?? viewController.view
+                if let screenshot = self.captureScreen(from: targetView) {
+                    self.broadcastAndProcessFrame(screenshot)
+                }
             }
         }
     }
     
-    private func processLiveFrame(
-        _ image: UIImage,
-        onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
-    ) {
-        // Envoi au flux Picture-in-Picture flottant
+    /// Diffuse la nouvelle trame instantanément sur le thread principal et déclenche l'analyse IA
+    public func broadcastAndProcessFrame(_ image: UIImage) {
+        self.latestCapturedImage = image
+        
+        // 1. Envoi immédiat à Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
         
-        DispatchQueue.main.async {
-            let result = LocalVisionEngine.VisionAnalysisResult(
+        // 2. Publication réactive locale sur le thread principal pour l'UI
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isScreenSharingActive else { return }
+            
+            NotificationCenter.default.post(
+                name: Self.liveFrameNotification,
+                object: nil,
+                userInfo: ["image": image]
+            )
+            
+            let defaultResult = LocalVisionEngine.VisionAnalysisResult(
                 objectLabel: "flux en direct",
                 naturalSpokenResponse: "",
                 detectedText: "",
                 confidence: 0.9
             )
-            onFrameAnalyzed?(result, image)
+            self.currentFrameCallback?(defaultResult, image)
         }
         
+        // 3. Analyse IA en arrière-plan
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
             guard let processed = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7) else { return }
@@ -183,12 +178,11 @@ public final class ScreenShareService: NSObject {
             LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
                 guard let self = self, self.isScreenSharingActive else { return }
                 
-                // Détection de changement d'état significatif
                 let newKey = "\(result.objectLabel)|\(result.detectedText)"
                 if newKey != self.lastAnalyzedText && (!result.detectedText.isEmpty || result.objectLabel != "inconnu") {
                     self.lastAnalyzedText = newKey
                     DispatchQueue.main.async {
-                        onFrameAnalyzed?(result, processed.image)
+                        self.currentFrameCallback?(result, processed.image)
                     }
                 }
             }
@@ -202,6 +196,7 @@ public final class ScreenShareService: NSObject {
         liveTimer?.invalidate()
         liveTimer = nil
         currentFrameCallback = nil
+        latestCapturedImage = nil
         
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
@@ -220,7 +215,7 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Capture Universelle UIView / UIWindow
+    // MARK: - Capture Universelle Sans Écran Noir
     
     public func captureScreen(from windowOrView: UIView? = nil) -> UIImage? {
         return autoreleasepool { () -> UIImage? in
@@ -238,7 +233,6 @@ public final class ScreenShareService: NSObject {
                 return nil
             }
             
-            // Double fallback pour garantir une capture d'écran 100% fiable
             if !view.drawHierarchy(in: bounds, afterScreenUpdates: false) {
                 view.layer.render(in: context)
             }
@@ -249,7 +243,7 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Utilitaires de conversion CMSampleBuffer ➔ UIImage
+    // MARK: - Conversion CMSampleBuffer ➔ UIImage
     
     private func imageFromSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> UIImage? {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }

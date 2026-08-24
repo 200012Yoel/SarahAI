@@ -1096,6 +1096,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             stopBtn.bottomAnchor.constraint(equalTo: floatingMirrorView.bottomAnchor, constant: -6),
             stopBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
+        
+        NotificationCenter.default.addObserver(
+            forName: ScreenShareService.liveFrameNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notif in
+            guard let self = self, self.floatingMirrorView.isHidden == false,
+                  let img = notif.userInfo?["image"] as? UIImage else { return }
+            self.floatingMirrorImageView.image = img
+        }
     }
     
     @objc private func handleFloatingMirrorPan(_ gesture: UIPanGestureRecognizer) {
@@ -1123,7 +1133,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         statusLabel.text = "● 🔴 Écran partagé"
         statusLabel.textColor = .systemRed
         floatingMirrorView.isHidden = false
-        floatingMirrorStatus.text = "👁️ Démarrage..."
+        floatingMirrorStatus.text = "👁️ En direct"
+        
+        // 1. Snapshot synchrone immédiat sur la frame 1 (0ms) - Élimine l'écran noir
+        if let initialSnapshot = ScreenShareService.shared.captureScreen(from: self.view.window ?? self.view) {
+            self.floatingMirrorImageView.image = initialSnapshot
+        }
         
         let introText = "🔴 Partage d'écran en direct activé ! J'observe votre écran en continu."
         let userMsg = Message(
@@ -1141,7 +1156,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ScreenShareService.shared.startLiveScreenSharing(from: self, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self else { return }
             self.floatingMirrorImageView.image = image
-            self.floatingMirrorStatus.text = "👁️ \(result.objectLabel)"
+            if !result.objectLabel.isEmpty && result.objectLabel != "flux en direct" {
+                self.floatingMirrorStatus.text = "👁️ \(result.objectLabel)"
+            }
             
             if !result.detectedText.isEmpty || result.objectLabel != "inconnu" {
                 let frameMsg = Message(
