@@ -7,18 +7,19 @@ import CoreVideo
 
 /// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran
 /// - Compatible de iOS 12 à iOS 18
-/// - Affiche la vignette flottante native du système iOS au-dessus de toutes les applications
+/// - Maintient le clone vidéo flottant système sur l'écran d'accueil et dans les autres applications
 public final class ScreenSharePiPManager: NSObject {
     
     public static let shared = ScreenSharePiPManager()
     
     // Layers et Vues
     public let sampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
-    private var pipController: AnyObject? // Typé AnyObject pour garantir la compatibilité iOS 12+
+    private var pipController: AnyObject?
+    private var pipDelegateHelper: AnyObject?
     private var playerLayer: AVPlayerLayer?
     private var dummyPlayer: AVPlayer?
     
-    public private(set) var isPiPActive: Bool = false
+    public var isPiPActive: Bool = false
     
     public var isPiPSupported: Bool {
         if #available(iOS 14.0, *) {
@@ -64,7 +65,6 @@ public final class ScreenSharePiPManager: NSObject {
     private func setupNativePiP(in containerView: UIView) {
         guard pipController == nil else { return }
         
-        // Configuration universelle via PlayerLayer silencieux pour support garanti iOS 14, 15, 16, 17, 18
         guard let blankURL = createBlankVideoAsset() else { return }
         let playerItem = AVPlayerItem(url: blankURL)
         let player = AVPlayer(playerItem: playerItem)
@@ -88,7 +88,9 @@ public final class ScreenSharePiPManager: NSObject {
         self.playerLayer = pLayer
         
         if let controller = AVPictureInPictureController(playerLayer: pLayer) {
-            controller.delegate = self
+            let helper = PiPDelegateHelper(manager: self)
+            self.pipDelegateHelper = helper
+            controller.delegate = helper
             if #available(iOS 14.2, *) {
                 controller.canStartPictureInPictureAutomaticallyFromInline = true
             }
@@ -122,7 +124,7 @@ public final class ScreenSharePiPManager: NSObject {
         }
     }
     
-    // MARK: - Injection de Trames Vidéo (ReplayKit / Snapshot ➔ PiP)
+    // MARK: - Injection de Trames Vidéo
     
     public func enqueueSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard isPiPSupported else { return }
@@ -236,27 +238,34 @@ public final class ScreenSharePiPManager: NSObject {
     }
 }
 
-// MARK: - AVPictureInPictureControllerDelegate (iOS 14+)
+// MARK: - Helper Délégué Isolé iOS 14+ (Résout les conflits de protocoles de compilation)
 
 @available(iOS 14.0, *)
-extension ScreenSharePiPManager: AVPictureInPictureControllerDelegate {
+private final class PiPDelegateHelper: NSObject, AVPictureInPictureControllerDelegate {
     
-    public func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = true
+    weak var manager: ScreenSharePiPManager?
+    
+    init(manager: ScreenSharePiPManager) {
+        self.manager = manager
+        super.init()
+    }
+    
+    func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        manager?.isPiPActive = true
         NotificationCenter.default.post(name: NSNotification.Name("SarahPiPStatusChanged"), object: nil, userInfo: ["isActive": true])
     }
     
-    public func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = true
+    func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        manager?.isPiPActive = true
     }
     
-    public func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
-        isPiPActive = false
+    func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        manager?.isPiPActive = false
         NotificationCenter.default.post(name: NSNotification.Name("SarahPiPStatusChanged"), object: nil, userInfo: ["isActive": false])
     }
     
-    public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
-        isPiPActive = false
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
+        manager?.isPiPActive = false
         print("⚠️ [ScreenSharePiPManager] Échec démarrage PiP: \(error.localizedDescription)")
     }
 }
