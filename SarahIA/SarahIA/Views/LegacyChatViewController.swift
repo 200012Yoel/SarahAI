@@ -1104,7 +1104,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ) { [weak self] notif in
             guard let self = self, self.floatingMirrorView.isHidden == false,
                   let img = notif.userInfo?["image"] as? UIImage else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             self.floatingMirrorImageView.image = img
+            CATransaction.commit()
         }
     }
     
@@ -1137,7 +1140,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // 1. Snapshot synchrone immédiat sur la frame 1 (0ms) - Élimine l'écran noir
         if let initialSnapshot = ScreenShareService.shared.captureScreen(from: self.view.window ?? self.view) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             self.floatingMirrorImageView.image = initialSnapshot
+            CATransaction.commit()
         }
         
         let introText = "🔴 Partage d'écran en direct activé ! J'observe votre écran en continu."
@@ -1155,7 +1161,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         ScreenShareService.shared.startLiveScreenSharing(from: self, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self else { return }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             self.floatingMirrorImageView.image = image
+            CATransaction.commit()
             if !result.objectLabel.isEmpty && result.objectLabel != "flux en direct" {
                 self.floatingMirrorStatus.text = "👁️ \(result.objectLabel)"
             }
