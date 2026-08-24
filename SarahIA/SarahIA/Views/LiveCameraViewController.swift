@@ -65,6 +65,15 @@ public final class LiveCameraViewController: UIViewController {
         }
     }
     
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // Transition vocale multi-personnages : Sarah passe le témoin à Tom
+        TTSManager.shared.handOffToTom(
+            sarahTransitionPhrase: "Ah, tu utilises la caméra ! Je te laisse avec Tom.",
+            tomGreeting: "Salut ! C'est Tom. Je regarde ce que tu me montres."
+        )
+    }
+    
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         LiveCameraManager.shared.updatePreviewLayout(bounds: previewContainer.bounds)
