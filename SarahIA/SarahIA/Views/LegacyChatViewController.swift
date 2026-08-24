@@ -969,11 +969,22 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         floatingMirrorStatus.textAlignment = .center
         floatingMirrorView.addSubview(floatingMirrorStatus)
         
+        let stopBtn = UIButton(type: .system)
+        stopBtn.translatesAutoresizingMaskIntoConstraints = false
+        stopBtn.setTitle("⏹ Arrêter", for: .normal)
+        stopBtn.setTitleColor(.white, for: .normal)
+        stopBtn.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        stopBtn.backgroundColor = UIColor.systemRed.withAlphaComponent(0.85)
+        stopBtn.layer.cornerRadius = 6
+        stopBtn.clipsToBounds = true
+        stopBtn.addTarget(self, action: #selector(stopScreenShareFromMirror), for: .touchUpInside)
+        floatingMirrorView.addSubview(stopBtn)
+        
         NSLayoutConstraint.activate([
             floatingMirrorView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 70),
             floatingMirrorView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             floatingMirrorView.widthAnchor.constraint(equalToConstant: 136),
-            floatingMirrorView.heightAnchor.constraint(equalToConstant: 220),
+            floatingMirrorView.heightAnchor.constraint(equalToConstant: 240),
             
             floatingMirrorHeader.topAnchor.constraint(equalTo: floatingMirrorView.topAnchor),
             floatingMirrorHeader.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor),
@@ -996,12 +1007,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             floatingMirrorImageView.topAnchor.constraint(equalTo: floatingMirrorHeader.bottomAnchor, constant: 4),
             floatingMirrorImageView.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor, constant: 4),
             floatingMirrorImageView.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor, constant: -4),
-            floatingMirrorImageView.bottomAnchor.constraint(equalTo: floatingMirrorStatus.topAnchor, constant: -4),
+            floatingMirrorImageView.bottomAnchor.constraint(equalTo: floatingMirrorStatus.topAnchor, constant: -3),
             
             floatingMirrorStatus.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor, constant: 4),
             floatingMirrorStatus.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor, constant: -4),
-            floatingMirrorStatus.bottomAnchor.constraint(equalTo: floatingMirrorView.bottomAnchor, constant: -4),
-            floatingMirrorStatus.heightAnchor.constraint(equalToConstant: 14)
+            floatingMirrorStatus.bottomAnchor.constraint(equalTo: stopBtn.topAnchor, constant: -4),
+            floatingMirrorStatus.heightAnchor.constraint(equalToConstant: 14),
+            
+            stopBtn.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor, constant: 6),
+            stopBtn.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor, constant: -6),
+            stopBtn.bottomAnchor.constraint(equalTo: floatingMirrorView.bottomAnchor, constant: -6),
+            stopBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
     }
     

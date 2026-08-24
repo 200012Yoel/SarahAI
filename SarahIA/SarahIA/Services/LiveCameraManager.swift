@@ -356,17 +356,11 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
     // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
     
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // Optimisation iPhone 5S / 7 : Si aucune capture photo n'est demandée, sortir IMMÉDIATEMENT
+        // L'aperçu vidéo plein écran est géré à 100% par le matériel GPU via AVCaptureVideoPreviewLayer (0% CPU)
+        guard let callback = onFrameCaptured else { return }
+        
         autoreleasepool {
-            let now = CACurrentMediaTime()
-            let isSnapshotRequested = (onFrameCaptured != nil)
-            
-            // Si pas de snapshot et throttle non écoulé -> sortie immédiate
-            if !isSnapshotRequested && (now - lastFrameTime < frameThrottleInterval) {
-                return
-            }
-            
-            lastFrameTime = now
-            
             guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
             
             let ciImage = CIImage(cvPixelBuffer: imageBuffer)
@@ -376,21 +370,8 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             let orientation: UIImage.Orientation = isFront ? .leftMirrored : .right
             let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
             
-            // Analyse de transition de luminosité (Caméra masquée -> démasquée)
-            if let attachments = CMCopyDictionaryOfAttachments(allocator: kCFAllocatorDefault, target: sampleBuffer, attachmentMode: kCMAttachmentMode_ShouldPropagate) as? [String: Any],
-               let rawMetadata = attachments["{Exif}"] as? [String: Any],
-               let brightness = rawMetadata["BrightnessValue"] as? Double {
-                let isDark = (brightness < -1.0)
-                if self.wasDarkScene && !isDark {
-                    self.resetContinuousAutoFocus()
-                }
-                self.wasDarkScene = isDark
-            }
-            
-            if let callback = onFrameCaptured {
-                onFrameCaptured = nil
-                callback(uiImage)
-            }
+            self.onFrameCaptured = nil
+            callback(uiImage)
         }
     }
     
@@ -402,9 +383,6 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             if device.isFocusModeSupported(.continuousAutoFocus) {
                 device.focusMode = .continuousAutoFocus
             }
-            if device.isSmoothAutoFocusSupported {
-                device.isSmoothAutoFocusEnabled = true
-            }
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
@@ -414,11 +392,6 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             if device.isLowLightBoostSupported {
                 device.automaticallyEnablesLowLightBoostWhenAvailable = true
             }
-            // Garantir 30 FPS constants pour que le capteur ne ralentisse pas dans l'obscurité
-            let frameDuration = CMTime(value: 1, timescale: 30)
-            device.activeVideoMinFrameDuration = frameDuration
-            device.activeVideoMaxFrameDuration = frameDuration
-            
             device.isSubjectAreaChangeMonitoringEnabled = true
             device.unlockForConfiguration()
         } catch {

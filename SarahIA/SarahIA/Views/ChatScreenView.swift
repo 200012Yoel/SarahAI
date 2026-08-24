@@ -127,11 +127,25 @@ public struct ChatScreenView: View {
                                 .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
                                 .lineLimit(1)
                                 .padding(.horizontal, 4)
-                                .padding(.bottom, 4)
+                                .padding(.bottom, 2)
                         }
+                        
+                        Button(action: {
+                            viewModel.stopLiveScreenSharing()
+                        }) {
+                            Text("⏹ Arrêter")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4)
+                                .background(Color.red.opacity(0.85))
+                                .cornerRadius(6)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.bottom, 6)
                     }
                     .frame(width: 136)
-                    .background(Color.black.opacity(0.9))
+                    .background(Color.black.opacity(0.92))
                     .cornerRadius(14)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
