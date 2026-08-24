@@ -1592,11 +1592,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         let userMsg = Message(content: "🚨 [Vérification des alertes Pikoud HaOref]", isFromUser: true)
         appendMessage(userMsg)
-        showTypingIndicator()
+        statusLabel.text = "● Vérification..."
         
         RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
             guard let self = self else { return }
-            self.hideTypingIndicator()
+            self.statusLabel.text = "● En direct"
             let aiMsg = Message(content: summary, isFromUser: false)
             self.appendMessage(aiMsg)
             TTSManager.shared.speakAsSarah(summary)
@@ -1607,11 +1607,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         let userMsg = Message(content: "📰 [Dernières actualités i24NEWS]", isFromUser: true)
         appendMessage(userMsg)
-        showTypingIndicator()
+        statusLabel.text = "● Actualités..."
         
         NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
             guard let self = self else { return }
-            self.hideTypingIndicator()
+            self.statusLabel.text = "● En direct"
             let aiMsg = Message(content: summary, isFromUser: false)
             self.appendMessage(aiMsg)
             TTSManager.shared.speakAsSarah(summary)
