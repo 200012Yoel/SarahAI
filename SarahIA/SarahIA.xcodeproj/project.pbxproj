@@ -64,6 +64,7 @@
 		A1B2C3D4000100010000004E /* NewsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004E /* NewsService.swift */; };
 		A1B2C3D4000100010000004F /* YouTubeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004F /* YouTubeService.swift */; };
 		A1B2C3D40001000100000060 /* YouTubePlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */; };
+		A1B2C3D40001000100000061 /* ScreenShareModalViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -131,6 +132,7 @@
 		A1B2C3D4000200010000004E /* NewsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004F /* YouTubeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePlayerViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareModalViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -249,6 +251,7 @@
 				A1B2C3D4000200010000004A /* LocalSyncQRView.swift */,
 				A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */,
 				A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */,
+				A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -460,6 +463,7 @@
 				A1B2C3D4000100010000004E /* NewsService.swift in Sources */,
 				A1B2C3D4000100010000004F /* YouTubeService.swift in Sources */,
 				A1B2C3D40001000100000060 /* YouTubePlayerViewController.swift in Sources */,
+				A1B2C3D40001000100000061 /* ScreenShareModalViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

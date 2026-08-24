@@ -61,6 +61,32 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             name: .AVCaptureSessionRuntimeError,
             object: captureSession
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(subjectAreaDidChange(_:)),
+            name: AVCaptureDevice.subjectAreaDidChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.startSession()
+            self?.resetContinuousAutoFocus()
+        }
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.stopSession()
+        }
+    }
+    
+    @objc private func subjectAreaDidChange(_ notification: Notification) {
+        // Détecte quand l'appareil photo est masqué ou démasqué / objet bouge
+        resetContinuousAutoFocus()
     }
     
     @objc private func sessionWasInterrupted(_ notification: Notification) {
@@ -130,6 +156,7 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
                 if self.captureSession.canAddInput(input) {
                     self.captureSession.addInput(input)
                     self.videoDeviceInput = input
+                    self.configureDeviceForContinuousTracking(validCamera)
                 }
             } catch {
                 print("❌ [LiveCameraManager] Erreur configuration input caméra: \(error)")
@@ -354,4 +381,57 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             }
         }
     }
+    
+    // MARK: - Suivi & Focus Dynamique Temps Réel
+    
+    private func configureDeviceForContinuousTracking(_ device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                device.whiteBalanceMode = .continuousAutoWhiteBalance
+            }
+            if device.isLowLightBoostSupported {
+                device.automaticallyEnablesLowLightBoostWhenAvailable = true
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = true
+            device.unlockForConfiguration()
+        } catch {
+            print("⚠️ [LiveCameraManager] Configuration caméra: \(error)")
+        }
+    }
+    
+    public func focusAndExpose(at point: CGPoint) {
+        sessionQueue.async { [weak self] in
+            guard let device = self?.videoDeviceInput?.device else { return }
+            do {
+                try device.lockForConfiguration()
+                if device.isFocusPointOfInterestSupported && device.isFocusModeSupported(.autoFocus) {
+                    device.focusPointOfInterest = point
+                    device.focusMode = .autoFocus
+                }
+                if device.isExposurePointOfInterestSupported && device.isExposureModeSupported(.autoExpose) {
+                    device.exposurePointOfInterest = point
+                    device.exposureMode = .autoExpose
+                }
+                device.isSubjectAreaChangeMonitoringEnabled = true
+                device.unlockForConfiguration()
+            } catch {
+                print("⚠️ [LiveCameraManager] Erreur focus/expose point: \(error)")
+            }
+        }
+    }
+    
+    public func resetContinuousAutoFocus() {
+        sessionQueue.async { [weak self] in
+            guard let device = self?.videoDeviceInput?.device else { return }
+            self?.configureDeviceForContinuousTracking(device)
+        }
+    }
 }
+
