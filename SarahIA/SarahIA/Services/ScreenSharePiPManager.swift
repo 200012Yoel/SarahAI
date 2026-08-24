@@ -7,9 +7,9 @@ import CoreVideo
 
 /// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran en Direct
 /// - Utilise AVPictureInPictureController avec AVSampleBufferDisplayLayer natif (iOS 15+)
-/// - Fallback AVPlayerLayer fluide pour iOS 14
-/// - Activation automatique lors du passage à l'écran d'accueil iOS (Home Screen / SpringBoard) ou sur toute autre application
+/// - Fallback AVPlayerLayer fluide et persistant pour iOS 14
 /// - Maintien du processus en tâche de fond via UIBackgroundTaskIdentifier et session audio de lecture
+/// - Activation automatique de la pop-up vidéo flottante lors de la sortie de Sarah AI
 /// - Compatible universel de iOS 12 (iPhone 5s) à iOS 18 (iPhone 16 Pro Max)
 public final class ScreenSharePiPManager: NSObject {
     
@@ -25,6 +25,7 @@ public final class ScreenSharePiPManager: NSObject {
     private var sampleBufferPlaybackDelegate: AnyObject?
     private var playerLayer: AVPlayerLayer?
     private var dummyPlayer: AVPlayer?
+    private var hostContainerView: UIView?
     
     public var isPiPActive: Bool = false
     
@@ -131,8 +132,9 @@ public final class ScreenSharePiPManager: NSObject {
     
     public func setupPiP(in containerView: UIView) {
         guard isPiPSupported else { return }
+        self.hostContainerView = containerView
         
-        sampleBufferDisplayLayer.frame = containerView.bounds
+        sampleBufferDisplayLayer.frame = containerView.bounds.isEmpty ? CGRect(x: 0, y: 0, width: 320, height: 240) : containerView.bounds
         sampleBufferDisplayLayer.videoGravity = .resizeAspect
         
         if sampleBufferDisplayLayer.superlayer !== containerView.layer {
@@ -171,8 +173,8 @@ public final class ScreenSharePiPManager: NSObject {
     private func setupPlayerLayerPiP(in containerView: UIView) {
         guard pipController == nil else { return }
         
-        guard let blankURL = createBlankVideoAsset() else { return }
-        let playerItem = AVPlayerItem(url: blankURL)
+        guard let assetURL = createBlankVideoAsset() else { return }
+        let playerItem = AVPlayerItem(url: assetURL)
         let player = AVPlayer(playerItem: playerItem)
         player.actionAtItemEnd = .none
         
@@ -186,7 +188,7 @@ public final class ScreenSharePiPManager: NSObject {
         }
         
         let pLayer = AVPlayerLayer(player: player)
-        pLayer.frame = containerView.bounds
+        pLayer.frame = containerView.bounds.isEmpty ? CGRect(x: 0, y: 0, width: 320, height: 240) : containerView.bounds
         pLayer.videoGravity = .resizeAspect
         containerView.layer.insertSublayer(pLayer, at: 0)
         
@@ -351,11 +353,54 @@ public final class ScreenSharePiPManager: NSObject {
     }
     
     private func createBlankVideoAsset() -> URL? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("blank_pip.mp4")
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sarah_pip_stream.mp4")
         if FileManager.default.fileExists(atPath: tempURL.path) {
             return tempURL
         }
-        return Bundle.main.url(forResource: "blank", withExtension: "mp4") ?? tempURL
+        
+        // Création programmatique d'un fichier MP4 vidéo valide
+        guard let writer = try? AVAssetWriter(outputURL: tempURL, fileType: .mp4) else { return nil }
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 480,
+            AVVideoHeightKey: 320
+        ]
+        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        writerInput.expectsMediaDataInRealTime = false
+        
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: writerInput,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
+                kCVPixelBufferWidthKey as String: 480,
+                kCVPixelBufferHeightKey as String: 320
+            ]
+        )
+        
+        if writer.canAdd(writerInput) {
+            writer.add(writerInput)
+            writer.startWriting()
+            writer.startSession(atSourceTime: .zero)
+            
+            var buffer: CVPixelBuffer?
+            CVPixelBufferCreate(kCFAllocatorDefault, 480, 320, kCVPixelFormatType_32ARGB, nil, &buffer)
+            if let buf = buffer {
+                for i in 0..<30 {
+                    let frameTime = CMTime(value: CMTimeValue(i), timescale: 3)
+                    while !writerInput.isReadyForMoreMediaData {}
+                    adaptor.append(buf, withPresentationTime: frameTime)
+                }
+            }
+            writerInput.markAsFinished()
+            let group = DispatchGroup()
+            group.enter()
+            writer.finishWriting {
+                group.leave()
+            }
+            group.wait()
+            return tempURL
+        }
+        return nil
     }
 }
 
@@ -372,11 +417,11 @@ private final class SampleBufferPiPPlaybackDelegate: NSObject, AVPictureInPictur
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
-        // En direct continu
+        // Lecture continue en direct
     }
     
     func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
-        return CMTimeRange(start: .zero, duration: .positiveInfinity)
+        return CMTimeRange(start: .zero, duration: CMTime(seconds: 3600 * 24, preferredTimescale: 600))
     }
     
     func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
@@ -384,7 +429,7 @@ private final class SampleBufferPiPPlaybackDelegate: NSObject, AVPictureInPictur
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
-        // Redimensionnement automatique de la fenêtre flottante
+        // Redimensionnement automatique de la pop-up flottante
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
