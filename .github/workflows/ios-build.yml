@@ -64,8 +64,12 @@ jobs:
 
           if [ $BUILD_EXIT_CODE -ne 0 ] || grep -q "BUILD FAILED" "$GITHUB_WORKSPACE/xcodebuild.log"; then
             echo "❌ BUILD FAILED DETECTED (Exit code: $BUILD_EXIT_CODE)"
-            grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || tail -n 120 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt"
+            grep -E "(error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || tail -n 150 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt"
+            echo "================================================================"
+            echo "=== XCODE ERRORS FOUND IN RUN ==="
             cat "$GITHUB_WORKSPACE/xcode_errors.txt"
+            echo "================================================================"
+            gh release upload latest "$GITHUB_WORKSPACE/xcode_errors.txt" --clobber || true
             exit 1
           fi
 

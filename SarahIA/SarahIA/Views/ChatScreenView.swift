@@ -5,7 +5,6 @@ import SwiftUI
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
-    @ObservedObject private var screenTracker = ScreenShareStateTracker.shared
     
     @State private var isShowingCamera: Bool = false
     @State private var isShowingYouTubePlayer: Bool = false
@@ -29,13 +28,13 @@ public struct ChatScreenView: View {
                     topBar
                     
                     // 1.1 Bandeau Live Partage d'Écran Actif (Temps Réel)
-                    if screenTracker.isActive || viewModel.isScreenSharingActive {
+                    if viewModel.isScreenSharingActive {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(screenTracker.status == .active ? Color.red : Color.green)
+                                .fill(viewModel.screenShareStatus == .active ? Color.red : Color.green)
                                 .frame(width: 8, height: 8)
                             
-                            Text(screenTracker.status == .active ? "🔴 Partage d'écran en direct" : "🟢 Connecté au partage d'écran")
+                            Text(viewModel.screenShareStatus == .active ? "🔴 Partage d'écran en direct" : "🟢 Connecté au partage d'écran")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.white)
                             
@@ -104,13 +103,13 @@ public struct ChatScreenView: View {
                 .background(Color.black)
                 
                 // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct
-                if screenTracker.isActive || viewModel.isScreenSharingActive {
+                if viewModel.isScreenSharingActive {
                     VStack(spacing: 4) {
                         HStack {
                             Circle()
-                                .fill(screenTracker.status == .active ? Color.red : (screenTracker.status == .connected ? Color.green : Color.yellow))
+                                .fill(viewModel.screenShareStatus == .active ? Color.red : (viewModel.screenShareStatus == .connected ? Color.green : Color.yellow))
                                 .frame(width: 7, height: 7)
-                            Text(screenTracker.status == .active ? "🔴 En direct" : (screenTracker.status == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
+                            Text(viewModel.screenShareStatus == .active ? "🔴 En direct" : (viewModel.screenShareStatus == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.white)
                             Spacer()
@@ -123,7 +122,7 @@ public struct ChatScreenView: View {
                         .padding(.horizontal, 8)
                         .padding(.top, 6)
                         
-                        if let img = screenTracker.latestImage ?? viewModel.lastScreenShareImage {
+                        if let img = viewModel.lastScreenShareImage {
                             Image(uiImage: img)
                                 .resizable()
                                 .scaledToFit()
