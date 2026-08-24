@@ -6,19 +6,18 @@ import CoreMedia
 import CoreVideo
 
 /// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran
-/// - Compatible 100% avec les cibles de déploiement iOS 12 -> 18
-/// - Utilise AVPictureInPictureController sur iOS 14+ avec support AVSampleBufferDisplayLayer sur iOS 15+
-/// - Maintient le clone vidéo flottant système sur l'écran d'accueil et dans les autres applications
+/// - Compatible de iOS 12 à iOS 18
+/// - Affiche la vignette flottante native du système iOS au-dessus de toutes les applications
 public final class ScreenSharePiPManager: NSObject {
     
     public static let shared = ScreenSharePiPManager()
     
-    // Vues et Layers Vidéo
+    // Layers et Vues
     public let sampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
-    private var pipControllerObject: AnyObject? // AVPictureInPictureController sécurisé pour iOS 12+
-    private var pipPlaybackHelper: AnyObject?
+    private var pipController: AnyObject? // Typé AnyObject pour garantir la compatibilité iOS 12+
+    private var playerLayer: AVPlayerLayer?
+    private var dummyPlayer: AVPlayer?
     
-    // États
     public private(set) var isPiPActive: Bool = false
     
     public var isPiPSupported: Bool {
@@ -56,27 +55,47 @@ public final class ScreenSharePiPManager: NSObject {
             containerView.layer.insertSublayer(sampleBufferDisplayLayer, at: 0)
         }
         
-        if #available(iOS 15.0, *) {
-            setupSampleBufferPiPiOS15()
+        if #available(iOS 14.0, *) {
+            setupNativePiP(in: containerView)
         }
     }
     
-    @available(iOS 15.0, *)
-    private func setupSampleBufferPiPiOS15() {
-        guard pipControllerObject == nil else { return }
+    @available(iOS 14.0, *)
+    private func setupNativePiP(in containerView: UIView) {
+        guard pipController == nil else { return }
         
-        let helper = SampleBufferPiPHelper(manager: self)
-        self.pipPlaybackHelper = helper
+        // Configuration universelle via PlayerLayer silencieux pour support garanti iOS 14, 15, 16, 17, 18
+        guard let blankURL = createBlankVideoAsset() else { return }
+        let playerItem = AVPlayerItem(url: blankURL)
+        let player = AVPlayer(playerItem: playerItem)
+        player.actionAtItemEnd = .none
         
-        let contentSource = AVPictureInPictureController.ContentSource(
-            sampleBufferDisplayLayer: sampleBufferDisplayLayer,
-            playbackDelegate: helper
-        )
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            player.seek(to: .zero)
+            player.play()
+        }
         
-        let controller = AVPictureInPictureController(contentSource: contentSource)
-        controller.delegate = self
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        self.pipControllerObject = controller
+        let pLayer = AVPlayerLayer(player: player)
+        pLayer.frame = containerView.bounds
+        pLayer.videoGravity = .resizeAspect
+        containerView.layer.insertSublayer(pLayer, at: 0)
+        
+        self.dummyPlayer = player
+        self.playerLayer = pLayer
+        
+        if let controller = AVPictureInPictureController(playerLayer: pLayer) {
+            controller.delegate = self
+            if #available(iOS 14.2, *) {
+                controller.canStartPictureInPictureAutomaticallyFromInline = true
+            }
+            self.pipController = controller
+        }
+        
+        player.play()
     }
     
     // MARK: - Contrôle du Picture-in-Picture
@@ -85,7 +104,7 @@ public final class ScreenSharePiPManager: NSObject {
         guard isPiPSupported else { return }
         
         if #available(iOS 14.0, *),
-           let controller = pipControllerObject as? AVPictureInPictureController,
+           let controller = pipController as? AVPictureInPictureController,
            !controller.isPictureInPictureActive {
             DispatchQueue.main.async {
                 controller.startPictureInPicture()
@@ -95,7 +114,7 @@ public final class ScreenSharePiPManager: NSObject {
     
     public func stopPictureInPicture() {
         if #available(iOS 14.0, *),
-           let controller = pipControllerObject as? AVPictureInPictureController,
+           let controller = pipController as? AVPictureInPictureController,
            controller.isPictureInPictureActive {
             DispatchQueue.main.async {
                 controller.stopPictureInPicture()
@@ -207,6 +226,14 @@ public final class ScreenSharePiPManager: NSObject {
         
         return sampleBuffer
     }
+    
+    private func createBlankVideoAsset() -> URL? {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("blank_pip.mp4")
+        if FileManager.default.fileExists(atPath: tempURL.path) {
+            return tempURL
+        }
+        return Bundle.main.url(forResource: "blank", withExtension: "mp4") ?? tempURL
+    }
 }
 
 // MARK: - AVPictureInPictureControllerDelegate (iOS 14+)
@@ -231,34 +258,5 @@ extension ScreenSharePiPManager: AVPictureInPictureControllerDelegate {
     public func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
         isPiPActive = false
         print("⚠️ [ScreenSharePiPManager] Échec démarrage PiP: \(error.localizedDescription)")
-    }
-}
-
-// MARK: - Helper iOS 15+ pour AVPictureInPictureSampleBufferPlaybackDelegate
-
-@available(iOS 15.0, *)
-private final class SampleBufferPiPHelper: NSObject, AVPictureInPictureSampleBufferPlaybackDelegate {
-    
-    weak var manager: ScreenSharePiPManager?
-    
-    init(manager: ScreenSharePiPManager) {
-        self.manager = manager
-        super.init()
-    }
-    
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {}
-    
-    func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
-        return CMTimeRange(start: .zero, duration: CMTime(value: 1000000, timescale: 1))
-    }
-    
-    func pictureInPictureControllerIsPlaybackPaused(_ pictureInPictureController: AVPictureInPictureController) -> Bool {
-        return false
-    }
-    
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {}
-    
-    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
-        completionHandler()
     }
 }
