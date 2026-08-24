@@ -157,6 +157,11 @@ public final class SarahBrainEngine {
             return BrainIntent(primaryTopic: "news")
         }
         
+        // Intent Vidéos YouTube en Direct
+        if norm.contains("youtube") || norm.contains("video de") || norm.contains("lance la video") || norm.contains("mets la video") || norm.contains("regarder la video") || norm.contains("cherche la video") {
+            return BrainIntent(primaryTopic: "youtube")
+        }
+        
         // Intent Radio / Podcasts / Musique
         if norm.contains("radio") || norm.contains("podcast") || norm.contains("musique") || norm.contains("spotify") || norm.contains("apple music") || norm.contains("skyrock") || norm.contains("france inter") || norm.contains("nrj") || norm.contains("rtl") {
             return BrainIntent(primaryTopic: "media_stream", requiresMediaStream: true)
@@ -246,11 +251,24 @@ public final class SarahBrainEngine {
             return
         }
         
-        if intent.primaryTopic == "news" {
-            let norm = normalize(query)
-            let src: NewsService.NewsSource = (norm.contains("i24") || norm.contains("israel")) ? .i24news : .franceinfo
-            NewsService.shared.getSpokenNewsSummary(preferredSource: src) { [weak self] summary in
-                let report = BrainExecutionReport(leadAgent: "Sarah (Actualités)", finalNaturalResponse: summary, sources: [src.rawValue])
+        if intent.primaryTopic == "youtube" {
+            let cleanQuery = query
+                .replacingOccurrences(of: "cherche sur youtube", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "sur youtube", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "lance la vidéo de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "lance la video de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la vidéo de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la video de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la vidéo", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la video", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "youtube", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let q = cleanQuery.isEmpty ? query : cleanQuery
+            
+            YouTubeService.shared.getSpokenSummary(for: q) { [weak self] summary, videos in
+                let sources = videos.prefix(3).map { "\($0.title) (\($0.channelTitle))" }
+                let report = BrainExecutionReport(leadAgent: "Sarah (YouTube)", finalNaturalResponse: summary, sources: sources)
+                NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchYouTubePlayer"), object: q)
                 self?.recordExchange(query: query, response: summary)
                 completion(report)
             }

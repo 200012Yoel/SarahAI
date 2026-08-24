@@ -279,7 +279,33 @@ public final class AIService {
             }
         }
         
-        // 5. Traduction multilingue temps réel si demandé
+        // 5. Visionneur et Recherche de Vidéos YouTube en direct
+        if normalized.contains("youtube") || normalized.contains("video de") || normalized.contains("lance la video") || normalized.contains("mets la video") || normalized.contains("regarder la video") || normalized.contains("cherche la video") || (normalized.contains("cherche") && normalized.contains("clip")) {
+            var videoSearchQuery = trimmed
+                .replacingOccurrences(of: "cherche sur youtube", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "sur youtube", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "lance la vidéo de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "lance la video de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la vidéo de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la video de", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la vidéo", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "mets la video", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "youtube", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if videoSearchQuery.isEmpty { videoSearchQuery = trimmed }
+            
+            let queryToSearch = videoSearchQuery
+            let ytResult = await withCheckedContinuation { continuation in
+                YouTubeService.shared.getSpokenSummary(for: queryToSearch) { summary, videos in
+                    continuation.resume(returning: summary)
+                }
+            }
+            NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchYouTubePlayer"), object: queryToSearch)
+            recordExchange(userText: trimmed, assistantResponse: ytResult)
+            return ytResult
+        }
+        
+        // 6. Traduction multilingue temps réel si demandé
         if let translationReq = translation.parseTranslationIntent(input: trimmed) {
             let translated = await translation.translate(
                 text: translationReq.textToTranslate,

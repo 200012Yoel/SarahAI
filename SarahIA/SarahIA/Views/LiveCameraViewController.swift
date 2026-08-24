@@ -433,7 +433,7 @@ public final class LiveCameraViewController: UIViewController {
     @objc private func shutterButtonTapped() {
         guard !isAnalyzing else { return }
         isAnalyzing = true
-        HapticService.shared.triggerSelectionFeedback()
+        HapticService.shared.buttonTap()
         
         statusBanner.text = "🔍 Analyse de la scène..."
         statusBanner.textColor = .systemYellow

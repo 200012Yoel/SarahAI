@@ -104,9 +104,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 self.cameraButtonTapped()
             case "screenshare":
                 self.startScreenShareAnalysis()
+            case "youtube":
+                self.openYouTubePlayer()
             default:
                 break
             }
+        }
+        
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahLaunchYouTubePlayer"), object: nil, queue: .main) { [weak self] notif in
+            let query = notif.object as? String
+            self?.openYouTubePlayer(query: query)
         }
         
         NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahLaunchCamera"), object: nil, queue: .main) { [weak self] _ in
@@ -1005,6 +1012,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.inputTextField.text = "Donne-moi les actualités"
             self?.sendButtonTapped()
         }))
+        sheet.addAction(UIAlertAction(title: "📺 Sarah Vidéos (YouTube)", style: .default, handler: { [weak self] _ in
+            self?.openYouTubePlayer()
+        }))
         sheet.addAction(UIAlertAction(title: "🖥️ Lancer le partage d'écran", style: .default, handler: { [weak self] _ in
             self?.startScreenShareAnalysis()
         }))
@@ -1089,6 +1099,16 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }))
         alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
+    }
+    
+    // MARK: - Visionneur Vidéo YouTube Intégré
+    
+    public func openYouTubePlayer(query: String? = nil) {
+        HapticService.shared.buttonTap()
+        let ytVC = YouTubePlayerViewController()
+        ytVC.initialQuery = query
+        ytVC.modalPresentationStyle = .fullScreen
+        present(ytVC, animated: true, completion: nil)
     }
     
     // MARK: - Caméra & Vision par Ordinateur

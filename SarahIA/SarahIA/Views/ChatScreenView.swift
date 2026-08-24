@@ -7,6 +7,8 @@ public struct ChatScreenView: View {
     @StateObject private var keyboard = KeyboardObserver()
     
     @State private var isShowingCamera: Bool = false
+    @State private var isShowingYouTubePlayer: Bool = false
+    @State private var youTubeInitialQuery: String = ""
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingWidgetsGallery: Bool = false
     @State private var isShowingSyncQR: Bool = false
@@ -106,6 +108,10 @@ public struct ChatScreenView: View {
                     .default(Text("📰 Actualités (Franceinfo & i24)")) {
                         viewModel.sendMessage("Donne-moi les actualités")
                     },
+                    .default(Text("📺 Sarah Vidéos (YouTube)")) {
+                        youTubeInitialQuery = "musique"
+                        isShowingYouTubePlayer = true
+                    },
                     .default(Text("🖥️ Lancer le partage d'écran")) {
                         viewModel.startLiveScreenSharing()
                     },
@@ -149,8 +155,17 @@ public struct ChatScreenView: View {
             })
             .ignoresSafeArea()
         }
+        .fullScreenCover(isPresented: $isShowingYouTubePlayer) {
+            YouTubePlayerRepresentable(query: youTubeInitialQuery)
+                .ignoresSafeArea()
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchCamera"))) { _ in
             isShowingCamera = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchYouTubePlayer"))) { notif in
+            let query = (notif.object as? String) ?? ""
+            youTubeInitialQuery = query
+            isShowingYouTubePlayer = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchScreenShare"))) { _ in
             viewModel.startLiveScreenSharing()
@@ -271,3 +286,22 @@ public struct CameraRepresentable: UIViewControllerRepresentable {
     
     public func updateUIViewController(_ uiViewController: LiveCameraViewController, context: Context) {}
 }
+
+/// Wrapper UIKit pour afficher YouTubePlayerViewController en SwiftUI
+@available(iOS 14.0, *)
+public struct YouTubePlayerRepresentable: UIViewControllerRepresentable {
+    public var query: String?
+    
+    public init(query: String? = nil) {
+        self.query = query
+    }
+    
+    public func makeUIViewController(context: Context) -> YouTubePlayerViewController {
+        let vc = YouTubePlayerViewController()
+        vc.initialQuery = query
+        return vc
+    }
+    
+    public func updateUIViewController(_ uiViewController: YouTubePlayerViewController, context: Context) {}
+}
+

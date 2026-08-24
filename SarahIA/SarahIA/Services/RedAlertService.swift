@@ -152,10 +152,24 @@ public final class RedAlertService: NSObject {
             
             if alerts.isEmpty {
                 if let last = self.recentAlerts.first {
-                    let formatter = RelativeDateTimeFormatter()
-                    formatter.unitsStyle = .full
-                    let relativeTime = formatter.localizedString(for: last.timestamp, relativeTo: Date())
-                    completion("🟢 Situation calme actuellement. Aucune alerte active en Israël selon Pikoud HaOref. Dernière alerte signalée \(relativeTime) à \(last.formattedCities).")
+                    let elapsed = Date().timeIntervalSince(last.timestamp)
+                    let timeDescription: String
+                    if elapsed < 60 {
+                        timeDescription = "il y a quelques secondes"
+                    } else if elapsed < 3600 {
+                        let mins = Int(elapsed / 60)
+                        timeDescription = "il y a \(mins) minute\(mins > 1 ? "s" : "")"
+                    } else if elapsed < 86400 {
+                        let hours = Int(elapsed / 3600)
+                        timeDescription = "il y a \(hours) heure\(hours > 1 ? "s" : "")"
+                    } else {
+                        let df = DateFormatter()
+                        df.dateStyle = .short
+                        df.timeStyle = .short
+                        df.locale = Locale(identifier: "fr_FR")
+                        timeDescription = "le " + df.string(from: last.timestamp)
+                    }
+                    completion("🟢 Situation calme actuellement. Aucune alerte active en Israël selon Pikoud HaOref. Dernière alerte signalée \(timeDescription) à \(last.formattedCities).")
                 } else {
                     completion("🟢 Situation calme. Aucune alerte active signalée par le Commandement du Front Intérieur en Israël.")
                 }
