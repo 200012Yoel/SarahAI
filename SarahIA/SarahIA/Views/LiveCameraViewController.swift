@@ -509,9 +509,13 @@ public final class LiveCameraViewController: UIViewController {
         modal.modalTransitionStyle = .crossDissolve
         modal.onStartBroadcast = { [weak self] in
             guard let self = self else { return }
+            let rootVC = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+                ?? UIApplication.shared.keyWindow?.rootViewController
+                ?? self.presentingViewController
+            
             self.dismiss(animated: true) {
                 self.onScreenShareRequested?()
-                ScreenShareService.shared.startLiveScreenSharing(from: self) { success, message in
+                ScreenShareService.shared.startLiveScreenSharing(from: rootVC) { success, message in
                     print("📺 Screen share: \(message)")
                 }
             }

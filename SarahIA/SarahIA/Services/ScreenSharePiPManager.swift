@@ -50,10 +50,22 @@ public final class ScreenSharePiPManager: NSObject {
     private func setupLifecycleObservers() {
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(handleAppWillResignActive),
+            name: UIApplication.willResignActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(handleAppDidEnterBackground),
             name: UIApplication.didEnterBackgroundNotification,
             object: nil
         )
+    }
+    
+    @objc private func handleAppWillResignActive() {
+        if ScreenShareService.shared.isScreenSharingActive {
+            startPictureInPicture()
+        }
     }
     
     @objc private func handleAppDidEnterBackground() {
