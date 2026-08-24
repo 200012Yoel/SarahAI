@@ -32,6 +32,7 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
     private var isSessionConfigured = false
     private var lastFrameTime: TimeInterval = 0
     private let frameThrottleInterval: TimeInterval = 0.35 // Max 3 fps pour l'analyse IA
+    private var wasDarkScene: Bool = false
     
     private var onFrameCaptured: ((UIImage) -> Void)?
     
@@ -375,6 +376,17 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             let orientation: UIImage.Orientation = isFront ? .leftMirrored : .right
             let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
             
+            // Analyse de transition de luminosité (Caméra masquée -> démasquée)
+            if let attachments = CMCopyDictionaryOfAttachments(allocator: kCFAllocatorDefault, target: sampleBuffer, attachmentMode: kCMAttachmentMode_ShouldPropagate) as? [String: Any],
+               let rawMetadata = attachments["{Exif}"] as? [String: Any],
+               let brightness = rawMetadata["BrightnessValue"] as? Double {
+                let isDark = (brightness < -1.0)
+                if self.wasDarkScene && !isDark {
+                    self.resetContinuousAutoFocus()
+                }
+                self.wasDarkScene = isDark
+            }
+            
             if let callback = onFrameCaptured {
                 onFrameCaptured = nil
                 callback(uiImage)
@@ -390,6 +402,9 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             if device.isFocusModeSupported(.continuousAutoFocus) {
                 device.focusMode = .continuousAutoFocus
             }
+            if device.isSmoothAutoFocusSupported {
+                device.isSmoothAutoFocusEnabled = true
+            }
             if device.isExposureModeSupported(.continuousAutoExposure) {
                 device.exposureMode = .continuousAutoExposure
             }
@@ -399,6 +414,11 @@ public final class LiveCameraManager: NSObject, AVCaptureVideoDataOutputSampleBu
             if device.isLowLightBoostSupported {
                 device.automaticallyEnablesLowLightBoostWhenAvailable = true
             }
+            // Garantir 30 FPS constants pour que le capteur ne ralentisse pas dans l'obscurité
+            let frameDuration = CMTime(value: 1, timescale: 30)
+            device.activeVideoMinFrameDuration = frameDuration
+            device.activeVideoMaxFrameDuration = frameDuration
+            
             device.isSubjectAreaChangeMonitoringEnabled = true
             device.unlockForConfiguration()
         } catch {

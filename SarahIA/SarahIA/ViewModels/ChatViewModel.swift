@@ -44,6 +44,8 @@ public final class ChatViewModel: ObservableObject {
     @Published public var searchQuery: String = ""
     @Published public var isSearchActive: Bool = false
     @Published public var isScreenSharingActive: Bool = false
+    @Published public var lastScreenShareImage: UIImage? = nil
+    @Published public var lastScreenShareAnalysis: String = ""
     
     // MARK: - Services
     private let aiService = AIService.shared
@@ -571,6 +573,11 @@ public final class ChatViewModel: ObservableObject {
         // 2. Démarrage de la capture ReplayKit / Window Sampling continue
         ScreenShareService.shared.startLiveScreenSharing(from: rootVC, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self, self.isScreenSharingActive else { return }
+            
+            DispatchQueue.main.async {
+                self.lastScreenShareImage = image
+                self.lastScreenShareAnalysis = result.objectLabel
+            }
             
             if !result.detectedText.isEmpty || result.objectLabel != "inconnu" {
                 let frameMsg = Message(

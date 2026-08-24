@@ -8,10 +8,11 @@ public struct ChatScreenView: View {
     
     @State private var isShowingCamera: Bool = false
     @State private var isShowingYouTubePlayer: Bool = false
-    @State private var youTubeInitialQuery: String = ""
+    @State private var youTubeInitialQuery: String = "musique"
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingWidgetsGallery: Bool = false
     @State private var isShowingSyncQR: Bool = false
+    @State private var mirrorDragOffset: CGSize = .zero
     
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
@@ -21,78 +22,133 @@ public struct ChatScreenView: View {
         GeometryReader { geo in
             let bottomInset = geo.safeAreaInsets.bottom
             
-            VStack(spacing: 0) {
-                // 1. Topbar Native
-                topBar
-                
-                // 1.1 Bandeau Live Partage d'Écran Actif (Temps Réel)
-                if viewModel.isScreenSharingActive {
-                    HStack(spacing: 10) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                        
-                        Text("🔴 Partage d'écran en direct (Temps Réel)")
-                            .font(.system(size: 12, weight: .bold))
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 0) {
+                    // 1. Topbar Native
+                    topBar
+                    
+                    // 1.1 Bandeau Live Partage d'Écran Actif (Temps Réel)
+                    if viewModel.isScreenSharingActive {
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                            
+                            Text("🔴 Partage d'écran en direct")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Button("Arrêter") {
+                                viewModel.stopLiveScreenSharing()
+                            }
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Button("Arrêter") {
-                            viewModel.stopLiveScreenSharing()
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.red.opacity(0.8)))
                         }
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.red.opacity(0.8)))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .background(Color(red: 0.15, green: 0.05, blue: 0.05))
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(Color(red: 0.15, green: 0.05, blue: 0.05))
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    
+                    // 2. Fil de discussion (MessageList)
+                    MessageList(
+                        messages: viewModel.messages,
+                        isTyping: viewModel.isTyping,
+                        isKeyboardVisible: keyboard.isVisible,
+                        onToggleSpeech: { message in
+                            viewModel.toggleSpeechForMessage(message.content)
+                        },
+                        onSelectSuggestion: { suggestionText in
+                            viewModel.sendQuickSuggestion(suggestionText)
+                        },
+                        onIntroduceSarah: {
+                            viewModel.introduceSarah()
+                        },
+                        onDismissKeyboard: {
+                            keyboard.dismiss()
+                        }
+                    )
+                    
+                    // 3. Barre de saisie (MessageBar) synchronisée au-dessus du clavier
+                    MessageBar(
+                        text: $viewModel.inputText,
+                        isRecording: viewModel.isMicRunning,
+                        onSend: { text in
+                            viewModel.sendMessage(text)
+                        },
+                        onToggleMic: {
+                            viewModel.toggleMicrophone()
+                        },
+                        onCamera: {
+                            isShowingCamera = true
+                        },
+                        onPlusTapped: {
+                            isShowingActionSheet = true
+                        }
+                    )
+                    .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
+                    .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
                 }
+                .background(Color.black)
                 
-                // 2. Fil de discussion (MessageList)
-                MessageList(
-                    messages: viewModel.messages,
-                    isTyping: viewModel.isTyping,
-                    isKeyboardVisible: keyboard.isVisible,
-                    onToggleSpeech: { message in
-                        viewModel.toggleSpeechForMessage(message.content)
-                    },
-                    onSelectSuggestion: { suggestionText in
-                        viewModel.sendQuickSuggestion(suggestionText)
-                    },
-                    onIntroduceSarah: {
-                        viewModel.introduceSarah()
-                    },
-                    onDismissKeyboard: {
-                        keyboard.dismiss()
+                // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct
+                if viewModel.isScreenSharingActive, let img = viewModel.lastScreenShareImage {
+                    VStack(spacing: 4) {
+                        HStack {
+                            Circle().fill(Color.red).frame(width: 7, height: 7)
+                            Text("🔴 Rendu Écran")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Button(action: { viewModel.stopLiveScreenSharing() }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .font(.system(size: 13))
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.top, 6)
+                        
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 180)
+                            .cornerRadius(8)
+                            .clipped()
+                        
+                        if !viewModel.lastScreenShareAnalysis.isEmpty {
+                            Text("👁️ \(viewModel.lastScreenShareAnalysis)")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.cyan)
+                                .lineLimit(1)
+                                .padding(.horizontal, 4)
+                                .padding(.bottom, 4)
+                        }
                     }
-                )
-                
-                // 3. Barre de saisie (MessageBar) synchronisée au-dessus du clavier
-                MessageBar(
-                    text: $viewModel.inputText,
-                    isRecording: viewModel.isMicRunning,
-                    onSend: { text in
-                        viewModel.sendMessage(text)
-                    },
-                    onToggleMic: {
-                        viewModel.toggleMicrophone()
-                    },
-                    onCamera: {
-                        isShowingCamera = true
-                    },
-                    onPlusTapped: {
-                        isShowingActionSheet = true
-                    }
-                )
-                .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
-                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
+                    .frame(width: 136)
+                    .background(Color.black.opacity(0.9))
+                    .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.cyan.opacity(0.8), lineWidth: 1.5)
+                    )
+                    .shadow(color: Color.black.opacity(0.6), radius: 8, x: 0, y: 4)
+                    .offset(mirrorDragOffset)
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                mirrorDragOffset = value.translation
+                            }
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.top, 65)
+                }
             }
-            .background(Color.black)
         }
         .ignoresSafeArea(.keyboard)
         .actionSheet(isPresented: $isShowingActionSheet) {

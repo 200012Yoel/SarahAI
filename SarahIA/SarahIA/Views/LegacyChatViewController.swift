@@ -47,6 +47,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private var composerBottomConstraint: NSLayoutConstraint?
     private var isKeyboardPresented: Bool = false
     
+    // MARK: - PiP Miroir Écran en Direct (Temps Réel)
+    private let floatingMirrorView = UIView()
+    private let floatingMirrorImageView = UIImageView()
+    private let floatingMirrorHeader = UIView()
+    private let floatingMirrorDot = UIView()
+    private let floatingMirrorTitle = UILabel()
+    private let floatingMirrorClose = UIButton(type: .system)
+    private let floatingMirrorStatus = UILabel()
+    
     // MARK: - Données & Persistance
     private var messages: [Message] = []
     private var conversations: [Conversation] = []
@@ -85,6 +94,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         setupKeyboardNotifications()
         setupGestures()
         setupDeepLinkObserver()
+        setupFloatingScreenMirrorUI()
         loadPersistedState()
         saveState()
         prewarmAudioSession()
@@ -901,12 +911,126 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(cameraVC, animated: true, completion: nil)
     }
     
+    // MARK: - Fenêtre Flottante PiP Miroir d'Écran
+    
+    private func setupFloatingScreenMirrorUI() {
+        floatingMirrorView.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorView.backgroundColor = UIColor(white: 0.08, alpha: 0.94)
+        floatingMirrorView.layer.cornerRadius = 14
+        floatingMirrorView.layer.borderWidth = 1.5
+        floatingMirrorView.layer.borderColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 0.85).cgColor
+        floatingMirrorView.layer.shadowColor = UIColor.black.cgColor
+        floatingMirrorView.layer.shadowOpacity = 0.6
+        floatingMirrorView.layer.shadowRadius = 8
+        floatingMirrorView.layer.shadowOffset = CGSize(width: 0, height: 4)
+        floatingMirrorView.clipsToBounds = true
+        floatingMirrorView.isHidden = true
+        view.addSubview(floatingMirrorView)
+        
+        let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleFloatingMirrorPan(_:)))
+        floatingMirrorView.addGestureRecognizer(panGesture)
+        
+        // Header
+        floatingMirrorHeader.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorHeader.backgroundColor = UIColor(white: 0.15, alpha: 0.8)
+        floatingMirrorView.addSubview(floatingMirrorHeader)
+        
+        floatingMirrorDot.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorDot.backgroundColor = .systemRed
+        floatingMirrorDot.layer.cornerRadius = 3.5
+        floatingMirrorHeader.addSubview(floatingMirrorDot)
+        
+        floatingMirrorTitle.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorTitle.text = "🔴 Rendu Écran"
+        floatingMirrorTitle.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        floatingMirrorTitle.textColor = .white
+        floatingMirrorHeader.addSubview(floatingMirrorTitle)
+        
+        floatingMirrorClose.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorClose.setTitle("✕", for: .normal)
+        floatingMirrorClose.setTitleColor(UIColor.white.withAlphaComponent(0.8), for: .normal)
+        floatingMirrorClose.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        floatingMirrorClose.addTarget(self, action: #selector(stopScreenShareFromMirror), for: .touchUpInside)
+        floatingMirrorHeader.addSubview(floatingMirrorClose)
+        
+        // Image View (Flux Direct)
+        floatingMirrorImageView.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorImageView.contentMode = .scaleAspectFit
+        floatingMirrorImageView.backgroundColor = .black
+        floatingMirrorImageView.layer.cornerRadius = 8
+        floatingMirrorImageView.clipsToBounds = true
+        floatingMirrorView.addSubview(floatingMirrorImageView)
+        
+        // Statut Analyse IA
+        floatingMirrorStatus.translatesAutoresizingMaskIntoConstraints = false
+        floatingMirrorStatus.text = "👁️ Sarah analyse..."
+        floatingMirrorStatus.font = UIFont.systemFont(ofSize: 9, weight: .semibold)
+        floatingMirrorStatus.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        floatingMirrorStatus.textAlignment = .center
+        floatingMirrorView.addSubview(floatingMirrorStatus)
+        
+        NSLayoutConstraint.activate([
+            floatingMirrorView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 70),
+            floatingMirrorView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            floatingMirrorView.widthAnchor.constraint(equalToConstant: 136),
+            floatingMirrorView.heightAnchor.constraint(equalToConstant: 220),
+            
+            floatingMirrorHeader.topAnchor.constraint(equalTo: floatingMirrorView.topAnchor),
+            floatingMirrorHeader.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor),
+            floatingMirrorHeader.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor),
+            floatingMirrorHeader.heightAnchor.constraint(equalToConstant: 26),
+            
+            floatingMirrorDot.leadingAnchor.constraint(equalTo: floatingMirrorHeader.leadingAnchor, constant: 6),
+            floatingMirrorDot.centerYAnchor.constraint(equalTo: floatingMirrorHeader.centerYAnchor),
+            floatingMirrorDot.widthAnchor.constraint(equalToConstant: 7),
+            floatingMirrorDot.heightAnchor.constraint(equalToConstant: 7),
+            
+            floatingMirrorTitle.leadingAnchor.constraint(equalTo: floatingMirrorDot.trailingAnchor, constant: 5),
+            floatingMirrorTitle.centerYAnchor.constraint(equalTo: floatingMirrorHeader.centerYAnchor),
+            
+            floatingMirrorClose.trailingAnchor.constraint(equalTo: floatingMirrorHeader.trailingAnchor, constant: -6),
+            floatingMirrorClose.centerYAnchor.constraint(equalTo: floatingMirrorHeader.centerYAnchor),
+            floatingMirrorClose.widthAnchor.constraint(equalToConstant: 20),
+            floatingMirrorClose.heightAnchor.constraint(equalToConstant: 20),
+            
+            floatingMirrorImageView.topAnchor.constraint(equalTo: floatingMirrorHeader.bottomAnchor, constant: 4),
+            floatingMirrorImageView.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor, constant: 4),
+            floatingMirrorImageView.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor, constant: -4),
+            floatingMirrorImageView.bottomAnchor.constraint(equalTo: floatingMirrorStatus.topAnchor, constant: -4),
+            
+            floatingMirrorStatus.leadingAnchor.constraint(equalTo: floatingMirrorView.leadingAnchor, constant: 4),
+            floatingMirrorStatus.trailingAnchor.constraint(equalTo: floatingMirrorView.trailingAnchor, constant: -4),
+            floatingMirrorStatus.bottomAnchor.constraint(equalTo: floatingMirrorView.bottomAnchor, constant: -4),
+            floatingMirrorStatus.heightAnchor.constraint(equalToConstant: 14)
+        ])
+    }
+    
+    @objc private func handleFloatingMirrorPan(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        floatingMirrorView.center = CGPoint(
+            x: floatingMirrorView.center.x + translation.x,
+            y: floatingMirrorView.center.y + translation.y
+        )
+        gesture.setTranslation(.zero, in: view)
+    }
+    
+    @objc private func stopScreenShareFromMirror() {
+        HapticService.shared.buttonTap()
+        ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
+            self?.floatingMirrorView.isHidden = true
+            self?.statusLabel.text = "● En ligne"
+            self?.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+        }
+    }
+    
     @objc private func startScreenShareAnalysis() {
         dismissKeyboard()
         HapticService.shared.buttonTap()
         
         statusLabel.text = "● 🔴 Écran partagé"
         statusLabel.textColor = .systemRed
+        floatingMirrorView.isHidden = false
+        floatingMirrorStatus.text = "👁️ Démarrage..."
         
         let introText = "🔴 Partage d'écran en direct activé ! J'observe votre écran en continu."
         let userMsg = Message(
@@ -923,6 +1047,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         ScreenShareService.shared.startLiveScreenSharing(from: self, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self else { return }
+            self.floatingMirrorImageView.image = image
+            self.floatingMirrorStatus.text = "👁️ \(result.objectLabel)"
+            
             if !result.detectedText.isEmpty || result.objectLabel != "inconnu" {
                 let frameMsg = Message(
                     content: result.naturalSpokenResponse,
@@ -936,6 +1063,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }) { [weak self] success, message in
             guard let self = self else { return }
             if !success {
+                self.floatingMirrorView.isHidden = true
                 self.statusLabel.text = "● En ligne"
                 self.statusLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
                 let errMsg = Message(content: "⚠️ \(message)", isFromUser: false)
