@@ -154,8 +154,6 @@ public final class ScreenSharePiPManager: NSObject {
         
         if #available(iOS 15.0, *) {
             setupSampleBufferPiP()
-        } else if #available(iOS 14.0, *) {
-            setupPlayerLayerPiP(in: containerView)
         }
         
         startHeartbeatLoop()
@@ -179,45 +177,6 @@ public final class ScreenSharePiPManager: NSObject {
         controller.delegate = helper
         controller.canStartPictureInPictureAutomaticallyFromInline = true
         self.pipController = controller
-    }
-    
-    @available(iOS 14.0, *)
-    private func setupPlayerLayerPiP(in containerView: UIView) {
-        guard pipController == nil else { return }
-        
-        guard let assetURL = createBlankVideoAsset() else { return }
-        let playerItem = AVPlayerItem(url: assetURL)
-        let player = AVPlayer(playerItem: playerItem)
-        player.actionAtItemEnd = .none
-        
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem,
-            queue: .main
-        ) { _ in
-            player.seek(to: .zero)
-            player.play()
-        }
-        
-        let pLayer = AVPlayerLayer(player: player)
-        pLayer.frame = containerView.bounds.isEmpty ? CGRect(x: 0, y: 0, width: 320, height: 240) : containerView.bounds
-        pLayer.videoGravity = .resizeAspect
-        containerView.layer.insertSublayer(pLayer, at: 0)
-        
-        self.dummyPlayer = player
-        self.playerLayer = pLayer
-        
-        if let controller = AVPictureInPictureController(playerLayer: pLayer) {
-            let helper = PiPDelegateHelper(manager: self)
-            self.pipDelegateHelper = helper
-            controller.delegate = helper
-            if #available(iOS 14.2, *) {
-                controller.canStartPictureInPictureAutomaticallyFromInline = true
-            }
-            self.pipController = controller
-        }
-        
-        player.play()
     }
     
     // MARK: - Contrôle du Picture-in-Picture
