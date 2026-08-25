@@ -1487,15 +1487,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func presentScreenShareModal() {
-        dismissKeyboard()
-        HapticService.shared.buttonTap()
-        let modal = ScreenShareModalViewController()
-        modal.modalPresentationStyle = .overFullScreen
-        modal.modalTransitionStyle = .crossDissolve
-        modal.onStartBroadcast = { [weak self] in
-            self?.startScreenShareAnalysis()
-        }
-        present(modal, animated: true, completion: nil)
+        startScreenShareAnalysis()
     }
     
     @objc private func startScreenShareAnalysis() {

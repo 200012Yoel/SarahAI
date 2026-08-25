@@ -498,23 +498,16 @@ public final class LiveCameraViewController: UIViewController {
     
     @objc private func screenShareButtonTapped() {
         HapticService.shared.buttonTap()
-        let modal = ScreenShareModalViewController()
-        modal.modalPresentationStyle = .overFullScreen
-        modal.modalTransitionStyle = .crossDissolve
-        modal.onStartBroadcast = { [weak self] in
-            guard let self = self else { return }
-            let rootVC = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
-                ?? UIApplication.shared.keyWindow?.rootViewController
-                ?? self.presentingViewController
-            
-            self.dismiss(animated: true) {
-                self.onScreenShareRequested?()
-                ScreenShareService.shared.startLiveScreenSharing(from: rootVC) { success, message in
-                    print("📺 Screen share: \(message)")
-                }
+        let rootVC = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            ?? UIApplication.shared.keyWindow?.rootViewController
+            ?? self.presentingViewController
+        
+        self.dismiss(animated: true) { [weak self] in
+            self?.onScreenShareRequested?()
+            ScreenShareService.shared.startLiveScreenSharing(from: rootVC) { success, message in
+                print("📺 Screen share: \(message)")
             }
         }
-        present(modal, animated: true, completion: nil)
     }
     
     @objc private func closeButtonTapped() {
