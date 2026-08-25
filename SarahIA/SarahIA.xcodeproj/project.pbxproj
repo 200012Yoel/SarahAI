@@ -72,7 +72,6 @@
 		A1B2C3D40001000100000066 /* BatteryMonitorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */; };
 		A1B2C3D40001000100000067 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000067 /* SampleHandler.swift */; };
 		A1B2C3D40001000100000068 /* SarahVoiceWaveSquareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */; };
-		A1B2C3D40001000100000069 /* JitsiConferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000069 /* JitsiConferenceService.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
