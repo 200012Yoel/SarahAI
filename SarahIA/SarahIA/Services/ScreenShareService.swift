@@ -98,7 +98,7 @@ public final class ScreenShareService: NSObject {
     }
     
     private func handleIncomingBroadcastFrame() {
-        guard isScreenSharingActive || status == .connecting else { return }
+        print("[ScreenShareService] DARWIN NOTIFICATION RECEIVED")
         
         let now = CACurrentMediaTime()
         guard now - lastDarwinFrameTimestamp >= 0.05 else { return } // Max ~20 FPS
@@ -112,10 +112,14 @@ public final class ScreenShareService: NSObject {
             }
             let frameURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
             
-            guard let data = try? Data(contentsOf: frameURL, options: .alwaysMapped),
-                  let image = UIImage(data: data) else {
-                return
-            }
+            guard FileManager.default.fileExists(atPath: frameURL.path) else { return }
+            print("[ScreenShareService] FRAME FILE FOUND")
+            
+            guard let data = try? Data(contentsOf: frameURL, options: .alwaysMapped) else { return }
+            print("[ScreenShareService] FRAME DATA READ")
+            
+            guard let image = UIImage(data: data) else { return }
+            print("[ScreenShareService] IMAGE DECODED")
             
             if !self.isScreenSharingActive {
                 self.isScreenSharingActive = true

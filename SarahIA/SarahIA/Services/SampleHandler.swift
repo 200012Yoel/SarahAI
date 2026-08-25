@@ -23,11 +23,12 @@ public class SampleHandler: RPBroadcastSampleHandler {
     
     public override func broadcastStarted(withSetupInfo setupInfo: [String : NSObject]?) {
         lastFrameTime = 0
-        print("[BroadcastExtension] broadcast started")
+        print("[BroadcastExtension] broadcastStarted")
     }
     
     public override func processSampleBuffer(_ sampleBuffer: CMSampleBuffer, with sampleBufferType: RPSampleBufferType) {
         guard sampleBufferType == .video else { return }
+        print("[BroadcastExtension] processSampleBuffer")
         
         guard CMSampleBufferIsValid(sampleBuffer), CMSampleBufferDataIsReady(sampleBuffer) else {
             print("[BroadcastExtension] ERROR = invalid or unready sample buffer")
@@ -46,8 +47,7 @@ public class SampleHandler: RPBroadcastSampleHandler {
         let timestampStr = String(format: "%.3f", ptsSeconds > 0 ? ptsSeconds : CACurrentMediaTime())
         
         print("[BroadcastExtension] VIDEO SAMPLE RECEIVED")
-        print("[BroadcastExtension] frame width = \(width)")
-        print("[BroadcastExtension] frame height = \(height)")
+        print("[BroadcastExtension] VIDEO FRAME SIZE = \(width)x\(height)")
         print("[BroadcastExtension] timestamp = \(timestampStr)")
         
         let now = CACurrentMediaTime()
@@ -64,6 +64,7 @@ public class SampleHandler: RPBroadcastSampleHandler {
             print("[BroadcastExtension] ERROR = failed to encode frame to JPEG")
             return
         }
+        print("[BroadcastExtension] FRAME JPEG CREATED")
         
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             print("[BroadcastExtension] ERROR = App Group container not accessible: \(appGroupIdentifier)")
@@ -73,15 +74,16 @@ public class SampleHandler: RPBroadcastSampleHandler {
         let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
         do {
             try jpegData.write(to: fileURL, options: .atomic)
+            print("[BroadcastExtension] FRAME WRITTEN")
             let center = CFNotificationCenterGetDarwinNotifyCenter()
             CFNotificationCenterPostNotification(center, CFNotificationName(darwinNotificationName as CFString), nil, nil, true)
-            print("[BroadcastExtension] frame transferred")
+            print("[BroadcastExtension] DARWIN NOTIFICATION SENT")
         } catch {
             print("[BroadcastExtension] ERROR = failed to write frame to App Group: \(error.localizedDescription)")
         }
     }
     
     public override func broadcastFinished() {
-        print("[BroadcastExtension] broadcast finished")
+        print("[BroadcastExtension] broadcastFinished")
     }
 }
