@@ -151,8 +151,8 @@ jobs:
         if: failure()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: "Sarah IA - Build Diagnostic Logs"
+          tag_name: build-error
+          name: "Build Error Log"
           body_path: xcode_errors.txt
           files: |
             xcode_errors.txt
