@@ -72,6 +72,7 @@ public final class ScreenShareService: NSObject {
     private let decodeQueue = DispatchQueue(label: "com.sarahia.screenshare.decode", qos: .userInteractive)
     private let visionThrottleQueue = DispatchQueue(label: "com.sarahia.screenshare.vision", qos: .userInitiated)
     
+    private var fallbackTimer: Timer?
     private var lastDarwinFrameTimestamp: TimeInterval = 0
     private var lastVisionAnalysisTimestamp: TimeInterval = 0
     private var isVisionProcessing: Bool = false
@@ -174,7 +175,8 @@ public final class ScreenShareService: NSObject {
                     let nsError = err as NSError
                     print("[ReplayKit] ERROR = \(err.localizedDescription) (Code \(nsError.code))")
                     if nsError.code == -5808 || nsError.code == -5803 {
-                        print("[ReplayKit] ReplayKit interrompu par redimensionnement/multitâche (iOS 12). Tentative de redémarrage...")
+                        print("[ReplayKit] ReplayKit interrompu par redimensionnement/multitâche (iOS 12). Bascule sur mode dégradé et tentative de redémarrage...")
+                        self.startFallbackCaptureIfNeeded()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                             if UIApplication.shared.applicationState == .active && self?.isScreenSharingActive == true {
                                 self?.startLiveScreenSharing(completion: { _, _ in })
@@ -335,7 +337,10 @@ public final class ScreenShareService: NSObject {
             }
         }
         
-        // 4. Arrêt de ReplayKit
+        // 4. Arrêt de ReplayKit et du fallback
+        fallbackTimer?.invalidate()
+        fallbackTimer = nil
+        
         if #available(iOS 11.0, *), screenRecorder.isRecording {
             screenRecorder.stopCapture { error in
                 if let err = error {
@@ -381,6 +386,22 @@ public final class ScreenShareService: NSObject {
             UIGraphicsEndImageContext()
             
             return captured
+        }
+    }
+    
+    // MARK: - 8. Mode Dégradé (Fallback Capture d'Écran sous iOS 12 si ReplayKit est interrompu)
+    
+    public func startFallbackCaptureIfNeeded() {
+        guard fallbackTimer == nil else { return }
+        print("[ScreenShareService] Démarrage du mode dégradé (Capture locale 2 FPS iOS 12)")
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.fallbackTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self = self, self.isScreenSharingActive else { return }
+                if let image = self.captureScreen() {
+                    self.broadcastAndProcessDecodedImage(image)
+                }
+            }
         }
     }
 }
