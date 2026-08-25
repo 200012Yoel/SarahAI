@@ -652,37 +652,29 @@ public final class ChatViewModel: ObservableObject {
         isScreenSharingActive = true
         isTyping = true
         
-        let (roomName, roomURL) = JitsiConferenceService.shared.createOrGetConferenceRoom()
-        
         // 1. Message immédiat dans le chat
         let initialMsg = Message(
-            content: "🖥️ [Lancement du partage d'écran Jitsi Meet]",
+            content: "🖥️ [Lancement du partage d'écran]",
             isFromUser: true,
             timestamp: Date()
         )
         self.appendMessage(initialMsg)
         
-        let introText = "🔴 **Partage d'écran en direct Jitsi Meet activé !**\n\n🔗 **Lien pour les participants distants :**\n\(roomURL.absoluteString)\n\nTous les participants connectés à cette salle voient votre écran en temps réel !"
+        let introText = "🔴 **Partage d'écran en direct activé !**\n\n👁️ **Tom et Sarah observent votre écran en temps réel.**\nVous pouvez naviguer librement dans vos applications (Réglages, Safari, Messages...), la fenêtre flottante affiche votre écran en direct."
         let aiMsg = Message(content: introText, isFromUser: false)
         self.appendMessage(aiMsg)
         self.isTyping = false
-        SpeechManager.shared.speak(text: "Partage d'écran en direct sur Jitsi Meet activé. Le lien est disponible dans la discussion.")
+        SpeechManager.shared.speak(text: "Partage d'écran activé. Je regarde ce qui s'affiche à l'écran.")
         
-        // 1. Snapshot synchrone immédiat sur la frame 1 (0ms)
-        if let initialSnapshot = ScreenShareService.shared.captureScreen(from: rootVC.view.window ?? rootVC.view) {
-            self.lastScreenShareImage = initialSnapshot
-            self.lastScreenShareAnalysis = "Jitsi : \(roomName)"
-        }
-        
-        // 2. Démarrage de la diffusion ReplayKit vers la conférence Jitsi
-        JitsiConferenceService.shared.startScreenSharing(from: rootVC, onRemoteFramePublished: { [weak self] image in
+        // 2. Démarrage de la capture ReplayKit
+        ScreenShareService.shared.startLiveScreenSharing(from: rootVC, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self, self.isScreenSharingActive else { return }
             
             DispatchQueue.main.async {
                 self.lastScreenShareImage = image
-                self.lastScreenShareAnalysis = "Jitsi : \(roomName)"
+                self.lastScreenShareAnalysis = result.objectLabel.isEmpty ? "Écran en direct" : result.objectLabel
             }
-        }) { [weak self] success, message, url in
+        }) { [weak self] success, message in
             guard let self = self else { return }
             if !success {
                 self.isScreenSharingActive = false
@@ -694,11 +686,12 @@ public final class ChatViewModel: ObservableObject {
     
     public func stopLiveScreenSharing() {
         haptics.buttonTap()
-        JitsiConferenceService.shared.stopScreenSharing()
         ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
             guard let self = self else { return }
             self.isScreenSharingActive = false
-            let stopMsg = Message(content: "⏹️ Partage d'écran vers Jitsi Meet terminé.", isFromUser: false)
+            self.lastScreenShareImage = nil
+            self.lastScreenShareAnalysis = ""
+            let stopMsg = Message(content: "⏹️ Le partage d'écran a été arrêté.", isFromUser: false)
             self.appendMessage(stopMsg)
             SpeechManager.shared.speak(text: "Partage d'écran terminé.")
         }

@@ -1204,8 +1204,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         floatingMirrorHeader.addSubview(floatingMirrorDot)
         
         floatingMirrorTitle.translatesAutoresizingMaskIntoConstraints = false
-        floatingMirrorTitle.text = "🔴 Écran en direct"
-        floatingMirrorTitle.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+        floatingMirrorTitle.text = "LIVE — Tom observe"
+        floatingMirrorTitle.font = UIFont.systemFont(ofSize: 9.5, weight: .bold)
         floatingMirrorTitle.textColor = .white
         floatingMirrorHeader.addSubview(floatingMirrorTitle)
         
@@ -1226,7 +1226,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // Statut Analyse IA
         floatingMirrorStatus.translatesAutoresizingMaskIntoConstraints = false
-        floatingMirrorStatus.text = "👁️ Sarah observe l'écran"
+        floatingMirrorStatus.text = "👁️ Tom & Sarah observent"
         floatingMirrorStatus.font = UIFont.systemFont(ofSize: 9, weight: .semibold)
         floatingMirrorStatus.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
         floatingMirrorStatus.textAlignment = .center
@@ -1479,43 +1479,47 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     @objc private func stopScreenShareFromMirror() {
         dismissKeyboard()
         HapticService.shared.buttonTap()
-        JitsiConferenceService.shared.stopScreenSharing()
         ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
-            self?.floatingMirrorView.isHidden = true
-            self?.floatingDockHandleButton.isHidden = true
-            self?.isMirrorDocked = false
-            self?.updateScreenShareStatusUI(.disconnected)
+            DispatchQueue.main.async {
+                self?.floatingMirrorView.isHidden = true
+                self?.floatingDockHandleButton.isHidden = true
+                self?.isMirrorDocked = false
+                self?.floatingMirrorImageView.image = nil
+                self?.floatingMirrorStatus.text = ""
+                self?.updateScreenShareStatusUI(.disconnected)
+            }
         }
-        let stopMsg = Message(content: "⏹ Le partage d'écran vers la conférence Jitsi Meet a été arrêté.", isFromUser: false)
+        let stopMsg = Message(content: "⏹ Le partage d'écran a été arrêté.", isFromUser: false)
         self.appendMessage(stopMsg)
+        self.speak(text: "Partage d'écran terminé.")
     }
     
     @objc private func presentScreenShareModal() {
-        startScreenShareAnalysis()
+        if #available(iOS 12.0, *) {
+            let modal = ScreenShareModalViewController()
+            modal.modalPresentationStyle = .overFullScreen
+            modal.onStartBroadcast = { [weak self] in
+                self?.startScreenShareAnalysis()
+            }
+            present(modal, animated: true, completion: nil)
+        } else {
+            startScreenShareAnalysis()
+        }
     }
     
     @objc private func startScreenShareAnalysis() {
         dismissKeyboard()
         HapticService.shared.buttonTap()
         
-        let (roomName, roomURL) = JitsiConferenceService.shared.createOrGetConferenceRoom()
-        
-        statusLabel.text = "● 🔴 Jitsi : \(roomName)"
+        statusLabel.text = "● 🔴 LIVE — Tom observe"
         statusLabel.textColor = .systemRed
         floatingMirrorView.isHidden = false
-        floatingMirrorStatus.text = "👁️ Jitsi : \(roomName)"
+        floatingMirrorTitle.text = "LIVE — Tom observe"
+        floatingMirrorStatus.text = "👁️ Tom & Sarah observent"
         
-        // 1. Snapshot synchrone immédiat sur la frame 1 (0ms) - Élimine l'écran noir
-        if let initialSnapshot = ScreenShareService.shared.captureScreen(from: self.view.window ?? self.view) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            self.floatingMirrorImageView.image = initialSnapshot
-            CATransaction.commit()
-        }
-        
-        let introText = "🔴 **Partage d'écran en direct Jitsi Meet activé !**\n\n🔗 **Lien pour les participants distants (PC / Mac / Mobile) :**\n\(roomURL.absoluteString)\n\nTous les participants connectés à cette salle voient votre écran en temps réel !"
+        let introText = "🔴 **Partage d'écran en direct activé !**\n\n👁️ **Tom et Sarah observent votre écran en temps réel.**\nVous pouvez naviguer librement dans vos applications (Réglages, Safari, Messages...), la fenêtre flottante affiche votre écran en direct."
         let userMsg = Message(
-            content: "🖥️ [Lancement du partage d'écran Jitsi Meet]",
+            content: "🖥️ [Lancement du partage d'écran]",
             isFromUser: true,
             timestamp: Date()
         )
@@ -1523,16 +1527,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         let aiMsg = Message(content: introText, isFromUser: false)
         self.appendMessage(aiMsg)
-        self.speak(text: "Partage d'écran en direct sur Jitsi Meet activé. Le lien est disponible dans la discussion.")
+        self.speak(text: "Partage d'écran activé. Je regarde ce qui s'affiche à l'écran.")
         self.saveState()
         
-        JitsiConferenceService.shared.startScreenSharing(from: self, onRemoteFramePublished: { [weak self] image in
+        ScreenShareService.shared.startLiveScreenSharing(from: self, onFrameAnalyzed: { [weak self] result, image in
             guard let self = self else { return }
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            self.floatingMirrorImageView.image = image
-            CATransaction.commit()
-        }) { [weak self] success, message, url in
+            DispatchQueue.main.async {
+                self.floatingMirrorStatus.text = "👁️ \(result.objectLabel.isEmpty ? "Tom observe" : result.objectLabel)"
+            }
+        }) { [weak self] success, message in
             guard let self = self else { return }
             if !success {
                 self.floatingMirrorView.isHidden = true

@@ -18,15 +18,18 @@ public enum ScreenShareStatus: String, Codable {
         case .disconnected: return "● En ligne"
         case .connecting: return "● 🟡 Connexion..."
         case .connected: return "● 🟢 Connecté"
-        case .active: return "● 🔴 En direct"
+        case .active: return "● 🔴 LIVE — Tom observe"
         }
     }
 }
 
-/// Service de Partage d'Écran et Live Streaming Haute Performance avec Sarah (iOS 12 -> 18) :
-/// - Résolution automatique du contrôleur racine actif (évite le bug des contrôleurs modaux fermés)
-/// - Rendu vidéo fluide 15 FPS en temps réel sur tous les iPhone (iPhone 5S, 6, 7, 8, SE, X, 11, 12, 13, 14, 15, 16)
-/// - Picture-in-Picture persistant automatique à la sortie de l'application
+/// Service Unique de Partage d'Écran et Live Streaming Haute Performance (100% ReplayKit Officiel) :
+/// - Source Unique de Vérité (Single Source of Truth) : Flux CMSampleBuffer ReplayKit natif
+/// - Aucune capture d'écran simulée ni sondage de framebuffer privé
+/// - Double diffusion synchrone :
+///     1. Aperçu Miroir Flottant en direct (Live Preview UI)
+///     2. Analyse Vision Tom & Sarah (Intelligemment régulée pour économiser le processeur/batterie)
+/// - Arrêt complet et suppression instantanée de tout tampon mémoire lors de l'arrêt
 public final class ScreenShareService: NSObject {
     
     public static let shared = ScreenShareService()
@@ -56,11 +59,14 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // Files et minuteries d'arrière-plan
+    // Files de traitement et de décodage ReplayKit
     private let decodeQueue = DispatchQueue(label: "com.sarahia.screenshare.decode", qos: .userInteractive)
-    private var dispatchTimer: DispatchSourceTimer?
-    private var lastAnalyzedText: String = ""
+    private let visionThrottleQueue = DispatchQueue(label: "com.sarahia.screenshare.vision", qos: .userInitiated)
+    
     private var lastDarwinFrameTimestamp: TimeInterval = 0
+    private var lastVisionAnalysisTimestamp: TimeInterval = 0
+    private var isVisionProcessing: Bool = false
+    private var lastAnalyzedText: String = ""
     private var currentFrameCallback: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)?
     
     private override init() {
@@ -68,7 +74,7 @@ public final class ScreenShareService: NSObject {
         setupDarwinIPCReceiver()
     }
     
-    // MARK: - Récepteur IPC Darwin Notification (Arrière-plan système)
+    // MARK: - Récepteur IPC Darwin Notification (Diffusion Système RPBroadcastSampleHandler)
     
     private func setupDarwinIPCReceiver() {
         let center = CFNotificationCenterGetDarwinNotifyCenter()
@@ -83,8 +89,10 @@ public final class ScreenShareService: NSObject {
     }
     
     private func handleIncomingBroadcastFrame() {
+        guard isScreenSharingActive || status == .connecting else { return }
+        
         let now = CACurrentMediaTime()
-        guard now - lastDarwinFrameTimestamp >= 0.06 else { return }
+        guard now - lastDarwinFrameTimestamp >= 0.05 else { return } // Max ~20 FPS pour l'aperçu
         lastDarwinFrameTimestamp = now
         
         if !isScreenSharingActive {
@@ -94,7 +102,7 @@ public final class ScreenShareService: NSObject {
         }
         
         decodeQueue.async { [weak self] in
-            guard let self = self else { return }
+            guard let self = self, self.isScreenSharingActive else { return }
             
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier) else {
                 return
@@ -110,59 +118,46 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Lancement du Partage d'Écran en Direct
+    // MARK: - Lancement du Partage d'Écran ReplayKit en Direct
     
-    /// Démarre le partage d'écran en direct avec synchronisation de l'état
+    /// Démarre le partage d'écran avec ReplayKit
     public func startLiveScreenSharing(
         from viewController: UIViewController? = nil,
         onFrameAnalyzed: ((LocalVisionEngine.VisionAnalysisResult, UIImage) -> Void)? = nil,
         completion: @escaping (Bool, String) -> Void
     ) {
         if isScreenSharingActive {
-            completion(true, "🔴 Le partage d'écran en direct est déjà actif !")
+            completion(true, "🔴 Le partage d'écran ReplayKit est déjà actif.")
             return
         }
-        
-        // Résolution robuste du contrôleur et de la vue active
-        let targetVC = viewController
-            ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
-            ?? UIApplication.shared.keyWindow?.rootViewController
-            ?? UIApplication.shared.windows.first?.rootViewController
-        
-        let hostView = targetVC?.view.window ?? targetVC?.view ?? UIApplication.shared.keyWindow
         
         isScreenSharingActive = true
         status = .connecting
         currentFrameCallback = onFrameAnalyzed
+        lastVisionAnalysisTimestamp = 0
+        lastAnalyzedText = ""
         
-        // 1. Notification de statut
+        // 1. Notification de statut immédiate
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
             object: nil,
             userInfo: ["isActive": true]
         )
         
-        // 2. Capture synchrone IMMÉDIATE de la 1ère trame à 0ms
-        if let view = hostView, let initialSnapshot = self.captureScreen(from: view) {
-            self.latestCapturedImage = initialSnapshot
-            self.status = .active
-            self.broadcastAndProcessFrame(initialSnapshot)
-        } else {
-            self.status = .connected
-        }
+        // 2. Configuration du Picture-in-Picture persistant
+        let targetVC = viewController
+            ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            ?? UIApplication.shared.keyWindow?.rootViewController
+            ?? UIApplication.shared.windows.first?.rootViewController
         
-        // 3. Initialisation et démarrage du Picture-in-Picture persistant dans la vue active
-        if let targetHostView = hostView {
-            ScreenSharePiPManager.shared.setupPiP(in: targetHostView)
+        if let hostView = targetVC?.view.window ?? targetVC?.view ?? UIApplication.shared.keyWindow {
+            ScreenSharePiPManager.shared.setupPiP(in: hostView)
             ScreenSharePiPManager.shared.startPictureInPicture()
         }
         
-        // 4. Lancement de la minuterie DispatchSource haute performance (12-15 FPS fluide)
-        startHighPerformanceBackgroundSampling(from: hostView)
-        
-        // 5. ReplayKit In-App Capture en parallèle
+        // 3. Démarrage de la capture ReplayKit in-app
         if #available(iOS 11.0, *), screenRecorder.isAvailable {
-            screenRecorder.isMicrophoneEnabled = true
+            screenRecorder.isMicrophoneEnabled = false
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
                 guard let self = self, self.isScreenSharingActive, error == nil else { return }
                 
@@ -174,52 +169,38 @@ public final class ScreenShareService: NSObject {
                         }
                     }
                 }
-            }) { error in
-                completion(true, "🔴 Partage d'écran en direct activé !")
+            }) { [weak self] error in
+                guard let self = self else { return }
+                if let error = error {
+                    print("⚠️ [ScreenShareService] ReplayKit startCapture: \(error.localizedDescription)")
+                    self.status = .active // Reste en attente des trames Broadcast Extension
+                } else {
+                    self.status = .active
+                }
+                completion(true, "🔴 Partage d'écran en direct activé.")
             }
         } else {
-            completion(true, "🔴 Partage d'écran en direct activé !")
+            // Sur les versions sans startCapture ou en mode broadcast pur
+            self.status = .active
+            completion(true, "🔴 Partage d'écran en direct activé.")
         }
     }
     
-    /// Boucle de capture haute performance sur file d'arrière-plan dédiée (12-15 FPS fluide)
-    private func startHighPerformanceBackgroundSampling(from hostView: UIView?) {
-        dispatchTimer?.cancel()
-        
-        let timer = DispatchSource.makeTimerSource(queue: decodeQueue)
-        // Intervalle de 70ms = ~14 FPS ultra-fluide sans surchauffe ni lag
-        timer.schedule(deadline: .now() + 0.1, repeating: 0.07)
-        timer.setEventHandler { [weak self, weak hostView] in
-            guard let self = self, self.isScreenSharingActive else { return }
-            
-            DispatchQueue.main.async {
-                let activeView = hostView
-                    ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })
-                    ?? UIApplication.shared.keyWindow
-                    ?? UIApplication.shared.windows.first
-                
-                if let view = activeView, let screenshot = self.captureScreen(from: view) {
-                    self.decodeQueue.async {
-                        self.broadcastAndProcessFrame(screenshot)
-                    }
-                }
-            }
-        }
-        timer.resume()
-        self.dispatchTimer = timer
-    }
+    // MARK: - Pipeline de Diffusion & Analyse Visuelle Unique (Single Source of Truth)
     
-    /// Traite et diffuse la trame décodée sans latence
+    /// Traite et diffuse la trame réelle issue de ReplayKit
     public func broadcastAndProcessFrame(_ image: UIImage) {
+        guard isScreenSharingActive else { return }
+        
         self.latestCapturedImage = image
         if status != .active {
             status = .active
         }
         
-        // 1. Envoi immédiat au contrôleur Picture-in-Picture
+        // 1. Mise à jour Picture-in-Picture
         ScreenSharePiPManager.shared.enqueueImage(image)
         
-        // 2. Publication réactive locale instantanée sur le thread principal pour l'UI
+        // 2. Publication en direct vers la fenêtre d'aperçu miroir flottante (Live Preview)
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
             
@@ -228,62 +209,79 @@ public final class ScreenShareService: NSObject {
                 object: nil,
                 userInfo: ["image": image]
             )
-            
-            let defaultResult = LocalVisionEngine.VisionAnalysisResult(
-                objectLabel: "flux en direct",
-                naturalSpokenResponse: "",
-                detectedText: "",
-                confidence: 0.9
-            )
-            self.currentFrameCallback?(defaultResult, image)
         }
         
-        // 3. Sauvegarde atomique non-bloquante dans l'App Group en tâche de fond (toutes les 400ms pour l'extension)
-        DispatchQueue.global(qos: .utility).async {
-            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier),
-               let jpegData = image.jpegData(compressionQuality: 0.50) {
-                let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
-                try? jpegData.write(to: fileURL, options: .atomic)
-            }
-        }
-        
-        // 4. Analyse IA Vision périodique en tâche de fond
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self, self.isScreenSharingActive else { return }
-            guard let processed = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 800, quality: 0.7) else { return }
+        // 3. Régulation Intelligente de l'Analyse IA Vision Tom & Sarah (Throttling pour préserver l'iPhone 5s)
+        let now = CACurrentMediaTime()
+        // Analyse déclenchée au maximum toutes les 800ms pour éviter de saturer le CPU/OCR
+        if now - lastVisionAnalysisTimestamp >= 0.8 && !isVisionProcessing {
+            lastVisionAnalysisTimestamp = now
+            isVisionProcessing = true
             
-            LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
-                guard let self = self, self.isScreenSharingActive else { return }
+            visionThrottleQueue.async { [weak self] in
+                guard let self = self, self.isScreenSharingActive else {
+                    self?.isVisionProcessing = false
+                    return
+                }
                 
-                let newKey = "\(result.objectLabel)|\(result.detectedText)"
-                if newKey != self.lastAnalyzedText && (!result.detectedText.isEmpty || result.objectLabel != "inconnu") {
-                    self.lastAnalyzedText = newKey
-                    DispatchQueue.main.async {
-                        self.currentFrameCallback?(result, processed.image)
+                guard let processed = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 640, quality: 0.65) else {
+                    self.isVisionProcessing = false
+                    return
+                }
+                
+                LocalVisionEngine.shared.recognizeObject(in: processed.image) { [weak self] result in
+                    guard let self = self, self.isScreenSharingActive else {
+                        self?.isVisionProcessing = false
+                        return
+                    }
+                    
+                    self.isVisionProcessing = false
+                    let newKey = "\(result.objectLabel)|\(result.detectedText)"
+                    if newKey != self.lastAnalyzedText && (!result.detectedText.isEmpty || result.objectLabel != "inconnu") {
+                        self.lastAnalyzedText = newKey
+                        DispatchQueue.main.async {
+                            self.currentFrameCallback?(result, processed.image)
+                        }
                     }
                 }
             }
         }
     }
     
-    // MARK: - Arrêt du Partage d'Écran
+    // MARK: - Arrêt Complet & Nettoyage Définitif (Stop Behavior)
     
     public func stopLiveScreenSharing(completion: ((Bool) -> Void)? = nil) {
         isScreenSharingActive = false
         status = .disconnected
-        dispatchTimer?.cancel()
-        dispatchTimer = nil
         currentFrameCallback = nil
         latestCapturedImage = nil
+        lastAnalyzedText = ""
+        isVisionProcessing = false
         
+        // 1. Notification de fermeture immédiate pour l'UI
         NotificationCenter.default.post(
             name: NSNotification.Name("SarahScreenShareStatusChanged"),
             object: nil,
             userInfo: ["isActive": false]
         )
+        NotificationCenter.default.post(
+            name: Self.liveFrameNotification,
+            object: nil,
+            userInfo: [:]
+        )
         
+        // 2. Arrêt PiP
         ScreenSharePiPManager.shared.stopPictureInPicture()
         
+        // 3. Suppression des fichiers temporaires partagés
+        DispatchQueue.global(qos: .utility).async {
+            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier) {
+                let frameURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
+                try? FileManager.default.removeItem(at: frameURL)
+            }
+        }
+        
+        // 4. Arrêt de ReplayKit
         if #available(iOS 11.0, *), screenRecorder.isRecording {
             screenRecorder.stopCapture { error in
                 completion?(error == nil)
@@ -293,40 +291,7 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Capture Universelle Haute Performance
-    
-    public func captureScreen(from windowOrView: UIView? = nil) -> UIImage? {
-        return autoreleasepool { () -> UIImage? in
-            let targetView: UIView? = windowOrView
-                ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })
-                ?? UIApplication.shared.keyWindow
-                ?? UIApplication.shared.windows.first
-            guard let view = targetView else { return nil }
-            let bounds = view.bounds
-            guard bounds.width > 0 && bounds.height > 0 else { return nil }
-            
-            // Échelle adaptée pour fluidité 15 FPS sans saturer la RAM de l'iPhone 5S / 6 / 7
-            let scale: CGFloat = bounds.width > 400 ? 0.6 : 0.8
-            let targetSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
-            
-            UIGraphicsBeginImageContextWithOptions(targetSize, false, 1.0)
-            guard let context = UIGraphicsGetCurrentContext() else {
-                UIGraphicsEndImageContext()
-                return nil
-            }
-            context.scaleBy(x: scale, y: scale)
-            
-            if !view.drawHierarchy(in: bounds, afterScreenUpdates: false) {
-                view.layer.render(in: context)
-            }
-            
-            let captured = UIGraphicsGetImageFromCurrentImageContext()
-            UIGraphicsEndImageContext()
-            return captured
-        }
-    }
-    
-    // MARK: - Conversion CMSampleBuffer ➔ UIImage
+    // MARK: - Conversion Optimisée CMSampleBuffer ➔ UIImage
     
     private func imageFromSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> UIImage? {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
@@ -364,15 +329,22 @@ public final class ScreenShareStateTracker: ObservableObject {
                 }
                 if let active = notif.userInfo?["isActive"] as? Bool {
                     self.isActive = active
+                    if !active {
+                        self.latestImage = nil
+                    }
                 }
             }
             .store(in: &cancellables)
             
         NotificationCenter.default.publisher(for: ScreenShareService.liveFrameNotification)
-            .compactMap { $0.userInfo?["image"] as? UIImage }
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] img in
-                self?.latestImage = img
+            .sink { [weak self] notif in
+                guard let self = self else { return }
+                if let img = notif.userInfo?["image"] as? UIImage {
+                    self.latestImage = img
+                } else if !self.isActive {
+                    self.latestImage = nil
+                }
             }
             .store(in: &cancellables)
     }
@@ -381,6 +353,9 @@ public final class ScreenShareStateTracker: ObservableObject {
         DispatchQueue.main.async {
             self.status = newStatus
             self.isActive = active
+            if !active {
+                self.latestImage = nil
+            }
         }
     }
 }
@@ -388,3 +363,4 @@ public final class ScreenShareStateTracker: ObservableObject {
 @available(iOS 13.0, *)
 public typealias ScreenShareStateObserver = ScreenShareStateTracker
 #endif
+

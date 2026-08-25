@@ -154,8 +154,8 @@ public struct ChatScreenView: View {
                                 Circle()
                                     .fill(viewModel.screenShareStatus == .active ? Color.red : (viewModel.screenShareStatus == .connected ? Color.green : Color.yellow))
                                     .frame(width: 7, height: 7)
-                                Text(viewModel.screenShareStatus == .active ? "🔴 Écran en direct" : (viewModel.screenShareStatus == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
-                                    .font(.system(size: 9, weight: .bold))
+                                Text(viewModel.screenShareStatus == .active ? "LIVE — Tom observe" : (viewModel.screenShareStatus == .connected ? "Connecté" : "Démarrage..."))
+                                    .font(.system(size: 8.5, weight: .bold))
                                     .foregroundColor(.white)
                                 Spacer()
                                 Button(action: { viewModel.stopLiveScreenSharing() }) {
