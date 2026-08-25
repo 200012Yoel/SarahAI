@@ -237,6 +237,7 @@ public final class SarahBrainEngine {
     private let context = ConversationContext.shared
     private let referenceResolver = ReferenceResolver.shared
     private let responsePlanner = ResponsePlanner.shared
+    private var sessionHistory: [(query: String, response: String, timestamp: Date)] = []
     
     private init() {}
     

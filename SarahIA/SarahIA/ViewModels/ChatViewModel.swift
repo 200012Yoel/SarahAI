@@ -47,6 +47,11 @@ public final class ChatViewModel: ObservableObject {
     @Published public var screenShareStatus: ScreenShareStatus = .disconnected
     @Published public var lastScreenShareImage: UIImage? = nil
     @Published public var lastScreenShareAnalysis: String = ""
+    @Published public var isCameraActive: Bool = false
+    public var isGeneratingResponse: Bool {
+        get { isTyping }
+        set { isTyping = newValue }
+    }
     
     // MARK: - Services
     private let aiService = AIService.shared

@@ -291,6 +291,29 @@ public final class ScreenShareService: NSObject {
         }
     }
     
+    // MARK: - Capture d'Écran Locale de Secours (View Snapshot Fallback)
+    
+    public func captureScreen(from view: UIView? = nil) -> UIImage? {
+        if let latest = latestCapturedImage {
+            return latest
+        }
+        
+        let targetView = view ?? UIApplication.shared.keyWindow ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })
+        guard let validView = targetView else { return nil }
+        
+        return autoreleasepool { () -> UIImage? in
+            let bounds = validView.bounds
+            guard bounds.width > 0 && bounds.height > 0 else { return nil }
+            
+            UIGraphicsBeginImageContextWithOptions(bounds.size, false, UIScreen.main.scale)
+            validView.drawHierarchy(in: bounds, afterScreenUpdates: false)
+            let captured = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+            
+            return captured
+        }
+    }
+    
     // MARK: - Conversion Optimisée CMSampleBuffer ➔ UIImage
     
     private func imageFromSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> UIImage? {

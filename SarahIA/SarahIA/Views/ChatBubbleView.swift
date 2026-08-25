@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// Bulle de message stylisée au format natif iMessage Dark Mode avec bouton de lecture vocale TTS.
 @available(iOS 14.0, *)
