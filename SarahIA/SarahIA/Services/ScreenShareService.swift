@@ -343,12 +343,14 @@ public final class ScreenShareService: NSObject {
     // MARK: - 6. Conversion Optimisée CVPixelBuffer ➔ UIImage avec CIContext Réutilisé
     
     private func imageFromPixelBuffer(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
-        
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        return UIImage(cgImage: cgImage)
+        return autoreleasepool { () -> UIImage? in
+            CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+            
+            let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+            return UIImage(cgImage: cgImage)
+        }
     }
     
     // MARK: - 7. Capture d'Écran Locale de Secours (View Snapshot Fallback)

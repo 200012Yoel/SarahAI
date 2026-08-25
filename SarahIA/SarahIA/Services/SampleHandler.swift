@@ -54,32 +54,38 @@ public class SampleHandler: RPBroadcastSampleHandler {
         guard now - lastFrameTime >= frameInterval else { return }
         lastFrameTime = now
         
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let jpegData = ciContext.jpegRepresentation(
-                of: ciImage,
-                colorSpace: colorSpace,
-                options: [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): 0.55]
-              ) else {
-            print("[BroadcastExtension] ERROR = failed to encode frame to JPEG")
-            return
-        }
-        print("[BroadcastExtension] FRAME JPEG CREATED")
-        
-        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
-            print("[BroadcastExtension] ERROR = App Group container not accessible: \(appGroupIdentifier)")
-            return
-        }
-        
-        let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
-        do {
-            try jpegData.write(to: fileURL, options: .atomic)
-            print("[BroadcastExtension] FRAME WRITTEN")
-            let center = CFNotificationCenterGetDarwinNotifyCenter()
-            CFNotificationCenterPostNotification(center, CFNotificationName(darwinNotificationName as CFString), nil, nil, true)
-            print("[BroadcastExtension] DARWIN NOTIFICATION SENT")
-        } catch {
-            print("[BroadcastExtension] ERROR = failed to write frame to App Group: \(error.localizedDescription)")
+        autoreleasepool {
+            CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+            
+            let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+            guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
+                print("[BroadcastExtension] ERROR = failed to create CGImage from PixelBuffer")
+                return
+            }
+            
+            let uiImage = UIImage(cgImage: cgImage)
+            guard let jpegData = uiImage.jpegData(compressionQuality: 0.50) else {
+                print("[BroadcastExtension] ERROR = failed to encode frame to JPEG")
+                return
+            }
+            print("[BroadcastExtension] FRAME JPEG CREATED")
+            
+            guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+                print("[BroadcastExtension] ERROR = App Group container not accessible: \(appGroupIdentifier)")
+                return
+            }
+            
+            let fileURL = containerURL.appendingPathComponent("broadcast_frame.jpg")
+            do {
+                try jpegData.write(to: fileURL, options: .atomic)
+                print("[BroadcastExtension] FRAME WRITTEN")
+                let center = CFNotificationCenterGetDarwinNotifyCenter()
+                CFNotificationCenterPostNotification(center, CFNotificationName(darwinNotificationName as CFString), nil, nil, true)
+                print("[BroadcastExtension] DARWIN NOTIFICATION SENT")
+            } catch {
+                print("[BroadcastExtension] ERROR = failed to write frame to App Group: \(error.localizedDescription)")
+            }
         }
     }
     
