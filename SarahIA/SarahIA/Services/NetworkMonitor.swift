@@ -16,7 +16,21 @@ public final class NetworkMonitor: NSObject {
     
     public static let shared = NetworkMonitor()
     
-    public private(set) var isConnected: Bool = true
+    private var _isConnected: Bool = true
+    private let lock = NSLock()
+    
+    public var isConnected: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _isConnected
+        }
+        set {
+            lock.lock()
+            _isConnected = newValue
+            lock.unlock()
+        }
+    }
     
     private let queue = DispatchQueue(label: "com.sarahai.network.monitor", qos: .utility)
     

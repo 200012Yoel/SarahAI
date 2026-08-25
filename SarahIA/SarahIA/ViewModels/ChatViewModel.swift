@@ -620,7 +620,7 @@ public final class ChatViewModel: ObservableObject {
     
     public func readScreenTextOCR() {
         haptics.buttonTap()
-        let screenImage = ScreenShareService.shared.latestCapturedImage ?? ScreenShareService.shared.captureScreen()
+        let screenImage = ScreenShareService.shared.latestCapturedImage
         guard let image = screenImage else {
             let errorMsg = "Je n'ai pas pu capturer l'écran pour lire le texte. Affichez la page et réessayez !"
             SpeechManager.shared.speak(text: errorMsg)
