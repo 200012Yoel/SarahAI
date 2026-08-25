@@ -19,6 +19,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.os.Build
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+
 class MainActivity : AppCompatActivity() {
 
     private val TAG = "SarahMainActivity"
@@ -33,6 +40,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        ScreenShareService.shared.init(this)
         chatDatabase = ChatDatabase(this)
         networkMonitor = NetworkMonitor(this)
 
@@ -258,9 +266,49 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun getOpenAIKey(): String {
-            return getSharedPreferences("sarah_ai_openai", Context.MODE_PRIVATE)
-                .getString("openai_api_key", "") ?: ""
+        fun startScreenShare() {
+            mainHandler.post {
+                val captureIntent = ScreenShareService.shared.createScreenCaptureIntent()
+                if (captureIntent != null) {
+                    startActivityForResult(captureIntent, ScreenShareService.SCREEN_CAPTURE_REQUEST_CODE)
+                } else {
+                    Log.e(TAG, "MediaProjectionManager non disponible")
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun stopScreenShare() {
+            mainHandler.post {
+                ScreenShareService.shared.stopScreenCapture()
+                updateWebStatus("Partage d'écran arrêté")
+                webView?.evaluateJavascript("if (window.onScreenShareStopped) { window.onScreenShareStopped(); }", null)
+            }
+        }
+
+        @JavascriptInterface
+        fun isScreenSharing(): Boolean {
+            return ScreenShareService.shared.isScreenSharingActive()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == ScreenShareService.SCREEN_CAPTURE_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                ScreenShareService.shared.startScreenCapture(this, resultCode, data) { bitmap ->
+                    val stream = ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 60, stream)
+                    val base64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+                    mainHandler.post {
+                        webView?.evaluateJavascript("if (window.onScreenFrame) { window.onScreenFrame('data:image/jpeg;base64,$base64'); }", null)
+                    }
+                }
+                updateWebStatus("🔴 Partage d'écran en direct")
+            } else {
+                Log.w(TAG, "Autorisation capture d'écran refusée")
+                updateWebStatus("Capture d'écran annulée")
+            }
         }
     }
 

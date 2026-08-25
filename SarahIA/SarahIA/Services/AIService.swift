@@ -529,6 +529,39 @@ public final class AIService {
             return "J'analyse votre écran tout de suite ! 🖥️"
         }
         
+        // 0.15 Lecture de Texte OCR sur l'Écran ("Lis le texte", "Tu peux lire le texte", "Qu'est-ce qui est écrit")
+        if normalized.contains("lis le texte") || normalized.contains("lis ce texte") ||
+           normalized.contains("lis mon ecran") || normalized.contains("lis l ecran") ||
+           normalized.contains("lis ce qu il y a") || normalized.contains("lis ce qui est ecrit") ||
+           normalized.contains("tu peux lire") || normalized.contains("peux tu lire") ||
+           normalized.contains("qu est ce qui est ecrit") || normalized.contains("qu est ce qu il y a d ecrit") ||
+           normalized.contains("lit le texte") || normalized.contains("lis la page") ||
+           normalized == "lis" || normalized == "lire le texte" || normalized == "lis tout" {
+            
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: NSNotification.Name("SarahReadScreenTextRequested"), object: nil)
+            }
+            
+            let screenImage = ScreenShareService.shared.latestCapturedImage ?? ScreenShareService.shared.captureScreen()
+            if let image = screenImage {
+                let sem = DispatchSemaphore(value: 0)
+                var ocrResultText = ""
+                LocalVisionEngine.shared.extractText(from: image) { text in
+                    ocrResultText = text
+                    sem.signal()
+                }
+                _ = sem.wait(timeout: .now() + 1.2)
+                
+                if !ocrResultText.isEmpty {
+                    return "Sur votre écran, il est écrit : « \(ocrResultText) » 📄"
+                } else {
+                    return "Je regarde votre écran, mais je ne détecte aucun texte lisible pour le moment. Affichez la page ou l'application avec le texte !"
+                }
+            } else {
+                return "Activez le partage d'écran ou montrez-moi votre écran pour que je puisse lire le texte !"
+            }
+        }
+        
         // 0.2 Radio en direct (NRJ, France Inter, Skyrock, RTL, Nostalgie, FIP, Jazz...)
         if normalized.contains("arrete la radio") || normalized.contains("stop radio") || normalized.contains("coupe la radio") || normalized == "radio off" {
             return MediaStreamingService.shared.stopRadio()

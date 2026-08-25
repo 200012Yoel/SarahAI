@@ -133,7 +133,7 @@ public final class ScreenShareModalViewController: UIViewController {
         if #available(iOS 12.0, *) {
             let broadcastPicker = RPSystemBroadcastPickerView(frame: CGRect(x: 0, y: 0, width: 290, height: 50))
             broadcastPicker.preferredExtension = "com.sarahia.app.broadcast"
-            broadcastPicker.showsMicrophoneButton = true
+            broadcastPicker.showsMicrophoneButton = false
             broadcastPicker.translatesAutoresizingMaskIntoConstraints = false
             broadcastPicker.alpha = 0.02 // Transparent mais capte l'interaction native iOS
             cardView.addSubview(broadcastPicker)

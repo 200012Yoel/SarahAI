@@ -12,6 +12,8 @@ public struct ChatScreenView: View {
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingWidgetsGallery: Bool = false
     @State private var isShowingSyncQR: Bool = false
+    @State private var isMirrorDocked: Bool = false
+    @State private var isDockedToRight: Bool = true
     @State private var mirrorDragOffset: CGSize = .zero
     
     public init(viewModel: ChatViewModel) {
@@ -22,7 +24,7 @@ public struct ChatScreenView: View {
         GeometryReader { geo in
             let bottomInset = geo.safeAreaInsets.bottom
             
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: isMirrorDocked ? (isDockedToRight ? .trailing : .leading) : .topTrailing) {
                 VStack(spacing: 0) {
                     // 1. Topbar Native
                     topBar
@@ -102,90 +104,152 @@ public struct ChatScreenView: View {
                 }
                 .background(Color.black)
                 
-                // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct
+                // 4. Overlay Flottant de Rendu Miroir d'Écran en Direct (Silhouette Smartphone Réelle)
                 if viewModel.isScreenSharingActive {
-                    VStack(spacing: 4) {
-                        HStack {
-                            Circle()
-                                .fill(viewModel.screenShareStatus == .active ? Color.red : (viewModel.screenShareStatus == .connected ? Color.green : Color.yellow))
-                                .frame(width: 7, height: 7)
-                            Text(viewModel.screenShareStatus == .active ? "🔴 En direct" : (viewModel.screenShareStatus == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                            Spacer()
-                            Button(action: { viewModel.stopLiveScreenSharing() }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .font(.system(size: 13))
+                    if isMirrorDocked {
+                        // Poignée / Onglet Latéral de Réapparition (Docké sur le bord)
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+                                isMirrorDocked = false
+                                mirrorDragOffset = .zero
                             }
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.top, 6)
-                        
-                        if let img = viewModel.lastScreenShareImage {
-                            Image(uiImage: img)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 120, height: 180)
-                                .cornerRadius(8)
-                                .clipped()
-                        } else {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color(white: 0.15))
-                                    .frame(width: 120, height: 180)
-                                VStack(spacing: 6) {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    Text("En direct...")
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.8))
+                        }) {
+                            HStack(spacing: 4) {
+                                if !isDockedToRight {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 7, height: 7)
+                                }
+                                Text(isDockedToRight ? "‹" : "›")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
+                                if isDockedToRight {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 7, height: 7)
                                 }
                             }
+                            .frame(width: 38, height: 46)
+                            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+                            .cornerRadius(20)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.85), lineWidth: 1.8)
+                            )
+                            .shadow(color: Color.black.opacity(0.6), radius: 8, x: 0, y: 3)
                         }
-                        
-                        if !viewModel.lastScreenShareAnalysis.isEmpty {
-                            Text("👁️ \(viewModel.lastScreenShareAnalysis)")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
-                                .lineLimit(1)
-                                .padding(.horizontal, 4)
-                                .padding(.bottom, 2)
+                        .padding(.top, 140)
+                        .padding(.horizontal, 2)
+                        .transition(.move(edge: isDockedToRight ? .trailing : .leading).combined(with: .opacity))
+                    } else {
+                        VStack(spacing: 4) {
+                            // Mini Dynamic Island
+                            Capsule()
+                                .fill(Color.black)
+                                .frame(width: 32, height: 6)
+                                .padding(.top, 4)
+                            
+                            HStack {
+                                Circle()
+                                    .fill(viewModel.screenShareStatus == .active ? Color.red : (viewModel.screenShareStatus == .connected ? Color.green : Color.yellow))
+                                    .frame(width: 7, height: 7)
+                                Text(viewModel.screenShareStatus == .active ? "🔴 Écran en direct" : (viewModel.screenShareStatus == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button(action: { viewModel.stopLiveScreenSharing() }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.white.opacity(0.85))
+                                        .font(.system(size: 13))
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.top, 2)
+                            
+                            if let img = viewModel.lastScreenShareImage {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 124, height: 184)
+                                    .cornerRadius(10)
+                                    .clipped()
+                            } else {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(Color(white: 0.12))
+                                        .frame(width: 124, height: 184)
+                                    VStack(spacing: 6) {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        Text("En direct...")
+                                            .font(.system(size: 9, weight: .semibold))
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+                                }
+                            }
+                            
+                            if !viewModel.lastScreenShareAnalysis.isEmpty {
+                                Text("👁️ \(viewModel.lastScreenShareAnalysis)")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 4)
+                                    .padding(.bottom, 2)
+                            }
+                            
+                            Button(action: {
+                                viewModel.stopLiveScreenSharing()
+                            }) {
+                                Text("⏹ Arrêter le partage")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.red.opacity(0.88)))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 6)
                         }
-                        
-                        Button(action: {
-                            viewModel.stopLiveScreenSharing()
-                        }) {
-                            Text("⏹ Arrêter")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.red.opacity(0.85)))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 6)
+                        .frame(width: 140)
+                        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                        .cornerRadius(20)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color(red: 0.0, green: 0.78, blue: 1.0).opacity(0.85), lineWidth: 2)
+                        )
+                        .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 5)
+                        .offset(mirrorDragOffset)
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    mirrorDragOffset = value.translation
+                                }
+                                .onEnded { value in
+                                    if value.translation.width > 80 {
+                                        HapticService.shared.buttonTap()
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            isMirrorDocked = true
+                                            isDockedToRight = true
+                                            mirrorDragOffset = .zero
+                                        }
+                                    } else if value.translation.width < -80 {
+                                        HapticService.shared.buttonTap()
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            isMirrorDocked = true
+                                            isDockedToRight = false
+                                            mirrorDragOffset = .zero
+                                        }
+                                    } else {
+                                        withAnimation(.spring()) {
+                                            mirrorDragOffset = .zero
+                                        }
+                                    }
+                                }
+                        )
+                        .padding(.top, 60)
+                        .padding(.trailing, 16)
                     }
-                    .frame(width: 136)
-                    .background(Color(red: 0.10, green: 0.10, blue: 0.12))
-                    .cornerRadius(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.5), radius: 8, x: 0, y: 4)
-                    .offset(mirrorDragOffset)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                mirrorDragOffset = value.translation
-                            }
-                            .onEnded { _ in
-                                // Maintient la position après glissement
-                            }
-                    )
-                    .padding(.top, 60)
-                    .padding(.trailing, 16)
                 }
             }
         }
@@ -264,6 +328,9 @@ public struct ChatScreenView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahLaunchScreenShare"))) { _ in
             viewModel.startLiveScreenSharing()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahReadScreenTextRequested"))) { _ in
+            viewModel.readScreenTextOCR()
         }
     }
     

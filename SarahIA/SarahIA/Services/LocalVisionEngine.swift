@@ -267,14 +267,65 @@ public final class LocalVisionEngine {
             }
         }
     }
-}
     
-    /// Version asynchrone moderne
+    // MARK: - Moteur OCR Haute Précision (Apple Vision Framework)
+    
+    /// Extrait tout le texte lisible sur une image ou une capture d'écran
+    public func extractText(from image: UIImage, completion: @escaping (String) -> Void) {
+        visionQueue.async {
+            autoreleasepool {
+                let readyImage = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 1200, quality: 0.85)?.image ?? image
+                guard let cgImage = readyImage.cgImage else {
+                    DispatchQueue.main.async { completion("") }
+                    return
+                }
+                
+                if #available(iOS 13.0, *) {
+                    let textRequest = VNRecognizeTextRequest()
+                    textRequest.recognitionLevel = .accurate
+                    textRequest.usesLanguageCorrection = true
+                    if #available(iOS 14.0, *) {
+                        textRequest.recognitionLanguages = ["fr-FR", "en-US", "he-IL"]
+                    }
+                    
+                    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+                    do {
+                        try handler.perform([textRequest])
+                        guard let observations = textRequest.results else {
+                            DispatchQueue.main.async { completion("") }
+                            return
+                        }
+                        
+                        let recognizedStrings = observations.compactMap { $0.topCandidates(1).first?.string }
+                        let fullText = recognizedStrings.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                        DispatchQueue.main.async { completion(fullText) }
+                    } catch {
+                        DispatchQueue.main.async { completion("") }
+                    }
+                } else {
+                    // Fallback iOS 12
+                    DispatchQueue.main.async { completion("") }
+                }
+            }
+        }
+    }
+    
+    /// Version asynchrone moderne pour l'analyse d'image
     @available(iOS 13.0, *)
     public func analyzeImageAsync(_ image: UIImage) async -> VisionAnalysisResult {
         await withCheckedContinuation { continuation in
             recognizeObject(in: image) { result in
                 continuation.resume(returning: result)
+            }
+        }
+    }
+    
+    /// Version asynchrone moderne pour l'extraction OCR
+    @available(iOS 13.0, *)
+    public func extractTextAsync(_ image: UIImage) async -> String {
+        await withCheckedContinuation { continuation in
+            extractText(from: image) { text in
+                continuation.resume(returning: text)
             }
         }
     }

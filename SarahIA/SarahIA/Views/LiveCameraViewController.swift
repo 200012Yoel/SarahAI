@@ -22,21 +22,14 @@ public final class LiveCameraViewController: UIViewController {
     private let cameraHiddenLabel = UILabel()
     private let focusIndicator = UIView()
     
-    // MARK: - Barre Supérieure Épurée
-    private let topBarView = UIView()
-    private let closeButton = UIButton(type: .system)
-    private let topButtonsStack = UIStackView()
-    private let torchButton = UIButton(type: .system)
-    private let flipCameraButton = UIButton(type: .system)
-    private let hideCameraButton = UIButton(type: .system)
-    
-    // MARK: - Barre Flottante Inférieure (Bottom Dock)
-    private let bottomDock = UIView()
+    // MARK: - Barre Flottante Inférieure Futuriste (Bottom Dock)
+    private let bottomDockContainer = UIView()
+    private let dockBlurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     private let dockStack = UIStackView()
+    private let closeButton = UIButton(type: .system)
     private let captureActionButton = UIButton(type: .custom)
     private let voiceWaveSquare = SarahVoiceWaveSquareView(frame: .zero)
     private let screenShareButton = UIButton(type: .system)
-    private let micToggleButton = UIButton(type: .system)
     
     // MARK: - Statut & Carte Résultat
     private let statusBanner = UILabel()
@@ -107,8 +100,7 @@ public final class LiveCameraViewController: UIViewController {
         view.bringSubviewToFront(previewContainer)
         view.bringSubviewToFront(recognizedObjectCard)
         view.bringSubviewToFront(statusBanner)
-        view.bringSubviewToFront(topBarView)
-        view.bringSubviewToFront(bottomDock)
+        view.bringSubviewToFront(bottomDockContainer)
     }
     
     public override func viewWillDisappear(_ animated: Bool) {
@@ -124,14 +116,14 @@ public final class LiveCameraViewController: UIViewController {
         stopMicLevelMonitoring()
     }
     
-    // MARK: - Configuration UI Épurée & Fluide
+    // MARK: - Configuration UI Épurée & Fluide (100% Immersive)
     
     private func setupUI() {
         let isSmallScreen = UIScreen.main.bounds.width <= 360 // iPhone 5S, SE
-        let btnSize: CGFloat = isSmallScreen ? 38 : 44
-        let squareSize: CGFloat = isSmallScreen ? 54 : 62
-        let captureBtnSize: CGFloat = isSmallScreen ? 46 : 52
-        let stackSpacing: CGFloat = isSmallScreen ? 8 : 14
+        let btnSize: CGFloat = isSmallScreen ? 42 : 48
+        let squareSize: CGFloat = isSmallScreen ? 56 : 64
+        let captureBtnSize: CGFloat = isSmallScreen ? 48 : 54
+        let stackSpacing: CGFloat = isSmallScreen ? 12 : 18
         
         // 1. Conteneur Vidéo Plein Écran
         previewContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -171,50 +163,18 @@ public final class LiveCameraViewController: UIViewController {
         focusIndicator.isUserInteractionEnabled = false
         previewContainer.addSubview(focusIndicator)
         
-        // 2. Barre Supérieure Épurée
-        topBarView.translatesAutoresizingMaskIntoConstraints = false
-        topBarView.backgroundColor = .clear
-        view.addSubview(topBarView)
-        
-        // 2.1 Bouton Fermer ✕
-        configureCircularGlassButton(closeButton, iconName: "xmark", fallbackText: "✕", size: btnSize)
-        closeButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
-        topBarView.addSubview(closeButton)
-        
-        // 2.2 Pile de Boutons Supérieurs Droits (Flash, Flip, Sleep)
-        topButtonsStack.translatesAutoresizingMaskIntoConstraints = false
-        topButtonsStack.axis = .horizontal
-        topButtonsStack.spacing = isSmallScreen ? 6 : 8
-        topButtonsStack.alignment = .center
-        topBarView.addSubview(topButtonsStack)
-        
-        // Flash / Torche
-        configureCircularGlassButton(torchButton, iconName: "bolt.fill", fallbackText: "⚡", size: btnSize)
-        torchButton.addTarget(self, action: #selector(torchButtonTapped), for: .touchUpInside)
-        topButtonsStack.addArrangedSubview(torchButton)
-        
-        // Bascule Caméra
-        configureCircularGlassButton(flipCameraButton, iconName: "arrow.triangle.2.circlepath", fallbackText: "🔄", size: btnSize)
-        flipCameraButton.addTarget(self, action: #selector(flipCameraTapped), for: .touchUpInside)
-        topButtonsStack.addArrangedSubview(flipCameraButton)
-        
-        // Masquer Caméra
-        configureCircularGlassButton(hideCameraButton, iconName: "camera.fill", fallbackText: "📷", size: btnSize)
-        hideCameraButton.addTarget(self, action: #selector(toggleHideCameraTapped), for: .touchUpInside)
-        topButtonsStack.addArrangedSubview(hideCameraButton)
-        
-        // 3. Carte Objet Reconnu
+        // 2. Carte Objet Reconnu Flottante en Haut
         recognizedObjectCard.translatesAutoresizingMaskIntoConstraints = false
-        recognizedObjectCard.backgroundColor = UIColor(white: 0.10, alpha: 0.88)
-        recognizedObjectCard.layer.cornerRadius = 14
-        recognizedObjectCard.layer.borderWidth = 1.0
-        recognizedObjectCard.layer.borderColor = UIColor(red: 0.0, green: 0.82, blue: 1.0, alpha: 0.7).cgColor
+        recognizedObjectCard.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 0.88)
+        recognizedObjectCard.layer.cornerRadius = 16
+        recognizedObjectCard.layer.borderWidth = 1.2
+        recognizedObjectCard.layer.borderColor = UIColor(red: 0.0, green: 0.82, blue: 1.0, alpha: 0.75).cgColor
         recognizedObjectCard.clipsToBounds = true
         recognizedObjectCard.alpha = 0.0
         view.addSubview(recognizedObjectCard)
         
         recognizedObjectLabel.translatesAutoresizingMaskIntoConstraints = false
-        recognizedObjectLabel.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+        recognizedObjectLabel.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
         recognizedObjectLabel.textColor = .white
         recognizedObjectLabel.textAlignment = .center
         recognizedObjectLabel.numberOfLines = 2
@@ -225,30 +185,48 @@ public final class LiveCameraViewController: UIViewController {
         statusBanner.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
         statusBanner.textColor = .white
         statusBanner.textAlignment = .center
-        statusBanner.backgroundColor = UIColor.black.withAlphaComponent(0.70)
-        statusBanner.layer.cornerRadius = 14
+        statusBanner.backgroundColor = UIColor.black.withAlphaComponent(0.75)
+        statusBanner.layer.cornerRadius = 15
+        statusBanner.layer.borderWidth = 0.5
+        statusBanner.layer.borderColor = UIColor.white.withAlphaComponent(0.2).cgColor
         statusBanner.clipsToBounds = true
         statusBanner.alpha = 0.0
         view.addSubview(statusBanner)
         
-        // 4. Barre Flottante Inférieure (Bottom Dock)
-        bottomDock.translatesAutoresizingMaskIntoConstraints = false
-        bottomDock.backgroundColor = .clear
-        view.addSubview(bottomDock)
+        // 3. Barre Flottante Inférieure Futuriste (Bottom Dock)
+        bottomDockContainer.translatesAutoresizingMaskIntoConstraints = false
+        bottomDockContainer.backgroundColor = UIColor(white: 0.10, alpha: 0.85)
+        bottomDockContainer.layer.cornerRadius = (squareSize + 18) / 2
+        bottomDockContainer.layer.borderWidth = 1.0
+        bottomDockContainer.layer.borderColor = UIColor.white.withAlphaComponent(0.22).cgColor
+        bottomDockContainer.layer.shadowColor = UIColor.black.cgColor
+        bottomDockContainer.layer.shadowOpacity = 0.5
+        bottomDockContainer.layer.shadowRadius = 12
+        bottomDockContainer.layer.shadowOffset = CGSize(width: 0, height: 6)
+        bottomDockContainer.clipsToBounds = true
+        view.addSubview(bottomDockContainer)
+        
+        dockBlurView.translatesAutoresizingMaskIntoConstraints = false
+        bottomDockContainer.addSubview(dockBlurView)
         
         dockStack.translatesAutoresizingMaskIntoConstraints = false
         dockStack.axis = .horizontal
         dockStack.spacing = stackSpacing
         dockStack.alignment = .center
-        dockStack.distribution = .equalSpacing
-        bottomDock.addSubview(dockStack)
+        dockStack.distribution = .equalCentering
+        bottomDockContainer.addSubview(dockStack)
         
-        // 4.1 Bouton Capture & Analyse IA (Bleu)
+        // 3.1 Bouton Fermer ✕ (Gauche)
+        configureCircularGlassButton(closeButton, iconName: "xmark", fallbackText: "✕", size: btnSize)
+        closeButton.addTarget(self, action: #selector(closeButtonTapped), for: .touchUpInside)
+        dockStack.addArrangedSubview(closeButton)
+        
+        // 3.2 Bouton Capture & Analyse IA (Centre-Gauche)
         captureActionButton.translatesAutoresizingMaskIntoConstraints = false
-        captureActionButton.backgroundColor = UIColor(red: 0.10, green: 0.40, blue: 0.95, alpha: 1.0)
+        captureActionButton.backgroundColor = UIColor(red: 0.10, green: 0.45, blue: 0.98, alpha: 1.0)
         captureActionButton.layer.cornerRadius = captureBtnSize / 2
-        captureActionButton.layer.borderWidth = 1.2
-        captureActionButton.layer.borderColor = UIColor.white.withAlphaComponent(0.35).cgColor
+        captureActionButton.layer.borderWidth = 1.5
+        captureActionButton.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
         captureActionButton.clipsToBounds = true
         let captureIcon = UIImageView()
         if #available(iOS 13.0, *) {
@@ -269,7 +247,7 @@ public final class LiveCameraViewController: UIViewController {
         captureActionButton.addTarget(self, action: #selector(captureAndAnalyzeTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(captureActionButton)
         
-        // 4.2 LE CARRÉ BLEU AUX VAGUES ANIMÉES (Centre du Dock)
+        // 3.3 LE CARRÉ BLEU AUX VAGUES ANIMÉES (Centre du Dock)
         voiceWaveSquare.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             voiceWaveSquare.widthAnchor.constraint(equalToConstant: squareSize),
@@ -280,15 +258,10 @@ public final class LiveCameraViewController: UIViewController {
         }
         dockStack.addArrangedSubview(voiceWaveSquare)
         
-        // 4.3 Bouton Partage d'Écran
+        // 3.4 Bouton Partage d'Écran (Droite)
         configureCircularGlassButton(screenShareButton, iconName: "arrow.up.to.line", fallbackText: "📲", size: btnSize)
         screenShareButton.addTarget(self, action: #selector(screenShareButtonTapped), for: .touchUpInside)
         dockStack.addArrangedSubview(screenShareButton)
-        
-        // 4.4 Bouton Microphone
-        configureCircularGlassButton(micToggleButton, iconName: "mic.fill", fallbackText: "🎙️", size: btnSize)
-        micToggleButton.addTarget(self, action: #selector(micButtonTapped), for: .touchUpInside)
-        dockStack.addArrangedSubview(micToggleButton)
         
         // MARK: - Layout Constraints
         let topSafeArea = view.safeAreaLayoutGuide.topAnchor
@@ -313,40 +286,33 @@ public final class LiveCameraViewController: UIViewController {
             cameraHiddenLabel.topAnchor.constraint(equalTo: cameraHiddenIcon.bottomAnchor, constant: 10),
             cameraHiddenLabel.centerXAnchor.constraint(equalTo: cameraHiddenOverlay.centerXAnchor),
             
-            topBarView.topAnchor.constraint(equalTo: topSafeArea, constant: 8),
-            topBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            topBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            topBarView.heightAnchor.constraint(equalToConstant: btnSize),
-            
-            closeButton.leadingAnchor.constraint(equalTo: topBarView.leadingAnchor),
-            closeButton.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
-            
-            topButtonsStack.trailingAnchor.constraint(equalTo: topBarView.trailingAnchor),
-            topButtonsStack.centerYAnchor.constraint(equalTo: topBarView.centerYAnchor),
-            
-            recognizedObjectCard.topAnchor.constraint(equalTo: topBarView.bottomAnchor, constant: 14),
+            recognizedObjectCard.topAnchor.constraint(equalTo: topSafeArea, constant: 16),
             recognizedObjectCard.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            recognizedObjectCard.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
-            recognizedObjectCard.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
+            recognizedObjectCard.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            recognizedObjectCard.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
             
-            recognizedObjectLabel.topAnchor.constraint(equalTo: recognizedObjectCard.topAnchor, constant: 8),
-            recognizedObjectLabel.bottomAnchor.constraint(equalTo: recognizedObjectCard.bottomAnchor, constant: -8),
-            recognizedObjectLabel.leadingAnchor.constraint(equalTo: recognizedObjectCard.leadingAnchor, constant: 14),
-            recognizedObjectLabel.trailingAnchor.constraint(equalTo: recognizedObjectCard.trailingAnchor, constant: -14),
+            recognizedObjectLabel.topAnchor.constraint(equalTo: recognizedObjectCard.topAnchor, constant: 10),
+            recognizedObjectLabel.bottomAnchor.constraint(equalTo: recognizedObjectCard.bottomAnchor, constant: -10),
+            recognizedObjectLabel.leadingAnchor.constraint(equalTo: recognizedObjectCard.leadingAnchor, constant: 16),
+            recognizedObjectLabel.trailingAnchor.constraint(equalTo: recognizedObjectCard.trailingAnchor, constant: -16),
             
-            statusBanner.bottomAnchor.constraint(equalTo: bottomDock.topAnchor, constant: -14),
+            statusBanner.bottomAnchor.constraint(equalTo: bottomDockContainer.topAnchor, constant: -16),
             statusBanner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            statusBanner.heightAnchor.constraint(equalToConstant: 30),
+            statusBanner.heightAnchor.constraint(equalToConstant: 32),
             
-            bottomDock.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            bottomDock.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            bottomDock.bottomAnchor.constraint(equalTo: bottomSafeArea, constant: -12),
-            bottomDock.heightAnchor.constraint(equalToConstant: squareSize + 10),
+            bottomDockContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            bottomDockContainer.bottomAnchor.constraint(equalTo: bottomSafeArea, constant: -14),
+            bottomDockContainer.heightAnchor.constraint(equalToConstant: squareSize + 18),
             
-            dockStack.centerXAnchor.constraint(equalTo: bottomDock.centerXAnchor),
-            dockStack.centerYAnchor.constraint(equalTo: bottomDock.centerYAnchor),
-            dockStack.leadingAnchor.constraint(greaterThanOrEqualTo: bottomDock.leadingAnchor),
-            dockStack.trailingAnchor.constraint(lessThanOrEqualTo: bottomDock.trailingAnchor)
+            dockBlurView.topAnchor.constraint(equalTo: bottomDockContainer.topAnchor),
+            dockBlurView.leadingAnchor.constraint(equalTo: bottomDockContainer.leadingAnchor),
+            dockBlurView.trailingAnchor.constraint(equalTo: bottomDockContainer.trailingAnchor),
+            dockBlurView.bottomAnchor.constraint(equalTo: bottomDockContainer.bottomAnchor),
+            
+            dockStack.topAnchor.constraint(equalTo: bottomDockContainer.topAnchor, constant: 8),
+            dockStack.bottomAnchor.constraint(equalTo: bottomDockContainer.bottomAnchor, constant: -8),
+            dockStack.leadingAnchor.constraint(equalTo: bottomDockContainer.leadingAnchor, constant: 14),
+            dockStack.trailingAnchor.constraint(equalTo: bottomDockContainer.trailingAnchor, constant: -14)
         ])
     }
     
@@ -465,41 +431,6 @@ public final class LiveCameraViewController: UIViewController {
     
     // MARK: - Actions des Boutons
     
-    @objc private func torchButtonTapped() {
-        HapticService.shared.buttonTap()
-        let isOn = LiveCameraManager.shared.toggleTorch()
-        torchButton.tintColor = isOn ? UIColor(red: 0.95, green: 0.85, blue: 0.20, alpha: 1.0) : .white
-        showStatus(isOn ? "⚡ Flash activé" : "Flash éteint")
-    }
-    
-    @objc private func flipCameraTapped() {
-        HapticService.shared.buttonTap()
-        LiveCameraManager.shared.switchCamera { [weak self] success in
-            if success {
-                self?.showStatus("Caméra basculée")
-            }
-        }
-    }
-    
-    @objc private func toggleHideCameraTapped() {
-        HapticService.shared.buttonTap()
-        isCameraHidden.toggle()
-        
-        UIView.animate(withDuration: 0.25) {
-            self.cameraHiddenOverlay.alpha = self.isCameraHidden ? 1.0 : 0.0
-        }
-        
-        if isCameraHidden {
-            hideCameraButton.tintColor = .systemRed
-            showStatus("Caméra en veille")
-        } else {
-            hideCameraButton.tintColor = .white
-            LiveCameraManager.shared.startSession()
-            LiveCameraManager.shared.resetContinuousAutoFocus()
-            showStatus("Caméra active")
-        }
-    }
-    
     @objc private func toggleVoiceInteraction() {
         isVoiceActive.toggle()
         voiceWaveSquare.setActive(isVoiceActive)
@@ -584,19 +515,6 @@ public final class LiveCameraViewController: UIViewController {
             }
         }
         present(modal, animated: true, completion: nil)
-    }
-    
-    @objc private func micButtonTapped() {
-        HapticService.shared.buttonTap()
-        isMicMuted.toggle()
-        let iconName = isMicMuted ? "mic.slash.fill" : "mic.fill"
-        if #available(iOS 13.0, *) {
-            micToggleButton.setImage(UIImage(systemName: iconName), for: .normal)
-        } else {
-            micToggleButton.setTitle(isMicMuted ? "🔇" : "🎙️", for: .normal)
-        }
-        micToggleButton.tintColor = isMicMuted ? .systemRed : .white
-        showStatus(isMicMuted ? "Microphone coupé" : "Microphone activé")
     }
     
     @objc private func closeButtonTapped() {

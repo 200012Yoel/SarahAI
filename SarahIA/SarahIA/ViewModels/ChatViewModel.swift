@@ -609,6 +609,37 @@ public final class ChatViewModel: ObservableObject {
     
     // MARK: - Partage d'Écran Universel & Analyse Visuelle en Temps Réel
     
+    public func readScreenTextOCR() {
+        haptics.buttonTap()
+        let screenImage = ScreenShareService.shared.latestCapturedImage ?? ScreenShareService.shared.captureScreen()
+        guard let image = screenImage else {
+            let errorMsg = "Je n'ai pas pu capturer l'écran pour lire le texte. Affichez la page et réessayez !"
+            SpeechManager.shared.speak(text: errorMsg)
+            return
+        }
+        
+        LocalVisionEngine.shared.extractText(from: image) { [weak self] text in
+            guard let self = self else { return }
+            let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if !clean.isEmpty {
+                let spokenResponse = "Sur votre écran, il est écrit : « \(clean) »"
+                let aiMsg = Message(
+                    content: "📄 **Texte lu sur l'écran (OCR)** :\n\n« \(clean) »",
+                    isFromUser: false,
+                    timestamp: Date()
+                )
+                self.appendMessage(aiMsg)
+                SpeechManager.shared.speak(text: spokenResponse)
+            } else {
+                let noTextResponse = "Je ne détecte aucun texte lisible sur votre écran pour le moment."
+                let aiMsg = Message(content: "📄 \(noTextResponse)", isFromUser: false)
+                self.appendMessage(aiMsg)
+                SpeechManager.shared.speak(text: noTextResponse)
+            }
+        }
+    }
+    
     public func startScreenShareAnalysis() {
         startLiveScreenSharing()
     }

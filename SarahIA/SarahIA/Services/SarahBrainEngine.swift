@@ -137,8 +137,8 @@ public final class SarahBrainEngine {
     private func resolveIntent(from query: String, hasVisualContext: Bool) -> BrainIntent {
         let norm = normalize(query)
         
-        // Intent Vision / OCR / Partage d'écran
-        if hasVisualContext || norm.contains("partage mon ecran") || norm.contains("analyse mon ecran") || norm.contains("que vois tu") || norm.contains("lis ce texte") {
+        // Intent Vision / OCR / Partage d'écran / Lecture de texte
+        if hasVisualContext || norm.contains("partage mon ecran") || norm.contains("analyse mon ecran") || norm.contains("que vois tu") || norm.contains("lis le texte") || norm.contains("lis ce texte") || norm.contains("lis l ecran") || norm.contains("lis ce qui est ecrit") || norm.contains("qu est ce qui est ecrit") || norm.contains("tu peux lire") || norm.contains("peux tu lire") {
             return BrainIntent(primaryTopic: "vision_ocr", requiresVisionAgent: true)
         }
         
@@ -195,6 +195,27 @@ public final class SarahBrainEngine {
     
     // Pipeline B : Agent Vision (OCR Haute Densité & Reconnaissance UI)
     private func processVisionPipeline(query: String, image: UIImage, completion: @escaping (BrainExecutionReport) -> Void) {
+        let norm = normalize(query)
+        let isTextReading = norm.contains("lis") || norm.contains("lire") || norm.contains("texte") || norm.contains("ecrit")
+        
+        if isTextReading {
+            visionEngine.extractText(from: image) { [weak self] ocrText in
+                let cleanOcr = ocrText.trimmingCharacters(in: .whitespacesAndNewlines)
+                let reply = !cleanOcr.isEmpty
+                    ? "Sur votre écran, il est écrit : « \(cleanOcr) » 📄"
+                    : "Je regarde l'écran, mais je ne détecte aucun texte lisible pour le moment."
+                
+                let report = BrainExecutionReport(
+                    leadAgent: "Sarah (Moteur OCR)",
+                    finalNaturalResponse: reply,
+                    sources: ["Local Vision Engine (Apple Vision OCR)"]
+                )
+                self?.recordExchange(query: query, response: reply)
+                completion(report)
+            }
+            return
+        }
+        
         visionEngine.recognizeObject(in: image) { [weak self] result in
             var text = result.naturalSpokenResponse
             if !result.detectedText.isEmpty {
