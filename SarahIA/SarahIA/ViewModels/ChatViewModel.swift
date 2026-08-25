@@ -779,14 +779,16 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(testMessage)
         isTyping = true
         
-        Task {
-            let response = await aiService.generateBackgroundTestResponse()
-            let aiMessage = Message(content: response, isFromUser: false)
-            self.appendMessage(aiMessage)
-            self.isTyping = false
-            
-            self.notificationService.sendResponseNotification(message: response)
-            self.ttsService.speak(text: response)
+        aiService.generateBackgroundTestResponse { [weak self] response in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                let aiMessage = Message(content: response, isFromUser: false)
+                self.appendMessage(aiMessage)
+                self.isTyping = false
+                
+                self.notificationService.sendResponseNotification(message: response)
+                self.ttsService.speak(text: response)
+            }
         }
     }
     
