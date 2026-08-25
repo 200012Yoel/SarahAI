@@ -126,6 +126,7 @@ public final class ScreenShareService: NSObject {
             print("[ReplayKit] VIDEO FRAME RECEIVED (Broadcast Extension)")
             print("[ReplayKit] frame size = \(Int(image.size.width))x\(Int(image.size.height))")
             print("[ReplayKit] frame timestamp = \(String(format: "%.3f", CACurrentMediaTime()))")
+            print("[ScreenShareService] FRAME RECEIVED")
             
             self.broadcastAndProcessDecodedImage(image)
         }
@@ -243,6 +244,7 @@ public final class ScreenShareService: NSObject {
         // 1. Publication vers la prévisualisation miroir flottante locale (Live Preview)
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
+            print("[ScreenShareService] PREVIEW UPDATED")
             NotificationCenter.default.post(
                 name: Self.liveFrameNotification,
                 object: nil,
@@ -255,6 +257,7 @@ public final class ScreenShareService: NSObject {
         if now - lastVisionAnalysisTimestamp >= 0.8 && !isVisionProcessing {
             lastVisionAnalysisTimestamp = now
             isVisionProcessing = true
+            print("[ScreenShareService] VISION ANALYSIS STARTED")
             
             visionThrottleQueue.async { [weak self] in
                 guard let self = self, self.isScreenSharingActive else {

@@ -135,7 +135,7 @@ public final class ScreenShareModalViewController: UIViewController {
             broadcastPicker.preferredExtension = "com.sarahia.app.broadcast"
             broadcastPicker.showsMicrophoneButton = false
             broadcastPicker.translatesAutoresizingMaskIntoConstraints = false
-            broadcastPicker.alpha = 0.02 // Transparent mais capte l'interaction native iOS
+            broadcastPicker.alpha = 0.05 // Capte directement l'interaction native ReplayKit
             cardView.addSubview(broadcastPicker)
             
             NSLayoutConstraint.activate([
@@ -144,6 +144,7 @@ public final class ScreenShareModalViewController: UIViewController {
                 broadcastPicker.trailingAnchor.constraint(equalTo: startButton.trailingAnchor),
                 broadcastPicker.bottomAnchor.constraint(equalTo: startButton.bottomAnchor)
             ])
+            print("[ReplayKit] broadcast picker opened")
         }
         
         // MARK: - Layout Constraints
