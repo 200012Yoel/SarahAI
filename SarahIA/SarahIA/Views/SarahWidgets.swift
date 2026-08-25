@@ -21,10 +21,9 @@ public struct SarahWidgetEntry: Identifiable {
     }
 }
 
-// MARK: - 1. Widget Statistiques & Graphique Allongé (Medium)
-
+// MARK: - 1. WIDGET #1 — CONVERSATIONS
 @available(iOS 14.0, *)
-public struct SarahUsageStatsWidgetView: View {
+public struct SarahConversationsWidgetView: View {
     public let entry: SarahWidgetEntry
     
     public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
@@ -32,167 +31,210 @@ public struct SarahUsageStatsWidgetView: View {
     }
     
     public var body: some View {
-        HStack(spacing: 16) {
-            // COLONNE GAUCHE : Chiffres clés & Pourcentages
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text("👩🏻‍💼")
-                        .font(.system(size: 16))
-                    Text("Sarah IA")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    // Badge Pourcentage d'usage
-                    Text("\(entry.stats.usagePercentage)%")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.sarahWidgetCyan)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.sarahWidgetCyan.opacity(0.2)))
-                }
-                
-                Spacer()
-                
-                // Nombre de discussions
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(SarahWidgetBridge.formatCompactNumber(entry.stats.totalConversations))
-                        .font(.system(size: 26, weight: .heavy))
-                        .foregroundColor(.white)
-                    Text("Discussions actives")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.gray)
-                }
-                
-                // Indicateur Mémoire
-                HStack(spacing: 4) {
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 9))
-                        .foregroundColor(.purple)
-                    Text("\(SarahWidgetBridge.formatCompactNumber(entry.stats.learnedMemoriesCount)) souvenirs")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.purple)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            // SÉPARATEUR VERTICAL DISCRET
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 1)
-                .padding(.vertical, 4)
-            
-            // COLONNE DROITE : Graphique d'Activité 7 Jours
-            VStack(alignment: .trailing, spacing: 6) {
-                HStack {
-                    Text("Activité")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.gray)
-                    Spacer()
-                    Text("7j")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.sarahWidgetCyan)
-                }
-                
-                Spacer()
-                
-                // 7 Barres verticales représentant l'activité
-                HStack(alignment: .bottom, spacing: 5) {
-                    ForEach(0..<entry.stats.weeklyActivity.count, id: \.self) { index in
-                        let value = entry.stats.weeklyActivity[index]
-                        let isToday = (index == entry.stats.weeklyActivity.count - 1)
-                        
-                        VStack(spacing: 3) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(
-                                    isToday ?
-                                    LinearGradient(
-                                        colors: [Color.sarahWidgetCyan, Color.purple],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ) :
-                                    LinearGradient(
-                                        colors: [Color.white.opacity(0.35), Color.white.opacity(0.12)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .frame(width: 8, height: CGFloat(max(6, min(48, value * 3))))
-                            
-                            Text(dayLetter(for: index))
-                                .font(.system(size: 8, weight: isToday ? .bold : .regular))
-                                .foregroundColor(isToday ? .sarahWidgetCyan : .gray)
-                        }
-                    }
-                }
-            }
-            .frame(width: 110)
-        }
-        .padding(14)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.08, green: 0.08, blue: 0.11), Color(red: 0.04, green: 0.04, blue: 0.06)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-    }
-    
-    private func dayLetter(for index: Int) -> String {
-        let days = ["L", "M", "M", "J", "V", "S", "D"]
-        guard index >= 0 && index < days.count else { return "" }
-        return days[index]
-    }
-}
-
-// MARK: - 2. Widget Carré Compact (Small)
-
-@available(iOS 14.0, *)
-public struct SarahCompactStatsWidgetView: View {
-    public let entry: SarahWidgetEntry
-    
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("👩🏻‍💼")
-                    .font(.system(size: 20))
+                Text("💬")
+                    .font(.system(size: 18))
                 Spacer()
-                Text("\(entry.stats.usagePercentage)%")
-                    .font(.system(size: 12, weight: .bold))
+                Text("Sarah IA")
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.sarahWidgetCyan)
             }
             
             Spacer()
             
             Text(SarahWidgetBridge.formatCompactNumber(entry.stats.totalConversations))
-                .font(.system(size: 32, weight: .heavy))
+                .font(.system(size: 34, weight: .heavy))
                 .foregroundColor(.white)
             
-            Text("Discussions Sarah IA")
-                .font(.system(size: 11, weight: .medium))
+            Text(entry.stats.totalConversations <= 1 ? "discussion" : "discussions")
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.gray)
-                
-            HStack(spacing: 4) {
+        }
+        .padding(14)
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: "sarahia://conversations"))
+    }
+}
+
+// MARK: - 2. WIDGET #2 — QUESTIONS
+@available(iOS 14.0, *)
+public struct SarahQuestionsWidgetView: View {
+    public let entry: SarahWidgetEntry
+    
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("❓")
+                    .font(.system(size: 18))
+                Spacer()
+                Text("Questions")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.purple)
+            }
+            
+            Spacer()
+            
+            Text(SarahWidgetBridge.formatCompactNumber(entry.stats.totalMessages))
+                .font(.system(size: 34, weight: .heavy))
+                .foregroundColor(.white)
+            
+            Text(entry.stats.totalMessages <= 1 ? "question posée" : "questions posées")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.gray)
+        }
+        .padding(14)
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: "sarahia://newchat"))
+    }
+}
+
+// MARK: - 3. WIDGET #3 — SARAH BRAIN / KNOWLEDGE
+@available(iOS 14.0, *)
+public struct SarahKnowledgeWidgetView: View {
+    public let entry: SarahWidgetEntry
+    
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("🧠")
+                    .font(.system(size: 18))
+                Spacer()
+                Text("Cerveau IA")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.sarahWidgetCyan)
+            }
+            
+            Spacer()
+            
+            Text(SarahWidgetBridge.formatCompactNumber(entry.stats.knowledgeCount))
+                .font(.system(size: 34, weight: .heavy))
+                .foregroundColor(.white)
+            
+            Text(entry.stats.knowledgeCount <= 1 ? "élément de savoir" : "éléments de savoir")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.gray)
+        }
+        .padding(14)
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: "sarahia://memory"))
+    }
+}
+
+// MARK: - 4. WIDGET #4 — SARAH STATUS
+@available(iOS 14.0, *)
+public struct SarahStatusWidgetView: View {
+    public let entry: SarahWidgetEntry
+    
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
+    private var statusColor: Color {
+        switch entry.stats.sarahStatus {
+        case "En réflexion": return .yellow
+        case "Occupée": return .orange
+        default: return .green
+        }
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("👩🏻‍💼")
+                    .font(.system(size: 22))
+                Spacer()
                 Circle()
-                    .fill(Color.green)
-                    .frame(width: 6, height: 6)
-                Text("IA Prête & Active")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.green)
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+            }
+            
+            Spacer()
+            
+            Text("Sarah")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            
+            HStack(spacing: 4) {
+                Text("●")
+                    .font(.system(size: 8))
+                    .foregroundColor(statusColor)
+                Text(entry.stats.sarahStatus)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
             }
         }
         .padding(14)
         .background(Color(red: 0.07, green: 0.07, blue: 0.09))
+        .widgetURL(URL(string: "sarahia://chat"))
     }
 }
 
-// MARK: - 3. Widget Mémoire & Brain Vault (Medium)
+// MARK: - 5. WIDGET #5 — TOM VISION
+@available(iOS 14.0, *)
+public struct SarahTomVisionWidgetView: View {
+    public let entry: SarahWidgetEntry
+    
+    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
+        self.entry = entry
+    }
+    
+    private var isVisionActive: Bool {
+        entry.stats.screenSharingActive || entry.stats.cameraActive || entry.stats.tomStatus != "Vision inactive"
+    }
+    
+    private var tomColor: Color {
+        if entry.stats.screenSharingActive {
+            return .red
+        } else if entry.stats.cameraActive {
+            return .sarahWidgetCyan
+        } else {
+            return .gray
+        }
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(entry.stats.screenSharingActive ? "🖥️" : (entry.stats.cameraActive ? "📷" : "👁️"))
+                    .font(.system(size: 22))
+                Spacer()
+                Circle()
+                    .fill(tomColor)
+                    .frame(width: 8, height: 8)
+            }
+            
+            Spacer()
+            
+            Text("Tom")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+            
+            HStack(spacing: 4) {
+                Text("●")
+                    .font(.system(size: 8))
+                    .foregroundColor(tomColor)
+                Text(entry.stats.tomStatus)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+        }
+        .padding(14)
+        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: entry.stats.screenSharingActive ? "sarahia://screenshare" : "sarahia://camera"))
+    }
+}
 
+// MARK: - 6. WIDGET #6 — MEMORY
 @available(iOS 14.0, *)
 public struct SarahMemoryWidgetView: View {
     public let entry: SarahWidgetEntry
@@ -206,7 +248,7 @@ public struct SarahMemoryWidgetView: View {
             HStack {
                 HStack(spacing: 6) {
                     Text("🧠")
-                    Text("Mémoire de Sarah")
+                    Text("Mémoire Sarah")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -225,19 +267,19 @@ public struct SarahMemoryWidgetView: View {
                 .background(Color.white.opacity(0.1))
             
             if let trigger = entry.stats.lastMemoryTrigger, let resp = entry.stats.lastMemoryResponse {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Dernier apprentissage :")
-                        .font(.system(size: 11))
+                        .font(.system(size: 10))
                         .foregroundColor(.gray)
                     
                     Text("« \(trigger) » ➔ « \(resp) »")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.sarahWidgetCyan)
                         .lineLimit(2)
                 }
             } else {
-                Text("Dites « Apprends [mot] » à Sarah pour lui enseigner des souvenirs personnalisés !")
-                    .font(.system(size: 12))
+                Text("Dites « Apprends [mot] » à Sarah pour mémoriser des souvenirs personnalisés !")
+                    .font(.system(size: 11))
                     .foregroundColor(.gray)
                     .lineLimit(2)
             }
@@ -246,195 +288,13 @@ public struct SarahMemoryWidgetView: View {
         }
         .padding(14)
         .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: "sarahia://memory"))
     }
 }
 
-// MARK: - 4. Widget Statut & Discussion (Small)
-
+// MARK: - 7. WIDGET #7 — ACTIVITY
 @available(iOS 14.0, *)
-public struct SarahStatusWidgetView: View {
-    public let entry: SarahWidgetEntry
-    
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("👩🏻‍💼")
-                    .font(.system(size: 22))
-                Spacer()
-                Circle()
-                    .fill(Color.sarahWidgetCyan)
-                    .frame(width: 8, height: 8)
-            }
-            
-            Spacer()
-            
-            Text("Sarah IA")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text("Toujours à l'écoute")
-                .font(.system(size: 11))
-                .foregroundColor(.gray)
-        }
-        .padding(14)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
-    }
-}
-
-// MARK: - 5. Widget Accès Vocal Instantané (Small)
-
-@available(iOS 14.0, *)
-public struct SarahQuickVoiceWidgetView: View {
-    public let entry: SarahWidgetEntry
-    
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.sarahWidgetCyan.opacity(0.8), Color.purple.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 54, height: 54)
-                    .shadow(color: Color.sarahWidgetCyan.opacity(0.4), radius: 10)
-                
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            
-            Text("Parler à Sarah")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text("1-Tap Conversation")
-                .font(.system(size: 10))
-                .foregroundColor(.gray)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(12)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
-    }
-}
-
-// MARK: - 6. Widget Dernier Message & Discussion (Medium)
-
-@available(iOS 14.0, *)
-public struct SarahLastMessageWidgetView: View {
-    public let entry: SarahWidgetEntry
-    
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("💬")
-                Text("Dernier échange")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                Text("Il y a un instant")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
-            }
-            
-            Divider().background(Color.white.opacity(0.1))
-            
-            Text(entry.stats.lastMessageSnippet ?? "« Bonjour ! Je suis là pour vous aider à tout moment. »")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white.opacity(0.9))
-                .lineLimit(2)
-            
-            Spacer()
-            
-            HStack {
-                Text("👩🏻‍💼 Sarah IA")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.sarahWidgetCyan)
-                
-                Spacer()
-                
-                Text("\(SarahWidgetBridge.formatCompactNumber(entry.stats.totalMessages)) messages")
-                    .font(.system(size: 10))
-                    .foregroundColor(.purple)
-            }
-        }
-        .padding(14)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
-    }
-}
-
-// MARK: - 7. Widget Actions Rapides (Medium)
-
-@available(iOS 14.0, *)
-public struct SarahQuickActionsWidgetView: View {
-    public let entry: SarahWidgetEntry
-    
-    public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
-        self.entry = entry
-    }
-    
-    public var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text("⚡ Raccourcis Sarah")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-                Spacer()
-                Text("\(entry.stats.usagePercentage)% actif")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.sarahWidgetCyan)
-            }
-            
-            HStack(spacing: 10) {
-                actionTile(icon: "mic.fill", label: "Vocal", color: .sarahWidgetCyan)
-                actionTile(icon: "flashlight.on.fill", label: "Torche", color: .yellow)
-                actionTile(icon: "battery.100.bolt", label: "Batterie", color: .green)
-                actionTile(icon: "brain.head.profile", label: "Mémoire", color: .purple)
-            }
-        }
-        .padding(14)
-        .background(Color(red: 0.07, green: 0.07, blue: 0.10))
-    }
-    
-    private func actionTile(icon: String, label: String, color: Color) -> some View {
-        VStack(spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.15))
-                    .frame(height: 44)
-                
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(color)
-            }
-            
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.white.opacity(0.85))
-        }
-    }
-}
-
-// MARK: - 8. Widget Santé & Latence Système (Small)
-
-@available(iOS 14.0, *)
-public struct SarahSystemHealthWidgetView: View {
+public struct SarahActivityWidgetView: View {
     public let entry: SarahWidgetEntry
     
     public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
@@ -444,46 +304,55 @@ public struct SarahSystemHealthWidgetView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("🟢")
-                    .font(.system(size: 12))
-                Text("Système")
-                    .font(.system(size: 12, weight: .bold))
+                Text("📊")
+                Text("Activité récente")
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
-                Text("60 FPS")
+                Text("\(entry.stats.usagePercentage)% actif")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.green)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Reconnaissance")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
-                Text("100% Locale")
-                    .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.sarahWidgetCyan)
             }
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Latence IA")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
-                Text("< 0.2s")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.purple)
+            Divider().background(Color.white.opacity(0.1))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text("•")
+                        .foregroundColor(.sarahWidgetCyan)
+                    Text("\(entry.stats.totalMessages) questions au total")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                }
+                
+                HStack(spacing: 6) {
+                    Text("•")
+                        .foregroundColor(.purple)
+                    Text("\(entry.stats.learnedMemoriesCount) souvenirs mémorisés")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                }
+                
+                HStack(spacing: 6) {
+                    Text("•")
+                        .foregroundColor(.green)
+                    Text("\(entry.stats.totalConversations) discussions actives")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.9))
+                }
             }
+            
+            Spacer()
         }
         .padding(14)
         .background(Color(red: 0.07, green: 0.07, blue: 0.10))
+        .widgetURL(URL(string: "sarahia://activity"))
     }
 }
 
-// MARK: - 9. Widget Conseil & Astuce Quotidienne (Medium)
-
+// MARK: - 8. WIDGET #8 — QUICK SARAH
 @available(iOS 14.0, *)
-public struct SarahDailyTipWidgetView: View {
+public struct SarahQuickActionsWidgetView: View {
     public let entry: SarahWidgetEntry
     
     public init(entry: SarahWidgetEntry = SarahWidgetEntry()) {
@@ -491,39 +360,57 @@ public struct SarahDailyTipWidgetView: View {
     }
     
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 10) {
             HStack {
-                Text("🌟 Conseil du jour")
+                Text("⚡ Quick Sarah")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
                 Spacer()
-                Text("Sarah IA")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.yellow)
+                Text("Accès rapide")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.sarahWidgetCyan)
             }
             
-            Divider().background(Color.white.opacity(0.1))
-            
-            Text("« Dites par exemple : « Allume la torche » ou « Niveau de batterie » pour exécuter une action instantanée à la voix ! »")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.9))
-                .italic()
-                .lineLimit(2)
-            
-            Spacer()
-            
-            HStack {
-                Text("💡 Astuce : 100% hors-ligne & ultra-rapide")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
+            HStack(spacing: 8) {
+                Link(destination: URL(string: "sarahia://voice")!) {
+                    actionTile(icon: "mic.fill", label: "Parler", color: .sarahWidgetCyan)
+                }
+                Link(destination: URL(string: "sarahia://newchat")!) {
+                    actionTile(icon: "plus.bubble.fill", label: "Nouveau", color: .purple)
+                }
+                Link(destination: URL(string: "sarahia://camera")!) {
+                    actionTile(icon: "camera.fill", label: "Tom Vision", color: .blue)
+                }
+                Link(destination: URL(string: "sarahia://screenshare")!) {
+                    actionTile(icon: "display", label: "Écran", color: .red)
+                }
             }
         }
         .padding(14)
         .background(Color(red: 0.07, green: 0.07, blue: 0.10))
     }
+    
+    private func actionTile(icon: String, label: String, color: Color) -> some View {
+        VStack(spacing: 5) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(color.opacity(0.18))
+                    .frame(height: 38)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(color)
+            }
+            
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(1)
+        }
+    }
 }
 
-// MARK: - Intégration WidgetKit Officielle iOS (TimelineProvider & 8 Widgets)
+// MARK: - Intégration WidgetKit Officielle iOS (TimelineProvider & 8 Widgets Dédiés)
 
 #if canImport(WidgetKit)
 import WidgetKit
@@ -563,22 +450,52 @@ public struct SarahWidgetProvider: TimelineProvider {
     }
 }
 
-// 1. Widget Statistiques
+// 1. WIDGET #1 — CONVERSATIONS
 @available(iOS 14.0, *)
-public struct SarahUsageStatsWidget: Widget {
-    public let kind: String = "SarahUsageStatsWidget"
+public struct SarahConversationsWidget: Widget {
+    public let kind: String = "SarahConversationsWidget"
     public init() {}
     public var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
-            SarahUsageStatsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+            SarahConversationsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("1. Statistiques Sarah IA")
-        .description("Suivez vos discussions, pourcentages d'usage et graphiques d'activité.")
-        .supportedFamilies([.systemMedium, .systemLarge])
+        .configurationDisplayName("1. Discussions")
+        .description("Affiche le nombre total de discussions actives avec Sarah IA.")
+        .supportedFamilies([.systemSmall])
     }
 }
 
-// 2. Widget Statut & Accès Direct
+// 2. WIDGET #2 — QUESTIONS
+@available(iOS 14.0, *)
+public struct SarahQuestionsWidget: Widget {
+    public let kind: String = "SarahQuestionsWidget"
+    public init() {}
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
+            SarahQuestionsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("2. Questions")
+        .description("Affiche le nombre de questions et messages posés à Sarah.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+// 3. WIDGET #3 — SARAH BRAIN / KNOWLEDGE
+@available(iOS 14.0, *)
+public struct SarahKnowledgeWidget: Widget {
+    public let kind: String = "SarahKnowledgeWidget"
+    public init() {}
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
+            SarahKnowledgeWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("3. Cerveau & Connaissances")
+        .description("Affiche le nombre d'éléments de savoir mémorisés dans le cerveau de Sarah.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+// 4. WIDGET #4 — SARAH STATUS
 @available(iOS 14.0, *)
 public struct SarahStatusWidget: Widget {
     public let kind: String = "SarahStatusWidget"
@@ -587,13 +504,28 @@ public struct SarahStatusWidget: Widget {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
             SarahStatusWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("2. Statut & Accès Direct")
-        .description("Consultez l'état et lancez une conversation avec Sarah.")
+        .configurationDisplayName("4. Statut Sarah")
+        .description("Consultez en direct l'état de disponibilité de Sarah.")
         .supportedFamilies([.systemSmall])
     }
 }
 
-// 3. Widget Mémoire
+// 5. WIDGET #5 — TOM VISION
+@available(iOS 14.0, *)
+public struct SarahTomVisionWidget: Widget {
+    public let kind: String = "SarahTomVisionWidget"
+    public init() {}
+    public var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
+            SarahTomVisionWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+        }
+        .configurationDisplayName("5. Tom Vision")
+        .description("Consultez l'état visuel de Tom (Caméra ou Partage d'écran).")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+// 6. WIDGET #6 — MEMORY
 @available(iOS 14.0, *)
 public struct SarahMemoryWidget: Widget {
     public let kind: String = "SarahMemoryWidget"
@@ -602,43 +534,28 @@ public struct SarahMemoryWidget: Widget {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
             SarahMemoryWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("3. Coffre Mémoire")
-        .description("Visualisez les derniers souvenirs appris par Sarah.")
+        .configurationDisplayName("6. Mémoire Sarah")
+        .description("Visualisez le coffre de souvenirs et derniers apprentissages.")
         .supportedFamilies([.systemMedium])
     }
 }
 
-// 4. Widget Accès Vocal Rapide
+// 7. WIDGET #7 — ACTIVITY
 @available(iOS 14.0, *)
-public struct SarahQuickVoiceWidget: Widget {
-    public let kind: String = "SarahQuickVoiceWidget"
+public struct SarahActivityWidget: Widget {
+    public let kind: String = "SarahActivityWidget"
     public init() {}
     public var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
-            SarahQuickVoiceWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
+            SarahActivityWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("4. Bouton Vocal Instantané")
-        .description("Lancez instantanément une conversation vocale avec Sarah.")
-        .supportedFamilies([.systemSmall])
-    }
-}
-
-// 5. Widget Dernier Message
-@available(iOS 14.0, *)
-public struct SarahLastMessageWidget: Widget {
-    public let kind: String = "SarahLastMessageWidget"
-    public init() {}
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
-            SarahLastMessageWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
-        }
-        .configurationDisplayName("5. Dernier Échange")
-        .description("Consultez le dernier message et la réponse de Sarah.")
+        .configurationDisplayName("7. Activité Récente")
+        .description("Consultez le récapitulatif d'activité récente de Sarah IA.")
         .supportedFamilies([.systemMedium])
     }
 }
 
-// 6. Widget Raccourcis Rapides
+// 8. WIDGET #8 — QUICK SARAH
 @available(iOS 14.0, *)
 public struct SarahQuickActionsWidget: Widget {
     public let kind: String = "SarahQuickActionsWidget"
@@ -647,38 +564,8 @@ public struct SarahQuickActionsWidget: Widget {
         StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
             SarahQuickActionsWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
         }
-        .configurationDisplayName("6. Actions Rapides")
-        .description("Accédez directement au vocal, nouveau chat et mémoire.")
-        .supportedFamilies([.systemMedium])
-    }
-}
-
-// 7. Widget Santé Système
-@available(iOS 14.0, *)
-public struct SarahSystemHealthWidget: Widget {
-    public let kind: String = "SarahSystemHealthWidget"
-    public init() {}
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
-            SarahSystemHealthWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
-        }
-        .configurationDisplayName("7. Santé & Performance")
-        .description("Vérifiez l'état de l'IA locale, des FPS et de la latence.")
-        .supportedFamilies([.systemSmall])
-    }
-}
-
-// 8. Widget Conseil Quotidien
-@available(iOS 14.0, *)
-public struct SarahDailyTipWidget: Widget {
-    public let kind: String = "SarahDailyTipWidget"
-    public init() {}
-    public var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: SarahWidgetProvider()) { (entry: SarahTimelineEntry) in
-            SarahDailyTipWidgetView(entry: SarahWidgetEntry(date: entry.date, stats: entry.stats))
-        }
-        .configurationDisplayName("8. Conseil du Jour")
-        .description("Recevez une astuce ou une citation inspirante de Sarah chaque jour.")
+        .configurationDisplayName("8. Quick Sarah")
+        .description("Accès direct 1-tap au vocal, nouveau chat, Tom Vision et partage d'écran.")
         .supportedFamilies([.systemMedium])
     }
 }

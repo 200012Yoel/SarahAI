@@ -1370,11 +1370,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 self.floatingMirrorTitle.text = "🟢 Connecté"
                 self.floatingMirrorStatus.text = "👁️ Connecté"
             case .active:
-                self.statusLabel.text = "● 🔴 En direct"
+                self.statusLabel.text = "● 🔴 LIVE — Tom observe"
                 self.statusLabel.textColor = .systemRed
                 self.floatingMirrorDot.backgroundColor = .systemRed
-                self.floatingMirrorTitle.text = "🔴 En direct"
-                self.floatingMirrorStatus.text = "👁️ En direct"
+                self.floatingMirrorTitle.text = "LIVE — Tom observe"
+                self.floatingMirrorStatus.text = "👁️ Tom & Sarah observent"
             }
         }
     }

@@ -9,14 +9,14 @@ import SwiftUI
 struct SarahIAWidgetsBundle: WidgetBundle {
     @WidgetBundleBuilder
     var body: some Widget {
-        SarahUsageStatsWidget()
+        SarahConversationsWidget()
+        SarahQuestionsWidget()
+        SarahKnowledgeWidget()
         SarahStatusWidget()
+        SarahTomVisionWidget()
         SarahMemoryWidget()
-        SarahQuickVoiceWidget()
-        SarahLastMessageWidget()
+        SarahActivityWidget()
         SarahQuickActionsWidget()
-        SarahSystemHealthWidget()
-        SarahDailyTipWidget()
     }
 }
 #endif

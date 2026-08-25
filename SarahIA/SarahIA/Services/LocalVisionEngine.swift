@@ -267,7 +267,6 @@ public final class LocalVisionEngine {
             }
         }
     }
-}
     
     // MARK: - Moteur OCR Haute Précision (Apple Vision Framework)
     

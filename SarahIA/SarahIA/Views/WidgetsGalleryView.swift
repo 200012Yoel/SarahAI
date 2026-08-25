@@ -23,21 +23,43 @@ public struct WidgetsGalleryView: View {
                         // En-tête descriptif
                         headerBanner
                         
-                        // 1. Widget Statistiques & Graphique 7 jours (Largeur Moyenne)
-                        widgetCard(
-                            number: 1,
-                            title: "Statistiques d'Usage & Graphique 7j",
-                            description: "Suivez vos interactions et l'activité hebdomadaire."
-                        ) {
-                            SarahUsageStatsWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
-                                .frame(height: 130)
-                                .cornerRadius(16)
-                        }
-                        
-                        // 2 & 3. Grille de 2 Widgets Carrés (Statut & Vocal)
+                        // 1 & 2. Grille de 2 Widgets Carrés (Discussions & Questions)
                         HStack(spacing: 14) {
                             widgetCard(
+                                number: 1,
+                                title: "Discussions",
+                                description: "Nombre de conversations"
+                            ) {
+                                SarahConversationsWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
+                                    .frame(height: 140)
+                                    .cornerRadius(16)
+                            }
+                            
+                            widgetCard(
                                 number: 2,
+                                title: "Questions",
+                                description: "Total questions posées"
+                            ) {
+                                SarahQuestionsWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
+                                    .frame(height: 140)
+                                    .cornerRadius(16)
+                            }
+                        }
+                        
+                        // 3 & 4. Grille de 2 Widgets Carrés (Cerveau & Statut Sarah)
+                        HStack(spacing: 14) {
+                            widgetCard(
+                                number: 3,
+                                title: "Cerveau & Savoir",
+                                description: "Index connaissances"
+                            ) {
+                                SarahKnowledgeWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
+                                    .frame(height: 140)
+                                    .cornerRadius(16)
+                            }
+                            
+                            widgetCard(
+                                number: 4,
                                 title: "Statut Sarah",
                                 description: "Disponibilité IA"
                             ) {
@@ -45,26 +67,23 @@ public struct WidgetsGalleryView: View {
                                     .frame(height: 140)
                                     .cornerRadius(16)
                             }
-                            
-                            widgetCard(
-                                number: 3,
-                                title: "Bouton Vocal",
-                                description: "1-Tap Écoute"
-                            ) {
-                                SarahQuickVoiceWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
-                                    .frame(height: 140)
-                                    .cornerRadius(16)
-                                    .onTapGesture {
-                                        presentationMode.wrappedValue.dismiss()
-                                        viewModel.toggleMicrophone()
-                                    }
-                            }
                         }
                         
-                        // 4. Widget Coffre Mémoire (Medium)
+                        // 5. Widget Tom Vision (Square)
                         widgetCard(
-                            number: 4,
-                            title: "Coffre Mémoire & Souvenirs",
+                            number: 5,
+                            title: "Tom Vision",
+                            description: "État de la caméra & partage d'écran."
+                        ) {
+                            SarahTomVisionWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
+                                .frame(height: 140)
+                                .cornerRadius(16)
+                        }
+                        
+                        // 6. Widget Coffre Mémoire (Medium)
+                        widgetCard(
+                            number: 6,
+                            title: "Coffre Mémoire Sarah",
                             description: "Visualisez les derniers souvenirs appris par Sarah."
                         ) {
                             SarahMemoryWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
@@ -72,59 +91,25 @@ public struct WidgetsGalleryView: View {
                                 .cornerRadius(16)
                         }
                         
-                        // 5. Widget Dernier Échange & Message (Medium)
+                        // 7. Widget Activité Récente (Medium)
                         widgetCard(
-                            number: 5,
-                            title: "Dernier Échange & Reprise",
-                            description: "Dernier message reçu et historique condensé."
+                            number: 7,
+                            title: "Activité Récente",
+                            description: "Récapitulatif en direct de l'activité."
                         ) {
-                            SarahLastMessageWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
+                            SarahActivityWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
                                 .frame(height: 130)
                                 .cornerRadius(16)
                         }
                         
-                        // 6. Widget Raccourcis d'Actions Rapides (Medium)
+                        // 8. Widget Quick Sarah (Medium)
                         widgetCard(
-                            number: 6,
-                            title: "Raccourcis d'Actions Rapides",
-                            description: "Torche, Batterie, Vocal et Mémoire en 1 clic."
+                            number: 8,
+                            title: "Quick Sarah",
+                            description: "Raccourcis interactifs 1-tap vers le vocal, chat et vision."
                         ) {
                             SarahQuickActionsWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
                                 .frame(height: 130)
-                                .cornerRadius(16)
-                        }
-                        
-                        // 7 & 8. Grille Santé Système & Conseil Quotidien
-                        HStack(spacing: 14) {
-                            widgetCard(
-                                number: 7,
-                                title: "Santé Système",
-                                description: "Latence & FPS"
-                            ) {
-                                SarahSystemHealthWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
-                                    .frame(height: 140)
-                                    .cornerRadius(16)
-                            }
-                            
-                            widgetCard(
-                                number: 8,
-                                title: "Compact Stats",
-                                description: "Compteur brut"
-                            ) {
-                                SarahCompactStatsWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
-                                    .frame(height: 140)
-                                    .cornerRadius(16)
-                            }
-                        }
-                        
-                        // Conseil Quotidien (Pleine Largeur)
-                        widgetCard(
-                            number: 8,
-                            title: "Conseil & Astuce du Jour",
-                            description: "Suggestions quotidiennes d'utilisation."
-                        ) {
-                            SarahDailyTipWidgetView(entry: SarahWidgetEntry(date: Date(), stats: widgetStats))
-                                .frame(height: 120)
                                 .cornerRadius(16)
                         }
                         

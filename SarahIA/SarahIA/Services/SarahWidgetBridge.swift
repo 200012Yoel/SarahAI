@@ -10,10 +10,15 @@ import NotificationCenter
 public struct WidgetStatsData: Codable {
     public var totalConversations: Int
     public var totalMessages: Int
+    public var learnedMemoriesCount: Int
+    public var knowledgeCount: Int // Eléments de connaissance / Brain index
+    public var sarahStatus: String // "Disponible", "En réflexion", "Occupée"
+    public var tomStatus: String // "Vision inactive", "Caméra active", "Écran partagé"
+    public var screenSharingActive: Bool
+    public var cameraActive: Bool
     public var activeMinutesToday: Int
     public var usagePercentage: Int // Ex: 78% de progression
     public var weeklyActivity: [Int] // 7 barres de graphiques [Lun, Mar, Mer, Jeu, Ven, Sam, Dim]
-    public var learnedMemoriesCount: Int
     public var lastMemoryTrigger: String?
     public var lastMemoryResponse: String?
     public var lastMessageSnippet: String?
@@ -22,10 +27,15 @@ public struct WidgetStatsData: Codable {
     public init(
         totalConversations: Int = 0,
         totalMessages: Int = 0,
+        learnedMemoriesCount: Int = 0,
+        knowledgeCount: Int = 0,
+        sarahStatus: String = "Disponible",
+        tomStatus: String = "Vision inactive",
+        screenSharingActive: Bool = false,
+        cameraActive: Bool = false,
         activeMinutesToday: Int = 12,
         usagePercentage: Int = 68,
         weeklyActivity: [Int] = [4, 7, 12, 9, 15, 8, 14],
-        learnedMemoriesCount: Int = 0,
         lastMemoryTrigger: String? = nil,
         lastMemoryResponse: String? = nil,
         lastMessageSnippet: String? = nil,
@@ -33,10 +43,15 @@ public struct WidgetStatsData: Codable {
     ) {
         self.totalConversations = totalConversations
         self.totalMessages = totalMessages
+        self.learnedMemoriesCount = learnedMemoriesCount
+        self.knowledgeCount = knowledgeCount
+        self.sarahStatus = sarahStatus
+        self.tomStatus = tomStatus
+        self.screenSharingActive = screenSharingActive
+        self.cameraActive = cameraActive
         self.activeMinutesToday = activeMinutesToday
         self.usagePercentage = usagePercentage
         self.weeklyActivity = weeklyActivity
-        self.learnedMemoriesCount = learnedMemoriesCount
         self.lastMemoryTrigger = lastMemoryTrigger
         self.lastMemoryResponse = lastMemoryResponse
         self.lastMessageSnippet = lastMessageSnippet
@@ -79,13 +94,47 @@ public final class SarahWidgetBridge {
         conversationsCount: Int,
         messagesCount: Int,
         memoriesCount: Int,
+        knowledgeCount: Int? = nil,
+        sarahStatus: String? = nil,
+        tomStatus: String? = nil,
+        screenSharingActive: Bool? = nil,
+        cameraActive: Bool? = nil,
         lastMemory: (trigger: String, response: String)? = nil,
         lastMessage: String? = nil
     ) {
         var current = getStats()
-        current.totalConversations = max(1, conversationsCount)
-        current.totalMessages = messagesCount
-        current.learnedMemoriesCount = memoriesCount
+        current.totalConversations = max(0, conversationsCount)
+        current.totalMessages = max(0, messagesCount)
+        current.learnedMemoriesCount = max(0, memoriesCount)
+        
+        if let kc = knowledgeCount {
+            current.knowledgeCount = kc
+        } else {
+            current.knowledgeCount = (conversationsCount * 4) + memoriesCount + 120
+        }
+        
+        if let ss = sarahStatus {
+            current.sarahStatus = ss
+        }
+        if let ts = tomStatus {
+            current.tomStatus = ts
+        }
+        if let ssa = screenSharingActive {
+            current.screenSharingActive = ssa
+            if ssa {
+                current.tomStatus = "Écran partagé"
+            } else if current.tomStatus == "Écran partagé" {
+                current.tomStatus = "Vision inactive"
+            }
+        }
+        if let ca = cameraActive {
+            current.cameraActive = ca
+            if ca {
+                current.tomStatus = "Caméra active"
+            } else if current.tomStatus == "Caméra active" {
+                current.tomStatus = "Vision inactive"
+            }
+        }
         
         if let memory = lastMemory {
             current.lastMemoryTrigger = memory.trigger
@@ -117,16 +166,20 @@ public final class SarahWidgetBridge {
     }
     
     /// Enregistre les données statistiques sur tous les supports partagés (App Group prioritaire)
-    /// Enregistre les données statistiques sur tous les supports partagés (App Group prioritaire)
     public func saveStats(_ stats: WidgetStatsData) {
         let encoded = (try? JSONEncoder().encode(stats)) ?? Data()
-        let summaryStr = "\(stats.totalConversations)|\(stats.totalMessages)|\(stats.learnedMemoriesCount)|\(stats.usagePercentage)|\(stats.lastUpdated.timeIntervalSince1970)"
+        let summaryStr = "\(stats.totalConversations)|\(stats.totalMessages)|\(stats.learnedMemoriesCount)|\(stats.usagePercentage)|\(stats.knowledgeCount)|\(stats.sarahStatus)|\(stats.tomStatus)|\(stats.lastUpdated.timeIntervalSince1970)"
         
         // 1. Sauvegarde systématique dans l'App Group partagé group.com.sarahia.app
         if let groupDefaults = sharedDefaults {
             groupDefaults.set(stats.totalConversations, forKey: "totalConversations")
             groupDefaults.set(stats.totalMessages, forKey: "totalMessages")
             groupDefaults.set(stats.learnedMemoriesCount, forKey: "learnedMemoriesCount")
+            groupDefaults.set(stats.knowledgeCount, forKey: "knowledgeCount")
+            groupDefaults.set(stats.sarahStatus, forKey: "sarahStatus")
+            groupDefaults.set(stats.tomStatus, forKey: "tomStatus")
+            groupDefaults.set(stats.screenSharingActive, forKey: "screenSharingActive")
+            groupDefaults.set(stats.cameraActive, forKey: "cameraActive")
             groupDefaults.set(stats.usagePercentage, forKey: "usagePercentage")
             groupDefaults.set(stats.weeklyActivity, forKey: "weeklyActivity")
             groupDefaults.set(stats.lastMessageSnippet ?? "", forKey: "lastMessageSnippet")
@@ -140,7 +193,7 @@ public final class SarahWidgetBridge {
             groupDefaults.synchronize()
         }
         
-        // 2. Pont UIPasteboard partagé (100% fiable sur iOS 12 même sans certificat payant)
+        // 2. Pont UIPasteboard partagé (100% fiable sur iOS 12)
         if let pasteboard = UIPasteboard(name: UIPasteboard.Name("com.sarahia.app.widgetstats"), create: true) {
             pasteboard.string = summaryStr
         }
@@ -149,6 +202,11 @@ public final class SarahWidgetBridge {
         UserDefaults.standard.set(stats.totalConversations, forKey: "totalConversations")
         UserDefaults.standard.set(stats.totalMessages, forKey: "totalMessages")
         UserDefaults.standard.set(stats.learnedMemoriesCount, forKey: "learnedMemoriesCount")
+        UserDefaults.standard.set(stats.knowledgeCount, forKey: "knowledgeCount")
+        UserDefaults.standard.set(stats.sarahStatus, forKey: "sarahStatus")
+        UserDefaults.standard.set(stats.tomStatus, forKey: "tomStatus")
+        UserDefaults.standard.set(stats.screenSharingActive, forKey: "screenSharingActive")
+        UserDefaults.standard.set(stats.cameraActive, forKey: "cameraActive")
         UserDefaults.standard.set(stats.usagePercentage, forKey: "usagePercentage")
         UserDefaults.standard.set(summaryStr, forKey: "com.sarahia.widget_summary")
         if !encoded.isEmpty {
@@ -174,6 +232,11 @@ public final class SarahWidgetBridge {
                 let convs = groupDefaults.integer(forKey: "totalConversations")
                 let msgs = groupDefaults.integer(forKey: "totalMessages")
                 let memories = groupDefaults.integer(forKey: "learnedMemoriesCount")
+                let knowledge = groupDefaults.integer(forKey: "knowledgeCount")
+                let sarahSt = groupDefaults.string(forKey: "sarahStatus") ?? "Disponible"
+                let tomSt = groupDefaults.string(forKey: "tomStatus") ?? "Vision inactive"
+                let screenActive = groupDefaults.bool(forKey: "screenSharingActive")
+                let camActive = groupDefaults.bool(forKey: "cameraActive")
                 let usage = groupDefaults.integer(forKey: "usagePercentage")
                 let activity = groupDefaults.array(forKey: "weeklyActivity") as? [Int] ?? [4, 7, 12, 9, 15, 8, 14]
                 let snippet = groupDefaults.string(forKey: "lastMessageSnippet")
@@ -182,12 +245,17 @@ public final class SarahWidgetBridge {
                 let timestamp = groupDefaults.double(forKey: "lastUpdatedTimestamp")
                 
                 candidates.append(WidgetStatsData(
-                    totalConversations: max(1, convs),
-                    totalMessages: msgs,
+                    totalConversations: max(0, convs),
+                    totalMessages: max(0, msgs),
+                    learnedMemoriesCount: max(0, memories),
+                    knowledgeCount: knowledge > 0 ? knowledge : ((max(1, convs) * 4) + memories + 120),
+                    sarahStatus: sarahSt,
+                    tomStatus: tomSt,
+                    screenSharingActive: screenActive,
+                    cameraActive: camActive,
                     activeMinutesToday: 12,
                     usagePercentage: usage > 0 ? usage : 68,
                     weeklyActivity: activity,
-                    learnedMemoriesCount: memories,
                     lastMemoryTrigger: trig?.isEmpty == false ? trig : nil,
                     lastMemoryResponse: resp?.isEmpty == false ? resp : nil,
                     lastMessageSnippet: snippet?.isEmpty == false ? snippet : nil,
@@ -204,18 +272,26 @@ public final class SarahWidgetBridge {
             } else if let str = pasteboard.string {
                 let parts = str.components(separatedBy: "|")
                 if parts.count >= 4 {
-                    let convs = Int(parts[0]) ?? 1
+                    let convs = Int(parts[0]) ?? 0
                     let msgs = Int(parts[1]) ?? 0
                     let memories = Int(parts[2]) ?? 0
                     let usage = Int(parts[3]) ?? 68
-                    let timestamp = parts.count >= 5 ? (Double(parts[4]) ?? 0) : 0
+                    let knowledge = parts.count >= 5 ? (Int(parts[4]) ?? 150) : 150
+                    let sarahSt = parts.count >= 6 ? parts[5] : "Disponible"
+                    let tomSt = parts.count >= 7 ? parts[6] : "Vision inactive"
+                    let timestamp = parts.count >= 8 ? (Double(parts[7]) ?? 0) : 0
                     candidates.append(WidgetStatsData(
-                        totalConversations: max(1, convs),
-                        totalMessages: msgs,
+                        totalConversations: max(0, convs),
+                        totalMessages: max(0, msgs),
+                        learnedMemoriesCount: max(0, memories),
+                        knowledgeCount: knowledge,
+                        sarahStatus: sarahSt,
+                        tomStatus: tomSt,
+                        screenSharingActive: tomSt == "Écran partagé",
+                        cameraActive: tomSt == "Caméra active",
                         activeMinutesToday: 12,
                         usagePercentage: usage,
                         weeklyActivity: [4, 7, 12, 9, 15, 8, max(5, msgs)],
-                        learnedMemoriesCount: memories,
                         lastUpdated: timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : Date()
                     ))
                 }
@@ -230,10 +306,12 @@ public final class SarahWidgetBridge {
             let convs = UserDefaults.standard.integer(forKey: "totalConversations")
             let msgs = UserDefaults.standard.integer(forKey: "totalMessages")
             let memories = UserDefaults.standard.integer(forKey: "learnedMemoriesCount")
+            let knowledge = UserDefaults.standard.integer(forKey: "knowledgeCount")
             candidates.append(WidgetStatsData(
-                totalConversations: max(1, convs),
-                totalMessages: msgs,
-                learnedMemoriesCount: memories,
+                totalConversations: max(0, convs),
+                totalMessages: max(0, msgs),
+                learnedMemoriesCount: max(0, memories),
+                knowledgeCount: knowledge > 0 ? knowledge : ((max(1, convs) * 4) + memories + 120),
                 lastUpdated: Date()
             ))
         }

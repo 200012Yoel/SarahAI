@@ -125,52 +125,50 @@ public final class LegacyWidgetsViewController: UIViewController {
         ])
         contentStack.addArrangedSubview(infoCard)
         
-        // 1. Widget Statistiques & Graphique 7 jours
-        contentStack.addArrangedSubview(buildWidget1StatsCard())
+        // 1. Widget Discussions
+        contentStack.addArrangedSubview(buildWidget1ConversationsCard())
         
-        // 2. Widget Statut & Accès Direct
-        contentStack.addArrangedSubview(buildWidget2StatusCard())
+        // 2. Widget Questions
+        contentStack.addArrangedSubview(buildWidget2QuestionsCard())
         
-        // 3. Widget Coffre Mémoire
-        contentStack.addArrangedSubview(buildWidget3MemoryCard())
+        // 3. Widget Sarah Brain / Connaissances
+        contentStack.addArrangedSubview(buildWidget3KnowledgeCard())
         
-        // 4. Widget Accès Vocal Rapide
-        contentStack.addArrangedSubview(buildWidget4VoiceCard())
+        // 4. Widget Statut Sarah
+        contentStack.addArrangedSubview(buildWidget4StatusCard())
         
-        // 5. Widget Dernier Échange
-        contentStack.addArrangedSubview(buildWidget5LastMessageCard())
+        // 5. Widget Tom Vision
+        contentStack.addArrangedSubview(buildWidget5TomVisionCard())
         
-        // 6. Widget Raccourcis d'Actions Rapides
-        contentStack.addArrangedSubview(buildWidget6QuickActionsCard())
+        // 6. Widget Mémoire
+        contentStack.addArrangedSubview(buildWidget6MemoryCard())
         
-        // 7. Widget Santé Système & Performance
-        contentStack.addArrangedSubview(buildWidget7SystemHealthCard())
+        // 7. Widget Activité Récente
+        contentStack.addArrangedSubview(buildWidget7ActivityCard())
         
-        // 8. Widget Conseil Quotidien
-        contentStack.addArrangedSubview(buildWidget8DailyTipCard())
+        // 8. Widget Quick Sarah
+        contentStack.addArrangedSubview(buildWidget8QuickSarahCard())
     }
     
     // MARK: - Builders des 8 Widgets
     
-    private func buildWidget1StatsCard() -> UIView {
+    private func buildWidget1ConversationsCard() -> UIView {
         let card = createCardView()
-        let title = createSectionHeader(number: 1, title: "Statistiques d'Usage & Graphique 7j")
+        let title = createSectionHeader(number: 1, title: "Discussions")
         
-        let statsStack = UIStackView()
-        statsStack.axis = .horizontal
-        statsStack.distribution = .fillEqually
-        statsStack.spacing = 10
+        let countLabel = UILabel()
+        countLabel.text = "\(stats.totalConversations)"
+        countLabel.font = UIFont.systemFont(ofSize: 32, weight: .heavy)
+        countLabel.textColor = .white
         
-        let c1 = createStatBlock(number: "\(stats.totalConversations)", label: "Discussions")
-        let c2 = createStatBlock(number: "\(stats.totalMessages)", label: "Messages")
-        let c3 = createStatBlock(number: "\(stats.usagePercentage)%", label: "Activité")
-        statsStack.addArrangedSubview(c1)
-        statsStack.addArrangedSubview(c2)
-        statsStack.addArrangedSubview(c3)
+        let subLabel = UILabel()
+        subLabel.text = stats.totalConversations <= 1 ? "discussion active" : "discussions actives"
+        subLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        subLabel.textColor = .gray
         
-        let stack = UIStackView(arrangedSubviews: [title, statsStack])
+        let stack = UIStackView(arrangedSubviews: [title, countLabel, subLabel])
         stack.axis = .vertical
-        stack.spacing = 12
+        stack.spacing = 4
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
         
@@ -183,9 +181,67 @@ public final class LegacyWidgetsViewController: UIViewController {
         return card
     }
     
-    private func buildWidget2StatusCard() -> UIView {
+    private func buildWidget2QuestionsCard() -> UIView {
         let card = createCardView()
-        let title = createSectionHeader(number: 2, title: "Statut Sarah IA")
+        let title = createSectionHeader(number: 2, title: "Questions Posées")
+        
+        let countLabel = UILabel()
+        countLabel.text = "\(stats.totalMessages)"
+        countLabel.font = UIFont.systemFont(ofSize: 32, weight: .heavy)
+        countLabel.textColor = .white
+        
+        let subLabel = UILabel()
+        subLabel.text = stats.totalMessages <= 1 ? "question posée à Sarah" : "questions posées à Sarah"
+        subLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        subLabel.textColor = .gray
+        
+        let stack = UIStackView(arrangedSubviews: [title, countLabel, subLabel])
+        stack.axis = .vertical
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+        return card
+    }
+    
+    private func buildWidget3KnowledgeCard() -> UIView {
+        let card = createCardView()
+        let title = createSectionHeader(number: 3, title: "Cerveau & Savoir Sarah")
+        
+        let countLabel = UILabel()
+        countLabel.text = SarahWidgetBridge.formatCompactNumber(stats.knowledgeCount)
+        countLabel.font = UIFont.systemFont(ofSize: 32, weight: .heavy)
+        countLabel.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        
+        let subLabel = UILabel()
+        subLabel.text = stats.knowledgeCount <= 1 ? "élément de connaissance indexé" : "éléments de connaissances indexés"
+        subLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+        subLabel.textColor = .gray
+        
+        let stack = UIStackView(arrangedSubviews: [title, countLabel, subLabel])
+        stack.axis = .vertical
+        stack.spacing = 4
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+        return card
+    }
+    
+    private func buildWidget4StatusCard() -> UIView {
+        let card = createCardView()
+        let title = createSectionHeader(number: 4, title: "Statut Sarah")
         
         let statusRow = UIStackView()
         statusRow.axis = .horizontal
@@ -193,15 +249,15 @@ public final class LegacyWidgetsViewController: UIViewController {
         statusRow.alignment = .center
         
         let dot = UIView()
-        dot.backgroundColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
+        dot.backgroundColor = stats.sarahStatus == "En réflexion" ? .yellow : (stats.sarahStatus == "Occupée" ? .orange : UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
         dot.layer.cornerRadius = 5
         dot.translatesAutoresizingMaskIntoConstraints = false
         dot.widthAnchor.constraint(equalToConstant: 10).isActive = true
         dot.heightAnchor.constraint(equalToConstant: 10).isActive = true
         
         let label = UILabel()
-        label.text = "IA Prête & Réactive (100% Hors-Ligne)"
-        label.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        label.text = "● Sarah : \(stats.sarahStatus)"
+        label.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
         label.textColor = .white
         
         statusRow.addArrangedSubview(dot)
@@ -209,7 +265,7 @@ public final class LegacyWidgetsViewController: UIViewController {
         
         let stack = UIStackView(arrangedSubviews: [title, statusRow])
         stack.axis = .vertical
-        stack.spacing = 10
+        stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
         
@@ -222,9 +278,48 @@ public final class LegacyWidgetsViewController: UIViewController {
         return card
     }
     
-    private func buildWidget3MemoryCard() -> UIView {
+    private func buildWidget5TomVisionCard() -> UIView {
         let card = createCardView()
-        let title = createSectionHeader(number: 3, title: "Coffre Mémoire & Souvenirs (\(stats.learnedMemoriesCount))")
+        let title = createSectionHeader(number: 5, title: "Tom Vision")
+        
+        let statusRow = UIStackView()
+        statusRow.axis = .horizontal
+        statusRow.spacing = 8
+        statusRow.alignment = .center
+        
+        let dot = UIView()
+        dot.backgroundColor = stats.screenSharingActive ? .red : (stats.cameraActive ? UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0) : .gray)
+        dot.layer.cornerRadius = 5
+        dot.translatesAutoresizingMaskIntoConstraints = false
+        dot.widthAnchor.constraint(equalToConstant: 10).isActive = true
+        dot.heightAnchor.constraint(equalToConstant: 10).isActive = true
+        
+        let label = UILabel()
+        label.text = "● Tom : \(stats.tomStatus)"
+        label.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        label.textColor = .white
+        
+        statusRow.addArrangedSubview(dot)
+        statusRow.addArrangedSubview(label)
+        
+        let stack = UIStackView(arrangedSubviews: [title, statusRow])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+        return card
+    }
+    
+    private func buildWidget6MemoryCard() -> UIView {
+        let card = createCardView()
+        let title = createSectionHeader(number: 6, title: "Mémoire Sarah (\(stats.learnedMemoriesCount) souvenirs)")
         
         let memLabel = UILabel()
         memLabel.numberOfLines = 2
@@ -234,62 +329,9 @@ public final class LegacyWidgetsViewController: UIViewController {
             memLabel.text = "Dites « Apprends [mot] » à Sarah pour lui enseigner des souvenirs personnalisés !"
         }
         memLabel.font = UIFont.systemFont(ofSize: 13, weight: .regular)
-        memLabel.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
+        memLabel.textColor = UIColor(red: 0.7, green: 0.4, blue: 1.0, alpha: 1.0)
         
         let stack = UIStackView(arrangedSubviews: [title, memLabel])
-        stack.axis = .vertical
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-        
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
-    }
-    
-    private func buildWidget4VoiceCard() -> UIView {
-        let card = createCardView()
-        let title = createSectionHeader(number: 4, title: "Bouton Vocal Instantané")
-        
-        let button = UIButton(type: .system)
-        button.setTitle("🎙️ Parler à Sarah (1-Tap)", for: .normal)
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .bold)
-        button.setTitleColor(.white, for: .normal)
-        button.backgroundColor = UIColor(red: 0.0, green: 0.52, blue: 1.0, alpha: 0.8)
-        button.layer.cornerRadius = 14
-        button.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        button.addTarget(self, action: #selector(voiceButtonTapped), for: .touchUpInside)
-        
-        let stack = UIStackView(arrangedSubviews: [title, button])
-        stack.axis = .vertical
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-        
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
-    }
-    
-    private func buildWidget5LastMessageCard() -> UIView {
-        let card = createCardView()
-        let title = createSectionHeader(number: 5, title: "Dernier Échange")
-        
-        let snippet = UILabel()
-        snippet.numberOfLines = 3
-        snippet.text = stats.lastMessageSnippet ?? "« Bonjour ! Je suis Sarah. Prête pour vos questions ! »"
-        snippet.font = UIFont.italicSystemFont(ofSize: 13)
-        snippet.textColor = UIColor(white: 0.88, alpha: 1.0)
-        
-        let stack = UIStackView(arrangedSubviews: [title, snippet])
         stack.axis = .vertical
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -304,16 +346,41 @@ public final class LegacyWidgetsViewController: UIViewController {
         return card
     }
     
-    private func buildWidget6QuickActionsCard() -> UIView {
+    private func buildWidget7ActivityCard() -> UIView {
         let card = createCardView()
-        let title = createSectionHeader(number: 6, title: "Raccourcis d'Actions Rapides")
+        let title = createSectionHeader(number: 7, title: "Activité Récente")
+        
+        let actLabel = UILabel()
+        actLabel.numberOfLines = 0
+        actLabel.text = "• \(stats.totalMessages) questions posées au total\n• \(stats.learnedMemoriesCount) nouveaux souvenirs mémorisés\n• \(stats.totalConversations) discussions actives"
+        actLabel.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+        actLabel.textColor = UIColor(white: 0.9, alpha: 1.0)
+        
+        let stack = UIStackView(arrangedSubviews: [title, actLabel])
+        stack.axis = .vertical
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(stack)
+        
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
+        ])
+        return card
+    }
+    
+    private func buildWidget8QuickSarahCard() -> UIView {
+        let card = createCardView()
+        let title = createSectionHeader(number: 8, title: "Quick Sarah")
         
         let row = UIStackView()
         row.axis = .horizontal
         row.distribution = .fillEqually
         row.spacing = 8
         
-        let b1 = createActionButton(title: "🔦 Torche", action: #selector(torchAction))
+        let b1 = createActionButton(title: "🎙️ Parler", action: #selector(voiceButtonTapped))
         let b2 = createActionButton(title: "🖥️ Écran", action: #selector(screenShareAction))
         let b3 = createActionButton(title: "🧠 Mémoire", action: #selector(memoryAction))
         row.addArrangedSubview(b1)
@@ -323,56 +390,6 @@ public final class LegacyWidgetsViewController: UIViewController {
         let stack = UIStackView(arrangedSubviews: [title, row])
         stack.axis = .vertical
         stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-        
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
-    }
-    
-    private func buildWidget7SystemHealthCard() -> UIView {
-        let card = createCardView()
-        let title = createSectionHeader(number: 7, title: "Santé Système & Performance")
-        
-        let healthLabel = UILabel()
-        healthLabel.numberOfLines = 0
-        healthLabel.text = "• Moteur : 100% Natif iOS 12+ (60 FPS)\n• Latence réponse : < 0.2s\n• Mémoire RAM : Optimisée anti-crash OOM"
-        healthLabel.font = UIFont.systemFont(ofSize: 12)
-        healthLabel.textColor = UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0)
-        
-        let stack = UIStackView(arrangedSubviews: [title, healthLabel])
-        stack.axis = .vertical
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-        
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14)
-        ])
-        return card
-    }
-    
-    private func buildWidget8DailyTipCard() -> UIView {
-        let card = createCardView()
-        let title = createSectionHeader(number: 8, title: "Conseil Quotidien")
-        
-        let tip = UILabel()
-        tip.numberOfLines = 0
-        tip.text = "💡 Astuce : Vous pouvez partager votre écran en direct avec Sarah via le bouton « 🖥️ Lancer le partage d'écran » dans le menu « + »."
-        tip.font = UIFont.systemFont(ofSize: 13, weight: .medium)
-        tip.textColor = UIColor(red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)
-        
-        let stack = UIStackView(arrangedSubviews: [title, tip])
-        stack.axis = .vertical
-        stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(stack)
         
