@@ -1517,7 +1517,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         statusLabel.text = "● 🔴 LIVE — Tom observe"
         statusLabel.textColor = .systemRed
-        floatingMirrorView.isHidden = false
         floatingMirrorTitle.text = "LIVE — Tom observe"
         floatingMirrorStatus.text = "👁️ Tom & Sarah observent"
         

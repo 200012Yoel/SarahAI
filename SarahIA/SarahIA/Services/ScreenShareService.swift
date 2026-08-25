@@ -169,9 +169,17 @@ public final class ScreenShareService: NSObject {
         if #available(iOS 11.0, *), screenRecorder.isAvailable {
             screenRecorder.isMicrophoneEnabled = false
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
-                guard let self = self, error == nil else {
-                    if let err = error {
-                        print("[ReplayKit] ERROR = \(err.localizedDescription)")
+                guard let self = self else { return }
+                if let err = error {
+                    let nsError = err as NSError
+                    print("[ReplayKit] ERROR = \(err.localizedDescription) (Code \(nsError.code))")
+                    if nsError.code == -5808 || nsError.code == -5803 {
+                        print("[ReplayKit] ReplayKit interrompu par redimensionnement/multitâche (iOS 12). Tentative de redémarrage...")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                            if UIApplication.shared.applicationState == .active && self?.isScreenSharingActive == true {
+                                self?.startLiveScreenSharing(completion: { _, _ in })
+                            }
+                        }
                     }
                     return
                 }
