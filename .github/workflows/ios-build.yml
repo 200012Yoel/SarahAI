@@ -161,6 +161,7 @@ jobs:
             xcodebuild.log
           draft: false
           prerelease: false
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
