@@ -554,6 +554,10 @@
 					Combine,
 					"-weak_framework",
 					WidgetKit,
+					"-framework",
+					WebKit,
+					"-framework",
+					MapKit,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app;
 				PRODUCT_NAME = SarahIA;
@@ -596,6 +600,10 @@
 					Combine,
 					"-weak_framework",
 					WidgetKit,
+					"-framework",
+					WebKit,
+					"-framework",
+					MapKit,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app;
 				PRODUCT_NAME = SarahIA;
