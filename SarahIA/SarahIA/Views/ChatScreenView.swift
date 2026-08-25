@@ -154,7 +154,7 @@ public struct ChatScreenView: View {
                                 Circle()
                                     .fill(viewModel.screenShareStatus == .active ? Color.red : (viewModel.screenShareStatus == .connected ? Color.green : Color.yellow))
                                     .frame(width: 7, height: 7)
-                                Text("● LIVE — Tom")
+                                Text(viewModel.screenShareStatus == .active ? "🔴 Écran en direct" : (viewModel.screenShareStatus == .connected ? "🟢 Connecté" : "🟡 Démarrage..."))
                                     .font(.system(size: 9, weight: .bold))
                                     .foregroundColor(.white)
                                 Spacer()

@@ -1204,7 +1204,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         floatingMirrorHeader.addSubview(floatingMirrorDot)
         
         floatingMirrorTitle.translatesAutoresizingMaskIntoConstraints = false
-        floatingMirrorTitle.text = "● LIVE — Tom"
+        floatingMirrorTitle.text = "🔴 Écran en direct"
         floatingMirrorTitle.font = UIFont.systemFont(ofSize: 10, weight: .bold)
         floatingMirrorTitle.textColor = .white
         floatingMirrorHeader.addSubview(floatingMirrorTitle)
@@ -1226,7 +1226,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // Statut Analyse IA
         floatingMirrorStatus.translatesAutoresizingMaskIntoConstraints = false
-        floatingMirrorStatus.text = "👁️ Tom observe votre écran"
+        floatingMirrorStatus.text = "👁️ Sarah observe l'écran"
         floatingMirrorStatus.font = UIFont.systemFont(ofSize: 9, weight: .semibold)
         floatingMirrorStatus.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
         floatingMirrorStatus.textAlignment = .center
