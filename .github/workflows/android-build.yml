@@ -43,7 +43,8 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
-          gradle assembleRelease assembleDebug --stacktrace --no-daemon
+          chmod +x ./gradlew
+          ./gradlew assembleDebug assembleRelease --stacktrace --no-daemon
 
       - name: Prepare APK deliverables
         run: |
