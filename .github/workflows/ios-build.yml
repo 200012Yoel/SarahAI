@@ -155,10 +155,10 @@ jobs:
         with:
           tag_name: build-error
           name: "Build Error Log"
-          body_path: xcode_errors.txt
+          body_path: ${{ github.workspace }}/xcode_errors.txt
           files: |
-            xcode_errors.txt
-            xcodebuild.log
+            ${{ github.workspace }}/xcode_errors.txt
+            ${{ github.workspace }}/xcodebuild.log
           draft: false
           prerelease: false
           make_latest: false

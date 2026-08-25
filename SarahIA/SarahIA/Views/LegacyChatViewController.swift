@@ -2436,10 +2436,14 @@ final class LegacyUserCell: UITableViewCell {
 final class LegacyAICell: UITableViewCell {
     private let assistantBadge = UILabel()
     private let bubbleView = UIView()
+    private let messageLabel = UILabel()
+    private let timeLabel = UILabel()
+    private let listenButton = UIButton(type: .system)
     private let alertCardWebView = WKWebView()
     private var alertCardHeightConstraint: NSLayoutConstraint?
     private var currentAlert: AlertEvent?
     public var onAlertMapExpanded: ((AlertEvent) -> Void)?
+    public var onListen: (() -> Void)?
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
