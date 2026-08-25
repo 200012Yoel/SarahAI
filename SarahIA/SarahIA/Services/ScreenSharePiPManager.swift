@@ -397,56 +397,6 @@ public final class ScreenSharePiPManager: NSObject {
         
         return sampleBuffer
     }
-    
-    private func createBlankVideoAsset() -> URL? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sarah_pip_stream.mp4")
-        if FileManager.default.fileExists(atPath: tempURL.path) {
-            return tempURL
-        }
-        
-        guard let writer = try? AVAssetWriter(outputURL: tempURL, fileType: .mp4) else { return nil }
-        let settings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: 480,
-            AVVideoHeightKey: 320
-        ]
-        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
-        writerInput.expectsMediaDataInRealTime = false
-        
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-            assetWriterInput: writerInput,
-            sourcePixelBufferAttributes: [
-                kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
-                kCVPixelBufferWidthKey as String: 480,
-                kCVPixelBufferHeightKey as String: 320
-            ]
-        )
-        
-        if writer.canAdd(writerInput) {
-            writer.add(writerInput)
-            writer.startWriting()
-            writer.startSession(atSourceTime: .zero)
-            
-            var buffer: CVPixelBuffer?
-            CVPixelBufferCreate(kCFAllocatorDefault, 480, 320, kCVPixelFormatType_32ARGB, nil, &buffer)
-            if let buf = buffer {
-                for i in 0..<30 {
-                    let frameTime = CMTime(value: CMTimeValue(i), timescale: 3)
-                    while !writerInput.isReadyForMoreMediaData {}
-                    adaptor.append(buf, withPresentationTime: frameTime)
-                }
-            }
-            writerInput.markAsFinished()
-            let group = DispatchGroup()
-            group.enter()
-            writer.finishWriting {
-                group.leave()
-            }
-            group.wait()
-            return tempURL
-        }
-        return nil
-    }
 }
 
 // MARK: - Délégué de Lecture SampleBuffer PiP (iOS 15+)

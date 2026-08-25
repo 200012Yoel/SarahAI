@@ -1486,6 +1486,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
+    @objc private func presentScreenShareModal() {
+        dismissKeyboard()
+        HapticService.shared.buttonTap()
+        let modal = ScreenShareModalViewController()
+        modal.modalPresentationStyle = .overFullScreen
+        modal.modalTransitionStyle = .crossDissolve
+        modal.onStartBroadcast = { [weak self] in
+            self?.startScreenShareAnalysis()
+        }
+        present(modal, animated: true, completion: nil)
+    }
+    
     @objc private func startScreenShareAnalysis() {
         dismissKeyboard()
         HapticService.shared.buttonTap()
@@ -1676,7 +1688,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.openYouTubePlayer()
         }))
         sheet.addAction(UIAlertAction(title: "🖥️ Lancer le partage d'écran", style: .default, handler: { [weak self] _ in
-            self?.startScreenShareAnalysis()
+            self?.presentScreenShareModal()
         }))
         sheet.addAction(UIAlertAction(title: "📊 8 Widgets Sarah IA", style: .default, handler: { [weak self] _ in
             self?.widgetsModalTapped()
