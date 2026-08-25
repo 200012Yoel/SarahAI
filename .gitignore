@@ -42,6 +42,11 @@ android/app/build/
 *.hprof
 local.properties
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Test & Temp files
 test.txt
 *.tmp
