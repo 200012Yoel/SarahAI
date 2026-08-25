@@ -1314,8 +1314,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             object: nil,
             queue: .main
         ) { [weak self] notif in
-            guard let self = self, self.floatingMirrorView.isHidden == false,
+            guard let self = self,
                   let img = notif.userInfo?["image"] as? UIImage else { return }
+            if self.floatingMirrorView.isHidden {
+                self.floatingMirrorView.isHidden = false
+            }
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             self.floatingMirrorImageView.image = img
