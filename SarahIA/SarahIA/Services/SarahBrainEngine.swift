@@ -310,17 +310,13 @@ public final class SarahBrainEngine {
             return
         }
         
-        // 6. Traitement Local Direct
-        processLocalAutonomousPipeline(query: cleanText, intent: intent, completion: completion)
-    }
-        
-        // C. Module Média (Radio en direct, Apple Podcasts, Musique)
+        // 6. Module Média (Radio en direct, Apple Podcasts, Musique)
         if intent.requiresMediaStream {
             processMediaPipeline(query: cleanText, intent: intent, completion: completion)
             return
         }
         
-        // D. Routeur Central Local & Cognition Sarah
+        // 7. Routeur Central Local & Cognition Sarah
         processLocalCognitionPipeline(query: cleanText, intent: intent, completion: completion)
     }
     
