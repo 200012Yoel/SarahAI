@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import Speech
+import WebKit
 
 // MARK: - Contrôleur de Réglages Natif iOS 12+ pour Sarah AI
 
