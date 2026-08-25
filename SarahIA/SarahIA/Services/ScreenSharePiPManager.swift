@@ -26,7 +26,7 @@ public final class ScreenSharePiPManager: NSObject {
     private var sampleBufferPlaybackDelegate: AnyObject?
     private weak var hostContainerView: UIView?
     
-    public private(set) var isPiPActive: Bool = false
+    public internal(set) var isPiPActive: Bool = false
     
     /// Vérifie si le PiP système est réellement disponible sur le matériel et l'OS actif
     public var isPiPSupported: Bool {
