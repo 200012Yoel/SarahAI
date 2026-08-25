@@ -1923,40 +1923,38 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return
         }
         
-        // 1. Vérification si recherche Web explicite
-        if AIService.shared.isWebSearchIntent(norm) {
-            statusLabel.text = "● Recherche sur le Web..."
-            WebSearchService.shared.searchWeb(query: text) { [weak self] webSummary, _ in
+        // 1. Détection des cas de simulation explicite ou alertes
+        let lower = text.lowercased()
+        if lower.contains("test alerte") || lower.contains("test alert") || lower.contains("simulation alerte") || lower.contains("c'est chaud en israël") || lower.contains("c est chaud en israel") {
+            statusLabel.text = "● Traitement alerte..."
+            SarahBrainEngine.shared.processQuery(text) { [weak self] report in
                 guard let self = self else { return }
                 self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
-                
-                SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: webSummary, topicType: "web_search")
-                let aiMsg = Message(content: webSummary, isFromUser: false)
+                let aiMsg = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
                 self.appendMessage(aiMsg)
-                self.speak(text: webSummary)
+                self.speak(text: report.finalNaturalResponse)
+                self.saveState()
             }
             return
         }
         
-        // 2. Traitement standard synchrone / local
-        DispatchQueue.global(qos: .userInitiated).async {
-            let response = AIService.shared.generateSyncResponse(for: text)
-            SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response)
-            DispatchQueue.main.async {
-                self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
-                
-                // Mettre à jour le titre dynamique avec le contexte de la réponse si premier tour
-                if isFirstUserMessage {
-                    if let idx = self.conversations.firstIndex(where: { $0.id == self.currentConversationId }) {
-                        self.conversations[idx].title = AIService.shared.generateSmartTitle(from: text, responseText: response)
-                        self.drawerTableView.reloadData()
-                    }
+        // 2. Traitement via le Moteur Cognitif SarahBrainEngine (Contextuel, Voyage, Connaissances, Logique)
+        SarahBrainEngine.shared.processQuery(text) { [weak self] report in
+            guard let self = self else { return }
+            self.updateStatusLabelSafely(text: "● En ligne", color: UIColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 1.0))
+            
+            if isFirstUserMessage {
+                if let idx = self.conversations.firstIndex(where: { $0.id == self.currentConversationId }) {
+                    self.conversations[idx].title = AIService.shared.generateSmartTitle(from: text, responseText: report.finalNaturalResponse)
+                    self.drawerTableView.reloadData()
                 }
-                
-                let aiMsg = Message(content: response, isFromUser: false)
-                self.appendMessage(aiMsg)
-                self.speak(text: response)
             }
+            
+            SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: report.finalNaturalResponse)
+            let aiMsg = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
+            self.appendMessage(aiMsg)
+            self.speak(text: report.finalNaturalResponse)
+            self.saveState()
         }
     }
     
@@ -2222,9 +2220,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return cell
         } else {
             let cell = tableView.dequeueReusableCell(withIdentifier: "AICell", for: indexPath) as! LegacyAICell
-            cell.configure(with: msg) { [weak self] in
+            cell.configure(with: msg, onListen: { [weak self] in
                 self?.speak(text: msg.content)
-            }
+            }, onExpandMap: { [weak self] alertEvent in
+                let mapVC = AlertMapViewController(alert: alertEvent)
+                mapVC.modalPresentationStyle = .fullScreen
+                self?.present(mapVC, animated: true, completion: nil)
+            })
             return cell
         }
     }
@@ -2434,10 +2436,10 @@ final class LegacyUserCell: UITableViewCell {
 final class LegacyAICell: UITableViewCell {
     private let assistantBadge = UILabel()
     private let bubbleView = UIView()
-    private let messageLabel = UILabel()
-    private let listenButton = UIButton(type: .system)
-    private let timeLabel = UILabel()
-    private var onListen: (() -> Void)?
+    private let alertCardWebView = WKWebView()
+    private var alertCardHeightConstraint: NSLayoutConstraint?
+    private var currentAlert: AlertEvent?
+    public var onAlertMapExpanded: ((AlertEvent) -> Void)?
     
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -2463,6 +2465,14 @@ final class LegacyAICell: UITableViewCell {
         messageLabel.font = UIFont.systemFont(ofSize: 15)
         bubbleView.addSubview(messageLabel)
         
+        alertCardWebView.translatesAutoresizingMaskIntoConstraints = false
+        alertCardWebView.isOpaque = false
+        alertCardWebView.backgroundColor = .clear
+        alertCardWebView.scrollView.isScrollEnabled = false
+        alertCardWebView.layer.cornerRadius = 12
+        alertCardWebView.clipsToBounds = true
+        bubbleView.addSubview(alertCardWebView)
+        
         listenButton.translatesAutoresizingMaskIntoConstraints = false
         listenButton.setTitle("🔊 Écouter", for: .normal)
         listenButton.setTitleColor(UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0), for: .normal)
@@ -2476,6 +2486,11 @@ final class LegacyAICell: UITableViewCell {
         timeLabel.font = UIFont.systemFont(ofSize: 10)
         contentView.addSubview(timeLabel)
         
+        alertCardHeightConstraint = alertCardWebView.heightAnchor.constraint(equalToConstant: 240)
+        
+        let cardTap = UITapGestureRecognizer(target: self, action: #selector(alertCardTapped))
+        alertCardWebView.addGestureRecognizer(cardTap)
+        
         NSLayoutConstraint.activate([
             assistantBadge.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
             assistantBadge.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
@@ -2484,12 +2499,18 @@ final class LegacyAICell: UITableViewCell {
             
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
             bubbleView.leadingAnchor.constraint(equalTo: assistantBadge.trailingAnchor, constant: 8),
-            bubbleView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -40),
+            bubbleView.trailingAnchor.constraint(lessThanOrEqualTo: contentView.trailingAnchor, constant: -20),
+            bubbleView.widthAnchor.constraint(greaterThanOrEqualToConstant: 220),
             
             messageLabel.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 10),
-            messageLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -10),
             messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 14),
             messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -14),
+            
+            alertCardWebView.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 6),
+            alertCardWebView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 10),
+            alertCardWebView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -10),
+            alertCardWebView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -10),
+            alertCardHeightConstraint!,
             
             listenButton.topAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: 2),
             listenButton.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 4),
@@ -2502,13 +2523,31 @@ final class LegacyAICell: UITableViewCell {
     
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     
+    @objc private func alertCardTapped() {
+        if let alert = currentAlert {
+            onAlertMapExpanded?(alert)
+        }
+    }
+    
     @objc private func listenTapped() {
         onListen?()
     }
     
-    func configure(with message: Message, onListen: @escaping () -> Void) {
+    func configure(with message: Message, onListen: @escaping () -> Void, onExpandMap: ((AlertEvent) -> Void)? = nil) {
         messageLabel.text = message.content
         timeLabel.text = message.formattedTime
         self.onListen = onListen
+        self.onAlertMapExpanded = onExpandMap
+        self.currentAlert = message.alertEvent
+        
+        if let alert = message.alertEvent {
+            alertCardWebView.isHidden = false
+            alertCardHeightConstraint?.isActive = true
+            let html = AlertCardRenderer.shared.renderAlertHTML(for: alert)
+            alertCardWebView.loadHTMLString(html, baseURL: nil)
+        } else {
+            alertCardWebView.isHidden = true
+            alertCardHeightConstraint?.isActive = false
+        }
     }
 }

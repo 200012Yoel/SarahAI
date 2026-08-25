@@ -118,6 +118,13 @@ public struct ChatBubbleView: View {
                     )
                     .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
                 
+                // Carte d'alerte interactive HTML / Map (si présente)
+                if let alert = message.alertEvent {
+                    AlertCardSwiftUIView(alert: alert)
+                        .frame(height: 240)
+                        .cornerRadius(14)
+                }
+                
                 // Barre d'action inférieure : Heure + Bouton Écouter la réponse
                 HStack(spacing: 8) {
                     Text(message.formattedTime)
@@ -153,6 +160,71 @@ public struct ChatBubbleView: View {
             }
         }
     }
+}
+
+// MARK: - Vue SwiftUI pour Carte d'Alerte Interactive avec WebView & Plans
+@available(iOS 14.0, *)
+public struct AlertCardSwiftUIView: View {
+    public let alert: AlertEvent
+    @State private var isShowingFullMap: Bool = false
+    
+    public var body: some View {
+        ZStack {
+            AlertCardWebRepresentable(alert: alert)
+            
+            // Bouton invisible pour ouvrir la carte complète au toucher
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        isShowingFullMap = true
+                    }) {
+                        Text("📍 Agrandir la carte")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.black.opacity(0.75))
+                            .cornerRadius(8)
+                    }
+                    .padding(8)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $isShowingFullMap) {
+            AlertMapRepresentable(alert: alert)
+                .ignoresSafeArea()
+        }
+    }
+}
+
+@available(iOS 14.0, *)
+public struct AlertCardWebRepresentable: UIViewRepresentable {
+    public let alert: AlertEvent
+    
+    public func makeUIView(context: Context) -> WKWebView {
+        let wv = WKWebView()
+        wv.isOpaque = false
+        wv.backgroundColor = .clear
+        wv.scrollView.isScrollEnabled = false
+        let html = AlertCardRenderer.shared.renderAlertHTML(for: alert)
+        wv.loadHTMLString(html, baseURL: nil)
+        return wv
+    }
+    
+    public func updateUIView(_ uiView: WKWebView, context: Context) {}
+}
+
+@available(iOS 14.0, *)
+public struct AlertMapRepresentable: UIViewControllerRepresentable {
+    public let alert: AlertEvent
+    
+    public func makeUIViewController(context: Context) -> AlertMapViewController {
+        return AlertMapViewController(alert: alert)
+    }
+    
+    public func updateUIViewController(_ uiViewController: AlertMapViewController, context: Context) {}
 }
 
 // MARK: - Preview

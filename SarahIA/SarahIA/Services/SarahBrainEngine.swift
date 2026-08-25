@@ -3,9 +3,165 @@ import UIKit
 import AVFoundation
 import ReplayKit
 
-// MARK: - 1. Entités et Modèles de Données du Cerveau de Sarah
+// MARK: - 1. Contexte Conversationnel & Résolution de Références
 
-/// Rôle dans l'échange multi-agents
+/// Contexte conversationnel persistant et fluide
+public final class ConversationContext {
+    public static let shared = ConversationContext()
+    
+    public var currentTopic: String?
+    public var previousTopic: String?
+    public var lastUserQuestion: String?
+    public var lastSarahResponse: String?
+    public var activeTask: String? // "travel_search", "web_query", "alert_monitoring", etc.
+    
+    // Entités et paramètres mémorisés dans la discussion
+    public var origin: String?
+    public var destination: String?
+    public var travelDate: String?
+    public var travelCriterion: String? // "moins cher", "plus rapide", "direct"
+    public var detectedPerson: String?
+    public var detectedPlace: String?
+    public var pendingFollowUp: String?
+    public var lastAlertEvent: AlertEvent?
+    
+    private init() {}
+    
+    public func reset() {
+        currentTopic = nil
+        previousTopic = nil
+        lastUserQuestion = nil
+        lastSarahResponse = nil
+        activeTask = nil
+        origin = nil
+        destination = nil
+        travelDate = nil
+        travelCriterion = nil
+        detectedPerson = nil
+        detectedPlace = nil
+        pendingFollowUp = nil
+    }
+}
+
+/// Résolveur d'anaphores et de références pronominales (« celui-là », « le moins cher », « pour samedi », etc.)
+public final class ReferenceResolver {
+    public static let shared = ReferenceResolver()
+    
+    private init() {}
+    
+    public func resolveContextualQuery(_ query: String, context: ConversationContext) -> (resolvedQuery: String, intentCategory: String) {
+        let lower = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        // 1. Détection des cas de simulation / Test Alert
+        if lower.contains("test alerte") || lower.contains("test alert") || lower.contains("simulation alerte") {
+            return (query, "test_alert")
+        }
+        
+        // 2. Détection de demande d'alerte officielle ou "c'est chaud en israël"
+        if lower.contains("c'est chaud en israël") || lower.contains("c est chaud en israel") || lower.contains("alerte en direct") || lower.contains("alerte israel") || lower.contains("red alert") {
+            return (query, "official_alert")
+        }
+        
+        // 3. Résolution des références temporelles simples (« samedi », « demain », « ce week-end »)
+        let days = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche", "demain", "ce soir", "ce week-end"]
+        for day in days {
+            if lower == day || lower == "pour \(day)" || lower == "le \(day)" {
+                context.travelDate = day
+                if let dest = context.destination {
+                    return ("Billet pour \(dest) pour \(day)", "travel_search")
+                }
+                return (query, "date_specification")
+            }
+        }
+        
+        // 4. Résolution des superlatifs et critères (« le moins cher », « le plus rapide », « le deuxième »)
+        if lower.contains("moins cher") || lower.contains("le moins cher") || lower.contains("prix") {
+            context.travelCriterion = "le moins cher"
+            if let dest = context.destination {
+                let dateStr = context.travelDate != nil ? " pour \(context.travelDate!)" : ""
+                return ("Option de transport la moins chère pour \(dest)\(dateStr)", "travel_search")
+            }
+        }
+        
+        if lower.contains("plus rapide") || lower.contains("direct") {
+            context.travelCriterion = "le plus rapide"
+            if let dest = context.destination {
+                let dateStr = context.travelDate != nil ? " pour \(context.travelDate!)" : ""
+                return ("Option de transport la plus rapide pour \(dest)\(dateStr)", "travel_search")
+            }
+        }
+        
+        // 5. Extraction de destination de voyage (« billet pour Londres », « vol pour Tokyo », « train vers Lyon »)
+        if lower.contains("billet") || lower.contains("vol") || lower.contains("train") || lower.contains("voyage") || lower.contains("partir à") || lower.contains("aller à") {
+            context.activeTask = "travel_search"
+            context.currentTopic = "voyage"
+            
+            let patterns = ["pour ([a-zA-Zà-ÿÀ-Ý\\-\\s]+)", "vers ([a-zA-Zà-ÿÀ-Ý\\-\\s]+)", "à ([a-zA-Zà-ÿÀ-Ý\\-\\s]+)"]
+            for pat in patterns {
+                if let regex = try? NSRegularExpression(pattern: pat, options: [.caseInsensitive]),
+                   let match = regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: lower.count)) {
+                    let extracted = (lower as NSString).substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !extracted.isEmpty && extracted.count < 30 {
+                        context.destination = extracted.capitalized
+                        break
+                    }
+                }
+            }
+            return (query, "travel_search")
+        }
+        
+        return (query, "general_query")
+    }
+}
+
+// MARK: - 2. Planificateur et Générateur de Réponses (ResponsePlanner)
+
+public final class ResponsePlanner {
+    public static let shared = ResponsePlanner()
+    
+    private init() {}
+    
+    public func planNaturalResponse(
+        intentCategory: String,
+        query: String,
+        context: ConversationContext,
+        webResult: String? = nil,
+        alertEvent: AlertEvent? = nil
+    ) -> String {
+        switch intentCategory {
+        case "test_alert":
+            if let alert = alertEvent {
+                return "🟠 **SIMULATION D'ALERTE (TEST ISOLÉ)**\nUne alerte fictive a été générée pour tester l'affichage cartographique sur la zone de **\(alert.cityName)**.\n*(Aucune mise à l'abri réelle requise — Source : \(alert.source))*"
+            }
+            return "🟠 Simulation d'alerte en cours d'affichage sur la carte interactive."
+            
+        case "official_alert":
+            if let alert = alertEvent {
+                return "⚠️ **ALERTE OFFICIELLE DU FRONT INTÉRIEUR**\nUne alerte officielle vient d'être signalée dans la zone de **\(alert.cityName)** (\(alert.affectedAreas.joined(separator: ", "))).\n*Consultez la carte interactive ci-dessous et rejoignez l'abri le plus proche si vous êtes dans le secteur.*"
+            }
+            return "🟢 Aucun tir ni alerte active signalée en Israël par le Commandement du Front intérieur pour le moment. Tout est calme."
+            
+        case "travel_search":
+            if let dest = context.destination {
+                if context.travelDate == nil {
+                    context.pendingFollowUp = "date"
+                    return "J'ai bien noté votre recherche pour **\(dest)** ✈️🚆. Pour quelle date ou quel jour souhaitez-vous partir ?"
+                } else if context.travelCriterion == "le moins cher" {
+                    return "Pour votre voyage vers **\(dest)** prévu **\(context.travelDate!)**, l'option la plus économique identifiée est le trajet direct en seconde classe ou vol éco à tarif réduit 🎫. Voulez-vous que je réserve ou vérifie les horaires précis ?"
+                } else {
+                    return "Voici les meilleures options trouvées pour **\(dest)** le **\(context.travelDate!)** 🚆. Souhaitez-vous le billet le moins cher ou le trajet le plus rapide ?"
+                }
+            }
+            return webResult ?? "Je recherche les meilleurs billets et disponibilités pour votre voyage."
+            
+        default:
+            return webResult ?? "Je suis à votre disposition. Que puis-je faire pour vous ?"
+        }
+    }
+}
+
+// MARK: - 3. Entités et Modèles de Données du Cerveau de Sarah
+
 public enum AgentRole: String, Codable {
     case sarah = "Sarah (Patronne & Routeur Central)"
     case tom = "Tom (Sous-Agent Web & Veille)"
@@ -13,7 +169,6 @@ public enum AgentRole: String, Codable {
     case system = "Système / Autonomie"
 }
 
-/// Structure d'une intention analysée par le Cerveau
 public struct BrainIntent: Codable {
     public let primaryTopic: String
     public let confidence: Double
@@ -39,7 +194,6 @@ public struct BrainIntent: Codable {
     }
 }
 
-/// Rapport structuré d'exécution multi-agents
 public struct BrainExecutionReport: Codable {
     public let leadAgent: String
     public let delegatorMessage: String?
@@ -47,6 +201,7 @@ public struct BrainExecutionReport: Codable {
     public let finalNaturalResponse: String
     public let sources: [String]
     public let timestamp: Date
+    public let alertEvent: AlertEvent?
     
     public init(
         leadAgent: String = "Sarah",
@@ -54,7 +209,8 @@ public struct BrainExecutionReport: Codable {
         specializedAgentReport: String? = nil,
         finalNaturalResponse: String,
         sources: [String] = [],
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        alertEvent: AlertEvent? = nil
     ) {
         self.leadAgent = leadAgent
         self.delegatorMessage = delegatorMessage
@@ -62,19 +218,13 @@ public struct BrainExecutionReport: Codable {
         self.finalNaturalResponse = finalNaturalResponse
         self.sources = sources
         self.timestamp = timestamp
+        self.alertEvent = alertEvent
     }
 }
 
-// MARK: - 2. Cerveau Central de Sarah (SarahBrainEngine)
+// MARK: - 4. Cerveau Central de Sarah (SarahBrainEngine)
 
-/// Cerveau Souverain et Routeur Central Multi-Agents de Sarah :
-/// - Routeur Sémantique d'Intentions & Désambiguïsation Contextuelle
-/// - Gestionnaire de l'Agent Tom (Recherche Web, Billets de Train/Avion, Météo, Wikipedia)
-/// - Module de Computer Vision (OCR Haute Densité & Partage d'Écran ReplayKit Live)
-/// - Moteur d'Autonomie & Mémoire Persistante Sécurisée
-/// - Compatible 100% avec l'écosystème iOS (iPhone 5S / iOS 12 jusqu'à iOS 18+)
 public final class SarahBrainEngine {
-    
     public static let shared = SarahBrainEngine()
     
     private let webSearch = WebSearchService.shared
@@ -82,14 +232,16 @@ public final class SarahBrainEngine {
     private let visionEngine = LocalVisionEngine.shared
     private let screenShare = ScreenShareService.shared
     private let storage = StorageService.shared
-    
-    private var sessionHistory: [(query: String, response: String, timestamp: Date)] = []
+    private let alertService = IsraelAlertService.shared
+    private let testAlertEngine = AlertTestEngine.shared
+    private let context = ConversationContext.shared
+    private let referenceResolver = ReferenceResolver.shared
+    private let responsePlanner = ResponsePlanner.shared
     
     private init() {}
     
-    // MARK: - 3. Traitement Principal d'une Requête (Pipeline Asynchrone & Multi-Agents)
+    // MARK: - Traitement Principal d'une Requête
     
-    /// Analyse, route et résout une requête utilisateur via le cerveau autonome de Sarah
     public func processQuery(
         _ userQuery: String,
         screenContext: UIImage? = nil,
@@ -105,22 +257,62 @@ public final class SarahBrainEngine {
             return
         }
         
-        // 1. Analyse Sémantique & Résolution d'Intentions
-        let intent = resolveIntent(from: cleanText, hasVisualContext: screenContext != nil)
+        context.lastUserQuestion = cleanText
         
-        // 2. Aiguillage vers les Sous-Agents Spécialisés
+        // 1. Résolution de références et désambiguïsation contextuelle
+        let (resolvedText, intentCategory) = referenceResolver.resolveContextualQuery(cleanText, context: context)
         
-        // A. Sous-Agent Vision & OCR
-        if intent.requiresVisionAgent, let image = screenContext {
+        // 2. Traitement Spécial : TEST ALERTE (100% Isolé)
+        if intentCategory == "test_alert" {
+            let testEvent = testAlertEngine.generateTestAlert()
+            context.lastAlertEvent = testEvent
+            let response = responsePlanner.planNaturalResponse(intentCategory: intentCategory, query: cleanText, context: context, alertEvent: testEvent)
+            
+            let report = BrainExecutionReport(
+                leadAgent: "Sarah",
+                finalNaturalResponse: response,
+                sources: ["Simulation Interne Sarah IA (Test)"],
+                alertEvent: testEvent
+            )
+            completion(report)
+            return
+        }
+        
+        // 3. Traitement Spécial : Alertes Officielles / Surveillance Israël
+        if intentCategory == "official_alert" {
+            alertService.checkOfficialAlerts { [weak self] alerts in
+                guard let self = self else { return }
+                let active = alerts.first
+                self.context.lastAlertEvent = active
+                let response = self.responsePlanner.planNaturalResponse(intentCategory: intentCategory, query: cleanText, context: self.context, alertEvent: active)
+                
+                let report = BrainExecutionReport(
+                    leadAgent: "Sarah",
+                    finalNaturalResponse: response,
+                    sources: active != nil ? ["Commandement du Front intérieur"] : ["Pikoud HaOref"],
+                    alertEvent: active
+                )
+                completion(report)
+            }
+            return
+        }
+        
+        // 4. Traitement Vision / OCR
+        if let image = screenContext {
             processVisionPipeline(query: cleanText, image: image, completion: completion)
             return
         }
         
-        // B. Sous-Agent Tom (Recherche Web, Transports, Météo, Actualités)
-        if intent.requiresWebAgent {
-            processWebAgentTomPipeline(query: cleanText, intent: intent, completion: completion)
+        // 5. Traitement Sémantique Général & Recherche
+        let intent = resolveIntent(from: resolvedText, hasVisualContext: screenContext != nil)
+        if intent.requiresWebAgent || intentCategory == "travel_search" {
+            processWebAgentTomPipeline(query: resolvedText, intent: intent, completion: completion)
             return
         }
+        
+        // 6. Traitement Local Direct
+        processLocalAutonomousPipeline(query: cleanText, intent: intent, completion: completion)
+    }
         
         // C. Module Média (Radio en direct, Apple Podcasts, Musique)
         if intent.requiresMediaStream {

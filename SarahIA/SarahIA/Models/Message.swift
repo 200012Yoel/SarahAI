@@ -8,6 +8,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public let timestamp: Date
     public var audioDuration: TimeInterval?
     public var imageData: Data?
+    public var alertEvent: AlertEvent?
     
     public init(
         id: UUID = UUID(),
@@ -15,7 +16,8 @@ public struct Message: Identifiable, Equatable, Codable {
         isFromUser: Bool,
         timestamp: Date = Date(),
         audioDuration: TimeInterval? = nil,
-        imageData: Data? = nil
+        imageData: Data? = nil,
+        alertEvent: AlertEvent? = nil
     ) {
         self.id = id
         self.content = content
@@ -23,6 +25,7 @@ public struct Message: Identifiable, Equatable, Codable {
         self.timestamp = timestamp
         self.audioDuration = audioDuration
         self.imageData = imageData
+        self.alertEvent = alertEvent
     }
     
     /// Formate l'heure du message pour l'affichage (ex: "14:32")

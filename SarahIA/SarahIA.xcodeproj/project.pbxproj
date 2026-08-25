@@ -72,6 +72,9 @@
 		A1B2C3D40001000100000066 /* BatteryMonitorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */; };
 		A1B2C3D40001000100000067 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000067 /* SampleHandler.swift */; };
 		A1B2C3D40001000100000068 /* SarahVoiceWaveSquareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */; };
+		A1B2C3D40001000100000069 /* IsraelCityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */; };
+		A1B2C3D4000100010000006A /* IsraelAlertService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000006A /* IsraelAlertService.swift */; };
+		A1B2C3D4000100010000006B /* AlertCardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000006B /* AlertCardRenderer.swift */; };
 		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
@@ -147,6 +150,9 @@
 		A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryMonitorManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000067 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahVoiceWaveSquareView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IsraelCityDatabase.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000006A /* IsraelAlertService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IsraelAlertService.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000006B /* AlertCardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardRenderer.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -201,6 +207,7 @@
 			children = (
 				A1B2C3D40002000100000003 /* Message.swift */,
 				A1B2C3D40002000100000032 /* Conversation.swift */,
+				A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -248,6 +255,7 @@
 				A1B2C3D40002000100000065 /* FlashlightManager.swift */,
 				A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */,
 				A1B2C3D40002000100000067 /* SampleHandler.swift */,
+				A1B2C3D4000200010000006A /* IsraelAlertService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -273,6 +281,7 @@
 				A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */,
 				A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */,
 				A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */,
+				A1B2C3D4000200010000006B /* AlertCardRenderer.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -492,6 +501,9 @@
 				A1B2C3D40001000100000066 /* BatteryMonitorManager.swift in Sources */,
 				A1B2C3D40001000100000067 /* SampleHandler.swift in Sources */,
 				A1B2C3D40001000100000068 /* SarahVoiceWaveSquareView.swift in Sources */,
+				A1B2C3D40001000100000069 /* IsraelCityDatabase.swift in Sources */,
+				A1B2C3D4000100010000006A /* IsraelAlertService.swift in Sources */,
+				A1B2C3D4000100010000006B /* AlertCardRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

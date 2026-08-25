@@ -527,23 +527,23 @@ public final class ChatViewModel: ObservableObject {
         isTyping = true
         beginAIBgTask()
         
-        Task {
-            let response = await aiService.generateResponse(for: transcription)
+        SarahBrainEngine.shared.processQuery(transcription) { [weak self] report in
+            guard let self = self else { return }
             self.refreshLearnedMemories()
             
             // Mise à jour intelligente du titre de la discussion
             if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
                 if self.messages.filter({ $0.isFromUser }).count <= 1 {
-                    self.conversations[index].title = self.aiService.generateSmartTitle(from: transcription, responseText: response)
+                    self.conversations[index].title = self.aiService.generateSmartTitle(from: transcription, responseText: report.finalNaturalResponse)
                 }
             }
             
-            let aiMessage = Message(content: response, isFromUser: false)
+            let aiMessage = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
             self.appendMessage(aiMessage)
             self.isTyping = false
             
-            self.sendNotificationIfNeeded(message: response)
-            SpeechManager.shared.speak(text: response)
+            self.sendNotificationIfNeeded(message: report.finalNaturalResponse)
+            SpeechManager.shared.speak(text: report.finalNaturalResponse)
             self.endAIBgTask()
         }
     }
@@ -559,23 +559,23 @@ public final class ChatViewModel: ObservableObject {
         isTyping = true
         beginAIBgTask()
         
-        Task {
-            let response = await aiService.generateResponse(for: text)
+        SarahBrainEngine.shared.processQuery(text) { [weak self] report in
+            guard let self = self else { return }
             self.refreshLearnedMemories()
             
             // Mise à jour intelligente du titre de la discussion
             if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
                 if self.messages.filter({ $0.isFromUser }).count <= 1 {
-                    self.conversations[index].title = self.aiService.generateSmartTitle(from: text, responseText: response)
+                    self.conversations[index].title = self.aiService.generateSmartTitle(from: text, responseText: report.finalNaturalResponse)
                 }
             }
             
-            let aiMessage = Message(content: response, isFromUser: false)
+            let aiMessage = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
             self.appendMessage(aiMessage)
             self.isTyping = false
             
-            self.sendNotificationIfNeeded(message: response)
-            SpeechManager.shared.speak(text: response)
+            self.sendNotificationIfNeeded(message: report.finalNaturalResponse)
+            SpeechManager.shared.speak(text: report.finalNaturalResponse)
             self.endAIBgTask()
         }
     }

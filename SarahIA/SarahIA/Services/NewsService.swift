@@ -160,6 +160,7 @@ public final class NewsService: NSObject, XMLParserDelegate {
                 }
             }
         }
+        
         return articles
     }
     
@@ -170,27 +171,58 @@ public final class NewsService: NSObject, XMLParserDelegate {
         }
         let nsString = xml as NSString
         if let match = regex.firstMatch(in: xml, options: [], range: NSRange(location: 0, length: nsString.length)) {
-            let cdataPattern = "<!\\[CDATA\\[(.*?)\\]\\]>"
-            let rawContent = nsString.substring(with: match.range(at: 1))
-            if let cdataRegex = try? NSRegularExpression(pattern: cdataPattern, options: [.dotMatchesLineSeparators]),
-               let cdataMatch = cdataRegex.firstMatch(in: rawContent, options: [], range: NSRange(location: 0, length: (rawContent as NSString).length)) {
-                return (rawContent as NSString).substring(with: cdataMatch.range(at: 1))
-            }
-            return rawContent
+            let extracted = nsString.substring(with: match.range(at: 1))
+            // Nettoyage CDATA si présent
+            return extracted.replacingOccurrences(of: "<![CDATA[", with: "").replacingOccurrences(of: "]]>", with: "")
         }
         return ""
     }
     
+    /// Décode les entités HTML et élimine tout tag, script, style ou code indésirable
     private func cleanHTML(_ html: String) -> String {
-        return html
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&eacute;", with: "é")
-            .replacingOccurrences(of: "&egrave;", with: "è")
-            .replacingOccurrences(of: "&agrave;", with: "à")
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = html
+        
+        // 1. Suppression des balises scripts et styles
+        text = text.replacingOccurrences(of: "(?s)<script.*?</script>", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?s)<style.*?</style>", with: "", options: .regularExpression)
+        
+        // 2. Suppression de toutes les balises HTML <...>
+        text = text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        
+        // 3. Décodage systématique des entités HTML courantes
+        let entities = [
+            ("&quot;", "\""),
+            ("&apos;", "'"),
+            ("&#39;", "'"),
+            ("&amp;", "&"),
+            ("&lt;", "<"),
+            ("&gt;", ">"),
+            ("&nbsp;", " "),
+            ("&eacute;", "é"),
+            ("&egrave;", "è"),
+            ("&ecirc;", "ê"),
+            ("&agrave;", "à"),
+            ("&acirc;", "â"),
+            ("&ccedil;", "ç"),
+            ("&icirc;", "î"),
+            ("&ocirc;", "ô"),
+            ("&ugrave;", "ù"),
+            ("&ucirc;", "û"),
+            ("&rsquo;", "'"),
+            ("&lsquo;", "'"),
+            ("&ldquo;", "\""),
+            ("&rdquo;", "\""),
+            ("&hellip;", "..."),
+            ("&ndash;", "-"),
+            ("&mdash;", "—")
+        ]
+        
+        for (entity, replacement) in entities {
+            text = text.replacingOccurrences(of: entity, with: replacement)
+        }
+        
+        // 4. Normalisation des espaces multiples et retours chariot
+        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
