@@ -353,7 +353,7 @@ public final class LiveCameraViewController: UIViewController {
         micLevelTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self = self, self.isVoiceActive, !self.isMicMuted else { return }
             
-            if SpeechManager.shared.isSpeaking {
+            if TTSManager.shared.isSpeaking {
                 let randomLevel = Float.random(in: 0.65...0.95)
                 self.voiceWaveSquare.audioLevel = randomLevel
             } else if AppleSpeechRecognizer.shared.isListening {

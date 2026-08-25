@@ -147,6 +147,10 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
         return sarahVoice ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice.speechVoices().first ?? AVSpeechSynthesisVoice(language: "en-US")!
     }
     
+    public var isSpeaking: Bool {
+        return synthesizer.isSpeaking
+    }
+    
     public func stop() {
         sequenceQueue.removeAll()
         if synthesizer.isSpeaking {
