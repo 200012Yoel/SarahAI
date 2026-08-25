@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import ReplayKit
 import AVFoundation
+import CoreImage
 #if canImport(Combine)
 import Combine
 #endif
@@ -25,10 +26,12 @@ public enum ScreenShareStatus: String, Codable {
 
 /// Service Unique de Partage d'Écran et Live Streaming Haute Performance (100% ReplayKit Officiel) :
 /// - Source Unique de Vérité (Single Source of Truth) : Flux CMSampleBuffer ReplayKit natif
-/// - Aucune capture d'écran simulée ni sondage de framebuffer privé
-/// - Double diffusion synchrone :
-///     1. Aperçu Miroir Flottant en direct (Live Preview UI)
-///     2. Analyse Vision Tom & Sarah (Intelligemment régulée pour économiser le processeur/batterie)
+/// - Pipeline direct :
+///     ReplayKit CMSampleBuffer vidéo
+///       ├─► PiP système direct (ScreenSharePiPManager.enqueueSampleBuffer)
+///       └─► Décodage UIImage optimisé (CIContext persistant réutilisé)
+///             ├─► Notification d'Aperçu Miroir Flottant en direct (Live Preview UI)
+///             └─► Analyse Vision Tom régulée (LocalVisionEngine)
 /// - Arrêt complet et suppression instantanée de tout tampon mémoire lors de l'arrêt
 public final class ScreenShareService: NSObject {
     
@@ -59,6 +62,12 @@ public final class ScreenShareService: NSObject {
         }
     }
     
+    // CIContext persistant unique pour éviter les réallocations coûteuses à chaque frame
+    private let ciContext = CIContext(options: [
+        CIContextOption.useSoftwareRenderer: false,
+        CIContextOption.priorityRequestLow: false
+    ])
+    
     // Files de traitement et de décodage ReplayKit
     private let decodeQueue = DispatchQueue(label: "com.sarahia.screenshare.decode", qos: .userInteractive)
     private let visionThrottleQueue = DispatchQueue(label: "com.sarahia.screenshare.vision", qos: .userInitiated)
@@ -74,7 +83,7 @@ public final class ScreenShareService: NSObject {
         setupDarwinIPCReceiver()
     }
     
-    // MARK: - Récepteur IPC Darwin Notification (Diffusion Système RPBroadcastSampleHandler)
+    // MARK: - 1. Récepteur IPC Darwin Notification (RPBroadcastSampleHandler App Group)
     
     private func setupDarwinIPCReceiver() {
         let center = CFNotificationCenterGetDarwinNotifyCenter()
@@ -92,17 +101,11 @@ public final class ScreenShareService: NSObject {
         guard isScreenSharingActive || status == .connecting else { return }
         
         let now = CACurrentMediaTime()
-        guard now - lastDarwinFrameTimestamp >= 0.05 else { return } // Max ~20 FPS pour l'aperçu
+        guard now - lastDarwinFrameTimestamp >= 0.05 else { return } // Max ~20 FPS
         lastDarwinFrameTimestamp = now
         
-        if !isScreenSharingActive {
-            isScreenSharingActive = true
-            status = .active
-            ScreenSharePiPManager.shared.startPictureInPicture()
-        }
-        
         decodeQueue.async { [weak self] in
-            guard let self = self, self.isScreenSharingActive else { return }
+            guard let self = self else { return }
             
             guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupIdentifier) else {
                 return
@@ -114,11 +117,21 @@ public final class ScreenShareService: NSObject {
                 return
             }
             
-            self.broadcastAndProcessFrame(image)
+            if !self.isScreenSharingActive {
+                self.isScreenSharingActive = true
+                self.status = .active
+                ScreenSharePiPManager.shared.startPictureInPicture()
+            }
+            
+            print("[ReplayKit] VIDEO FRAME RECEIVED (Broadcast Extension)")
+            print("[ReplayKit] frame size = \(Int(image.size.width))x\(Int(image.size.height))")
+            print("[ReplayKit] frame timestamp = \(String(format: "%.3f", CACurrentMediaTime()))")
+            
+            self.broadcastAndProcessDecodedImage(image)
         }
     }
     
-    // MARK: - Lancement du Partage d'Écran ReplayKit en Direct
+    // MARK: - 2. Démarrage de la Capture ReplayKit en Direct
     
     /// Démarre le partage d'écran avec ReplayKit
     public func startLiveScreenSharing(
@@ -131,20 +144,13 @@ public final class ScreenShareService: NSObject {
             return
         }
         
-        isScreenSharingActive = true
+        print("[ReplayKit] startCapture requested")
         status = .connecting
         currentFrameCallback = onFrameAnalyzed
         lastVisionAnalysisTimestamp = 0
         lastAnalyzedText = ""
         
-        // 1. Notification de statut immédiate
-        NotificationCenter.default.post(
-            name: NSNotification.Name("SarahScreenShareStatusChanged"),
-            object: nil,
-            userInfo: ["isActive": true]
-        )
-        
-        // 2. Configuration du Picture-in-Picture persistant
+        // Configuration du Picture-in-Picture persistant si disponible
         let targetVC = viewController
             ?? UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController
             ?? UIApplication.shared.keyWindow?.rootViewController
@@ -152,58 +158,91 @@ public final class ScreenShareService: NSObject {
         
         if let hostView = targetVC?.view.window ?? targetVC?.view ?? UIApplication.shared.keyWindow {
             ScreenSharePiPManager.shared.setupPiP(in: hostView)
-            ScreenSharePiPManager.shared.startPictureInPicture()
         }
         
-        // 3. Démarrage de la capture ReplayKit in-app
+        // Démarrage de la capture ReplayKit in-app (iOS 11+)
         if #available(iOS 11.0, *), screenRecorder.isAvailable {
             screenRecorder.isMicrophoneEnabled = false
             screenRecorder.startCapture(handler: { [weak self] (sampleBuffer, sampleBufferType, error) in
-                guard let self = self, self.isScreenSharingActive, error == nil else { return }
+                guard let self = self, error == nil else {
+                    if let err = error {
+                        print("[ReplayKit] ERROR = \(err.localizedDescription)")
+                    }
+                    return
+                }
                 
                 if sampleBufferType == .video {
-                    ScreenSharePiPManager.shared.enqueueSampleBuffer(sampleBuffer)
-                    self.decodeQueue.async {
-                        if let image = self.imageFromSampleBuffer(sampleBuffer) {
-                            self.broadcastAndProcessFrame(image)
-                        }
-                    }
+                    self.processIncomingReplayKitSampleBuffer(sampleBuffer)
                 }
             }) { [weak self] error in
                 guard let self = self else { return }
                 if let error = error {
-                    print("⚠️ [ScreenShareService] ReplayKit startCapture: \(error.localizedDescription)")
-                    self.status = .active // Reste en attente des trames Broadcast Extension
+                    print("[ReplayKit] ERROR = \(error.localizedDescription)")
+                    self.isScreenSharingActive = false
+                    self.status = .disconnected
+                    completion(false, "Échec du démarrage de ReplayKit : \(error.localizedDescription)")
                 } else {
+                    print("[ReplayKit] capture started")
+                    self.isScreenSharingActive = true
                     self.status = .active
+                    ScreenSharePiPManager.shared.startPictureInPicture()
+                    
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahScreenShareStatusChanged"),
+                        object: nil,
+                        userInfo: ["isActive": true]
+                    )
+                    completion(true, "🔴 Partage d'écran en direct activé.")
                 }
-                completion(true, "🔴 Partage d'écran en direct activé.")
             }
         } else {
-            // Sur les versions sans startCapture ou en mode broadcast pur
+            // Support iOS 12 pur ou mode broadcast distant
+            print("[ReplayKit] capture started (iOS 12 fallback)")
+            self.isScreenSharingActive = true
             self.status = .active
             completion(true, "🔴 Partage d'écran en direct activé.")
         }
     }
     
-    // MARK: - Pipeline de Diffusion & Analyse Visuelle Unique (Single Source of Truth)
+    // MARK: - 3. Traitement Direct du CMSampleBuffer ReplayKit (Single Source of Truth)
     
-    /// Traite et diffuse la trame réelle issue de ReplayKit
-    public func broadcastAndProcessFrame(_ image: UIImage) {
+    private func processIncomingReplayKitSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard isScreenSharingActive else { return }
         
-        self.latestCapturedImage = image
-        if status != .active {
-            status = .active
-        }
+        guard CMSampleBufferIsValid(sampleBuffer), CMSampleBufferDataIsReady(sampleBuffer) else { return }
         
-        // 1. Mise à jour Picture-in-Picture
-        ScreenSharePiPManager.shared.enqueueImage(image)
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let ptsSeconds = CMTimeGetSeconds(pts)
         
-        // 2. Publication en direct vers la fenêtre d'aperçu miroir flottante (Live Preview)
-        DispatchQueue.main.async { [weak self] in
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let width = CVPixelBufferGetWidth(imageBuffer)
+        let height = CVPixelBufferGetHeight(imageBuffer)
+        
+        print("[ReplayKit] VIDEO FRAME RECEIVED")
+        print("[ReplayKit] frame size = \(width)x\(height)")
+        print("[ReplayKit] frame timestamp = \(String(format: "%.3f", ptsSeconds > 0 ? ptsSeconds : CACurrentMediaTime()))")
+        
+        // 1. Injection directe du CMSampleBuffer natif dans le PiP (Sans conversions intermédiaires)
+        ScreenSharePiPManager.shared.enqueueSampleBuffer(sampleBuffer)
+        
+        // 2. Décodage asynchrone de la frame pour l'Aperçu Miroir Flottant et Vision Tom
+        decodeQueue.async { [weak self] in
             guard let self = self, self.isScreenSharingActive else { return }
             
+            if let image = self.imageFromPixelBuffer(imageBuffer) {
+                self.broadcastAndProcessDecodedImage(image)
+            }
+        }
+    }
+    
+    // MARK: - 4. Distribution de l'Image Décodée (Preview + Vision Tom)
+    
+    private func broadcastAndProcessDecodedImage(_ image: UIImage) {
+        self.latestCapturedImage = image
+        
+        // 1. Publication vers la prévisualisation miroir flottante locale (Live Preview)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isScreenSharingActive else { return }
             NotificationCenter.default.post(
                 name: Self.liveFrameNotification,
                 object: nil,
@@ -211,9 +250,8 @@ public final class ScreenShareService: NSObject {
             )
         }
         
-        // 3. Régulation Intelligente de l'Analyse IA Vision Tom & Sarah (Throttling pour préserver l'iPhone 5s)
+        // 2. Analyse IA Vision Tom régulée (Throttling à 800ms pour préserver le CPU/RAM de l'iPhone 5s)
         let now = CACurrentMediaTime()
-        // Analyse déclenchée au maximum toutes les 800ms pour éviter de saturer le CPU/OCR
         if now - lastVisionAnalysisTimestamp >= 0.8 && !isVisionProcessing {
             lastVisionAnalysisTimestamp = now
             isVisionProcessing = true
@@ -248,9 +286,10 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Arrêt Complet & Nettoyage Définitif (Stop Behavior)
+    // MARK: - 5. Arrêt Complet & Nettoyage Définitif (Stop Behavior)
     
     public func stopLiveScreenSharing(completion: ((Bool) -> Void)? = nil) {
+        print("[ReplayKit] capture stopped")
         isScreenSharingActive = false
         status = .disconnected
         currentFrameCallback = nil
@@ -284,6 +323,9 @@ public final class ScreenShareService: NSObject {
         // 4. Arrêt de ReplayKit
         if #available(iOS 11.0, *), screenRecorder.isRecording {
             screenRecorder.stopCapture { error in
+                if let err = error {
+                    print("[ReplayKit] ERROR = \(err.localizedDescription)")
+                }
                 completion?(error == nil)
             }
         } else {
@@ -291,7 +333,18 @@ public final class ScreenShareService: NSObject {
         }
     }
     
-    // MARK: - Capture d'Écran Locale de Secours (View Snapshot Fallback)
+    // MARK: - 6. Conversion Optimisée CVPixelBuffer ➔ UIImage avec CIContext Réutilisé
+    
+    private func imageFromPixelBuffer(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+    
+    // MARK: - 7. Capture d'Écran Locale de Secours (View Snapshot Fallback)
     
     public func captureScreen(from view: UIView? = nil) -> UIImage? {
         if let latest = latestCapturedImage {
@@ -312,21 +365,6 @@ public final class ScreenShareService: NSObject {
             
             return captured
         }
-    }
-    
-    // MARK: - Conversion Optimisée CMSampleBuffer ➔ UIImage
-    
-    private func imageFromSampleBuffer(_ sampleBuffer: CMSampleBuffer) -> UIImage? {
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
-        
-        CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
-        
-        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        let context = CIContext(options: [CIContextOption.useSoftwareRenderer: false])
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
-        
-        return UIImage(cgImage: cgImage)
     }
 }
 
@@ -386,4 +424,5 @@ public final class ScreenShareStateTracker: ObservableObject {
 @available(iOS 13.0, *)
 public typealias ScreenShareStateObserver = ScreenShareStateTracker
 #endif
+
 

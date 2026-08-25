@@ -5,38 +5,34 @@ import AVKit
 import CoreMedia
 import CoreVideo
 
-/// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran en Direct
-/// - Utilise AVPictureInPictureController avec AVSampleBufferDisplayLayer natif (iOS 15+)
-/// - Fallback AVPlayerLayer fluide et persistant pour iOS 14
-/// - Maintien continu du processus en tâche de fond (UIBackgroundTaskIdentifier + session audio)
-/// - Boucle d'alimentation d'images à 15-20 FPS avec horloge d'hôte de précision (CMClockGetHostTimeClock)
-/// - Déclenchement automatique de la fenêtre flottante lors de la sortie vers l'écran d'accueil
+/// Gestionnaire de Picture-in-Picture (PiP) Système Universel pour le Partage d'Écran
+/// - Reçoit directement le CMSampleBuffer natif issu de ReplayKit (Zéro conversion redondante)
+/// - Sur iOS 15+ : AVPictureInPictureController.ContentSource avec AVSampleBufferDisplayLayer
+/// - Sur iOS 14 : Support PiP vérifié via AVPictureInPictureController.isPictureInPictureSupported()
+/// - Sur iOS 12 & 13 : PiP système désactivé proprement sans crash, fallback prévisualisation interne
+/// - Gestion de la Timebase CMTimebase et récupération automatique si le layer entre en statut .failed
 public final class ScreenSharePiPManager: NSObject {
     
     public static let shared = ScreenSharePiPManager()
     
-    // Layers d'affichage et timebase
+    // Layer d'affichage vidéo natif pour PiP
     public let sampleBufferDisplayLayer = AVSampleBufferDisplayLayer()
     private var timebase: CMTimebase?
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
-    private var heartbeatTimer: DispatchSourceTimer?
-    private var heartbeatQueue = DispatchQueue(label: "com.sarahia.pip.heartbeat", qos: .userInteractive)
     
+    // Objets PiP système conservés avec types natifs / protections de version
     private var pipController: AnyObject?
     private var pipDelegateHelper: AnyObject?
     private var sampleBufferPlaybackDelegate: AnyObject?
-    private var playerLayer: AVPlayerLayer?
-    private var dummyPlayer: AVPlayer?
-    private var hostContainerView: UIView?
+    private weak var hostContainerView: UIView?
     
-    private var latestImage: UIImage?
-    private var latestPixelBuffer: CVPixelBuffer?
+    public private(set) var isPiPActive: Bool = false
     
-    public var isPiPActive: Bool = false
-    
+    /// Vérifie si le PiP système est réellement disponible sur le matériel et l'OS actif
     public var isPiPSupported: Bool {
         if #available(iOS 14.0, *) {
-            return AVPictureInPictureController.isPictureInPictureSupported()
+            let supported = AVPictureInPictureController.isPictureInPictureSupported()
+            return supported
         }
         return false
     }
@@ -48,7 +44,7 @@ public final class ScreenSharePiPManager: NSObject {
         setupLifecycleObservers()
     }
     
-    // MARK: - Initialisation de la Base de Temps (Timebase)
+    // MARK: - 1. Initialisation de la Base de Temps (Timebase)
     
     private func setupTimebase() {
         var tb: CMTimebase?
@@ -67,7 +63,7 @@ public final class ScreenSharePiPManager: NSObject {
         }
     }
     
-    // MARK: - Configuration Audio & Cycle de Vie
+    // MARK: - 2. Configuration Audio & Gestion Cycle de Vie
     
     private func configureAudioSessionForPiP() {
         do {
@@ -75,7 +71,7 @@ public final class ScreenSharePiPManager: NSObject {
             try audioSession.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
             try audioSession.setActive(true)
         } catch {
-            print("⚠️ [ScreenSharePiPManager] Configuration audio PiP: \(error)")
+            print("⚠️ [PiP] Configuration audio PiP: \(error.localizedDescription)")
         }
     }
     
@@ -102,7 +98,7 @@ public final class ScreenSharePiPManager: NSObject {
     
     @objc private func handleAppWillResignActive() {
         if ScreenShareService.shared.isScreenSharingActive {
-            startBackgroundTask()
+            startTransientBackgroundTask()
             ensurePiPConfigured()
             startPictureInPicture()
         }
@@ -110,7 +106,7 @@ public final class ScreenSharePiPManager: NSObject {
     
     @objc private func handleAppDidEnterBackground() {
         if ScreenShareService.shared.isScreenSharingActive {
-            startBackgroundTask()
+            startTransientBackgroundTask()
             ensurePiPConfigured()
             startPictureInPicture()
         }
@@ -118,29 +114,32 @@ public final class ScreenSharePiPManager: NSObject {
     
     @objc private func handleAppDidBecomeActive() {
         if !ScreenShareService.shared.isScreenSharingActive {
-            endBackgroundTask()
+            endTransientBackgroundTask()
         }
     }
     
-    public func startBackgroundTask() {
+    public func startTransientBackgroundTask() {
         if backgroundTaskId == .invalid {
-            backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "SarahScreenSharePiP") { [weak self] in
-                self?.endBackgroundTask()
+            backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "SarahScreenSharePiPTransition") { [weak self] in
+                self?.endTransientBackgroundTask()
             }
         }
     }
     
-    public func endBackgroundTask() {
+    public func endTransientBackgroundTask() {
         if backgroundTaskId != .invalid {
             UIApplication.shared.endBackgroundTask(backgroundTaskId)
             backgroundTaskId = .invalid
         }
     }
     
-    // MARK: - Initialisation du Layer PiP dans une Vue Hôte
+    // MARK: - 3. Montage et Configuration du Contrôleur PiP
     
     public func setupPiP(in containerView: UIView) {
-        guard isPiPSupported else { return }
+        guard isPiPSupported else {
+            print("[PiP] supported = false (iOS 12/13 ou matériel non supporté)")
+            return
+        }
         self.hostContainerView = containerView
         
         let targetFrame = containerView.bounds.isEmpty ? CGRect(x: 0, y: 0, width: 320, height: 240) : containerView.bounds
@@ -153,14 +152,14 @@ public final class ScreenSharePiPManager: NSObject {
         }
         
         if #available(iOS 15.0, *) {
-            setupSampleBufferPiP()
+            setupSampleBufferPiPiOS15()
         }
-        
-        startHeartbeatLoop()
+        print("[PiP] supported = true")
+        print("[PiP] configured = true")
     }
     
     @available(iOS 15.0, *)
-    private func setupSampleBufferPiP() {
+    private func setupSampleBufferPiPiOS15() {
         guard pipController == nil else { return }
         
         let playbackDelegate = SampleBufferPiPPlaybackDelegate(manager: self)
@@ -179,8 +178,6 @@ public final class ScreenSharePiPManager: NSObject {
         self.pipController = controller
     }
     
-    // MARK: - Contrôle du Picture-in-Picture
-    
     public func ensurePiPConfigured() {
         guard isPiPSupported else { return }
         if pipController == nil {
@@ -196,63 +193,50 @@ public final class ScreenSharePiPManager: NSObject {
     public func startPictureInPicture() {
         guard isPiPSupported else { return }
         ensurePiPConfigured()
-        startBackgroundTask()
-        startHeartbeatLoop()
+        startTransientBackgroundTask()
         
         if #available(iOS 14.0, *),
            let controller = pipController as? AVPictureInPictureController {
             DispatchQueue.main.async {
                 if !controller.isPictureInPictureActive {
                     controller.startPictureInPicture()
+                    print("[PiP] started = true")
                 }
             }
         }
     }
     
     public func stopPictureInPicture() {
-        stopHeartbeatLoop()
         if #available(iOS 14.0, *),
            let controller = pipController as? AVPictureInPictureController,
            controller.isPictureInPictureActive {
             DispatchQueue.main.async {
                 controller.stopPictureInPicture()
+                print("[PiP] stopped = true")
             }
         }
-        endBackgroundTask()
+        endTransientBackgroundTask()
+        isPiPActive = false
     }
     
-    // MARK: - Boucle d'Alimentation Continue Anti-Gel (15 FPS)
+    // MARK: - 4. Injection Directe de CMSampleBuffer Natif (Single Source of Truth)
     
-    private func startHeartbeatLoop() {
-        guard heartbeatTimer == nil else { return }
-        
-        let timer = DispatchSource.makeTimerSource(queue: heartbeatQueue)
-        timer.schedule(deadline: .now() + 0.05, repeating: 0.066) // ~15 FPS
-        timer.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            if let buffer = self.latestPixelBuffer,
-               let sampleBuffer = self.sampleBuffer(from: buffer) {
-                self.enqueueSampleBuffer(sampleBuffer)
-            }
-        }
-        timer.resume()
-        self.heartbeatTimer = timer
-    }
-    
-    private func stopHeartbeatLoop() {
-        heartbeatTimer?.cancel()
-        heartbeatTimer = nil
-    }
-    
-    // MARK: - Injection Haute Performance des Trames Vidéo
-    
+    /// Injecte directement le CMSampleBuffer brut venant de ReplayKit dans le layer PiP
     public func enqueueSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         guard isPiPSupported else { return }
+        
+        // Validation que le sampleBuffer est prêt pour l'affichage
+        guard CMSampleBufferIsValid(sampleBuffer),
+              CMSampleBufferDataIsReady(sampleBuffer) else {
+            return
+        }
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
+            // Récupération automatique si le layer a échoué
             if self.sampleBufferDisplayLayer.status == .failed {
+                print("⚠️ [PiP] AVSampleBufferDisplayLayer failed -> flush & re-init timebase")
                 self.sampleBufferDisplayLayer.flush()
                 self.setupTimebase()
             }
@@ -261,100 +245,6 @@ public final class ScreenSharePiPManager: NSObject {
                 self.sampleBufferDisplayLayer.enqueue(sampleBuffer)
             }
         }
-    }
-    
-    public func enqueueImage(_ image: UIImage) {
-        guard isPiPSupported else { return }
-        self.latestImage = image
-        
-        heartbeatQueue.async { [weak self] in
-            guard let self = self else { return }
-            if let pixelBuffer = self.pixelBuffer(from: image) {
-                self.latestPixelBuffer = pixelBuffer
-                if let sampleBuffer = self.sampleBuffer(from: pixelBuffer) {
-                    self.enqueueSampleBuffer(sampleBuffer)
-                }
-            }
-        }
-    }
-    
-    // MARK: - Convertisseurs Image ➔ CMSampleBuffer
-    
-    private func pixelBuffer(from image: UIImage) -> CVPixelBuffer? {
-        guard let cgImage = image.cgImage else { return nil }
-        let width = cgImage.width
-        let height = cgImage.height
-        guard width > 0, height > 0 else { return nil }
-        
-        var pixelBuffer: CVPixelBuffer?
-        let attrs: [CFString: Any] = [
-            kCVPixelBufferCGImageCompatibilityKey: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: true
-        ]
-        
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            width,
-            height,
-            OSType(kCVPixelFormatType_32ARGB),
-            attrs as CFDictionary,
-            &pixelBuffer
-        )
-        
-        guard status == kCVReturnSuccess, let buffer = pixelBuffer else { return nil }
-        
-        CVPixelBufferLockBaseAddress(buffer, [])
-        let pixelData = CVPixelBufferGetBaseAddress(buffer)
-        
-        let rgbColorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let context = CGContext(
-            data: pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-            space: rgbColorSpace,
-            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
-        ) else {
-            CVPixelBufferUnlockBaseAddress(buffer, [])
-            return nil
-        }
-        
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-        CVPixelBufferUnlockBaseAddress(buffer, [])
-        
-        return buffer
-    }
-    
-    private func sampleBuffer(from pixelBuffer: CVPixelBuffer) -> CMSampleBuffer? {
-        let hostClock = CMClockGetHostTimeClock()
-        let currentHostTime = CMClockGetTime(hostClock)
-        
-        var timingInfo = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 30),
-            presentationTimeStamp: currentHostTime,
-            decodeTimeStamp: .invalid
-        )
-        
-        var formatDescription: CMFormatDescription?
-        CMVideoFormatDescriptionCreateForImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: pixelBuffer,
-            formatDescriptionOut: &formatDescription
-        )
-        
-        guard let format = formatDescription else { return nil }
-        
-        var sampleBuffer: CMSampleBuffer?
-        CMSampleBufferCreateReadyWithImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: pixelBuffer,
-            formatDescription: format,
-            sampleTiming: &timingInfo,
-            sampleBufferOut: &sampleBuffer
-        )
-        
-        return sampleBuffer
     }
 }
 
@@ -371,7 +261,7 @@ private final class SampleBufferPiPPlaybackDelegate: NSObject, AVPictureInPictur
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, setPlaying playing: Bool) {
-        // Lecture continue en direct
+        // Lecture continue
     }
     
     func pictureInPictureControllerTimeRangeForPlayback(_ pictureInPictureController: AVPictureInPictureController) -> CMTimeRange {
@@ -383,7 +273,7 @@ private final class SampleBufferPiPPlaybackDelegate: NSObject, AVPictureInPictur
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, didTransitionToRenderSize newRenderSize: CMVideoDimensions) {
-        // Ajustement automatique de la taille flottante
+        // Ajustement automatique
     }
     
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, skipByInterval skipInterval: CMTime, completion completionHandler: @escaping () -> Void) {
@@ -406,6 +296,7 @@ private final class PiPDelegateHelper: NSObject, AVPictureInPictureControllerDel
     func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         manager?.isPiPActive = true
         NotificationCenter.default.post(name: NSNotification.Name("SarahPiPStatusChanged"), object: nil, userInfo: ["isActive": true])
+        print("[PiP] started = true")
     }
     
     func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
@@ -415,5 +306,6 @@ private final class PiPDelegateHelper: NSObject, AVPictureInPictureControllerDel
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
         manager?.isPiPActive = false
         NotificationCenter.default.post(name: NSNotification.Name("SarahPiPStatusChanged"), object: nil, userInfo: ["isActive": false])
+        print("[PiP] stopped = true")
     }
 }
