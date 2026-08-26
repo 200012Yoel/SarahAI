@@ -15,12 +15,13 @@ public struct ChatScreenView: View {
     
     public var body: some View {
         GeometryReader { geo in
+            let topInset = geo.safeAreaInsets.top
             let bottomInset = geo.safeAreaInsets.bottom
             
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 0) {
                     // 1. Topbar Native avec indicateur d'Agent Actif
-                    topBar
+                    topBar(topInset: topInset)
                     
                     // 2. Fil de discussion (MessageList)
                     MessageList(
@@ -105,7 +106,7 @@ public struct ChatScreenView: View {
     
     // MARK: - Topbar
     
-    private var topBar: some View {
+    private func topBar(topInset: CGFloat) -> some View {
         HStack(alignment: .center) {
             // Bouton Menu Tiroir (Sidebar)
             Button(action: {
@@ -175,7 +176,7 @@ public struct ChatScreenView: View {
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
-        .padding(.top, 50)
+        .padding(.top, max(12, topInset + 4))
         .padding(.bottom, 6)
     }
 }
