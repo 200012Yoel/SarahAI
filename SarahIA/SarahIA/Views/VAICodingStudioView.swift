@@ -233,7 +233,7 @@ public struct VAICodingStudioView: View {
                         }
                         Spacer()
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(.cyan)
+                            .foregroundColor(Color(red: 0.0, green: 0.7, blue: 0.9))
                     }
                     .padding()
                     .background(Color.white.opacity(0.06))
@@ -256,7 +256,7 @@ public struct VAICodingStudioView: View {
                         }
                         Spacer()
                         Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(.cyan)
+                            .foregroundColor(Color(red: 0.0, green: 0.7, blue: 0.9))
                     }
                     .padding()
                     .background(Color.white.opacity(0.06))

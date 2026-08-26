@@ -164,4 +164,24 @@ public final class StorageService {
             try? self.fileManager.removeItem(at: self.backupFileURL)
         }
     }
+    
+    // MARK: - Gestion de Mémoire Permanente (Learned Memories)
+    
+    public func saveMemory(trigger: String, response: String) {
+        var state = loadState()
+        state.learnedMemories[trigger] = response
+        saveState(state)
+    }
+    
+    public func deleteMemory(forTrigger trigger: String) {
+        var state = loadState()
+        state.learnedMemories.removeValue(forKey: trigger)
+        saveState(state)
+    }
+    
+    public func clearAllMemories() {
+        var state = loadState()
+        state.learnedMemories.removeAll()
+        saveState(state)
+    }
 }

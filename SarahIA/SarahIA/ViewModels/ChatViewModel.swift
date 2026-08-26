@@ -405,6 +405,7 @@ public final class ChatViewModel: ObservableObject {
 }
 
 // MARK: - Gestion de Mémoire & Memory Vault
+@available(iOS 14.0, *)
 extension ChatViewModel {
     public func clearAllLearnedMemories() {
         storageService.clearAllMemories()
