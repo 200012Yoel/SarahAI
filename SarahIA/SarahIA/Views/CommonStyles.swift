@@ -1,6 +1,8 @@
+#if canImport(SwiftUI)
 import SwiftUI
 
 /// Style de bouton dynamique avec micro-rebond au toucher
+@available(iOS 13.0, *)
 public struct ScaleBounceButtonStyle: ButtonStyle {
     public init() {}
     public func makeBody(configuration: Configuration) -> some View {
@@ -9,3 +11,4 @@ public struct ScaleBounceButtonStyle: ButtonStyle {
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
+#endif
