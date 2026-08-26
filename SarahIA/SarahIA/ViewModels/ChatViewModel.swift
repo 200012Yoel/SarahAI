@@ -403,3 +403,22 @@ public final class ChatViewModel: ObservableObject {
         storageService.saveState(state)
     }
 }
+
+// MARK: - Gestion de Mémoire & Memory Vault
+extension ChatViewModel {
+    public func clearAllLearnedMemories() {
+        storageService.clearAllMemories()
+    }
+    
+    public func speakLearnedResponse(text: String) {
+        TTSManager.shared.speak(text: text)
+    }
+    
+    public func deleteLearnedMemory(trigger: String) {
+        storageService.deleteMemory(forTrigger: trigger)
+    }
+    
+    public func addLearnedMemory(trigger: String, response: String) {
+        storageService.saveMemory(trigger: trigger, response: response)
+    }
+}

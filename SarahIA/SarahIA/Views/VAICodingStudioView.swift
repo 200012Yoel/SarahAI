@@ -125,7 +125,7 @@ public struct VAICodingStudioView: View {
                                     .scaleEffect(0.7)
                                 Text("Génération en cours...")
                                     .font(.system(size: 11))
-                                    .foregroundColor(.cyan)
+                                    .foregroundColor(Color(red: 0.0, green: 0.8, blue: 1.0))
                             }
                         }
                         .padding(.horizontal, 16)

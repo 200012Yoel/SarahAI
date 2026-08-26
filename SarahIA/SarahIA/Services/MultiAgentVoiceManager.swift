@@ -52,7 +52,11 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
                 ?? frenchVoices.first(where: { $0.gender == .male })
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         } else {
-            tomVoice = frenchVoices.first(where: { maleNames.contains(where: { name in $0.name.lowercased().contains(name) }) })
+            tomVoice = frenchVoices.first(where: { voice in
+                maleNames.contains(where: { name in
+                    voice.name.lowercased().contains(name.lowercased())
+                })
+            })
                 ?? frenchVoices.first
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         }

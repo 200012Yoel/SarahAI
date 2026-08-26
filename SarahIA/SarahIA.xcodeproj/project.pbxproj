@@ -70,6 +70,7 @@
 		A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */; };
 		A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */; };
 		A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000078 /* VAICodingStudioView.swift */; };
+		A1B2C3D40001000100000079 /* CommonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000079 /* CommonStyles.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -138,6 +139,7 @@
 		A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiAgentOrbView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbModalView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000078 /* VAICodingStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAICodingStudioView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000079 /* CommonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonStyles.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -238,6 +240,7 @@
 				A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */,
 				A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */,
 				A1B2C3D40002000100000078 /* VAICodingStudioView.swift */,
+				A1B2C3D40002000100000079 /* CommonStyles.swift */,
 				A1B2C3D40002000100000007 /* ChatBubbleView.swift */,
 				A1B2C3D40002000100000009 /* TypingIndicatorView.swift */,
 				A1B2C3D40002000100000018 /* MemoryVaultView.swift */,
@@ -402,6 +405,7 @@
 				A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */,
 				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
 				A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */,
+				A1B2C3D40001000100000079 /* CommonStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

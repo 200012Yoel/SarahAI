@@ -30,6 +30,10 @@ public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
         multiVoice.speak(text: text, for: .yohan)
     }
     
+    public func speak(text: String) {
+        multiVoice.speak(text: text, for: .sarah)
+    }
+    
     public func stop() {
         multiVoice.stop()
     }
