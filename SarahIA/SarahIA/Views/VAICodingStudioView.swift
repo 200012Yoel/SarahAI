@@ -356,6 +356,7 @@ public struct VAICodingStudioView: View {
 }
 
 /// Wrapper WKWebView pour l'affichage interactif en temps réel du composant web généré
+@available(iOS 14.0, *)
 public struct VAIWebViewRepresentable: UIViewRepresentable {
     public var htmlContent: String
     

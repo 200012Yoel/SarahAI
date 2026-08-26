@@ -1,4 +1,9 @@
+#if canImport(SwiftUI)
 import SwiftUI
+#endif
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Énumération des 4 agents autonomes 100% hors-ligne du système Sarah AI.
 public enum AgentType: String, CaseIterable, Identifiable, Codable {
@@ -35,6 +40,8 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
+    #if canImport(SwiftUI)
+    @available(iOS 13.0, *)
     public var themeColor: Color {
         switch self {
         case .sarah:
@@ -48,22 +55,20 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
+    @available(iOS 13.0, *)
     public var gradientColors: [Color] {
         switch self {
         case .sarah:
-            // Rose néon / Magenta
             return [Color.white, Color(red: 1.0, green: 0.25, blue: 0.70), Color(red: 0.95, green: 0.05, blue: 0.55)]
         case .tom:
-            // Vert émeraude
             return [Color.white, Color(red: 0.20, green: 0.90, blue: 0.55), Color(red: 0.02, green: 0.75, blue: 0.38)]
         case .raphael:
-            // Bleu ciel / Azur
             return [Color.white, Color(red: 0.35, green: 0.80, blue: 1.0), Color(red: 0.05, green: 0.60, blue: 0.98)]
         case .yohan:
-            // Bicolore : Centre éclatant Blanc pur, anneaux et contours extérieurs Bleu Mer profond
             return [Color.white, Color(red: 0.70, green: 0.88, blue: 1.0), Color(red: 0.0, green: 0.40, blue: 0.85)]
         }
     }
+    #endif
     
     public var iconName: String {
         switch self {
