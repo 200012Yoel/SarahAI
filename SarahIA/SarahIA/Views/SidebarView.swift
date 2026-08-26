@@ -1,6 +1,10 @@
 import SwiftUI
 
-/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec gestion instantanée des discussions multiples et 0 discussion.
+/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec accès direct à :
+/// - Les 4 Agents (Sarah, Tom, Raphaël, Yohan)
+/// - Le Studio VAI Coding
+/// - L'Orbe Vocal Plein Écran
+/// - Gestion instantanée des discussions multiples
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -10,8 +14,6 @@ public struct SidebarView: View {
     @State private var newTitleText: String = ""
     @State private var isShowingRenameAlert: Bool = false
     @State private var isShowingClearAllAlert: Bool = false
-    @State private var isShowingWidgets: Bool = false
-    @State private var isShowingSyncQR: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -25,21 +27,19 @@ public struct SidebarView: View {
             let horizontalPadding: CGFloat = isCompact ? 14 : 20
             
             ZStack(alignment: .topLeading) {
-                // Background #000
                 Color.black.ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header: Titre "Sarah IA" + Boutons d'actions
+                    // 1. Header: Titre "Sarah IA" + Boutons d'actions
                     HStack(alignment: .center, spacing: 8) {
                         Text("Sarah IA")
                             .font(.system(size: isCompact ? 22 : 24, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.85)
                         
                         Spacer()
                         
-                        // Bouton Vider tout (si discussions existantes)
+                        // Bouton Vider tout
                         if !viewModel.conversations.isEmpty {
                             Button(action: {
                                 HapticService.shared.buttonTap()
@@ -58,7 +58,7 @@ public struct SidebarView: View {
                             .buttonStyle(ScaleBounceButtonStyle())
                         }
                         
-                        // Bouton recherche circulaire
+                        // Bouton recherche
                         Button(action: {
                             HapticService.shared.buttonTap()
                             withAnimation(.easeInOut(duration: 0.25)) {
@@ -84,116 +84,98 @@ public struct SidebarView: View {
                     .padding(.top, max(16, geo.safeAreaInsets.top + 8))
                     .padding(.bottom, 8)
                     
-                    // Barre de Recherche Animée
-                    if viewModel.isSearchActive {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                                .font(.system(size: 14))
-                            
-                            TextField("Rechercher", text: $viewModel.searchQuery)
-                                .font(.system(size: isCompact ? 14 : 16))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            
-                            if !viewModel.searchQuery.isEmpty {
-                                Button(action: {
-                                    viewModel.searchQuery = ""
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 15))
+                    // 2. Section des 4 Agents Rapides dans le Menu
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("AGENTS AUTONOMES")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.gray)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 4)
+                        
+                        ForEach(AgentType.allCases) { agent in
+                            Button(action: {
+                                HapticService.shared.buttonTap()
+                                viewModel.activeAgent = agent
+                                viewModel.closeDrawer()
+                            }) {
+                                HStack(spacing: 10) {
+                                    Circle()
+                                        .fill(agent.themeColor)
+                                        .frame(width: 8, height: 8)
+                                    
+                                    Text(agent.rawValue)
+                                        .font(.system(size: 14, weight: viewModel.activeAgent == agent ? .bold : .medium))
+                                        .foregroundColor(.white)
+                                    
+                                    Spacer()
+                                    
+                                    if viewModel.activeAgent == agent {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(agent.themeColor)
+                                    }
                                 }
+                                .padding(.horizontal, horizontalPadding)
+                                .padding(.vertical, 7)
+                                .background(viewModel.activeAgent == agent ? Color.white.opacity(0.08) : Color.clear)
+                                .cornerRadius(8)
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .frame(height: isCompact ? 36 : 40)
-                        .background(Color(red: 0.11, green: 0.11, blue: 0.12))
-                        .cornerRadius(10)
-                        .padding(.horizontal, horizontalPadding)
-                        .padding(.bottom, 10)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
+                    .padding(.bottom, 8)
                     
-                    // Liste Déroulante des Discussions
+                    Divider().background(Color.white.opacity(0.1)).padding(.horizontal, horizontalPadding)
+                    
+                    // 3. Liste Déroulante des Discussions
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 0) {
-                            // Section Épinglés
-                            if !viewModel.filteredPinnedConversations.isEmpty {
-                                Text("Épinglés")
-                                    .font(.system(size: isCompact ? 18 : 20, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, horizontalPadding)
-                                    .padding(.top, 8)
-                                    .padding(.bottom, 4)
-                                    
-                                ForEach(viewModel.filteredPinnedConversations) { conv in
-                                    conversationRow(conv, isPinned: true, isCompact: isCompact, padding: horizontalPadding)
-                                }
-                            }
-                            
                             // Section Récents
                             HStack {
-                                Text("Récents")
-                                    .font(.system(size: isCompact ? 18 : 20, weight: .bold))
+                                Text("Discussions")
+                                    .font(.system(size: isCompact ? 16 : 18, weight: .bold))
                                     .foregroundColor(.white)
                                 
                                 Spacer()
                                 
-                                Text("\(viewModel.conversations.count) discussion\(viewModel.conversations.count > 1 ? "s" : "")")
+                                Text("\(viewModel.conversations.count)")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundColor(Color.gray.opacity(0.8))
                             }
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 8 : 20)
+                            .padding(.top, 12)
                             .padding(.bottom, 4)
                             
                             if viewModel.conversations.isEmpty {
-                                // État Vierge garanti : 0 discussion
                                 VStack(spacing: 12) {
                                     Image(systemName: "bubble.left.and.bubble.right")
-                                        .font(.system(size: 36))
+                                        .font(.system(size: 32))
                                         .foregroundColor(Color.gray.opacity(0.5))
-                                        .padding(.top, 24)
+                                        .padding(.top, 16)
                                     
                                     Text("0 discussion")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.system(size: 15, weight: .semibold))
                                         .foregroundColor(.white)
-                                    
-                                    Text("Posez une question pour démarrer une nouvelle conversation.")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 20)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
-                            } else if viewModel.filteredRecentConversations.isEmpty {
-                                Text(viewModel.searchQuery.isEmpty ? "Aucune discussion récente." : "Aucun résultat pour cette recherche.")
-                                    .font(.system(size: isCompact ? 14 : 15))
-                                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                                    .padding(.horizontal, horizontalPadding)
-                                    .padding(.vertical, 12)
+                                .padding(.vertical, 16)
                             } else {
-                                ForEach(viewModel.filteredRecentConversations) { conv in
-                                    conversationRow(conv, isPinned: false, isCompact: isCompact, padding: horizontalPadding)
+                                ForEach(viewModel.conversations) { conv in
+                                    conversationRow(conv, isCompact: isCompact, padding: horizontalPadding)
                                 }
                             }
                             
-                            // Marge basse pour défilement complet au-dessus de la barre
-                            Spacer()
-                                .frame(height: 110)
+                            Spacer().frame(height: 110)
                         }
                     }
                 }
                 .frame(width: sidebarWidth, alignment: .leading)
                 
-                // Barre Inférieure (.sb-bottom)
+                // 4. Barre Inférieure (.sb-bottom) avec VAI Coding & Réglages
                 VStack(spacing: 0) {
                     Spacer()
                     
-                    HStack(spacing: isCompact ? 5 : 8) {
-                        // Bouton Pill Bleu "Nouveau"
+                    HStack(spacing: isCompact ? 6 : 8) {
+                        // Bouton Nouveau Chat
                         Button(action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
@@ -201,60 +183,58 @@ public struct SidebarView: View {
                         }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "square.and.pencil")
-                                    .font(.system(size: isCompact ? 13 : 15, weight: .semibold))
-                                
                                 Text("Nouveau")
                                     .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 9 : 12)
-                            .padding(.vertical, isCompact ? 7 : 9)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
                             .background(Color(red: 0.04, green: 0.52, blue: 1.0))
                             .clipShape(Capsule())
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        Spacer(minLength: 2)
+                        Spacer()
                         
                         let btnSize: CGFloat = isCompact ? 32 : 36
                         
-                        // Bouton Circulaire Vidéos YouTube 📺
+                        // Bouton VAI Coding 💻
                         Button(action: {
                             HapticService.shared.buttonTap()
-                            NotificationCenter.default.post(name: NSNotification.Name("SarahLaunchYouTubePlayer"), object: "musique")
+                            viewModel.closeDrawer()
+                            viewModel.isShowingVAICodingStudio = true
                         }) {
                             ZStack {
                                 Circle()
                                     .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
                                     .frame(width: btnSize, height: btnSize)
                                 
-                                Image(systemName: "play.tv.fill")
-                                    .font(.system(size: isCompact ? 12 : 14))
-                                    .foregroundColor(.red)
+                                Image(systemName: "curlybraces")
+                                    .font(.system(size: isCompact ? 12 : 14, weight: .bold))
+                                    .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        // Bouton Circulaire Synchronisation QR 📱
+                        // Bouton Voice Orb 🔮
                         Button(action: {
                             HapticService.shared.buttonTap()
-                            isShowingSyncQR = true
+                            viewModel.closeDrawer()
+                            viewModel.isShowingVoiceOrbModal = true
                         }) {
                             ZStack {
                                 Circle()
                                     .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
                                     .frame(width: btnSize, height: btnSize)
                                 
-                                Image(systemName: "qrcode")
-                                    .font(.system(size: isCompact ? 12 : 14))
-                                    .foregroundColor(Color(red: 0.20, green: 0.85, blue: 1.0))
+                                Image(systemName: "waveform.circle.fill")
+                                    .font(.system(size: isCompact ? 14 : 16))
+                                    .foregroundColor(viewModel.activeAgent.themeColor)
                             }
                         }
                         .buttonStyle(ScaleBounceButtonStyle())
                         
-                        // Bouton Circulaire Paramètres ⚙️
+                        // Bouton Paramètres ⚙️
                         Button(action: {
                             HapticService.shared.buttonTap()
                             isShowingSettings = true
@@ -273,17 +253,7 @@ public struct SidebarView: View {
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.vertical, isCompact ? 8 : 12)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.black.opacity(0.0),
-                                Color.black.opacity(0.92),
-                                Color.black
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .background(Color.black.opacity(0.95))
                 }
                 .frame(width: sidebarWidth)
             }
@@ -292,22 +262,17 @@ public struct SidebarView: View {
         .alert(isPresented: $isShowingClearAllAlert) {
             Alert(
                 title: Text("Supprimer toutes les discussions ?"),
-                message: Text("Cette action est irréversible et réinitialisera l'historique à 0 discussion."),
+                message: Text("Cette action réinitialisera l'historique à 0 discussion."),
                 primaryButton: .destructive(Text("Tout supprimer")) {
                     viewModel.deleteAllConversations()
                 },
                 secondaryButton: .cancel(Text("Annuler"))
             )
         }
-        .sheet(isPresented: $isShowingSyncQR) {
-            LocalSyncQRView(viewModel: viewModel)
-        }
     }
     
-    // MARK: - Ligne de Discussion (.conv)
-    
     @ViewBuilder
-    private func conversationRow(_ conv: Conversation, isPinned: Bool, isCompact: Bool, padding: CGFloat) -> some View {
+    private func conversationRow(_ conv: Conversation, isCompact: Bool, padding: CGFloat) -> some View {
         let isSelected = (viewModel.currentConversationId == conv.id)
         
         Button(action: {
@@ -316,67 +281,17 @@ public struct SidebarView: View {
             viewModel.closeDrawer()
         }) {
             HStack(spacing: isCompact ? 10 : 14) {
-                if isPinned {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: isCompact ? 14 : 16))
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                
                 Text(conv.title)
-                    .font(.system(size: isCompact ? 15 : 17, weight: .regular))
+                    .font(.system(size: isCompact ? 14 : 15, weight: .regular))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    .minimumScaleFactor(0.85)
                 
                 Spacer()
             }
             .padding(.horizontal, padding)
-            .padding(.vertical, isCompact ? 10 : 12)
+            .padding(.vertical, isCompact ? 9 : 11)
             .background(isSelected ? Color.white.opacity(0.09) : Color.clear)
-            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
-        .contextMenu {
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.togglePinConversation(conv)
-            } label: {
-                Label(conv.isPinned ? "Détacher" : "Épingler", systemImage: conv.isPinned ? "pin.slash" : "pin")
-            }
-            
-            Button {
-                HapticService.shared.buttonTap()
-                conversationToRename = conv
-                newTitleText = conv.title
-                isShowingRenameAlert = true
-            } label: {
-                Label("Renommer", systemImage: "square.and.pencil")
-            }
-            
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.archiveConversation(conv)
-            } label: {
-                Label("Archiver", systemImage: "archivebox")
-            }
-            
-            Button(role: .destructive) {
-                HapticService.shared.bargeIn()
-                viewModel.deleteConversation(conv)
-            } label: {
-                Label("Supprimer", systemImage: "trash")
-            }
-        }
-    }
-}
-
-/// Style de bouton interactif avec micro-animation d'échelle au toucher
-@available(iOS 13.0, *)
-public struct ScaleBounceButtonStyle: ButtonStyle {
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }

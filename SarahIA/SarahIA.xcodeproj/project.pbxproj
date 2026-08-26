@@ -36,11 +36,9 @@
 		A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000027 /* ClipboardCompanion.swift */; };
 		A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000028 /* WakeWordDetector.swift */; };
 		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
-		A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
 		A1B2C3D40001000100000030 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000030 /* SidebarView.swift */; };
 		A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000031 /* ChatScreenView.swift */; };
 		A1B2C3D40001000100000032 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000032 /* Conversation.swift */; };
-		A1B2C3D40001000100000033 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */; };
 		A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000035 /* AudioSessionManager.swift */; };
 		A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000036 /* SpeechManager.swift */; };
@@ -48,38 +46,30 @@
 		A1B2C3D40001000100000038 /* MessageBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000038 /* MessageBar.swift */; };
 		A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000039 /* KeyboardObserver.swift */; };
 		A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000040 /* LegacyChatViewController.swift */; };
-		A1B2C3D40001000100000041 /* LiveCameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000041 /* LiveCameraManager.swift */; };
-		A1B2C3D40001000100000042 /* ScreenShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000042 /* ScreenShareService.swift */; };
-		A1B2C3D40001000100000043 /* LiveCameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000043 /* LiveCameraViewController.swift */; };
 		A1B2C3D40001000100000044 /* WebSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000044 /* WebSearchService.swift */; };
 		A1B2C3D40001000100000045 /* MediaStreamingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000045 /* MediaStreamingService.swift */; };
 		A1B2C3D40001000100000046 /* SarahBrainEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000046 /* SarahBrainEngine.swift */; };
-		A1B2C3D40001000100000047 /* WidgetsGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */; };
-		A1B2C3D40001000100000048 /* LegacyWidgetsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */; };
-		A1B2C3D40001000100000049 /* LocalSyncServerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000049 /* LocalSyncServerService.swift */; };
-		A1B2C3D4000100010000004A /* LocalSyncQRView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004A /* LocalSyncQRView.swift */; };
-		A1B2C3D4000100010000004B /* LegacyLocalSyncViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */; };
 		A1B2C3D4000100010000004C /* WeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004C /* WeatherService.swift */; };
 		A1B2C3D4000100010000004D /* RedAlertService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004D /* RedAlertService.swift */; };
 		A1B2C3D4000100010000004E /* NewsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004E /* NewsService.swift */; };
 		A1B2C3D4000100010000004F /* YouTubeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000004F /* YouTubeService.swift */; };
 		A1B2C3D40001000100000060 /* YouTubePlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */; };
-		A1B2C3D40001000100000061 /* ScreenShareModalViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */; };
 		A1B2C3D40001000100000062 /* TTSManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000062 /* TTSManager.swift */; };
-		A1B2C3D40001000100000063 /* VisionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000063 /* VisionManager.swift */; };
-		A1B2C3D40001000100000064 /* ScreenSharePiPManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000064 /* ScreenSharePiPManager.swift */; };
 		A1B2C3D40001000100000065 /* FlashlightManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000065 /* FlashlightManager.swift */; };
 		A1B2C3D40001000100000066 /* BatteryMonitorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */; };
-		A1B2C3D40001000100000067 /* SampleHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000067 /* SampleHandler.swift */; };
 		A1B2C3D40001000100000068 /* SarahVoiceWaveSquareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */; };
 		A1B2C3D40001000100000069 /* IsraelCityDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */; };
 		A1B2C3D4000100010000006A /* IsraelAlertService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000006A /* IsraelAlertService.swift */; };
 		A1B2C3D4000100010000006B /* AlertCardRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000006B /* AlertCardRenderer.swift */; };
-		W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */; };
-		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
-		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
-		W1B2C3D40001000100000053 /* TodayViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = W1B2C3D40002000100000053 /* TodayViewController.swift */; };
-		W1B2C3D4000100010000005A /* SarahIAWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = W1B2C3D4000200010000005A /* SarahIAWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D40001000100000070 /* AgentType.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000070 /* AgentType.swift */; };
+		A1B2C3D40001000100000071 /* TomKnowledgeBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */; };
+		A1B2C3D40001000100000072 /* YohanLexiconEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */; };
+		A1B2C3D40001000100000073 /* VAICodeEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000073 /* VAICodeEngine.swift */; };
+		A1B2C3D40001000100000074 /* MultiAgentCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000074 /* MultiAgentCoordinator.swift */; };
+		A1B2C3D40001000100000075 /* MultiAgentVoiceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */; };
+		A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */; };
+		A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */; };
+		A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000078 /* VAICodingStudioView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -114,11 +104,9 @@
 		A1B2C3D40002000100000027 /* ClipboardCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCompanion.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000028 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWidgetBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000031 /* ChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreenView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000032 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000033 /* SarahWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWidgets.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechRecognizer.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000035 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000036 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
@@ -126,48 +114,34 @@
 		A1B2C3D40002000100000038 /* MessageBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBar.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000039 /* KeyboardObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardObserver.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000040 /* LegacyChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyChatViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000041 /* LiveCameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCameraManager.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000042 /* ScreenShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareService.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000043 /* LiveCameraViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCameraViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000044 /* WebSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSearchService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000045 /* MediaStreamingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStreamingService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000046 /* SarahBrainEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahBrainEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetsGalleryView.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyWidgetsViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000049 /* LocalSyncServerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncServerService.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000004A /* LocalSyncQRView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncQRView.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyLocalSyncViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004C /* WeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004D /* RedAlertService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedAlertService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004E /* NewsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000004F /* YouTubeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePlayerViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenShareModalViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000062 /* TTSManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSManager.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000063 /* VisionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionManager.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000064 /* ScreenSharePiPManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenSharePiPManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000065 /* FlashlightManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashlightManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryMonitorManager.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000067 /* SampleHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleHandler.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahVoiceWaveSquareView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IsraelCityDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000006A /* IsraelAlertService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IsraelAlertService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000006B /* AlertCardRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardRenderer.swift; sourceTree = "<group>"; };
-		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
-		W1B2C3D40002000100000053 /* TodayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewController.swift; sourceTree = "<group>"; };
-		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		W1B2C3D4000200010000005B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D40002000100000070 /* AgentType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentType.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomKnowledgeBase.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YohanLexiconEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000073 /* VAICodeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAICodeEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000074 /* MultiAgentCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiAgentCoordinator.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiAgentVoiceManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiAgentOrbView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbModalView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000078 /* VAICodingStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAICodingStudioView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D40003000100000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		W1B2C3D40003000100000010 /* Frameworks (Widget) */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -181,7 +155,6 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40004000100000002 /* SarahIA */,
-				W1B2C3D40004000100000060 /* SarahIAWidgets */,
 				A1B2C3D40004000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -205,6 +178,7 @@
 		A1B2C3D40004000100000003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D40002000100000070 /* AgentType.swift */,
 				A1B2C3D40002000100000003 /* Message.swift */,
 				A1B2C3D40002000100000032 /* Conversation.swift */,
 				A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */,
@@ -215,6 +189,11 @@
 		A1B2C3D40004000100000004 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D40002000100000074 /* MultiAgentCoordinator.swift */,
+				A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */,
+				A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */,
+				A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */,
+				A1B2C3D40002000100000073 /* VAICodeEngine.swift */,
 				A1B2C3D40002000100000004 /* AIService.swift */,
 				A1B2C3D40002000100000005 /* NotificationService.swift */,
 				A1B2C3D40002000100000010 /* StorageService.swift */,
@@ -234,27 +213,20 @@
 				A1B2C3D40002000100000027 /* ClipboardCompanion.swift */,
 				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
 				A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */,
-				A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */,
 				A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */,
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
 				A1B2C3D40002000100000039 /* KeyboardObserver.swift */,
-				A1B2C3D40002000100000041 /* LiveCameraManager.swift */,
-				A1B2C3D40002000100000042 /* ScreenShareService.swift */,
 				A1B2C3D40002000100000044 /* WebSearchService.swift */,
 				A1B2C3D40002000100000045 /* MediaStreamingService.swift */,
 				A1B2C3D40002000100000046 /* SarahBrainEngine.swift */,
-				A1B2C3D40002000100000049 /* LocalSyncServerService.swift */,
 				A1B2C3D4000200010000004C /* WeatherService.swift */,
 				A1B2C3D4000200010000004D /* RedAlertService.swift */,
 				A1B2C3D4000200010000004E /* NewsService.swift */,
 				A1B2C3D4000200010000004F /* YouTubeService.swift */,
 				A1B2C3D40002000100000062 /* TTSManager.swift */,
-				A1B2C3D40002000100000063 /* VisionManager.swift */,
-				A1B2C3D40002000100000064 /* ScreenSharePiPManager.swift */,
 				A1B2C3D40002000100000065 /* FlashlightManager.swift */,
 				A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */,
-				A1B2C3D40002000100000067 /* SampleHandler.swift */,
 				A1B2C3D4000200010000006A /* IsraelAlertService.swift */,
 			);
 			path = Services;
@@ -263,23 +235,19 @@
 		A1B2C3D40004000100000005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */,
+				A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */,
+				A1B2C3D40002000100000078 /* VAICodingStudioView.swift */,
 				A1B2C3D40002000100000007 /* ChatBubbleView.swift */,
 				A1B2C3D40002000100000009 /* TypingIndicatorView.swift */,
 				A1B2C3D40002000100000018 /* MemoryVaultView.swift */,
 				A1B2C3D40002000100000019 /* SettingsView.swift */,
 				A1B2C3D40002000100000030 /* SidebarView.swift */,
 				A1B2C3D40002000100000031 /* ChatScreenView.swift */,
-				A1B2C3D40002000100000033 /* SarahWidgets.swift */,
 				A1B2C3D40002000100000037 /* MessageList.swift */,
 				A1B2C3D40002000100000038 /* MessageBar.swift */,
 				A1B2C3D40002000100000040 /* LegacyChatViewController.swift */,
-				A1B2C3D40002000100000043 /* LiveCameraViewController.swift */,
-				A1B2C3D40002000100000047 /* WidgetsGalleryView.swift */,
-				A1B2C3D40002000100000048 /* LegacyWidgetsViewController.swift */,
-				A1B2C3D4000200010000004A /* LocalSyncQRView.swift */,
-				A1B2C3D4000200010000004B /* LegacyLocalSyncViewController.swift */,
 				A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */,
-				A1B2C3D40002000100000061 /* ScreenShareModalViewController.swift */,
 				A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */,
 				A1B2C3D4000200010000006B /* AlertCardRenderer.swift */,
 			);
@@ -298,54 +266,11 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4000200010000000C /* SarahIA.app */,
-				W1B2C3D4000200010000005A /* SarahIAWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		W1B2C3D40004000100000060 /* SarahIAWidgets */ = {
-			isa = PBXGroup;
-			children = (
-				W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */,
-				W1B2C3D40002000100000053 /* TodayViewController.swift */,
-				W1B2C3D4000200010000005B /* Info.plist */,
-			);
-			path = SarahIAWidgets;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		A1B2C3D40003000100000004 /* Embed App Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				W1B2C3D4000100010000005A /* SarahIAWidgets.appex in Embed App Extensions */,
-			);
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
-/* Begin PBXContainerItemProxy section */
-		W1B2C3D40004000100000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A1B2C3D40006000100000001 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = W1B2C3D40005000100000010;
-			remoteInfo = SarahIAWidgets;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		W1B2C3D40004000100000002 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = W1B2C3D40005000100000010 /* SarahIAWidgets */;
-			targetProxy = W1B2C3D40004000100000001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXNativeTarget section */
 		A1B2C3D40005000100000001 /* SarahIA */ = {
@@ -355,33 +280,15 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
-				A1B2C3D40003000100000004 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				W1B2C3D40004000100000002 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
 			productType = "com.apple.product-type.application";
-		};
-		W1B2C3D40005000100000010 /* SarahIAWidgets */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = W1B2C3D40007000100000010 /* Build configuration list for PBXNativeTarget "SarahIAWidgets" */;
-			buildPhases = (
-				W1B2C3D40003000100000020 /* Sources */,
-				W1B2C3D40003000100000010 /* Frameworks (Widget) */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = SarahIAWidgets;
-			productName = SarahIAWidgets;
-			productReference = W1B2C3D4000200010000005A /* SarahIAWidgets.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -394,9 +301,6 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					A1B2C3D40005000100000001 = {
-						CreatedOnToolsVersion = 15.0;
-					};
-					W1B2C3D40005000100000010 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -416,7 +320,6 @@
 			projectRoot = "";
 			targets = (
 				A1B2C3D40005000100000001 /* SarahIA */,
-				W1B2C3D40005000100000010 /* SarahIAWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -465,11 +368,9 @@
 				A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */,
 				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
 				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
-				A1B2C3D4000100010000002A /* SarahWidgetBridge.swift in Sources */,
 				A1B2C3D40001000100000030 /* SidebarView.swift in Sources */,
 				A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */,
 				A1B2C3D40001000100000032 /* Conversation.swift in Sources */,
-				A1B2C3D40001000100000033 /* SarahWidgets.swift in Sources */,
 				A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */,
 				A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */,
 				A1B2C3D40001000100000036 /* SpeechManager.swift in Sources */,
@@ -477,44 +378,30 @@
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
 				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 				A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */,
-				A1B2C3D40001000100000041 /* LiveCameraManager.swift in Sources */,
-				A1B2C3D40001000100000042 /* ScreenShareService.swift in Sources */,
-				A1B2C3D40001000100000043 /* LiveCameraViewController.swift in Sources */,
 				A1B2C3D40001000100000044 /* WebSearchService.swift in Sources */,
 				A1B2C3D40001000100000045 /* MediaStreamingService.swift in Sources */,
 				A1B2C3D40001000100000046 /* SarahBrainEngine.swift in Sources */,
-				A1B2C3D40001000100000047 /* WidgetsGalleryView.swift in Sources */,
-				A1B2C3D40001000100000048 /* LegacyWidgetsViewController.swift in Sources */,
-				A1B2C3D40001000100000049 /* LocalSyncServerService.swift in Sources */,
-				A1B2C3D4000100010000004A /* LocalSyncQRView.swift in Sources */,
-				A1B2C3D4000100010000004B /* LegacyLocalSyncViewController.swift in Sources */,
 				A1B2C3D4000100010000004C /* WeatherService.swift in Sources */,
 				A1B2C3D4000100010000004D /* RedAlertService.swift in Sources */,
 				A1B2C3D4000100010000004E /* NewsService.swift in Sources */,
 				A1B2C3D4000100010000004F /* YouTubeService.swift in Sources */,
 				A1B2C3D40001000100000060 /* YouTubePlayerViewController.swift in Sources */,
-				A1B2C3D40001000100000061 /* ScreenShareModalViewController.swift in Sources */,
 				A1B2C3D40001000100000062 /* TTSManager.swift in Sources */,
-				A1B2C3D40001000100000063 /* VisionManager.swift in Sources */,
-				A1B2C3D40001000100000064 /* ScreenSharePiPManager.swift in Sources */,
 				A1B2C3D40001000100000065 /* FlashlightManager.swift in Sources */,
 				A1B2C3D40001000100000066 /* BatteryMonitorManager.swift in Sources */,
-				A1B2C3D40001000100000067 /* SampleHandler.swift in Sources */,
 				A1B2C3D40001000100000068 /* SarahVoiceWaveSquareView.swift in Sources */,
 				A1B2C3D40001000100000069 /* IsraelCityDatabase.swift in Sources */,
 				A1B2C3D4000100010000006A /* IsraelAlertService.swift in Sources */,
 				A1B2C3D4000100010000006B /* AlertCardRenderer.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		W1B2C3D40003000100000020 /* Sources (Widget) */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				W1B2C3D40001000100000050 /* SarahIAWidgetsEntryPoint.swift in Sources */,
-				W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */,
-				W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */,
-				W1B2C3D40001000100000053 /* TodayViewController.swift in Sources */,
+				A1B2C3D40001000100000070 /* AgentType.swift in Sources */,
+				A1B2C3D40001000100000071 /* TomKnowledgeBase.swift in Sources */,
+				A1B2C3D40001000100000072 /* YohanLexiconEngine.swift in Sources */,
+				A1B2C3D40001000100000073 /* VAICodeEngine.swift in Sources */,
+				A1B2C3D40001000100000074 /* MultiAgentCoordinator.swift in Sources */,
+				A1B2C3D40001000100000075 /* MultiAgentVoiceManager.swift in Sources */,
+				A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */,
+				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
+				A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,7 +421,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -545,15 +432,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
 					SwiftUI,
 					"-weak_framework",
 					Combine,
-					"-weak_framework",
-					WidgetKit,
 					"-framework",
 					WebKit,
 					"-framework",
@@ -580,7 +465,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -591,15 +476,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
 					SwiftUI,
 					"-weak_framework",
 					Combine,
-					"-weak_framework",
-					WidgetKit,
 					"-framework",
 					WebKit,
 					"-framework",
@@ -734,88 +617,6 @@
 			};
 			name = Release;
 		};
-		W1B2C3D40007000100000011 /* Debug (Widget) */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				AD_HOC_CODE_SIGNING_ALLOWED = YES;
-				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
-				CODE_SIGN_ENTITLEMENTS = SarahIAWidgets/SarahIAWidgets.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
-				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-weak_framework",
-					"WidgetKit",
-					"-weak_framework",
-					"SwiftUI",
-					"-weak_framework",
-					"Combine",
-					"-framework",
-					"NotificationCenter",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
-				PRODUCT_NAME = SarahIAWidgets;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
-			};
-			name = Debug;
-		};
-		W1B2C3D40007000100000012 /* Release (Widget) */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				AD_HOC_CODE_SIGNING_ALLOWED = YES;
-				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = NO;
-				CODE_SIGN_ENTITLEMENTS = SarahIAWidgets/SarahIAWidgets.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
-				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-weak_framework",
-					"WidgetKit",
-					"-weak_framework",
-					"SwiftUI",
-					"-weak_framework",
-					"Combine",
-					"-framework",
-					"NotificationCenter",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.sarahia.app.SarahIAWidgets";
-				PRODUCT_NAME = SarahIAWidgets;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -833,15 +634,6 @@
 			buildConfigurations = (
 				A1B2C3D40007000100000004 /* Debug */,
 				A1B2C3D40007000100000005 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		W1B2C3D40007000100000010 /* Build configuration list for PBXNativeTarget "SarahIAWidgets" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				W1B2C3D40007000100000011 /* Debug */,
-				W1B2C3D40007000100000012 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

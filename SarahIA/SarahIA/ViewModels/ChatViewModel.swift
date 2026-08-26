@@ -17,12 +17,14 @@ public enum VoiceInteractionStatus: Equatable {
     case error(String)
 }
 
-/// ViewModel principal orchestrant le mode Texte natif SwiftUI, le tiroir de discussions multiples, la reconnaissance vocale, le TTS et la persistance.
+/// ViewModel principal orchestrant l'écosystème à 4 agents (Sarah, Tom, Raphaël, Yohan),
+/// le Voice Orb, le studio VAI Coding, la reconnaissance vocale Apple Speech et la synthèse vocale multi-voix.
 @available(iOS 14.0, *)
 @MainActor
 public final class ChatViewModel: ObservableObject {
     
     // MARK: - Published UI State
+    @Published public var activeAgent: AgentType = .sarah
     @Published public var appMode: AppMode = .text
     @Published public var conversations: [Conversation] = []
     @Published public var currentConversationId: UUID? = nil
@@ -38,16 +40,15 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isMicRunning: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
     
-    // MARK: - Navigation Tiroir & Recherche
+    // MARK: - Navigation, Studio VAI Coding & Voice Orb
     @Published public var isDrawerOpen: Bool = false
-    @Published public var drawerProgress: CGFloat = 0.0 // 0.0 à 1.0 pour animation fluide au geste
+    @Published public var drawerProgress: CGFloat = 0.0
     @Published public var searchQuery: String = ""
     @Published public var isSearchActive: Bool = false
-    @Published public var isScreenSharingActive: Bool = false
-    @Published public var screenShareStatus: ScreenShareStatus = .disconnected
-    @Published public var lastScreenShareImage: UIImage? = nil
-    @Published public var lastScreenShareAnalysis: String = ""
-    @Published public var isCameraActive: Bool = false
+    @Published public var isShowingVoiceOrbModal: Bool = false
+    @Published public var isShowingVAICodingStudio: Bool = false
+    @Published public var vaiCurrentCode: String? = nil
+    
     public var isGeneratingResponse: Bool {
         get { isTyping }
         set { isTyping = newValue }
@@ -57,13 +58,11 @@ public final class ChatViewModel: ObservableObject {
     private let aiService = AIService.shared
     private let notificationService = NotificationService.shared
     private let storageService = StorageService.shared
-    private let audioEngine = AudioEngineManager.shared
-    private let whisperService = WhisperService.shared
-    private let ttsService = TTSService.shared
+    private let multiAgentCoordinator = MultiAgentCoordinator.shared
+    private let voiceManager = MultiAgentVoiceManager.shared
     private let haptics = HapticService.shared
     
     private var cancellables = Set<AnyCancellable>()
-    private var stateSaveDebounceTimer: Timer?
     
     public init() {
         restorePersistedState()
@@ -75,25 +74,6 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Liaison des Services
     
     private func bindServices() {
-        ObservableSpeechManager.shared.$isSpeaking
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] speaking in
-                self?.isSpeaking = speaking
-                if speaking {
-                    self?.voiceStatus = .speaking
-                } else if self?.voiceStatus == .speaking {
-                    self?.voiceStatus = .idle
-                }
-            }
-            .store(in: &cancellables)
-            
-        ObservableSpeechManager.shared.$currentSpokenText
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] text in
-                self?.currentSpeakingText = text
-            }
-            .store(in: &cancellables)
-            
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
@@ -104,38 +84,20 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
             
-        ScreenShareStateObserver.shared.$status
+        ObservableSpeechRecognizer.shared.$micEnergyLevel
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] st in
-                self?.screenShareStatus = st
-                self?.isScreenSharingActive = (st != .disconnected)
-            }
-            .store(in: &cancellables)
-            
-        ScreenShareStateObserver.shared.$latestImage
-            .compactMap { $0 }
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] image in
-                guard let self = self, self.isScreenSharingActive else { return }
-                self.lastScreenShareImage = image
+            .sink { [weak self] level in
+                self?.micInputLevel = level
             }
             .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
     
-    /// Restaure l'ensemble des discussions et l'état depuis le stockage local
     public func restorePersistedState() {
         let savedState = storageService.loadState()
-        
         self.learnedMemories = savedState.learnedMemories
         self.conversations = savedState.conversations
-        
-        if let mode = AppMode(rawValue: savedState.activeMode) {
-            self.appMode = mode
-        } else {
-            self.appMode = .text
-        }
         
         if let currentId = savedState.currentConversationId,
            let existing = self.conversations.first(where: { $0.id == currentId }) {
@@ -144,13 +106,7 @@ public final class ChatViewModel: ObservableObject {
         } else if let first = self.conversations.first {
             self.currentConversationId = first.id
             self.messages = first.messages
-        } else if !savedState.messages.isEmpty {
-            let initialConv = Conversation(title: "Nouvelle discussion", messages: savedState.messages)
-            self.conversations = [initialConv]
-            self.currentConversationId = initialConv.id
-            self.messages = initialConv.messages
         } else {
-            // Aucun message -> Liste vierge prête
             self.conversations = []
             self.currentConversationId = nil
             self.messages = []
@@ -158,9 +114,7 @@ public final class ChatViewModel: ObservableObject {
         aiService.syncHistoryFromMessages(self.messages)
     }
     
-    /// Sauvegarde l'état courant de l'application
     public func persistCurrentState() {
-        // Mettre à jour la conversation active si existante
         if let currentId = currentConversationId,
            let index = conversations.firstIndex(where: { $0.id == currentId }) {
             conversations[index].messages = messages
@@ -179,29 +133,9 @@ public final class ChatViewModel: ObservableObject {
             pendingLearningTrigger: existing.pendingLearningTrigger
         )
         storageService.saveState(state)
-        
-        // Synchronisation en temps réel des statistiques vers les Widgets iOS
-        let totalQuestions = max(self.conversations.reduce(0) { $0 + $1.messages.filter { $0.isFromUser }.count }, self.messages.filter { $0.isFromUser }.count)
-        let lastMemoryTuple: (trigger: String, response: String)? = self.learnedMemories.first.map { ($0.key, $0.value) }
-        let currentSarahStatus = isGeneratingResponse ? "En réflexion" : "Disponible"
-        let currentTomStatus = isScreenSharingActive ? "Écran partagé" : (isCameraActive ? "Caméra active" : "Vision inactive")
-        let totalKnowledge = (self.conversations.count * 4) + self.learnedMemories.count + 120
-        
-        SarahWidgetBridge.shared.syncStats(
-            conversationsCount: self.conversations.count,
-            messagesCount: totalQuestions,
-            memoriesCount: self.learnedMemories.count,
-            knowledgeCount: totalKnowledge,
-            sarahStatus: currentSarahStatus,
-            tomStatus: currentTomStatus,
-            screenSharingActive: isScreenSharingActive,
-            cameraActive: isCameraActive,
-            lastMemory: lastMemoryTuple,
-            lastMessage: self.messages.last?.content
-        )
     }
     
-    // MARK: - Gestion des Discussions (Sidebar)
+    // MARK: - Discussions & Tiroir Latéral
     
     public var filteredPinnedConversations: [Conversation] {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -217,19 +151,20 @@ public final class ChatViewModel: ObservableObject {
     
     public func startNewChat() {
         haptics.buttonTap()
-        ttsService.stopSpeaking()
+        voiceManager.stop()
         currentConversationId = nil
         messages = []
         inputText = ""
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
+        activeAgent = .sarah
         aiService.syncHistoryFromMessages([])
     }
     
     public func selectConversation(_ conv: Conversation) {
         haptics.buttonTap()
-        ttsService.stopSpeaking()
+        voiceManager.stop()
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -272,7 +207,7 @@ public final class ChatViewModel: ObservableObject {
     
     public func deleteAllConversations() {
         haptics.memoryDeleted()
-        ttsService.stopSpeaking()
+        voiceManager.stop()
         conversations.removeAll()
         messages.removeAll()
         currentConversationId = nil
@@ -292,16 +227,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Tiroir Latéral (Drawer)
-    
-    public func toggleDrawer() {
-        haptics.buttonTap()
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-            isDrawerOpen.toggle()
-            drawerProgress = isDrawerOpen ? 1.0 : 0.0
-        }
-    }
-    
     public func openDrawer() {
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             isDrawerOpen = true
@@ -316,18 +241,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Gestion des Modes d'Affichage
-    
-    private func setupModeObserver() {
-        $appMode
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                self.persistCurrentState()
-                self.haptics.modeToggled()
-            }
-            .store(in: &cancellables)
-    }
-    
     public func switchToChat() {
         haptics.buttonTap()
         withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
@@ -337,19 +250,22 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    public func toggleMode() {
-        switchToChat()
+    private func setupModeObserver() {
+        $appMode
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.persistCurrentState()
+            }
+            .store(in: &cancellables)
     }
     
-    // MARK: - Mode Conversationnel Continu (100% Gratuit & Local Apple Speech)
+    // MARK: - Pipeline Vocale Apple Speech & Multi-Agents
     
     private func setupVoicePipeline() {
-        // 1. Liaison de la transcription en direct
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
             self?.liveTranscriptionText = partial
         }
         
-        // 2. Validation automatique de la phrase par détection de silence
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -357,46 +273,25 @@ public final class ChatViewModel: ObservableObject {
                 self.voiceStatus = .idle
                 return
             }
-            
             self.liveTranscriptionText = ""
-            self.handleUserSpeechInput(cleaned)
+            self.sendMessage(cleaned)
         }
         
-        // 3. Liaison de l'énergie micro pour ondelettes audio
-        ObservableSpeechRecognizer.shared.$micEnergyLevel
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] level in
-                self?.micInputLevel = level
-            }
-            .store(in: &cancellables)
-            
-        ObservableSpeechRecognizer.shared.$isListening
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] listening in
-                self?.isMicRunning = listening
-                if listening {
-                    self?.voiceStatus = .listening(level: 0.5)
-                } else if self?.voiceStatus != .speaking && self?.voiceStatus != .processing {
-                    self?.voiceStatus = .idle
-                }
-            }
-            .store(in: &cancellables)
-        
-        // 4. Événements SpeechManager (Synthèse Vocale Sarah)
-        SpeechManager.shared.onSpeechStarted = { [weak self] in
+        voiceManager.onSpeechStarted = { [weak self] in
+            self?.isSpeaking = true
             self?.voiceStatus = .speaking
             self?.haptics.speechStarted()
         }
         
-        SpeechManager.shared.onSpeechFinished = { [weak self] in
+        voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
+            self.isSpeaking = false
             self.voiceStatus = .idle
             self.haptics.speechFinished()
             
-            // 🔄 BOUCLE CONVERSATIONNELLE CONTINUE : Réactivation automatique du micro
             if self.isContinuousConversationActive {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    if !SpeechManager.shared.isSpeaking {
+                    if !self.voiceManager.isSpeaking {
                         AppleSpeechRecognizer.shared.startListening()
                         self.isMicRunning = true
                         self.voiceStatus = .listening(level: 0.0)
@@ -404,19 +299,8 @@ public final class ChatViewModel: ObservableObject {
                 }
             }
         }
-        
-        SpeechManager.shared.onSpeechInterrupted = { [weak self] in
-            self?.voiceStatus = .idle
-        }
-        
-        // 5. Coupure automatique du micro et de la voix si Siri ou un appel se déclenche
-        AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
-            print("🔇 [ChatViewModel] Siri ou appel détecté : Coupure immédiate du micro et de la parole de Sarah.")
-            self?.stopVoiceMode()
-        }
     }
     
-    /// Bascule le microphone / mode conversationnel continu (1 seul appui pour converser librement)
     public func toggleMicrophone() {
         haptics.buttonTap()
         if isMicRunning || AppleSpeechRecognizer.shared.isListening {
@@ -425,7 +309,7 @@ public final class ChatViewModel: ObservableObject {
             isMicRunning = false
             voiceStatus = .idle
         } else {
-            SpeechManager.shared.stopSpeaking()
+            voiceManager.stop()
             isContinuousConversationActive = true
             AppleSpeechRecognizer.shared.startListening()
             self.isMicRunning = true
@@ -434,124 +318,21 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    public func startFullDuplexVoiceMode() {
-        isContinuousConversationActive = true
-        AppleSpeechRecognizer.shared.startListening()
-        isMicRunning = true
-        voiceStatus = .listening(level: 0.5)
-    }
-    
-    public func stopVoiceMode() {
-        isContinuousConversationActive = false
-        AppleSpeechRecognizer.shared.stopListening()
-        SpeechManager.shared.stopSpeaking()
-        isMicRunning = false
-        voiceStatus = .idle
-    }
-    
-    // MARK: - Écoute et Lecture Vocale des Messages (TTS)
-    
     public func speakMessage(_ text: String) {
         haptics.buttonTap()
-        SpeechManager.shared.speak(text: text)
+        voiceManager.speak(text: text, for: activeAgent)
     }
     
     public func toggleSpeechForMessage(_ text: String) {
         haptics.buttonTap()
-        let cleaned = text
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "#", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            
-        if SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == cleaned {
-            SpeechManager.shared.stopSpeaking()
+        if voiceManager.isSpeaking {
+            voiceManager.stop()
         } else {
-            SpeechManager.shared.speak(text: text)
+            voiceManager.speak(text: text, for: activeAgent)
         }
     }
     
-    public func introduceSarah() {
-        haptics.buttonTap()
-        let introText = "Bonjour ! 👋 Je m'appelle Sarah, votre assistante IA 3D en temps réel. Je suis conçue pour converser avec vous par la voix ou par écrit, répondre à vos questions, et mémoriser nos échanges. N'hésitez pas à me parler librement !"
-        let aiMessage = Message(content: introText, isFromUser: false)
-        appendMessage(aiMessage)
-        SpeechManager.shared.speak(text: introText)
-    }
-    
-    // MARK: - Traitement des Messages
-    
-    private func generateTitle(from text: String) -> String {
-        return aiService.generateSmartTitle(from: text)
-    }
-    
-    private func ensureConversation(withFirstMessage text: String) {
-        if currentConversationId == nil || !conversations.contains(where: { $0.id == currentConversationId }) {
-            let title = generateTitle(from: text)
-            let newConv = Conversation(title: title)
-            conversations.insert(newConv, at: 0)
-            currentConversationId = newConv.id
-        } else if let id = currentConversationId, let index = conversations.firstIndex(where: { $0.id == id }) {
-            if conversations[index].title == "Nouvelle discussion" || conversations[index].messages.isEmpty {
-                conversations[index].title = generateTitle(from: text)
-            }
-        }
-    }
-    
-    private func appendMessage(_ msg: Message) {
-        ensureConversation(withFirstMessage: msg.content)
-        messages.append(msg)
-        persistCurrentState()
-    }
-    
-    private var aiProcessingBgTask: UIBackgroundTaskIdentifier = .invalid
-    
-    private func beginAIBgTask() {
-        if aiProcessingBgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(aiProcessingBgTask)
-        }
-        aiProcessingBgTask = UIApplication.shared.beginBackgroundTask(withName: "SarahAI_Processing") { [weak self] in
-            if let task = self?.aiProcessingBgTask, task != .invalid {
-                UIApplication.shared.endBackgroundTask(task)
-                self?.aiProcessingBgTask = .invalid
-            }
-        }
-    }
-    
-    private func endAIBgTask() {
-        if aiProcessingBgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(aiProcessingBgTask)
-            aiProcessingBgTask = .invalid
-        }
-    }
-    
-    private func handleUserSpeechInput(_ transcription: String) {
-        let userMessage = Message(content: transcription, isFromUser: true)
-        appendMessage(userMessage)
-        
-        voiceStatus = .processing
-        isTyping = true
-        beginAIBgTask()
-        
-        SarahBrainEngine.shared.processQuery(transcription) { [weak self] report in
-            guard let self = self else { return }
-            self.refreshLearnedMemories()
-            
-            // Mise à jour intelligente du titre de la discussion
-            if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
-                if self.messages.filter({ $0.isFromUser }).count <= 1 {
-                    self.conversations[index].title = self.aiService.generateSmartTitle(from: transcription, responseText: report.finalNaturalResponse)
-                }
-            }
-            
-            let aiMessage = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
-            self.appendMessage(aiMessage)
-            self.isTyping = false
-            
-            self.sendNotificationIfNeeded(message: report.finalNaturalResponse)
-            SpeechManager.shared.speak(text: report.finalNaturalResponse)
-            self.endAIBgTask()
-        }
-    }
+    // MARK: - Envoi de Message & Orchestration Multi-Agents
     
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -562,198 +343,57 @@ public final class ChatViewModel: ObservableObject {
         inputText = ""
         
         isTyping = true
-        beginAIBgTask()
+        voiceStatus = .processing
         
-        SarahBrainEngine.shared.processQuery(text) { [weak self] report in
+        // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan)
+        multiAgentCoordinator.routeAndProcess(query: text) { [weak self] response in
             guard let self = self else { return }
-            self.refreshLearnedMemories()
             
-            // Mise à jour intelligente du titre de la discussion
-            if let id = self.currentConversationId, let index = self.conversations.firstIndex(where: { $0.id == id }) {
-                if self.messages.filter({ $0.isFromUser }).count <= 1 {
-                    self.conversations[index].title = self.aiService.generateSmartTitle(from: text, responseText: report.finalNaturalResponse)
-                }
+            // Basculer l'agent actif selon la décision de routage
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                self.activeAgent = response.agent
             }
             
-            let aiMessage = Message(content: report.finalNaturalResponse, isFromUser: false, alertEvent: report.alertEvent)
+            let aiMessage = Message(content: response.text, isFromUser: false)
             self.appendMessage(aiMessage)
             self.isTyping = false
             
-            self.sendNotificationIfNeeded(message: report.finalNaturalResponse)
-            SpeechManager.shared.speak(text: report.finalNaturalResponse)
-            self.endAIBgTask()
-        }
-    }
-    
-    // MARK: - Actions Rapides Directes (Pikoud HaOref & i24NEWS)
-    
-    public func fetchPikudHaOrefAlerts() {
-        haptics.buttonTap()
-        let userMsg = Message(content: "🚨 [Vérification des alertes Pikoud HaOref]", isFromUser: true, timestamp: Date())
-        appendMessage(userMsg)
-        isTyping = true
-        beginAIBgTask()
-        
-        RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
-            guard let self = self else { return }
-            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
-            self.appendMessage(aiMsg)
-            self.isTyping = false
-            SpeechManager.shared.speak(text: summary)
-            self.endAIBgTask()
-        }
-    }
-    
-    public func fetchI24NewsHeadlines() {
-        haptics.buttonTap()
-        let userMsg = Message(content: "📰 [Dernières actualités i24NEWS]", isFromUser: true, timestamp: Date())
-        appendMessage(userMsg)
-        isTyping = true
-        beginAIBgTask()
-        
-        NewsService.shared.getSpokenNewsSummary(preferredSource: .i24news) { [weak self] summary in
-            guard let self = self else { return }
-            let aiMsg = Message(content: summary, isFromUser: false, timestamp: Date())
-            self.appendMessage(aiMsg)
-            self.isTyping = false
-            SpeechManager.shared.speak(text: summary)
-            self.endAIBgTask()
-        }
-    }
-    
-    // MARK: - Partage d'Écran Universel & Analyse Visuelle en Temps Réel
-    
-    public func readScreenTextOCR() {
-        haptics.buttonTap()
-        let screenImage = ScreenShareService.shared.latestCapturedImage
-        guard let image = screenImage else {
-            let errorMsg = "Je n'ai pas pu capturer l'écran pour lire le texte. Affichez la page et réessayez !"
-            SpeechManager.shared.speak(text: errorMsg)
-            return
-        }
-        
-        LocalVisionEngine.shared.extractText(from: image) { [weak self] text in
-            guard let self = self else { return }
-            let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Si Raphaël a généré du code -> préparer pour le studio
+            if let code = response.generatedCode {
+                self.vaiCurrentCode = code
+                if response.openStudio {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.isShowingVAICodingStudio = true
+                    }
+                }
+            }
             
-            if !clean.isEmpty {
-                let spokenResponse = "Sur votre écran, il est écrit : « \(clean) »"
-                let aiMsg = Message(
-                    content: "📄 **Texte lu sur l'écran (OCR)** :\n\n« \(clean) »",
-                    isFromUser: false,
-                    timestamp: Date()
-                )
-                self.appendMessage(aiMsg)
-                SpeechManager.shared.speak(text: spokenResponse)
-            } else {
-                let noTextResponse = "Je ne détecte aucun texte lisible sur votre écran pour le moment."
-                let aiMsg = Message(content: "📄 \(noTextResponse)", isFromUser: false)
-                self.appendMessage(aiMsg)
-                SpeechManager.shared.speak(text: noTextResponse)
-            }
+            self.voiceManager.speak(text: response.spokenText, for: response.agent)
         }
     }
     
-    public func startScreenShareAnalysis() {
-        startLiveScreenSharing()
+    private func appendMessage(_ msg: Message) {
+        ensureConversation(withFirstMessage: msg.content)
+        messages.append(msg)
+        persistCurrentState()
     }
     
-    public func startLiveScreenSharing() {
+    private func ensureConversation(withFirstMessage text: String) {
+        if currentConversationId == nil || !conversations.contains(where: { $0.id == currentConversationId }) {
+            let title = aiService.generateSmartTitle(from: text)
+            let newConv = Conversation(title: title)
+            conversations.insert(newConv, at: 0)
+            currentConversationId = newConv.id
+        }
+    }
+    
+    public func introduceSarah() {
         haptics.buttonTap()
-        guard let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) ?? UIApplication.shared.windows.first,
-              let rootVC = window.rootViewController else { return }
-        
-        isScreenSharingActive = true
-        isTyping = true
-        
-        // 1. Message immédiat dans le chat
-        let initialMsg = Message(
-            content: "🖥️ [Lancement du partage d'écran]",
-            isFromUser: true,
-            timestamp: Date()
-        )
-        self.appendMessage(initialMsg)
-        
-        let introText = "🔴 **Partage d'écran en direct activé !**\n\n👁️ **Tom et Sarah observent votre écran en temps réel.**\nVous pouvez naviguer librement dans vos applications (Réglages, Safari, Messages...), la fenêtre flottante affiche votre écran en direct."
-        let aiMsg = Message(content: introText, isFromUser: false)
-        self.appendMessage(aiMsg)
-        self.isTyping = false
-        SpeechManager.shared.speak(text: "Partage d'écran activé. Je regarde ce qui s'affiche à l'écran.")
-        
-        // 2. Démarrage de la capture ReplayKit
-        ScreenShareService.shared.startLiveScreenSharing(from: rootVC, onFrameAnalyzed: { [weak self] result, image in
-            guard let self = self, self.isScreenSharingActive else { return }
-            
-            DispatchQueue.main.async {
-                self.lastScreenShareImage = image
-                self.lastScreenShareAnalysis = result.objectLabel.isEmpty ? "Écran en direct" : result.objectLabel
-            }
-        }) { [weak self] success, message in
-            guard let self = self else { return }
-            if !success {
-                self.isScreenSharingActive = false
-                let err = Message(content: "⚠️ \(message)", isFromUser: false)
-                self.appendMessage(err)
-            }
-        }
+        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Raccourcis) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
+        let aiMessage = Message(content: introText, isFromUser: false)
+        appendMessage(aiMessage)
+        voiceManager.speak(text: introText, for: .sarah)
     }
-    
-    public func stopLiveScreenSharing() {
-        haptics.buttonTap()
-        ScreenShareService.shared.stopLiveScreenSharing { [weak self] _ in
-            guard let self = self else { return }
-            self.isScreenSharingActive = false
-            self.lastScreenShareImage = nil
-            self.lastScreenShareAnalysis = ""
-            let stopMsg = Message(content: "⏹️ Le partage d'écran a été arrêté.", isFromUser: false)
-            self.appendMessage(stopMsg)
-            SpeechManager.shared.speak(text: "Partage d'écran terminé.")
-        }
-    }
-    
-    public func sendQuickSuggestion(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed == "Présente-toi" || trimmed == "Qui es-tu ?" || trimmed.contains("présentation") {
-            introduceSarah()
-        } else if trimmed.contains("écran") || trimmed.contains("partage") {
-            startLiveScreenSharing()
-        } else {
-            inputText = text
-        }
-    }
-    
-    // MARK: - Mémoire Apprise
-    
-    public func refreshLearnedMemories() {
-        self.learnedMemories = storageService.loadState().learnedMemories
-    }
-    
-    public func addLearnedMemory(trigger: String, response: String) {
-        var state = storageService.loadState()
-        state.learnedMemories[trigger.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)] = response
-        storageService.saveState(state)
-        self.learnedMemories = state.learnedMemories
-    }
-    
-    public func deleteLearnedMemory(trigger: String) {
-        var state = storageService.loadState()
-        state.learnedMemories.removeValue(forKey: trigger.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))
-        storageService.saveState(state)
-        self.learnedMemories = state.learnedMemories
-    }
-    
-    public func clearAllLearnedMemories() {
-        var state = storageService.loadState()
-        state.learnedMemories.removeAll()
-        storageService.saveState(state)
-        self.learnedMemories = [:]
-    }
-    
-    public func speakLearnedResponse(text: String) {
-        ttsService.speak(text: text)
-    }
-    
-    // MARK: - Réglages Vocaux
     
     public func saveVoiceSettings(rate: Float, pitch: Float, vadSensitivity: Float) {
         var state = storageService.loadState()
@@ -761,41 +401,5 @@ public final class ChatViewModel: ObservableObject {
         state.voiceSettings.speechPitch = pitch
         state.voiceSettings.vadSensitivity = vadSensitivity
         storageService.saveState(state)
-    }
-    
-    public func testVoiceSettings(rate: Float, pitch: Float) {
-        ttsService.speak(
-            text: "Bonjour ! Ceci est un aperçu de mes réglages vocaux personnalisés.",
-            rate: rate,
-            pitch: pitch
-        )
-    }
-    
-    public func sendBackgroundTest() {
-        let testMessage = Message(
-            content: "🔔 Test en arrière-plan lancé ! Minimisez l'app maintenant pour tester la voix et les notifications.",
-            isFromUser: false
-        )
-        appendMessage(testMessage)
-        isTyping = true
-        
-        aiService.generateBackgroundTestResponse { [weak self] response in
-            guard let self = self else { return }
-            DispatchQueue.main.async {
-                let aiMessage = Message(content: response, isFromUser: false)
-                self.appendMessage(aiMessage)
-                self.isTyping = false
-                
-                self.notificationService.sendResponseNotification(message: response)
-                self.ttsService.speak(text: response)
-            }
-        }
-    }
-    
-    private func sendNotificationIfNeeded(message: String) {
-        let state = UIApplication.shared.applicationState
-        if state != .active {
-            notificationService.sendResponseNotification(message: message)
-        }
     }
 }

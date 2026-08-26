@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>2.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>MinimumOSVersion</key>
 	<string>12.0</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -47,13 +47,9 @@
 		<string>fetch</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales en temps réel.</string>
+	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales multi-agents en direct (100% hors-ligne).</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Sarah AI utilise la reconnaissance vocale pour transcrire votre voix en texte.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Sarah AI a besoin de la caméra pour analyser les objets, lire les documents et décrire ce qu'elle voit.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Sarah AI a besoin de l'accès à vos photos pour analyser et décrire les images que vous choisissez.</string>
+	<string>Sarah AI utilise la reconnaissance vocale Apple Speech native pour transcrire votre voix sans connexion réseau.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

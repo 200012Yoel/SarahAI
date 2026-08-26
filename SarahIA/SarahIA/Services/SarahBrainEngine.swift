@@ -1,7 +1,6 @@
 import Foundation
 import UIKit
 import AVFoundation
-import ReplayKit
 
 // MARK: - 1. Contexte Conversationnel & Résolution de Références
 
@@ -13,13 +12,13 @@ public final class ConversationContext {
     public var previousTopic: String?
     public var lastUserQuestion: String?
     public var lastSarahResponse: String?
-    public var activeTask: String? // "travel_search", "web_query", "alert_monitoring", etc.
+    public var activeTask: String?
     
     // Entités et paramètres mémorisés dans la discussion
     public var origin: String?
     public var destination: String?
     public var travelDate: String?
-    public var travelCriterion: String? // "moins cher", "plus rapide", "direct"
+    public var travelCriterion: String?
     public var detectedPerson: String?
     public var detectedPlace: String?
     public var pendingFollowUp: String?
@@ -57,12 +56,12 @@ public final class ReferenceResolver {
             return (query, "test_alert")
         }
         
-        // 2. Détection de demande d'alerte officielle ou "c'est chaud en israël"
+        // 2. Détection de demande d'alerte officielle
         if lower.contains("c'est chaud en israël") || lower.contains("c est chaud en israel") || lower.contains("alerte en direct") || lower.contains("alerte israel") || lower.contains("red alert") {
             return (query, "official_alert")
         }
         
-        // 3. Résolution des références temporelles simples (« samedi », « demain », « ce week-end »)
+        // 3. Résolution des références temporelles simples
         let days = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche", "demain", "ce soir", "ce week-end"]
         for day in days {
             if lower == day || lower == "pour \(day)" || lower == "le \(day)" {
@@ -74,7 +73,7 @@ public final class ReferenceResolver {
             }
         }
         
-        // 4. Résolution des superlatifs et critères (« le moins cher », « le plus rapide », « le deuxième »)
+        // 4. Résolution des superlatifs et critères
         if lower.contains("moins cher") || lower.contains("le moins cher") || lower.contains("prix") {
             context.travelCriterion = "le moins cher"
             if let dest = context.destination {
@@ -91,7 +90,7 @@ public final class ReferenceResolver {
             }
         }
         
-        // 5. Extraction de destination de voyage (« billet pour Londres », « vol pour Tokyo », « train vers Lyon »)
+        // 5. Extraction de destination de voyage
         if lower.contains("billet") || lower.contains("vol") || lower.contains("train") || lower.contains("voyage") || lower.contains("partir à") || lower.contains("aller à") {
             context.activeTask = "travel_search"
             context.currentTopic = "voyage"
@@ -147,9 +146,9 @@ public final class ResponsePlanner {
                     context.pendingFollowUp = "date"
                     return "J'ai bien noté votre recherche pour **\(dest)** ✈️🚆. Pour quelle date ou quel jour souhaitez-vous partir ?"
                 } else if context.travelCriterion == "le moins cher" {
-                    return "Pour votre voyage vers **\(dest)** prévu **\(context.travelDate!)**, l'option la plus économique identifiée est le trajet direct en seconde classe ou vol éco à tarif réduit 🎫. Voulez-vous que je réserve ou vérifie les horaires précis ?"
+                    return "Pour votre voyage vers **\(dest)** prévu **\(context.travelDate!)**, l'option la plus économique identifiée est le trajet direct en seconde classe ou vol éco à tarif réduit 🎫."
                 } else {
-                    return "Voici les meilleures options trouvées pour **\(dest)** le **\(context.travelDate!)** 🚆. Souhaitez-vous le billet le moins cher ou le trajet le plus rapide ?"
+                    return "Voici les meilleures options trouvées pour **\(dest)** le **\(context.travelDate!)** 🚆."
                 }
             }
             return webResult ?? "Je recherche les meilleurs billets et disponibilités pour votre voyage."
@@ -164,8 +163,9 @@ public final class ResponsePlanner {
 
 public enum AgentRole: String, Codable {
     case sarah = "Sarah (Patronne & Routeur Central)"
-    case tom = "Tom (Sous-Agent Web & Veille)"
-    case vision = "Vision (Moteur OCR & Screen Stream)"
+    case tom = "Tom (Histoire, Débats & Géopolitique)"
+    case raphael = "Raphaël (Développeur & Shortcuts)"
+    case yohan = "Yohan (Traducteur FR ⇄ HE)"
     case system = "Système / Autonomie"
 }
 
@@ -173,7 +173,6 @@ public struct BrainIntent: Codable {
     public let primaryTopic: String
     public let confidence: Double
     public let requiresWebAgent: Bool
-    public let requiresVisionAgent: Bool
     public let requiresMediaStream: Bool
     public let parameters: [String: String]
     
@@ -181,14 +180,12 @@ public struct BrainIntent: Codable {
         primaryTopic: String,
         confidence: Double = 1.0,
         requiresWebAgent: Bool = false,
-        requiresVisionAgent: Bool = false,
         requiresMediaStream: Bool = false,
         parameters: [String: String] = [:]
     ) {
         self.primaryTopic = primaryTopic
         self.confidence = confidence
         self.requiresWebAgent = requiresWebAgent
-        self.requiresVisionAgent = requiresVisionAgent
         self.requiresMediaStream = requiresMediaStream
         self.parameters = parameters
     }
@@ -229,8 +226,6 @@ public final class SarahBrainEngine {
     
     private let webSearch = WebSearchService.shared
     private let mediaService = MediaStreamingService.shared
-    private let visionEngine = LocalVisionEngine.shared
-    private let screenShare = ScreenShareService.shared
     private let storage = StorageService.shared
     private let alertService = IsraelAlertService.shared
     private let testAlertEngine = AlertTestEngine.shared
@@ -245,7 +240,6 @@ public final class SarahBrainEngine {
     
     public func processQuery(
         _ userQuery: String,
-        screenContext: UIImage? = nil,
         completion: @escaping (BrainExecutionReport) -> Void
     ) {
         let cleanText = userQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -298,38 +292,27 @@ public final class SarahBrainEngine {
             return
         }
         
-        // 4. Traitement Vision / OCR
-        if let image = screenContext {
-            processVisionPipeline(query: cleanText, image: image, completion: completion)
-            return
-        }
-        
-        // 5. Traitement Sémantique Général & Recherche
-        let intent = resolveIntent(from: resolvedText, hasVisualContext: screenContext != nil)
+        // 4. Traitement Multi-Agents (Yohan, Tom, Raphaël, Sarah)
+        let intent = resolveIntent(from: resolvedText)
         if intent.requiresWebAgent || intentCategory == "travel_search" {
             processWebAgentTomPipeline(query: resolvedText, intent: intent, completion: completion)
             return
         }
         
-        // 6. Module Média (Radio en direct, Apple Podcasts, Musique)
+        // 5. Module Média (Radio en direct, Apple Podcasts, Musique)
         if intent.requiresMediaStream {
             processMediaPipeline(query: cleanText, intent: intent, completion: completion)
             return
         }
         
-        // 7. Routeur Central Local & Cognition Sarah
+        // 6. Routeur Central Local & Cognition Sarah
         processLocalCognitionPipeline(query: cleanText, intent: intent, completion: completion)
     }
     
     // MARK: - 4. Résolution d'Intentions & NLP Local
     
-    private func resolveIntent(from query: String, hasVisualContext: Bool) -> BrainIntent {
+    private func resolveIntent(from query: String) -> BrainIntent {
         let norm = normalize(query)
-        
-        // Intent Vision / OCR / Partage d'écran / Lecture de texte
-        if hasVisualContext || norm.contains("partage mon ecran") || norm.contains("analyse mon ecran") || norm.contains("que vois tu") || norm.contains("lis le texte") || norm.contains("lis ce texte") || norm.contains("lis l ecran") || norm.contains("lis ce qui est ecrit") || norm.contains("qu est ce qui est ecrit") || norm.contains("tu peux lire") || norm.contains("peux tu lire") {
-            return BrainIntent(primaryTopic: "vision_ocr", requiresVisionAgent: true)
-        }
         
         // Intent Alertes de Sécurité Pikoud HaOref (Israël)
         if norm.contains("alerte") || norm.contains("pikoud") || norm.contains("sirene") || norm.contains("tzeva adom") || (norm.contains("israel") && (norm.contains("securite") || norm.contains("attaque") || norm.contains("roquette"))) {
@@ -366,7 +349,6 @@ public final class SarahBrainEngine {
     
     // MARK: - 5. Pipelines d'Exécution Spécialisés
     
-    // Pipeline A : Agent Tom (Recherche Web & Extraction Structurée)
     private func processWebAgentTomPipeline(query: String, intent: BrainIntent, completion: @escaping (BrainExecutionReport) -> Void) {
         webSearch.searchWeb(query: query) { [weak self] fullReport, results in
             let sourcesList = results.map { "\($0.sourceName) : \($0.url)" }
@@ -382,45 +364,6 @@ public final class SarahBrainEngine {
         }
     }
     
-    // Pipeline B : Agent Vision (OCR Haute Densité & Reconnaissance UI)
-    private func processVisionPipeline(query: String, image: UIImage, completion: @escaping (BrainExecutionReport) -> Void) {
-        let norm = normalize(query)
-        let isTextReading = norm.contains("lis") || norm.contains("lire") || norm.contains("texte") || norm.contains("ecrit")
-        
-        if isTextReading {
-            visionEngine.extractText(from: image) { [weak self] ocrText in
-                let cleanOcr = ocrText.trimmingCharacters(in: .whitespacesAndNewlines)
-                let reply = !cleanOcr.isEmpty
-                    ? "Sur votre écran, il est écrit : « \(cleanOcr) » 📄"
-                    : "Je regarde l'écran, mais je ne détecte aucun texte lisible pour le moment."
-                
-                let report = BrainExecutionReport(
-                    leadAgent: "Sarah (Moteur OCR)",
-                    finalNaturalResponse: reply,
-                    sources: ["Local Vision Engine (Apple Vision OCR)"]
-                )
-                self?.recordExchange(query: query, response: reply)
-                completion(report)
-            }
-            return
-        }
-        
-        visionEngine.recognizeObject(in: image) { [weak self] result in
-            var text = result.naturalSpokenResponse
-            if !result.detectedText.isEmpty {
-                text += "\n\n📄 **Texte extrait (OCR)** : « \(result.detectedText) »"
-            }
-            let report = BrainExecutionReport(
-                leadAgent: "Vision Engine",
-                finalNaturalResponse: text,
-                sources: ["Local Vision Engine (CoreML/OCR)"]
-            )
-            self?.recordExchange(query: query, response: text)
-            completion(report)
-        }
-    }
-    
-    // Pipeline C : Média & Flux Audio
     private func processMediaPipeline(query: String, intent: BrainIntent, completion: @escaping (BrainExecutionReport) -> Void) {
         let norm = normalize(query)
         let response: String
@@ -440,7 +383,6 @@ public final class SarahBrainEngine {
         completion(report)
     }
     
-    // Pipeline D : Cognition Locale & Nouveaux Services Connectés
     private func processLocalCognitionPipeline(query: String, intent: BrainIntent, completion: @escaping (BrainExecutionReport) -> Void) {
         if intent.primaryTopic == "red_alert" {
             RedAlertService.shared.getSecurityStatusSummary { [weak self] summary in
@@ -491,7 +433,7 @@ public final class SarahBrainEngine {
         completion(report)
     }
     
-    // MARK: - 6. Enregistrement & Continuité Contextuelle Inter-Sessions
+    // MARK: - 6. Enregistrement & Continuité Contextuelle
     
     private func recordExchange(query: String, response: String) {
         sessionHistory.append((query: query, response: response, timestamp: Date()))

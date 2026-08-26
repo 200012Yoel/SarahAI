@@ -1,17 +1,21 @@
 import SwiftUI
 
-/// Vue Réglages épurée et optimisée de Sarah AI :
-/// - Synthèse vocale et réglages des voix Sarah (Siri féminine) et Tom (Siri masculine)
+/// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents :
+/// - Liste sobre et statut des 4 agents autonomes :
+///   1. Sarah (Agent Pilote & Patronne) - Voix système principale
+///   2. Tom (Conversation, Histoire & Débats) - Voix conversationnelle
+///   3. Raphaël (Code & Shortcuts) - Voix de notification/build
+///   4. Yohan (Traducteur FR ⇄ HE) - Voix de restitution polyglotte
 /// - Contrôles de vitesse, tonalité et détection vocale VAD
-/// - Actions de test direct des voix Sarah et Tom
+/// - Actions de test direct des voix Siri locales
 /// - Réinitialisation de la conversation
 @available(iOS 15.0, *)
 public struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel
     
-    @State private var speechRate: Double = 0.50
-    @State private var speechPitch: Double = 1.02
+    @State private var speechRate: Double = 0.52
+    @State private var speechPitch: Double = 1.05
     @State private var vadSensitivity: Double = 0.65
     
     public init(viewModel: ChatViewModel) {
@@ -25,64 +29,36 @@ public struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
-                    // 1. Profil Vocal de Sarah (Assistant Principal)
-                    Section(header: Text("Voix de Sarah (Féminine)").foregroundColor(.sarahCyan)) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Vitesse d'élocution")
-                                Spacer()
-                                Text(String(format: "%.2fx", speechRate * 2.0))
-                                    .foregroundColor(.gray)
-                            }
-                            Slider(value: $speechRate, in: 0.35...0.65, step: 0.01)
-                                .tint(.sarahCyan)
-                        }
+                    // 1. Les 4 Agents Autonomes & Voix Siri Locales
+                    Section(header: Text("Écosystème des 4 Agents Autonomes").foregroundColor(.white)) {
+                        agentRow(
+                            agent: .sarah,
+                            subtitle: "Voix système principale (Rose néon)",
+                            testPhrase: "Bonjour ! Je suis Sarah, votre agent pilote."
+                        )
                         
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Tonalité de la voix")
-                                Spacer()
-                                Text(String(format: "%.2f", speechPitch))
-                                    .foregroundColor(.gray)
-                            }
-                            Slider(value: $speechPitch, in: 0.8...1.3, step: 0.02)
-                                .tint(.sarahCyan)
-                        }
+                        agentRow(
+                            agent: .tom,
+                            subtitle: "Voix conversationnelle dédiée (Vert émeraude)",
+                            testPhrase: "Salut ! C'est Tom. Je suis prêt pour analyser l'histoire et la géopolitique mondiale."
+                        )
                         
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            TTSManager.shared.speakAsSarah("Bonjour ! Je suis Sarah, votre assistante vocale.")
-                        }) {
-                            HStack {
-                                Image(systemName: "speaker.wave.2.fill")
-                                Text("Tester la voix de Sarah")
-                            }
-                            .foregroundColor(.sarahCyan)
-                        }
+                        agentRow(
+                            agent: .raphael,
+                            subtitle: "Voix de synthèse build & code (Bleu ciel)",
+                            testPhrase: "Raphaël au rapport ! Prêt à générer vos applications et raccourcis Apple."
+                        )
+                        
+                        agentRow(
+                            agent: .yohan,
+                            subtitle: "Voix bilingue FR ⇄ HE (Bleu Mer & Blanc)",
+                            testPhrase: "Shalom ! Yohan à votre service pour toutes vos traductions en hébreu."
+                        )
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 2. Profil Vocal de Tom (Assistant Vision & Caméra)
-                    Section(header: Text("Voix de Tom (Masculine / Vision)").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
-                        Text("Tom prend le relais dès que vous activez la caméra ou le partage d'écran pour analyser les objets en direct.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                        
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            TTSManager.shared.speakAsTom("Salut ! C'est Tom. Je suis prêt pour l'analyse visuelle et la caméra.")
-                        }) {
-                            HStack {
-                                Image(systemName: "eye.circle.fill")
-                                Text("Tester la voix de Tom")
-                            }
-                            .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
-                        }
-                    }
-                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
-                    
-                    // 3. Microphone & Détection Vocale Full-Duplex
-                    Section(header: Text("Microphone & Détection Vocale").foregroundColor(.sarahCyan)) {
+                    // 2. Microphone & Détection Vocale Full-Duplex
+                    Section(header: Text("Microphone & Détection Vocale VAD").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Sensibilité VAD Full-Duplex")
@@ -91,13 +67,44 @@ public struct SettingsView: View {
                                     .foregroundColor(.gray)
                             }
                             Slider(value: $vadSensitivity, in: 0.3...0.9, step: 0.05)
-                                .tint(.sarahCyan)
+                                .tint(Color(red: 0.0, green: 0.78, blue: 1.0))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Vitesse de parole")
+                                Spacer()
+                                Text(String(format: "%.2fx", speechRate * 2.0))
+                                    .foregroundColor(.gray)
+                            }
+                            Slider(value: $speechRate, in: 0.35...0.65, step: 0.01)
+                                .tint(Color(red: 0.0, green: 0.78, blue: 1.0))
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
+                    // 3. Inférence & Statut Hors-Ligne (llama.cpp / On-Device)
+                    Section(header: Text("Moteur LLM & RAG Local").foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))) {
+                        HStack {
+                            Text("Mode d'Inférence")
+                            Spacer()
+                            Text("100% Hors-ligne (Metal)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.green)
+                        }
+                        
+                        HStack {
+                            Text("Modèle Embarqué")
+                            Spacer()
+                            Text("Qwen2.5-Coder (Local)")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
                     // 4. Historique & Réinitialisation
-                    Section(header: Text("Historique de Discussion").foregroundColor(.sarahCyan)) {
+                    Section(header: Text("Historique de Discussion").foregroundColor(.red)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
                             viewModel.startNewChat()
@@ -113,7 +120,7 @@ public struct SettingsView: View {
                 }
                 .hideScrollContentBackground()
             }
-            .navigationTitle("⚙️ Réglages")
+            .navigationTitle("⚙️ Réglages Multi-Agents")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -126,7 +133,7 @@ public struct SettingsView: View {
                         )
                         presentationMode.wrappedValue.dismiss()
                     }
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
                 }
             }
             .onAppear {
@@ -136,6 +143,46 @@ public struct SettingsView: View {
                 self.vadSensitivity = Double(s.vadSensitivity)
             }
         }
+    }
+    
+    @ViewBuilder
+    private func agentRow(agent: AgentType, subtitle: String, testPhrase: String) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(agent.themeColor.opacity(0.2))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: agent.iconName)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(agent.themeColor)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(agent.rawValue)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                HapticService.shared.buttonTap()
+                MultiAgentVoiceManager.shared.speak(text: testPhrase, for: agent)
+            }) {
+                Image(systemName: "speaker.wave.2.fill")
+                    .foregroundColor(agent.themeColor)
+                    .padding(8)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.vertical, 4)
     }
 }
 

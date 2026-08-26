@@ -14,20 +14,6 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "W1B2C3D40005000100000010"
-               BuildableName = "SarahIAWidgets.appex"
-               BlueprintName = "SarahIAWidgets"
-               ReferencedContainer = "container:SarahIA.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
                BlueprintIdentifier = "A1B2C3D40005000100000001"
                BuildableName = "SarahIA.app"
                BlueprintName = "SarahIA"
