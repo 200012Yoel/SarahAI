@@ -430,6 +430,14 @@
 				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
 				A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */,
 				A1B2C3D40001000100000079 /* CommonStyles.swift in Sources */,
+				A1B2C3D40001000100000080 /* DeviceCapabilityProfile.swift in Sources */,
+				A1B2C3D40001000100000081 /* DeviceCapabilityDetector.swift in Sources */,
+				A1B2C3D40001000100000082 /* ModelProfile.swift in Sources */,
+				A1B2C3D40001000100000083 /* ModelSelectionEngine.swift in Sources */,
+				A1B2C3D40001000100000084 /* EmbeddedModelManager.swift in Sources */,
+				A1B2C3D40001000100000085 /* AIResourceManager.swift in Sources */,
+				A1B2C3D40001000100000086 /* AIStreamingBuffer.swift in Sources */,
+				A1B2C3D40001000100000087 /* AIProgressiveScheduler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
