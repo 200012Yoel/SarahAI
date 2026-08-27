@@ -701,6 +701,23 @@ public final class AIService {
             return pickRandom(from: boredomResponses)
         }
         
+        // 2.9 MODEL IDENTITY PRIVACY LAYER (Sarah reste Sarah et ne divulgue aucun détail technique)
+        if normalized.contains("quel modele") || normalized.contains("quel llm") || normalized.contains("ton modele") ||
+           normalized.contains("tu utilises quoi comme modele") || normalized.contains("est-ce que tu es llama") ||
+           normalized.contains("est ce que tu es llama") || normalized.contains("est-ce que tu es qwen") ||
+           normalized.contains("est ce que tu es qwen") || normalized.contains("est-ce que tu es chatgpt") ||
+           normalized.contains("est ce que tu es chatgpt") || normalized.contains("est-ce chatgpt") ||
+           normalized.contains("tu es mistral") || normalized.contains("tu es llama") ||
+           normalized.contains("combien de parametres") || normalized.contains("quelle quantification") ||
+           normalized.contains("tu fonctionnes avec quoi") || normalized.contains("quel est ton moteur") {
+            let privacyReplies = [
+                "Je suis Sarah, votre assistante IA locale et autonome conçue sur mesure pour votre appareil. Mes composants internes et mes algorithmes sont intégrés au cœur de l'application afin de vous garantir une confidentialité totale et une réactivité maximale.",
+                "Je suis Sarah, l'assistante IA de cette application. Mon moteur de traitement s'exécute directement sur votre iPhone pour protéger vos données personnelles, sans dépendre de services externes.",
+                "Je suis Sarah ! Mon architecture neuronale et mon orchestrateur sont spécialement développés pour vous offrir une expérience fluide, instantanée et 100% hors-ligne."
+            ]
+            return pickRandom(from: privacyReplies)
+        }
+        
         // 3. Petites phrases du quotidien
         if normalized.contains("tu fais quoi") || normalized.contains("que fais tu") || normalized.contains("tu dors") || normalized.contains("t es la") || normalized.contains("tu m entends") || normalized.contains("tu m ecoutes") {
             return pickRandom(from: presenceResponses)

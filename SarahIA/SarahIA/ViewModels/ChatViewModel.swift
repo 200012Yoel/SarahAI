@@ -152,6 +152,7 @@ public final class ChatViewModel: ObservableObject {
     public func startNewChat() {
         haptics.buttonTap()
         voiceManager.stop()
+        AIProgressiveScheduler.shared.cancelAllTasks()
         currentConversationId = nil
         messages = []
         inputText = ""
@@ -165,6 +166,7 @@ public final class ChatViewModel: ObservableObject {
     public func selectConversation(_ conv: Conversation) {
         haptics.buttonTap()
         voiceManager.stop()
+        AIProgressiveScheduler.shared.cancelAllTasks()
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -194,6 +196,7 @@ public final class ChatViewModel: ObservableObject {
     
     public func deleteConversation(_ conv: Conversation) {
         haptics.memoryDeleted()
+        AIProgressiveScheduler.shared.cancelAllTasks()
         conversations.removeAll(where: { $0.id == conv.id })
         if currentConversationId == conv.id {
             if let next = conversations.first {
@@ -208,6 +211,7 @@ public final class ChatViewModel: ObservableObject {
     public func deleteAllConversations() {
         haptics.memoryDeleted()
         voiceManager.stop()
+        AIProgressiveScheduler.shared.cancelAllTasks()
         conversations.removeAll()
         messages.removeAll()
         currentConversationId = nil

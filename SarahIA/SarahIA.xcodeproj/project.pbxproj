@@ -71,6 +71,14 @@
 		A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */; };
 		A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000078 /* VAICodingStudioView.swift */; };
 		A1B2C3D40001000100000079 /* CommonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000079 /* CommonStyles.swift */; };
+		A1B2C3D40001000100000080 /* DeviceCapabilityProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000080 /* DeviceCapabilityProfile.swift */; };
+		A1B2C3D40001000100000081 /* DeviceCapabilityDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000081 /* DeviceCapabilityDetector.swift */; };
+		A1B2C3D40001000100000082 /* ModelProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000082 /* ModelProfile.swift */; };
+		A1B2C3D40001000100000083 /* ModelSelectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000083 /* ModelSelectionEngine.swift */; };
+		A1B2C3D40001000100000084 /* EmbeddedModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000084 /* EmbeddedModelManager.swift */; };
+		A1B2C3D40001000100000085 /* AIResourceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000085 /* AIResourceManager.swift */; };
+		A1B2C3D40001000100000086 /* AIStreamingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */; };
+		A1B2C3D40001000100000087 /* AIProgressiveScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -140,6 +148,14 @@
 		A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbModalView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000078 /* VAICodingStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAICodingStudioView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000079 /* CommonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonStyles.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000080 /* DeviceCapabilityProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCapabilityProfile.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000081 /* DeviceCapabilityDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCapabilityDetector.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000082 /* ModelProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProfile.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000083 /* ModelSelectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelectionEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000084 /* EmbeddedModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedModelManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000085 /* AIResourceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResourceManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStreamingBuffer.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProgressiveScheduler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -230,6 +246,14 @@
 				A1B2C3D40002000100000065 /* FlashlightManager.swift */,
 				A1B2C3D40002000100000066 /* BatteryMonitorManager.swift */,
 				A1B2C3D4000200010000006A /* IsraelAlertService.swift */,
+				A1B2C3D40002000100000080 /* DeviceCapabilityProfile.swift */,
+				A1B2C3D40002000100000081 /* DeviceCapabilityDetector.swift */,
+				A1B2C3D40002000100000082 /* ModelProfile.swift */,
+				A1B2C3D40002000100000083 /* ModelSelectionEngine.swift */,
+				A1B2C3D40002000100000084 /* EmbeddedModelManager.swift */,
+				A1B2C3D40002000100000085 /* AIResourceManager.swift */,
+				A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */,
+				A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
