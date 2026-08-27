@@ -26,14 +26,17 @@ public struct ContentView: View {
                 // 2. CALQUE DU PREMIER PLAN : Interface de Chat Principale (ChatScreenView)
                 ZStack {
                     ChatScreenView(viewModel: viewModel)
+                        .disabled(viewModel.isDrawerOpen) // Empêche de taper dans le tchat si le menu est ouvert
                     
                     // Voile d'obscurcissement (#scrim) au-dessus de l'application
                     if viewModel.drawerProgress > 0 {
                         Color.black
-                            .opacity(Double(viewModel.drawerProgress) * 0.35)
+                            .opacity(Double(viewModel.drawerProgress) * 0.45)
                             .ignoresSafeArea()
                             .onTapGesture {
-                                viewModel.closeDrawer()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    viewModel.closeDrawer()
+                                }
                             }
                     }
                 }
@@ -53,33 +56,35 @@ public struct ContentView: View {
                     RoundedRectangle(cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0)
                         .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
                 )
-                // Geste de glissement pour ouvrir (gauche ➔ droite) et fermer (droite ➔ gauche) le tiroir
+                // Geste de glissement pour ouvrir / fermer
                 .gesture(
-                    DragGesture(minimumDistance: 10, coordinateSpace: .local)
+                    DragGesture()
                         .onChanged { value in
-                            let translation = value.translation.width
-                            if viewModel.isDrawerOpen {
-                                // Fermeture en glissant vers la gauche
-                                let newP = max(0.0, min(1.0, 1.0 + (translation / sidebarWidth)))
-                                viewModel.drawerProgress = CGFloat(newP)
-                            } else if (value.startLocation.x <= min(geo.size.width * 0.5, 180)) && translation > 0 {
-                                // Ouverture en glissant vers la droite depuis la moitié gauche de l'écran
-                                let newP = max(0.0, min(1.0, translation / sidebarWidth))
-                                viewModel.drawerProgress = CGFloat(newP)
+                            // Si le menu est fermé, on capte le glissement partant de la bordure gauche (x < 40)
+                            if !viewModel.isDrawerOpen && value.startLocation.x < 40 {
+                                if value.translation.width > 0 {
+                                    let progress = min(value.translation.width / sidebarWidth, 1.0)
+                                    viewModel.drawerProgress = CGFloat(progress)
+                                }
+                            }
+                            // Si le menu est ouvert, on capte le glissement vers la gauche pour refermer
+                            else if viewModel.isDrawerOpen {
+                                if value.translation.width < 0 {
+                                    let progress = max(0.0, 1.0 + (value.translation.width / sidebarWidth))
+                                    viewModel.drawerProgress = CGFloat(progress)
+                                }
                             }
                         }
                         .onEnded { value in
-                            let translation = value.translation.width
-                            let velocity = value.predictedEndTranslation.width - translation
-                            
-                            if viewModel.isDrawerOpen {
-                                if velocity < -40 || viewModel.drawerProgress < 0.65 {
-                                    viewModel.closeDrawer()
-                                } else {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                // Seuil d'ouverture : glissé de plus de 80pt vers la droite depuis le bord
+                                if !viewModel.isDrawerOpen && value.translation.width > 80 && value.startLocation.x < 50 {
                                     viewModel.openDrawer()
                                 }
-                            } else {
-                                if velocity > 40 || viewModel.drawerProgress > 0.20 {
+                                // Seuil de fermeture : glissé de plus de 80pt vers la gauche
+                                else if viewModel.isDrawerOpen && value.translation.width < -80 {
+                                    viewModel.closeDrawer()
+                                } else if viewModel.isDrawerOpen {
                                     viewModel.openDrawer()
                                 } else {
                                     viewModel.closeDrawer()
