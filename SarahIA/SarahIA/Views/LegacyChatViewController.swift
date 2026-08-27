@@ -184,7 +184,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.reloadData()
         scrollToBottom()
         
-        MultiAgentCoordinator.shared.routeAndProcess(query: text, explicitAgent: activeAgent) { [weak self] response in
+        MultiAgentCoordinator.shared.routeAndProcess(query: text, currentAgent: activeAgent) { [weak self] response in
             guard let self = self else { return }
             self.activeAgent = response.agent
             self.agentSwitchButton.setTitle("\(response.agent.rawValue)", for: .normal)

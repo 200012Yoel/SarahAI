@@ -15,6 +15,25 @@ public final class MultiAgentCoordinator {
         public let spokenText: String
         public let openStudio: Bool
         public let generatedCode: String?
+        
+        public init(
+            agent: AgentType,
+            text: String,
+            spokenText: String,
+            openStudio: Bool = false,
+            generatedCode: String? = nil
+        ) {
+            self.agent = agent
+            self.text = text
+            self.spokenText = spokenText
+            self.openStudio = openStudio
+            self.generatedCode = generatedCode
+        }
+    }
+    
+    private struct SwitchCommandMatch {
+        let targetAgent: AgentType
+        let residualPrompt: String
     }
     
     private init() {}
@@ -22,22 +41,24 @@ public final class MultiAgentCoordinator {
     /// Analyse la phrase utilisateur et route vers l'agent adéquat
     public func routeAndProcess(
         query: String,
+        currentAgent: AgentType? = nil,
         explicitAgent: AgentType? = nil,
         completion: @escaping (AgentResponse) -> Void
     ) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = trimmed.lowercased()
+        let normalized = normalize(trimmed)
         
-        // 1. Détection explicite de passage d'agent (Switching verbal)
-        let targetAgent: AgentType
-        if let explicit = explicitAgent {
-            targetAgent = explicit
-        } else {
-            targetAgent = detectTargetAgent(normalized: normalized)
+        // 1. Détection prioritaire d'un ordre explicite de passage / bascule d'agent
+        if let switchMatch = detectSwitchCommand(normalized: normalized, original: trimmed) {
+            handleAgentHandoff(to: switchMatch.targetAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
+            return
         }
         
-        // 2. Exécution selon l'agent
-        switch targetAgent {
+        // 2. Si un agent a été forcé explicitement (sélection manuelle dans l'UI)
+        let activeAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
+        
+        // 3. Exécution selon l'agent
+        switch activeAgent {
         case .yohan:
             processWithYohan(text: trimmed, completion: completion)
             
@@ -52,13 +73,126 @@ public final class MultiAgentCoordinator {
         }
     }
     
-    // MARK: - Détection d'Agent
+    // MARK: - Normalisation & Détection d'Intention de Bascule (Switching)
+    
+    private func normalize(_ text: String) -> String {
+        return text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "?", with: "")
+            .replacingOccurrences(of: "!", with: "")
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: "'", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: "«", with: "")
+            .replacingOccurrences(of: "»", with: "")
+            .replacingOccurrences(of: "\"", with: "")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+    
+    private func detectSwitchCommand(normalized: String, original: String) -> SwitchCommandMatch? {
+        let norm = " " + normalized + " "
+        
+        let switchKeywords = [
+            "donne moi ", "donne-moi ", "donnemoi ",
+            "passe moi ", "passe-moi ", "passemoi ",
+            "bascule sur ", "bascule vers ", "bascule a ", "bascule ",
+            "switch to ", "switch sur ", "switch ",
+            "je veux parler a ", "je veux parler avec ", "je voudrais parler a ", "fais moi parler a ",
+            "mets moi ", "mets-moi ", "metsmoi ", "mets ",
+            "appelle ", "reviens sur ", "reprends la main ", "reprend la main "
+        ]
+        
+        func extractResidual(trigger: String, agentToken: String) -> String {
+            var working = normalized
+            if let range = working.range(of: trigger + agentToken) {
+                working.removeSubrange(range)
+            } else if let range = working.range(of: trigger) {
+                working.removeSubrange(range)
+                if let aRange = working.range(of: agentToken) {
+                    working.removeSubrange(aRange)
+                }
+            }
+            return working.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        // Cible Tom
+        let tomNames = ["tom", "thomas"]
+        for kw in switchKeywords {
+            for name in tomNames {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .tom, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // Cible Raphaël
+        let raphaelNames = ["raphael", "raphaël", "raph", "rafael"]
+        for kw in switchKeywords {
+            for name in raphaelNames {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // Cible Yohan
+        let yohanNames = ["yohan", "yoan", "johan", "yoann", "yohan traducteur"]
+        for kw in switchKeywords {
+            for name in yohanNames {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .yohan, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // Cible Sarah
+        let sarahNames = ["sarah", "sara", "la patronne", "pilote"]
+        for kw in switchKeywords {
+            for name in sarahNames {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .sarah, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // Commandes directes d'appel en début de phrase ou isolées
+        if normalized == "tom" || normalized.starts(with: "tom ") {
+            let res = normalized.replacingOccurrences(of: "tom", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return SwitchCommandMatch(targetAgent: .tom, residualPrompt: res)
+        }
+        if normalized == "raphael" || normalized.starts(with: "raphael ") || normalized == "raphael code" {
+            let res = normalized.replacingOccurrences(of: "raphael", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: res)
+        }
+        if normalized == "yohan" || normalized.starts(with: "yohan ") {
+            let res = normalized.replacingOccurrences(of: "yohan", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return SwitchCommandMatch(targetAgent: .yohan, residualPrompt: res)
+        }
+        if normalized == "sarah" || normalized.starts(with: "sarah ") {
+            let res = normalized.replacingOccurrences(of: "sarah", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return SwitchCommandMatch(targetAgent: .sarah, residualPrompt: res)
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Détection Thématique d'Agent Spécialisé
     
     private func detectTargetAgent(normalized: String) -> AgentType {
         // Yohan (Traduction Français <-> Hébreu)
         if normalized.contains("yohan") || normalized.contains("yoan") || normalized.contains("johan") ||
-           normalized.contains("en hébreu") || normalized.contains("en hebreu") ||
-           normalized.contains("en français") || normalized.contains("en francais") ||
+           normalized.contains("en hebreu") || normalized.contains("en francais") ||
            normalized.contains("traduis") || normalized.contains("traduit") ||
            normalized.contains("comment on dit") || normalized.contains("comment dit on") ||
            YohanLexiconEngine.shared.isHebrew(normalized) {
@@ -66,7 +200,7 @@ public final class MultiAgentCoordinator {
         }
         
         // Raphaël (Code, VAI Coding, Shortcuts, HTML/JS, Swift, Python, Figma)
-        if normalized.contains("raphael") || normalized.contains("raphaël") ||
+        if normalized.contains("raphael") ||
            normalized.contains("code") || normalized.contains("programme") ||
            normalized.contains("shortcut") || normalized.contains("raccourci") ||
            normalized.contains("html") || normalized.contains("swift") ||
@@ -78,7 +212,7 @@ public final class MultiAgentCoordinator {
         
         // Tom (Histoire, Géopolitique depuis 1948, Conflits, Débats, Wikipédia, Ve République)
         if normalized.contains("tom") ||
-           normalized.contains("histoire") || normalized.contains("geopolitique") || normalized.contains("géopolitique") ||
+           normalized.contains("histoire") || normalized.contains("geopolitique") ||
            normalized.contains("1948") || normalized.contains("ben gourion") || normalized.contains("guerre des six jours") ||
            normalized.contains("kippour") || normalized.contains("abraham") || normalized.contains("de gaulle") ||
            normalized.contains("ve republique") || normalized.contains("guerre froide") || normalized.contains("otan") ||
@@ -90,19 +224,68 @@ public final class MultiAgentCoordinator {
         return .sarah
     }
     
+    // MARK: - Handoff & Accueil Personnalisé de l'Agent Cible
+    
+    private func handleAgentHandoff(
+        to targetAgent: AgentType,
+        residualPrompt: String,
+        completion: @escaping (AgentResponse) -> Void
+    ) {
+        let cleanResidual = residualPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Si l'utilisateur a joint une requête précise lors du passage d'agent
+        if !cleanResidual.isEmpty && cleanResidual != "bonjour" && cleanResidual != "salut" {
+            switch targetAgent {
+            case .tom:
+                processWithTom(text: cleanResidual, completion: completion)
+            case .raphael:
+                processWithRaphael(text: cleanResidual, completion: completion)
+            case .yohan:
+                processWithYohan(text: cleanResidual, completion: completion)
+            case .sarah:
+                processWithSarah(text: cleanResidual, completion: completion)
+            }
+            return
+        }
+        
+        // Accueil naturel de passation de témoin (Handoff Greeting)
+        switch targetAgent {
+        case .tom:
+            let greeting = "🌍 **Tom [Histoire & Géopolitique]**\n\nC'est Tom à l'appareil ! Je prends le relais. De quoi voulez-vous discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
+            let spoken = "C'est Tom à l'appareil ! Je prends le relais. De quoi souhaitez-vous discuter ?"
+            completion(AgentResponse(agent: .tom, text: greeting, spokenText: spoken))
+            
+        case .raphael:
+            let greeting = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nRaphaël en ligne ! Je suis prêt pour vos automatisations, raccourcis Apple, projets Swift et composants web. Quel est votre projet de code ?"
+            let spoken = "Raphaël en ligne ! Je prends le relais. Quel projet de code ou raccourci souhaitez-vous développer ?"
+            completion(AgentResponse(agent: .raphael, text: greeting, spokenText: spoken))
+            
+        case .yohan:
+            let greeting = "🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]**\n\nShalom ! 🇮🇱 Je suis Yohan. Je suis à votre disposition pour toute traduction, expression idiomatique ou analyse linguistique en hébreu ou en français. Que souhaitez-vous traduire ?"
+            let spoken = "Shalom ! Je suis Yohan. Je prends le relais pour vos traductions en hébreu et français."
+            completion(AgentResponse(agent: .yohan, text: greeting, spokenText: spoken))
+            
+        case .sarah:
+            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\nJe reprends la main ! Que puis-je faire pour vous coordonner ou vous assister ?"
+            let spoken = "Je reprends la main ! Que puis-je faire pour vous ?"
+            completion(AgentResponse(agent: .sarah, text: greeting, spokenText: spoken))
+        }
+    }
+    
     // MARK: - Traitements Spécialisés
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
             .replacingOccurrences(of: "passe-moi yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "passe moi yohan", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi yohan", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "yohan", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
         let queryText = clean.isEmpty ? text : clean
         let result = YohanLexiconEngine.shared.translateExpert(text: queryText)
         
-        // Extraction pour synthèse vocale fluide
         let spoken = result
             .replacingOccurrences(of: "*", with: "")
             .replacingOccurrences(of: "#", with: "")
@@ -122,6 +305,10 @@ public final class MultiAgentCoordinator {
             .replacingOccurrences(of: "vas-y raphaël", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "vas-y raphael", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "vas y raphael", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe-moi raphaël", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe moi raphael", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi raphaël", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi raphael", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "raphaël", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "raphael", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -157,6 +344,8 @@ public final class MultiAgentCoordinator {
         let clean = text
             .replacingOccurrences(of: "passe-moi tom", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "passe moi tom", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi tom", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi tom", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "tom", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         

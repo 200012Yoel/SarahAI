@@ -345,11 +345,12 @@ public final class ChatViewModel: ObservableObject {
         isTyping = true
         voiceStatus = .processing
         
-        // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan)
-        multiAgentCoordinator.routeAndProcess(query: text) { [weak self] response in
+        // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
+        let currentSelectedAgent = activeAgent
+        multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
             guard let self = self else { return }
             
-            // Basculer l'agent actif selon la décision de routage
+            // Basculer l'agent actif selon la décision de routage / passation de main
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 self.activeAgent = response.agent
             }
@@ -357,6 +358,10 @@ public final class ChatViewModel: ObservableObject {
             let aiMessage = Message(content: response.text, isFromUser: false)
             self.appendMessage(aiMessage)
             self.isTyping = false
+            
+            // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
+            self.aiService.recordExchange(userText: text, assistantResponse: response.text)
+            SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response.text, topicType: response.agent.rawValue)
             
             // Si Raphaël a généré du code -> préparer pour le studio
             if let code = response.generatedCode {

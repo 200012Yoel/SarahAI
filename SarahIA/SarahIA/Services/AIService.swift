@@ -210,15 +210,14 @@ public final class AIService {
         // 5.1 CAPACITÉS & FONCTIONNALITÉS GLOBALES DE SARAH IA
         if normalized.contains("que sais-tu faire") || normalized.contains("que sais tu faire") || normalized.contains("que peux-tu faire") || normalized.contains("que peux tu faire") || normalized.contains("quelles sont tes fonctionnalites") || normalized.contains("tes fonctionnalites") || normalized.contains("tes capacites") || normalized.contains("aide moi") || normalized.contains("aide-moi") || normalized.contains("ce que tu sais faire") {
             let capabilities = """
-            Voici tout ce que je sais faire pour vous assister au quotidien :
+            Voici tout ce que notre équipe à 4 agents peut faire pour vous :
 
-            📱 **Partage d'écran en direct & Rendu PiP** : Visualisation en temps réel de votre écran avec fenêtre flottante persistante à la sortie de l'application.
-            📷 **Reconnaissance visuelle avec Tom** : Analyse d'objets, de documents, de textes et scan de QR codes en direct via la caméra.
-            🔦 **Gestion matérielle de la torche** : Allumage/extinction instantanés avec maintien actif en arrière-plan.
-            🚨 **Alertes en direct Pikoud HaOref** : Suivi en direct des alertes de sécurité et consignes du Front Intérieur en Israël.
-            📰 **Flux d'actualités i24NEWS & Franceinfo** : Derniers titres et dépêches d'information résumés vocalement.
-            🔋 **Surveillance de la batterie** : Contrôle du niveau d'énergie avec alerte vocale.
-            🎙️ **Synthèse & Reconnaissance vocale 100% naturelle** : Dialogue fluide au tac au tac avec interruption vocale (Barge-In).
+            👑 **Sarah (Patronne & Pilote)** : Coordination générale, mémoire locale, torche, batterie, alertes Pikoud HaOref et actualités.
+            🌍 **Tom (Histoire & Géopolitique)** : Analyse politique mondiale depuis 1948, conflits du Moyen-Orient, Ve République et débats.
+            ⚡ **Raphaël (Développeur & VAI Coding)** : Génération de composants Web, code Swift, Apple Shortcuts et intégrations de designs.
+            🇮🇱 **Yohan (Traducteur FR ⇄ HE)** : Dictionnaires spécialisés bilingues, phonétique, racines sémitiques et argot israélien.
+
+            *Vous pouvez passer d'un agent à l'autre à tout moment en disant simplement : « Passe-moi Tom », « Donne-moi Raphaël » ou « Donne-moi Yohan ».*
             """
             recordExchange(userText: trimmed, assistantResponse: capabilities)
             return capabilities
