@@ -168,23 +168,6 @@ public struct MessageBar: View {
                         .padding(.horizontal, 4)
                         .lineLimit(1)
                     
-                    // 1.3 Bouton Caméra
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        onPlusTapped?()
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.10))
-                                .frame(width: btnSize, height: btnSize)
-                            
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: isCompact ? 13 : 15, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                    
                     // 1.4 Bouton Dictée Vocale (Microphone)
                     Button(action: {
                         onToggleMic()

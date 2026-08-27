@@ -18,22 +18,20 @@ public struct SidebarView: View {
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
-    }
-    
-    public var body: some View {
+    }    public var body: some View {
         GeometryReader { geo in
             let isCompact = geo.size.width <= 360
-            let sidebarWidth = max(250, min(geo.size.width * 0.82, 330))
-            let horizontalPadding: CGFloat = isCompact ? 14 : 20
+            let sidebarWidth = max(240, min(geo.size.width * 0.75, 290))
+            let horizontalPadding: CGFloat = isCompact ? 14 : 16
             
             ZStack(alignment: .topLeading) {
-                Color.black.ignoresSafeArea()
+                Color(red: 0.07, green: 0.07, blue: 0.09).ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
                     // 1. Header: Titre "Sarah IA" + Boutons d'actions
                     HStack(alignment: .center, spacing: 8) {
                         Text("Sarah IA")
-                            .font(.system(size: isCompact ? 22 : 24, weight: .bold))
+                            .font(.system(size: isCompact ? 20 : 22, weight: .bold))
                             .foregroundColor(.white)
                             .lineLimit(1)
                         
@@ -48,172 +46,102 @@ public struct SidebarView: View {
                                 ZStack {
                                     Circle()
                                         .fill(Color(red: 0.16, green: 0.12, blue: 0.12))
-                                        .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
+                                        .frame(width: isCompact ? 32 : 36, height: isCompact ? 32 : 36)
                                     
                                     Image(systemName: "trash")
-                                        .font(.system(size: isCompact ? 13 : 15, weight: .medium))
+                                        .font(.system(size: isCompact ? 12 : 14, weight: .medium))
                                         .foregroundColor(Color.red.opacity(0.85))
                                 }
                             }
                             .buttonStyle(ScaleBounceButtonStyle())
                         }
-                        
-                        // Bouton recherche
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                viewModel.isSearchActive.toggle()
-                                if !viewModel.isSearchActive {
-                                    viewModel.searchQuery = ""
-                                }
-                            }
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                    .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
-                                
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: isCompact ? 14 : 16, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
                     }
                     .padding(.horizontal, horizontalPadding)
                     .padding(.top, max(16, geo.safeAreaInsets.top + 8))
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 12)
                     
-
-                    
-                    // 3. Liste Déroulante des Discussions
+                    // 2. Liste Déroulante des Discussions (Boutons grands, confortables et bien visibles)
                     ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Section Récents
+                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("Discussions")
-                                    .font(.system(size: isCompact ? 16 : 18, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .font(.system(size: isCompact ? 14 : 15, weight: .semibold))
+                                    .foregroundColor(Color.white.opacity(0.7))
                                 
                                 Spacer()
                                 
                                 Text("\(viewModel.conversations.count)")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(Color.gray.opacity(0.8))
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
                             }
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 12)
-                            .padding(.bottom, 4)
+                            .padding(.top, 4)
+                            .padding(.bottom, 2)
                             
                             if viewModel.conversations.isEmpty {
                                 VStack(spacing: 12) {
                                     Image(systemName: "bubble.left.and.bubble.right")
                                         .font(.system(size: 32))
-                                        .foregroundColor(Color.gray.opacity(0.5))
-                                        .padding(.top, 16)
+                                        .foregroundColor(Color.gray.opacity(0.4))
+                                        .padding(.top, 24)
                                     
-                                    Text("0 discussion")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.white)
+                                    Text("Aucune discussion")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.gray)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
+                                .padding(.vertical, 20)
                             } else {
                                 ForEach(viewModel.conversations) { conv in
                                     conversationRow(conv, isCompact: isCompact, padding: horizontalPadding)
                                 }
                             }
                             
-                            Spacer().frame(height: 110)
+                            Spacer().frame(height: 90)
                         }
+                        .padding(.vertical, 4)
                     }
                 }
                 .frame(width: sidebarWidth, alignment: .leading)
                 
-                // 4. Barre Inférieure (.sb-bottom) avec VAI Coding & Réglages
+                // 3. Bas de page : Uniquement le bouton bleu centré "Nouveau Tchat"
                 VStack(spacing: 0) {
                     Spacer()
                     
-                    HStack(spacing: isCompact ? 6 : 8) {
-                        // Bouton Nouveau Chat
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            viewModel.startNewChat()
-                            viewModel.switchToChat()
-                        }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "square.and.pencil")
-                                Text("Nouveau")
-                                    .font(.system(size: isCompact ? 12 : 14, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(Color(red: 0.04, green: 0.52, blue: 1.0))
-                            .clipShape(Capsule())
+                    Button(action: {
+                        HapticService.shared.buttonTap()
+                        viewModel.startNewChat()
+                        viewModel.switchToChat()
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("Nouveau Tchat")
+                                .font(.system(size: isCompact ? 14 : 15, weight: .bold))
                         }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                        
-                        Spacer()
-                        
-                        let btnSize: CGFloat = isCompact ? 32 : 36
-                        
-                        // Bouton VAI Coding 💻
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            viewModel.closeDrawer()
-                            viewModel.isShowingVAICodingStudio = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                    .frame(width: btnSize, height: btnSize)
-                                
-                                Image(systemName: "curlybraces")
-                                    .font(.system(size: isCompact ? 12 : 14, weight: .bold))
-                                    .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                        
-                        // Bouton Voice Orb 🔮
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            viewModel.closeDrawer()
-                            viewModel.isShowingVoiceOrbModal = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                    .frame(width: btnSize, height: btnSize)
-                                
-                                Image(systemName: "waveform.circle.fill")
-                                    .font(.system(size: isCompact ? 14 : 16))
-                                    .foregroundColor(viewModel.activeAgent.themeColor)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                        
-                        // Bouton Paramètres ⚙️
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            isShowingSettings = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                    .frame(width: btnSize, height: btnSize)
-                                
-                                Image(systemName: "gearshape.fill")
-                                    .font(.system(size: isCompact ? 12 : 14))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, isCompact ? 13 : 15)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(red: 0.04, green: 0.52, blue: 1.0), Color(red: 0.0, green: 0.40, blue: 0.90)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.4), radius: 8, x: 0, y: 3)
                     }
+                    .buttonStyle(ScaleBounceButtonStyle())
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.vertical, isCompact ? 8 : 12)
-                    .background(Color.black.opacity(0.95))
+                    .padding(.bottom, max(16, geo.safeAreaInsets.bottom + 12))
+                    .background(
+                        LinearGradient(
+                            colors: [Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.0), Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.95), Color(red: 0.07, green: 0.07, blue: 0.09)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                 }
                 .frame(width: sidebarWidth)
             }
@@ -240,18 +168,36 @@ public struct SidebarView: View {
             viewModel.selectConversation(conv)
             viewModel.closeDrawer()
         }) {
-            HStack(spacing: isCompact ? 10 : 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? Color(red: 0.04, green: 0.52, blue: 1.0) : Color.white.opacity(0.08))
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: "bubble.left.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isSelected ? .white : Color.white.opacity(0.7))
+                }
+                
                 Text(conv.title)
-                    .font(.system(size: isCompact ? 14 : 15, weight: .regular))
-                    .foregroundColor(.white)
+                    .font(.system(size: isCompact ? 15 : 16, weight: isSelected ? .bold : .medium))
+                    .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
                     .lineLimit(1)
                 
                 Spacer()
             }
-            .padding(.horizontal, padding)
-            .padding(.vertical, isCompact ? 9 : 11)
-            .background(isSelected ? Color.white.opacity(0.09) : Color.clear)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.04))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal, padding)
     }
 }
