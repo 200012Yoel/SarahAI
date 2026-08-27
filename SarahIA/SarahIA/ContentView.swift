@@ -10,7 +10,8 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = max(250, min(geo.size.width * 0.82, 330))
+            // Menu calibré à environ la moitié de la page (55% de la largeur, max 300)
+            let sidebarWidth = max(220, min(geo.size.width * 0.55, 290))
             
             ZStack(alignment: .leading) {
                 // 1. CALQUE DU FOND : Menu Latéral (Sidebar)
@@ -38,7 +39,7 @@ public struct ContentView: View {
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .background(Color.black)
-                // Transformation 3D exacte de la maquette : translateX(78vw) scale(0.92) et border-radius 44pt
+                // Transformation 3D exacte : translateX scale et border-radius
                 .cornerRadius(viewModel.drawerProgress > 0.01 ? 44 : 0)
                 .scaleEffect(1.0 - (viewModel.drawerProgress * 0.08), anchor: .leading)
                 .offset(x: viewModel.drawerProgress * sidebarWidth)
@@ -61,8 +62,8 @@ public struct ContentView: View {
                                 // Fermeture en glissant vers la gauche
                                 let newP = max(0.0, min(1.0, 1.0 + (translation / sidebarWidth)))
                                 viewModel.drawerProgress = CGFloat(newP)
-                            } else if value.startLocation.x <= 35 && translation > 0 {
-                                // Ouverture en glissant vers la droite collé au bord
+                            } else if (value.startLocation.x <= min(geo.size.width * 0.5, 180)) && translation > 0 {
+                                // Ouverture en glissant vers la droite depuis la moitié gauche de l'écran
                                 let newP = max(0.0, min(1.0, translation / sidebarWidth))
                                 viewModel.drawerProgress = CGFloat(newP)
                             }
@@ -72,13 +73,13 @@ public struct ContentView: View {
                             let velocity = value.predictedEndTranslation.width - translation
                             
                             if viewModel.isDrawerOpen {
-                                if velocity < -50 || viewModel.drawerProgress < 0.70 {
+                                if velocity < -40 || viewModel.drawerProgress < 0.65 {
                                     viewModel.closeDrawer()
                                 } else {
                                     viewModel.openDrawer()
                                 }
                             } else {
-                                if velocity > 50 || viewModel.drawerProgress > 0.25 {
+                                if velocity > 40 || viewModel.drawerProgress > 0.20 {
                                     viewModel.openDrawer()
                                 } else {
                                     viewModel.closeDrawer()

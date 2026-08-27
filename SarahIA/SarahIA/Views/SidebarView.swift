@@ -26,80 +26,61 @@ public struct SidebarView: View {
     public var body: some View {
         GeometryReader { geo in
             let isCompact = geo.size.width <= 360
-            let sidebarWidth = max(240, min(geo.size.width * 0.75, 290))
-            let horizontalPadding: CGFloat = isCompact ? 14 : 16
+            let sidebarWidth = max(220, min(geo.size.width * 0.55, 290))
+            let horizontalPadding: CGFloat = isCompact ? 12 : 14
             
             ZStack(alignment: .topLeading) {
                 Color(red: 0.07, green: 0.07, blue: 0.09).ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    // 1. Header: Titre "Sarah IA" bien grand et aéré
-                    HStack(alignment: .center, spacing: 10) {
+                    // 1. Header: Titre "Sarah IA" avec icône étincelle
+                    HStack(alignment: .center, spacing: 8) {
                         Image(systemName: "sparkles")
-                            .font(.system(size: isCompact ? 18 : 20, weight: .bold))
+                            .font(.system(size: isCompact ? 16 : 18, weight: .bold))
                             .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
                         
                         Text("Sarah IA")
-                            .font(.system(size: isCompact ? 22 : 24, weight: .black, design: .rounded))
+                            .font(.system(size: isCompact ? 20 : 22, weight: .black, design: .rounded))
                             .foregroundColor(.white)
                             .lineLimit(1)
                         
                         Spacer()
-                        
-                        // Bouton Vider tout
-                        if !viewModel.conversations.isEmpty {
-                            Button(action: {
-                                HapticService.shared.buttonTap()
-                                isShowingClearAllAlert = true
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.red.opacity(0.15))
-                                        .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
-                                    
-                                    Image(systemName: "trash")
-                                        .font(.system(size: isCompact ? 13 : 15, weight: .semibold))
-                                        .foregroundColor(Color.red.opacity(0.90))
-                                }
-                            }
-                            .buttonStyle(ScaleBounceButtonStyle())
-                        }
                     }
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, max(24, geo.safeAreaInsets.top + 16))
-                    .padding(.bottom, 16)
+                    .padding(.top, max(28, geo.safeAreaInsets.top + 18))
+                    .padding(.bottom, 14)
                     
                     // 2. Liste Déroulante des Discussions (Boutons grands, aérés et confortables)
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("Vos Discussions")
-                                    .font(.system(size: isCompact ? 15 : 17, weight: .bold, design: .rounded))
+                                Text("Discussions")
+                                    .font(.system(size: isCompact ? 15 : 16, weight: .bold, design: .rounded))
                                     .foregroundColor(Color.white.opacity(0.85))
                                 
                                 Spacer()
                                 
                                 Text("\(viewModel.conversations.count)")
-                                    .font(.system(size: 13, weight: .bold))
+                                    .font(.system(size: 12, weight: .bold))
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
+                                    .padding(.horizontal, 7)
                                     .padding(.vertical, 2)
                                     .background(Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.8))
                                     .clipShape(Capsule())
                             }
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 6)
+                            .padding(.top, 4)
                             .padding(.bottom, 4)
                             
                             if viewModel.conversations.isEmpty {
-                                VStack(spacing: 14) {
+                                VStack(spacing: 12) {
                                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                                        .font(.system(size: 38))
+                                        .font(.system(size: 32))
                                         .foregroundColor(Color.gray.opacity(0.35))
-                                        .padding(.top, 30)
+                                        .padding(.top, 24)
                                     
                                     Text("Aucune discussion")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.gray)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -108,16 +89,37 @@ public struct SidebarView: View {
                                 ForEach(viewModel.conversations) { conv in
                                     conversationRow(conv, isCompact: isCompact, padding: horizontalPadding)
                                 }
+                                
+                                // Bouton "Tout effacer" en bas de la liste des discussions
+                                Button(action: {
+                                    HapticService.shared.buttonTap()
+                                    isShowingClearAllAlert = true
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 12, weight: .semibold))
+                                        Text("Effacer l'historique")
+                                            .font(.system(size: 12, weight: .semibold))
+                                    }
+                                    .foregroundColor(Color.red.opacity(0.85))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.red.opacity(0.10))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                                .buttonStyle(ScaleBounceButtonStyle())
+                                .padding(.horizontal, horizontalPadding)
+                                .padding(.top, 8)
                             }
                             
-                            Spacer().frame(height: 90)
+                            Spacer().frame(height: 110)
                         }
                         .padding(.vertical, 4)
                     }
                 }
                 .frame(width: sidebarWidth, alignment: .leading)
                 
-                // 3. Bas de page : Uniquement le bouton bleu centré "Nouveau Tchat"
+                // 3. Bas de page : Bouton bleu "Nouveau Tchat" remonté, élégant et très arrondi
                 VStack(spacing: 0) {
                     Spacer()
                     
@@ -127,10 +129,10 @@ public struct SidebarView: View {
                         viewModel.switchToChat()
                     }) {
                         HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 16, weight: .bold))
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 18, weight: .bold))
                             Text("Nouveau Tchat")
-                                .font(.system(size: isCompact ? 14 : 15, weight: .bold))
+                                .font(.system(size: isCompact ? 14 : 15, weight: .bold, design: .rounded))
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -142,12 +144,12 @@ public struct SidebarView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .shadow(color: Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.4), radius: 8, x: 0, y: 3)
+                        .clipShape(Capsule())
+                        .shadow(color: Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.45), radius: 10, x: 0, y: 4)
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.bottom, max(16, geo.safeAreaInsets.bottom + 12))
+                    .padding(.bottom, max(36, geo.safeAreaInsets.bottom + 28))
                     .background(
                         LinearGradient(
                             colors: [Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.0), Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.95), Color(red: 0.07, green: 0.07, blue: 0.09)],

@@ -65,11 +65,17 @@ public final class MultiAgentCoordinator {
             return
         }
         
+        // 1.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
+        if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: activeAgent) {
+            completion(identityResponse)
+            return
+        }
+        
         // 2. Si un agent a été forcé explicitement (sélection manuelle dans l'UI)
-        let activeAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
+        let resolvedAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
         
         // 3. Exécution selon l'agent
-        switch activeAgent {
+        switch resolvedAgent {
         case .yohan:
             processWithYohan(text: trimmed, completion: completion)
             
@@ -82,6 +88,68 @@ public final class MultiAgentCoordinator {
         case .sarah:
             processWithSarah(text: trimmed, completion: completion)
         }
+    }
+    
+    // MARK: - Conscience de Soi & Connaissance de l'Équipe (Sarah, Tom, Raphaël, Yohan)
+    
+    private func evaluateAgentIdentityAndTeam(normalized: String, activeAgent: AgentType) -> AgentResponse? {
+        let isAskingTeam = normalized.contains("noms des agents") || normalized.contains("nom des agents") ||
+                           normalized.contains("les agents") || normalized.contains("quels sont les agents") ||
+                           normalized.contains("qui sont les agents") || normalized.contains("qui sont tes collegues") ||
+                           normalized.contains("qui compose l equipe") || normalized.contains("qui travaille avec toi") ||
+                           normalized.contains("liste des agents") || normalized.contains("tous les agents")
+        
+        let isAskingSelf = normalized == "qui es tu" || normalized == "qui t es" || normalized == "t es qui" ||
+                           normalized == "tu es qui" || normalized.starts(with: "qui es tu") ||
+                           normalized.starts(with: "tu es qui") || normalized.starts(with: "t es qui") ||
+                           normalized.contains("c est quoi ton nom") || normalized.contains("comment tu t appelles") ||
+                           normalized.contains("quel est ton nom") || normalized.contains("presente toi")
+        
+        if isAskingTeam {
+            let teamDescription = """
+            Voici l'équipe complète de vos 4 agents intégrés :
+
+            👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
+            🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
+            ⚡ **Raphaël [Développeur & VAI Coding]** : Création de code, Apple Shortcuts, intégrations web et studio de code.
+            🇮🇱 **Yohan [Traducteur Français ⇄ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
+
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Raphaël » ou « Donne-moi Yohan » !*
+            """
+            return AgentResponse(
+                agent: activeAgent,
+                text: teamDescription,
+                spokenText: "Nous sommes 4 agents dans cette application : Sarah la patronne et pilote, Tom pour l'histoire et la géopolitique, Raphaël pour le code et les raccourcis, et Yohan pour la traduction en hébreu.",
+                openStudio: false,
+                generatedCode: nil
+            )
+        }
+        
+        if isAskingSelf {
+            switch activeAgent {
+            case .yohan:
+                let text = "🇮🇱 **Yohan [Traducteur Français ⇄ Hébreu]**\n\nJe m'appelle **Yohan** ! Je suis votre agent expert en langue hébraïque et française. Je maîtrise la traduction bilingue, les racines sémitiques, le vocabulaire idiomatique et la phonétique. Vous pouvez me poser n'importe quelle question de traduction ou me demander d'analyser un texte en hébreu."
+                let spoken = "Je suis Yohan, votre agent traducteur en hébreu et en français. Que souhaitez-vous traduire ou apprendre en hébreu ?"
+                return AgentResponse(agent: .yohan, text: text, spokenText: spoken)
+                
+            case .tom:
+                let text = "🌍 **Tom [Histoire & Géopolitique]**\n\nJe suis **Tom**, votre agent spécialisé en histoire politique contemporaine et relations internationales depuis 1948. Je peux vous éclairer sur les conflits du Moyen-Orient, la Ve République, la guerre froide ou les dynamiques géopolitiques mondiales."
+                let spoken = "Je m'appelle Tom ! Je suis votre agent expert en histoire contemporaine et géopolitique mondiale depuis 1948. De quel sujet historique ou politique souhaites-tu débattre ?"
+                return AgentResponse(agent: .tom, text: text, spokenText: spoken)
+                
+            case .raphael:
+                let text = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nJe m'appelle **Raphaël**, développeur et architecte logiciel de l'équipe. Je conçois des composants interactifs Web, du code Swift, Python, des raccourcis Apple Shortcuts et je pilote le Studio VAI Coding directement sur votre iPhone."
+                let spoken = "Je m'appelle Raphaël, développeur de l'équipe Sarah IA. Je crée du code, des raccourcis Apple et des interfaces interactives. Quel est votre projet de développement ?"
+                return AgentResponse(agent: .raphael, text: text, spokenText: spoken)
+                
+            case .sarah:
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël et Yohan, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yohan et moi-même pour vous assister au mieux."
+                return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
+            }
+        }
+        
+        return nil
     }
     
     // MARK: - Normalisation & Détection d'Intention de Bascule (Switching)
