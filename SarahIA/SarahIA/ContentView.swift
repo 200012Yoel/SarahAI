@@ -10,8 +10,8 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            // Menu calibré à environ la moitié de la page (55% de la largeur, max 300)
-            let sidebarWidth = max(220, min(geo.size.width * 0.55, 290))
+            // Menu calibré à 78% de la largeur de l'écran style ChatGPT / Gemini
+            let sidebarWidth = geo.size.width * 0.78
             
             ZStack(alignment: .leading) {
                 // 1. CALQUE DU FOND : Menu Latéral (Sidebar)

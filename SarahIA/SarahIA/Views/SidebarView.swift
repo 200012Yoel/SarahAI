@@ -1,22 +1,14 @@
 import SwiftUI
 
-/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI avec accès direct à :
-/// - Les 4 Agents (Sarah, Tom, Raphaël, Yohan)
-/// - Le Studio VAI Coding
-/// - L'Orbe Vocal Plein Écran
-/// - Gestion instantanée des discussions multiples
+/// Menu Latéral (Sidebar) Épuré, Fluide et Moderne style Gemini / ChatGPT
+/// Intégrant le bouton Nouveau Tchat en haut, la liste des conversations récentes,
+/// et le bouton d'effacement de l'historique en pied de page.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isShowingSettings: Bool
     
-    @State private var conversationToRename: Conversation? = nil
-    @State private var newTitleText: String = ""
-    @State private var isShowingRenameAlert: Bool = false
     @State private var isShowingClearAllAlert: Bool = false
-    
-    @State private var conversationToDelete: Conversation? = nil
-    @State private var isShowingDeleteOneAlert: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -25,142 +17,129 @@ public struct SidebarView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let isCompact = geo.size.width <= 360
-            let sidebarWidth = max(220, min(geo.size.width * 0.55, 290))
-            let horizontalPadding: CGFloat = isCompact ? 12 : 14
+            let sidebarWidth = UIScreen.main.bounds.width * 0.78
             
-            ZStack(alignment: .topLeading) {
-                Color(red: 0.07, green: 0.07, blue: 0.09).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 16) {
                 
-                VStack(alignment: .leading, spacing: 0) {
-                    // 1. Header: Titre "Sarah IA" avec icône étincelle
-                    HStack(alignment: .center, spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: isCompact ? 16 : 18, weight: .bold))
-                            .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                        
-                        Text("Sarah IA")
-                            .font(.system(size: isCompact ? 20 : 22, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                        
+                // 1. En-tête : Nouveau Tchat style ChatGPT / Gemini
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    viewModel.startNewChat()
+                    viewModel.closeDrawer()
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Nouveau tchat")
+                            .font(.system(size: 15, weight: .medium))
+                        Spacer()
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.08))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(ScaleBounceButtonStyle())
+                .padding(.top, max(20, geo.safeAreaInsets.top + 8))
+                
+                // Titre de section Récents
+                HStack {
+                    Text("Récents")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.gray)
+                    Spacer()
+                    if !viewModel.conversations.isEmpty {
+                        Text("\(viewModel.conversations.count)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.horizontal, 6)
+                
+                // 2. Liste fluide des discussions
+                if viewModel.conversations.isEmpty {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 32))
+                            .foregroundColor(Color.gray.opacity(0.35))
+                        Text("Aucune discussion")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.gray)
                         Spacer()
                     }
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, max(28, geo.safeAreaInsets.top + 18))
-                    .padding(.bottom, 14)
-                    
-                    // 2. Liste Déroulante des Discussions (Boutons grands, aérés et confortables)
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text("Discussions")
-                                    .font(.system(size: isCompact ? 15 : 16, weight: .bold, design: .rounded))
-                                    .foregroundColor(Color.white.opacity(0.85))
-                                
-                                Spacer()
-                                
-                                Text("\(viewModel.conversations.count)")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 2)
-                                    .background(Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.8))
-                                    .clipShape(Capsule())
-                            }
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 4)
-                            .padding(.bottom, 4)
-                            
-                            if viewModel.conversations.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(Color.gray.opacity(0.35))
-                                        .padding(.top, 24)
-                                    
-                                    Text("Aucune discussion")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.gray)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
-                            } else {
-                                ForEach(viewModel.conversations) { conv in
-                                    conversationRow(conv, isCompact: isCompact, padding: horizontalPadding)
-                                }
-                                
-                                // Bouton "Tout effacer" en bas de la liste des discussions
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 4) {
+                            ForEach(viewModel.conversations) { chat in
+                                let isSelected = (viewModel.currentConversationId == chat.id)
                                 Button(action: {
                                     HapticService.shared.buttonTap()
-                                    isShowingClearAllAlert = true
+                                    viewModel.selectConversation(chat)
+                                    viewModel.closeDrawer()
                                 }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 12, weight: .semibold))
-                                        Text("Effacer l'historique")
-                                            .font(.system(size: 12, weight: .semibold))
+                                    HStack(spacing: 12) {
+                                        Image(systemName: isSelected ? "bubble.left.fill" : "bubble.left")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(isSelected ? Color(red: 0.15, green: 0.72, blue: 1.0) : Color.white.opacity(0.6))
+                                        
+                                        Text(chat.title)
+                                            .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                                            .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
+                                            .lineLimit(1)
+                                        
+                                        Spacer()
                                     }
-                                    .foregroundColor(Color.red.opacity(0.85))
-                                    .frame(maxWidth: .infinity)
+                                    .padding(.horizontal, 12)
                                     .padding(.vertical, 10)
-                                    .background(Color.red.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .background(isSelected ? Color.white.opacity(0.12) : Color.clear)
+                                    .cornerRadius(10)
                                 }
-                                .buttonStyle(ScaleBounceButtonStyle())
-                                .padding(.horizontal, horizontalPadding)
-                                .padding(.top, 8)
+                                .buttonStyle(PlainButtonStyle())
+                                .contextMenu {
+                                    Button(role: .destructive, action: {
+                                        HapticService.shared.memoryDeleted()
+                                        viewModel.deleteConversation(chat)
+                                    }) {
+                                        Label("Supprimer la discussion", systemImage: "trash")
+                                    }
+                                }
                             }
-                            
-                            Spacer().frame(height: 110)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
-                .frame(width: sidebarWidth, alignment: .leading)
                 
-                // 3. Bas de page : Bouton bleu "Nouveau Tchat" remonté, élégant et très arrondi
-                VStack(spacing: 0) {
-                    Spacer()
+                Spacer()
+                
+                // 3. Pied de page épuré avec Divider et Bouton Effacer l'historique
+                if !viewModel.conversations.isEmpty {
+                    Divider().background(Color.white.opacity(0.1))
                     
-                    Button(action: {
+                    Button(role: .destructive, action: {
                         HapticService.shared.buttonTap()
-                        viewModel.startNewChat()
-                        viewModel.switchToChat()
+                        isShowingClearAllAlert = true
                     }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 18, weight: .bold))
-                            Text("Nouveau Tchat")
-                                .font(.system(size: isCompact ? 14 : 15, weight: .bold, design: .rounded))
+                        HStack(spacing: 10) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14))
+                            Text("Effacer l'historique")
+                                .font(.system(size: 14))
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, isCompact ? 13 : 15)
-                        .background(
-                            LinearGradient(
-                                colors: [Color(red: 0.04, green: 0.52, blue: 1.0), Color(red: 0.0, green: 0.40, blue: 0.90)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .clipShape(Capsule())
-                        .shadow(color: Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.45), radius: 10, x: 0, y: 4)
+                        .foregroundColor(.red.opacity(0.85))
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 6)
                     }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.bottom, max(36, geo.safeAreaInsets.bottom + 28))
-                    .background(
-                        LinearGradient(
-                            colors: [Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.0), Color(red: 0.07, green: 0.07, blue: 0.09).opacity(0.95), Color(red: 0.07, green: 0.07, blue: 0.09)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .padding(.bottom, max(16, geo.safeAreaInsets.bottom + 8))
                 }
-                .frame(width: sidebarWidth)
             }
-            .frame(width: sidebarWidth)
+            .padding(.horizontal, 16)
+            .frame(width: sidebarWidth, alignment: .leading)
+            .background(Color(red: 0.10, green: 0.10, blue: 0.11).ignoresSafeArea())
         }
         .alert(isPresented: $isShowingClearAllAlert) {
             Alert(
@@ -171,57 +150,6 @@ public struct SidebarView: View {
                 },
                 secondaryButton: .cancel(Text("Annuler"))
             )
-        }
-    }
-    
-    @ViewBuilder
-    private func conversationRow(_ conv: Conversation, isCompact: Bool, padding: CGFloat) -> some View {
-        let isSelected = (viewModel.currentConversationId == conv.id)
-        
-        Button(action: {
-            HapticService.shared.buttonTap()
-            viewModel.selectConversation(conv)
-            viewModel.closeDrawer()
-        }) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelected ? Color(red: 0.04, green: 0.52, blue: 1.0) : Color.white.opacity(0.08))
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: "bubble.left.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(isSelected ? .white : Color.white.opacity(0.7))
-                }
-                
-                Text(conv.title)
-                    .font(.system(size: isCompact ? 15 : 16, weight: isSelected ? .bold : .medium))
-                    .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
-                    .lineLimit(1)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-        .padding(.horizontal, padding)
-        // Menu contextuel et appui long pour supprimer la discussion
-        .contextMenu {
-            Button(role: .destructive, action: {
-                HapticService.shared.memoryDeleted()
-                viewModel.deleteConversation(conv)
-            }) {
-                Label("Supprimer la discussion", systemImage: "trash")
-            }
         }
     }
 }
