@@ -18,7 +18,9 @@ public struct SidebarView: View {
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
-    }    public var body: some View {
+    }
+    
+    public var body: some View {
         GeometryReader { geo in
             let isCompact = geo.size.width <= 360
             let sidebarWidth = max(240, min(geo.size.width * 0.75, 290))
