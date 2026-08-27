@@ -183,11 +183,3 @@ public struct ContentView: View {
     }
 }
 
-// MARK: - Compatibility Colors
-#if canImport(SwiftUI)
-@available(iOS 13.0, *)
-extension Color {
-    public static let sarahCyan = Color(red: 0.0, green: 0.78, blue: 1.0)
-    public static let sarahIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)
-}
-#endif

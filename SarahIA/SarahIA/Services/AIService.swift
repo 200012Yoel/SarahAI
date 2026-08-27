@@ -1078,6 +1078,12 @@ public final class AIService {
         pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
     }
     
+    // MARK: - Méthodes de Diagnostic & Tests de Charge
+    
+    public func generateBackgroundTestResponse(query: String) -> String {
+        return generateSyncResponse(for: query)
+    }
+    
     // MARK: - Test en Arrière-Plan
     
     @available(iOS 13.0, *)
