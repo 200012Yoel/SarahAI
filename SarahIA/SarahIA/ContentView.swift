@@ -56,19 +56,16 @@ public struct ContentView: View {
                     RoundedRectangle(cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0)
                         .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
                 )
-                // Geste de glissement pour ouvrir / fermer
-                .gesture(
-                    DragGesture()
+                // Geste de glissement haute priorité pour ouvrir (gauche -> droite) et fermer
+                .highPriorityGesture(
+                    DragGesture(minimumDistance: 20)
                         .onChanged { value in
-                            // Si le menu est fermé, on capte le glissement partant de la bordure gauche (x < 40)
-                            if !viewModel.isDrawerOpen && value.startLocation.x < 40 {
+                            if !viewModel.isDrawerOpen && value.startLocation.x < 50 {
                                 if value.translation.width > 0 {
                                     let progress = min(value.translation.width / sidebarWidth, 1.0)
                                     viewModel.drawerProgress = CGFloat(progress)
                                 }
-                            }
-                            // Si le menu est ouvert, on capte le glissement vers la gauche pour refermer
-                            else if viewModel.isDrawerOpen {
+                            } else if viewModel.isDrawerOpen {
                                 if value.translation.width < 0 {
                                     let progress = max(0.0, 1.0 + (value.translation.width / sidebarWidth))
                                     viewModel.drawerProgress = CGFloat(progress)
@@ -76,13 +73,10 @@ public struct ContentView: View {
                             }
                         }
                         .onEnded { value in
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                // Seuil d'ouverture : glissé de plus de 80pt vers la droite depuis le bord
-                                if !viewModel.isDrawerOpen && value.translation.width > 80 && value.startLocation.x < 50 {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                if !viewModel.isDrawerOpen && value.startLocation.x < 50 && value.translation.width > 60 {
                                     viewModel.openDrawer()
-                                }
-                                // Seuil de fermeture : glissé de plus de 80pt vers la gauche
-                                else if viewModel.isDrawerOpen && value.translation.width < -80 {
+                                } else if viewModel.isDrawerOpen && value.translation.width < -60 {
                                     viewModel.closeDrawer()
                                 } else if viewModel.isDrawerOpen {
                                     viewModel.openDrawer()
