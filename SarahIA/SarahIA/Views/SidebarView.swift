@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// Menu Latéral (Sidebar) Épuré, Fluide et Moderne style Gemini / ChatGPT
-/// Intégrant le bouton Nouveau Tchat en haut, la liste des conversations récentes,
-/// et le bouton d'effacement de l'historique en pied de page.
+/// Menu Latéral (Sidebar) Épuré, Fluide et Moderne style ChatGPT / Gemini
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -19,9 +17,8 @@ public struct SidebarView: View {
         GeometryReader { geo in
             let sidebarWidth = UIScreen.main.bounds.width * 0.78
             
-            VStack(alignment: .leading, spacing: 16) {
-                
-                // 1. En-tête : Nouveau Tchat style ChatGPT / Gemini
+            VStack(alignment: .leading, spacing: 14) {
+                // 1. En-tête : Nouveau tchat (espacé de la Status Bar)
                 Button(action: {
                     HapticService.shared.buttonTap()
                     viewModel.startNewChat()
@@ -29,7 +26,7 @@ public struct SidebarView: View {
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                         Text("Nouveau tchat")
                             .font(.system(size: 15, weight: .medium))
                         Spacer()
@@ -39,43 +36,42 @@ public struct SidebarView: View {
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 11)
                     .background(Color.white.opacity(0.08))
-                    .cornerRadius(12)
+                    .cornerRadius(10)
                 }
                 .buttonStyle(ScaleBounceButtonStyle())
-                .padding(.top, max(20, geo.safeAreaInsets.top + 8))
-                
-                // Titre de section Récents
+                .padding(.top, max(12, geo.safeAreaInsets.top + 8))
+
+                // 2. Titre de section
                 HStack {
                     Text("Récents")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.gray)
                     Spacer()
-                    if !viewModel.conversations.isEmpty {
-                        Text("\(viewModel.conversations.count)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.gray)
-                    }
+                    Text("\(viewModel.conversations.count)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.gray.opacity(0.8))
                 }
-                .padding(.horizontal, 6)
-                
-                // 2. Liste fluide des discussions
+                .padding(.horizontal, 4)
+                .padding(.top, 6)
+
+                // 3. Liste des discussions style ChatGPT
                 if viewModel.conversations.isEmpty {
                     VStack(spacing: 12) {
                         Spacer()
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 32))
+                            .font(.system(size: 30))
                             .foregroundColor(Color.gray.opacity(0.35))
                         Text("Aucune discussion")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.gray)
                         Spacer()
                     }
                     .frame(maxWidth: .infinity)
                 } else {
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 4) {
+                        LazyVStack(spacing: 3) {
                             ForEach(viewModel.conversations) { chat in
                                 let isSelected = (viewModel.currentConversationId == chat.id)
                                 Button(action: {
@@ -85,20 +81,20 @@ public struct SidebarView: View {
                                 }) {
                                     HStack(spacing: 12) {
                                         Image(systemName: isSelected ? "bubble.left.fill" : "bubble.left")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(isSelected ? Color(red: 0.15, green: 0.72, blue: 1.0) : Color.white.opacity(0.6))
-                                        
+                                            .font(.system(size: 13))
+                                            .foregroundColor(isSelected ? .white : .gray)
+
                                         Text(chat.title)
-                                            .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                                            .foregroundColor(isSelected ? .white : Color.white.opacity(0.9))
+                                            .font(.system(size: 14, weight: isSelected ? .medium : .regular))
+                                            .foregroundColor(isSelected ? .white : .white.opacity(0.75))
                                             .lineLimit(1)
-                                        
+
                                         Spacer()
                                     }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 9)
                                     .background(isSelected ? Color.white.opacity(0.12) : Color.clear)
-                                    .cornerRadius(10)
+                                    .cornerRadius(8)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 .contextMenu {
@@ -113,13 +109,14 @@ public struct SidebarView: View {
                         }
                     }
                 }
-                
+
                 Spacer()
-                
-                // 3. Pied de page épuré avec Divider et Bouton Effacer l'historique
+
+                // 4. Bas de page : Nettoyage discret
                 if !viewModel.conversations.isEmpty {
-                    Divider().background(Color.white.opacity(0.1))
-                    
+                    Divider()
+                        .background(Color.white.opacity(0.1))
+
                     Button(role: .destructive, action: {
                         HapticService.shared.buttonTap()
                         isShowingClearAllAlert = true
@@ -128,18 +125,18 @@ public struct SidebarView: View {
                             Image(systemName: "trash")
                                 .font(.system(size: 14))
                             Text("Effacer l'historique")
-                                .font(.system(size: 14))
+                                .font(.system(size: 14, weight: .medium))
                         }
                         .foregroundColor(.red.opacity(0.85))
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 6)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 4)
                     }
-                    .padding(.bottom, max(16, geo.safeAreaInsets.bottom + 8))
+                    .padding(.bottom, max(12, geo.safeAreaInsets.bottom + 6))
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .frame(width: sidebarWidth, alignment: .leading)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.11).ignoresSafeArea())
+            .background(Color(red: 0.11, green: 0.11, blue: 0.12).ignoresSafeArea())
         }
         .alert(isPresented: $isShowingClearAllAlert) {
             Alert(
