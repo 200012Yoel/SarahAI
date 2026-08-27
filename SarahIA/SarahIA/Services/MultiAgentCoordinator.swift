@@ -65,14 +65,14 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 1.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
-        if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: activeAgent) {
+        // 2. Détermination de l'agent actif
+        let resolvedAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
+        
+        // 2.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
+        if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: resolvedAgent) {
             completion(identityResponse)
             return
         }
-        
-        // 2. Si un agent a été forcé explicitement (sélection manuelle dans l'UI)
-        let resolvedAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
         
         // 3. Exécution selon l'agent
         switch resolvedAgent {
