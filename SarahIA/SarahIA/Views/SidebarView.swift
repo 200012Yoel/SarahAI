@@ -169,7 +169,7 @@ public struct SidebarView: View {
     @ViewBuilder
     private func conversationCard(conv: Conversation) -> some View {
         let isSelected = (viewModel.currentConversationId == conv.id)
-        let firstMessageText = conv.messages.first(where: { $0.isUser })?.content ?? conv.title
+        let firstMessageText = conv.messages.first(where: { $0.isFromUser })?.content ?? conv.title
         
         Button(action: {
             HapticService.shared.buttonTap()
