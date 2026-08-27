@@ -33,10 +33,14 @@ public struct SidebarView: View {
                 Color(red: 0.07, green: 0.07, blue: 0.09).ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 0) {
-                    // 1. Header: Titre "Sarah IA" + Boutons d'actions
-                    HStack(alignment: .center, spacing: 8) {
+                    // 1. Header: Titre "Sarah IA" bien grand et aéré
+                    HStack(alignment: .center, spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: isCompact ? 18 : 20, weight: .bold))
+                            .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+                        
                         Text("Sarah IA")
-                            .font(.system(size: isCompact ? 20 : 22, weight: .bold))
+                            .font(.system(size: isCompact ? 22 : 24, weight: .black, design: .rounded))
                             .foregroundColor(.white)
                             .lineLimit(1)
                         
@@ -50,48 +54,52 @@ public struct SidebarView: View {
                             }) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color(red: 0.16, green: 0.12, blue: 0.12))
-                                        .frame(width: isCompact ? 32 : 36, height: isCompact ? 32 : 36)
+                                        .fill(Color.red.opacity(0.15))
+                                        .frame(width: isCompact ? 34 : 38, height: isCompact ? 34 : 38)
                                     
                                     Image(systemName: "trash")
-                                        .font(.system(size: isCompact ? 12 : 14, weight: .medium))
-                                        .foregroundColor(Color.red.opacity(0.85))
+                                        .font(.system(size: isCompact ? 13 : 15, weight: .semibold))
+                                        .foregroundColor(Color.red.opacity(0.90))
                                 }
                             }
                             .buttonStyle(ScaleBounceButtonStyle())
                         }
                     }
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, max(16, geo.safeAreaInsets.top + 8))
-                    .padding(.bottom, 12)
+                    .padding(.top, max(24, geo.safeAreaInsets.top + 16))
+                    .padding(.bottom, 16)
                     
-                    // 2. Liste Déroulante des Discussions (Boutons grands, confortables et bien visibles)
+                    // 2. Liste Déroulante des Discussions (Boutons grands, aérés et confortables)
                     ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("Discussions")
-                                    .font(.system(size: isCompact ? 14 : 15, weight: .semibold))
-                                    .foregroundColor(Color.white.opacity(0.7))
+                                Text("Vos Discussions")
+                                    .font(.system(size: isCompact ? 15 : 17, weight: .bold, design: .rounded))
+                                    .foregroundColor(Color.white.opacity(0.85))
                                 
                                 Spacer()
                                 
                                 Text("\(viewModel.conversations.count)")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color(red: 0.04, green: 0.52, blue: 1.0).opacity(0.8))
+                                    .clipShape(Capsule())
                             }
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 4)
-                            .padding(.bottom, 2)
+                            .padding(.top, 6)
+                            .padding(.bottom, 4)
                             
                             if viewModel.conversations.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "bubble.left.and.bubble.right")
-                                        .font(.system(size: 32))
-                                        .foregroundColor(Color.gray.opacity(0.4))
-                                        .padding(.top, 24)
+                                VStack(spacing: 14) {
+                                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                                        .font(.system(size: 38))
+                                        .foregroundColor(Color.gray.opacity(0.35))
+                                        .padding(.top, 30)
                                     
                                     Text("Aucune discussion")
-                                        .font(.system(size: 14, weight: .medium))
+                                        .font(.system(size: 15, weight: .semibold))
                                         .foregroundColor(.gray)
                                 }
                                 .frame(maxWidth: .infinity)

@@ -52,15 +52,17 @@ public struct ContentView: View {
                     RoundedRectangle(cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0)
                         .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
                 )
-                // Geste de glissement pour ouvrir/fermer le tiroir collé au bord gauche (Screen Edge Pan)
+                // Geste de glissement pour ouvrir (gauche ➔ droite) et fermer (droite ➔ gauche) le tiroir
                 .gesture(
                     DragGesture(minimumDistance: 10, coordinateSpace: .local)
                         .onChanged { value in
                             let translation = value.translation.width
                             if viewModel.isDrawerOpen {
+                                // Fermeture en glissant vers la gauche
                                 let newP = max(0.0, min(1.0, 1.0 + (translation / sidebarWidth)))
                                 viewModel.drawerProgress = CGFloat(newP)
-                            } else if value.startLocation.x <= 28 && translation > 0 {
+                            } else if value.startLocation.x <= 35 && translation > 0 {
+                                // Ouverture en glissant vers la droite collé au bord
                                 let newP = max(0.0, min(1.0, translation / sidebarWidth))
                                 viewModel.drawerProgress = CGFloat(newP)
                             }
@@ -69,10 +71,18 @@ public struct ContentView: View {
                             let translation = value.translation.width
                             let velocity = value.predictedEndTranslation.width - translation
                             
-                            if velocity > 50 || viewModel.drawerProgress > 0.30 {
-                                viewModel.openDrawer()
+                            if viewModel.isDrawerOpen {
+                                if velocity < -50 || viewModel.drawerProgress < 0.70 {
+                                    viewModel.closeDrawer()
+                                } else {
+                                    viewModel.openDrawer()
+                                }
                             } else {
-                                viewModel.closeDrawer()
+                                if velocity > 50 || viewModel.drawerProgress > 0.25 {
+                                    viewModel.openDrawer()
+                                } else {
+                                    viewModel.closeDrawer()
+                                }
                             }
                         }
                 )
