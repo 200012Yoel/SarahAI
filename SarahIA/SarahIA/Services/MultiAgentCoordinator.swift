@@ -15,19 +15,25 @@ public final class MultiAgentCoordinator {
         public let spokenText: String
         public let openStudio: Bool
         public let generatedCode: String?
+        public let handoffSarahTransition: String?
+        public let handoffAgentGreeting: String?
         
         public init(
             agent: AgentType,
             text: String,
             spokenText: String,
             openStudio: Bool = false,
-            generatedCode: String? = nil
+            generatedCode: String? = nil,
+            handoffSarahTransition: String? = nil,
+            handoffAgentGreeting: String? = nil
         ) {
             self.agent = agent
             self.text = text
             self.spokenText = spokenText
             self.openStudio = openStudio
             self.generatedCode = generatedCode
+            self.handoffSarahTransition = handoffSarahTransition
+            self.handoffAgentGreeting = handoffAgentGreeting
         }
     }
     
@@ -97,7 +103,9 @@ public final class MultiAgentCoordinator {
         
         let switchKeywords = [
             "donne moi ", "donne-moi ", "donnemoi ",
+            "donne ", "donnez moi ", "donnez-moi ",
             "passe moi ", "passe-moi ", "passemoi ",
+            "passe ", "passez moi ", "passez-moi ",
             "bascule sur ", "bascule vers ", "bascule a ", "bascule ",
             "switch to ", "switch sur ", "switch ",
             "je veux parler a ", "je veux parler avec ", "je voudrais parler a ", "fais moi parler a ",
@@ -248,26 +256,50 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // Accueil naturel de passation de témoin avec phrase de relais "Attends, je te le passe !"
+        // Accueil naturel de passation : Sarah dit "Attends, ne quitte pas, je te le passe !" puis Tom/Raphaël/Yohan répond avec sa voix
         switch targetAgent {
         case .tom:
-            let greeting = "🌍 **Tom [Histoire & Géopolitique]**\n\nAttends, je te le passe !\n\n— C'est Tom ! Je prends la suite. De quoi souhaites-tu discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
-            let spoken = "Attends, je te le passe ! C'est Tom. Je prends le relais, de quoi souhaites-tu discuter ?"
-            completion(AgentResponse(agent: .tom, text: greeting, spokenText: spoken))
+            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
+            let tomGreeting = "Bonjour Yoël ! C'est Tom. Je prends la suite. De quoi souhaites-tu discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
+            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n🌍 **Tom [Histoire & Géopolitique]** :\n\(tomGreeting)"
+            
+            completion(AgentResponse(
+                agent: .tom,
+                text: fullText,
+                spokenText: "\(sarahVoiceLine) \(tomGreeting)",
+                handoffSarahTransition: sarahVoiceLine,
+                handoffAgentGreeting: tomGreeting
+            ))
             
         case .raphael:
-            let greeting = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nAttends, je te le passe !\n\n— C'est Raphaël en ligne ! Prêt pour tes automatisations, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
-            let spoken = "Attends, je te le passe ! C'est Raphaël. Quel est ton projet de code ou d'automatisation ?"
-            completion(AgentResponse(agent: .raphael, text: greeting, spokenText: spoken))
+            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
+            let raphGreeting = "Salut Yoël ! C'est Raphaël en ligne. Prêt pour tes développements, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
+            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n⚡ **Raphaël [Développeur & VAI Coding]** :\n\(raphGreeting)"
+            
+            completion(AgentResponse(
+                agent: .raphael,
+                text: fullText,
+                spokenText: "\(sarahVoiceLine) \(raphGreeting)",
+                handoffSarahTransition: sarahVoiceLine,
+                handoffAgentGreeting: raphGreeting
+            ))
             
         case .yohan:
-            let greeting = "🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]**\n\nAttends, je te le passe !\n\n— Shalom ! 🇮🇱 C'est Yohan. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou français. Que veux-tu traduire ?"
-            let spoken = "Attends, je te le passe ! Shalom, c'est Yohan. Que souhaites-tu traduire ?"
-            completion(AgentResponse(agent: .yohan, text: greeting, spokenText: spoken))
+            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
+            let yohanGreeting = "Shalom Yoël ! 🇮🇱 C'est Yohan. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou en français. Que veux-tu traduire ?"
+            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
+            
+            completion(AgentResponse(
+                agent: .yohan,
+                text: fullText,
+                spokenText: "\(sarahVoiceLine) \(yohanGreeting)",
+                handoffSarahTransition: sarahVoiceLine,
+                handoffAgentGreeting: yohanGreeting
+            ))
             
         case .sarah:
-            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\nAttends, je te la passe !\n\n— C'est Sarah ! Je reprends la main. Comment puis-je t'aider ou te coordonner ?"
-            let spoken = "Attends, je te la passe ! C'est Sarah, je reprends la main. Comment puis-je t'aider ?"
+            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\n— C'est Sarah ! Je reprends la main. Comment puis-je t'aider ou te coordonner ?"
+            let spoken = "C'est Sarah ! Je reprends la main. Comment puis-je t'aider ?"
             completion(AgentResponse(agent: .sarah, text: greeting, spokenText: spoken))
         }
     }

@@ -36,6 +36,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         NotificationService.shared.clearBadge()
         BatteryMonitorManager.shared.startMonitoring()
         
+        // Demande de permission Microphone immédiate au premier lancement
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            print("🎙️ [SarahIAApp] Permission microphone accordée : \(granted)")
+        }
+        
+        // Préparation du moteur IA adaptatif au démarrage
+        AIResourceManager.shared.bootstrapEngine()
+        
         return true
     }
     

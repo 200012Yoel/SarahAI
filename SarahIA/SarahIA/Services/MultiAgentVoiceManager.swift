@@ -4,8 +4,9 @@ import AVFoundation
 /// Gestionnaire de Voix Siri et Synthèse Vocale 100% Native Apple pour les 4 Agents :
 /// 1. Sarah : Voix système principale féminine
 /// 2. Tom : Voix conversationnelle masculine
-/// 3. Raphaël : Voix de notification & build
-/// 4. Yohan : Voix de restitution polyglotte (fr-FR / he-IL)
+/// 3. Raphaël : Voix technique dynamique
+/// 4. Yohan : Voix polyglotte (fr-FR / he-IL)
+/// Supporte la passation vocale séquentielle (Sarah parle d'abord avec sa voix puis l'agent cible prend le relais avec sa propre voix).
 public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = MultiAgentVoiceManager()
@@ -21,6 +22,8 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
+    
+    private var pendingSpeechBlock: (() -> Void)? = nil
     
     private override init() {
         super.init()
@@ -71,21 +74,46 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
         yohanHeVoice = hebrewVoices.first ?? AVSpeechSynthesisVoice(language: "he-IL")
     }
     
+    /// Synthétise la voix d'un agent unique
     public func speak(text: String, for agent: AgentType) {
         stop()
+        pendingSpeechBlock = nil
         
-        let cleaned = text
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "#", with: "")
-            .replacingOccurrences(of: "`", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            
+        let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         
         AudioSessionManager.shared.configurePlaybackSession()
+        let utterance = makeUtterance(cleaned: cleaned, for: agent)
+        synthesizer.speak(utterance)
+    }
+    
+    /// Exécute une passation vocale naturelle : Sarah parle d'abord ("Attends, ne quitte pas, je te le passe"), puis l'agent prend le relais avec sa voix
+    public func speakHandoff(sarahTransition: String, agentGreeting: String, targetAgent: AgentType) {
+        stop()
         
+        let cleanSarah = cleanTextForSpeech(sarahTransition)
+        let cleanAgent = cleanTextForSpeech(agentGreeting)
+        
+        guard !cleanSarah.isEmpty else {
+            speak(text: cleanAgent, for: targetAgent)
+            return
+        }
+        
+        AudioSessionManager.shared.configurePlaybackSession()
+        
+        // Préparer la suite pour quand Sarah a fini sa phrase
+        self.pendingSpeechBlock = { [weak self] in
+            guard let self = self, !cleanAgent.isEmpty else { return }
+            let agentUtterance = self.makeUtterance(cleaned: cleanAgent, for: targetAgent)
+            self.synthesizer.speak(agentUtterance)
+        }
+        
+        let sarahUtterance = makeUtterance(cleaned: cleanSarah, for: .sarah)
+        synthesizer.speak(sarahUtterance)
+    }
+    
+    private func makeUtterance(cleaned: String, for agent: AgentType) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: cleaned)
-        
         switch agent {
         case .sarah:
             utterance.voice = sarahVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
@@ -113,11 +141,20 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
                 utterance.rate = 0.50
             }
         }
-        
-        synthesizer.speak(utterance)
+        return utterance
+    }
+    
+    private func cleanTextForSpeech(_ text: String) -> String {
+        return text
+            .replacingOccurrences(of: "*", with: "")
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: "—", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     public func stop() {
+        pendingSpeechBlock = nil
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -134,6 +171,11 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
     }
     
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        onSpeechFinished?()
+        if let next = pendingSpeechBlock {
+            pendingSpeechBlock = nil
+            next()
+        } else {
+            onSpeechFinished?()
+        }
     }
 }

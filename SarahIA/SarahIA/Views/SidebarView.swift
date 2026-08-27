@@ -15,6 +15,9 @@ public struct SidebarView: View {
     @State private var isShowingRenameAlert: Bool = false
     @State private var isShowingClearAllAlert: Bool = false
     
+    @State private var conversationToDelete: Conversation? = nil
+    @State private var isShowingDeleteOneAlert: Bool = false
+    
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
@@ -201,5 +204,14 @@ public struct SidebarView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, padding)
+        // Menu contextuel et appui long pour supprimer la discussion
+        .contextMenu {
+            Button(role: .destructive, action: {
+                HapticService.shared.memoryDeleted()
+                viewModel.deleteConversation(conv)
+            }) {
+                Label("Supprimer la discussion", systemImage: "trash")
+            }
+        }
     }
 }
