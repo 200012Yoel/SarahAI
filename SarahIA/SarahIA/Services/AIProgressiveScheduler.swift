@@ -12,14 +12,38 @@ public enum AITaskPriority: Int, Comparable {
     }
 }
 
-/// Ordonnanceur Progressif Asynchrone (Non-Bloquant avec Swift Concurrency)
+/// Token d'annulation pour tâches universelles (iOS 12.0+ & iOS 13.0+)
+public final class AIScheduledTaskToken {
+    public let id: UUID
+    private var isCancelledFlag: Bool = false
+    private let lock = NSLock()
+    
+    public init(id: UUID) {
+        self.id = id
+    }
+    
+    public var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelledFlag
+    }
+    
+    public func cancel() {
+        lock.lock()
+        isCancelledFlag = true
+        lock.unlock()
+    }
+}
+
+/// Ordonnanceur Progressif Asynchrone Universel (Compatible iOS 12.0+ et iOS 13+)
 /// Exécute les tâches lourdes sans geler le MainActor et adapte la cadence à la température/RAM
 public final class AIProgressiveScheduler {
     
     public static let shared = AIProgressiveScheduler()
     
     private let resourceManager = AIResourceManager.shared
-    private var activeTasks: [UUID: Task<Void, Never>] = [:]
+    private var activeTokens: [UUID: AIScheduledTaskToken] = [:]
+    private let queue = DispatchQueue(label: "com.sarahai.progressive.scheduler", qos: .userInitiated)
     private let lock = NSLock()
     
     private init() {}
@@ -33,47 +57,47 @@ public final class AIProgressiveScheduler {
         onCompletion: @escaping (String) -> Void
     ) -> UUID {
         let taskId = UUID()
+        let token = AIScheduledTaskToken(id: taskId)
+        
+        lock.lock()
+        activeTokens[taskId] = token
+        lock.unlock()
+        
         let streamingBuffer = AIStreamingBuffer()
         streamingBuffer.start(onFlush: onProgress)
         
-        let task = Task.detached(priority: taskPriorityToTaskPriority(priority)) { [weak self] in
+        queue.async { [weak self] in
             guard let self = self else { return }
             
             var accumulated = ""
-            for token in textTokens {
+            for tokenItem in textTokens {
                 // Vérification d'annulation
-                if Task.isCancelled {
+                if token.isCancelled {
                     break
                 }
                 
                 // Mode ralenti intelligent adaptatif
                 let delayMs = self.resourceManager.getAdaptiveBatchDelayMs()
                 if delayMs > 0 {
-                    try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
+                    usleep(useconds_t(delayMs * 1000))
                 }
                 
-                // Céder la main au système (Cooperative Multitasking)
-                await Task.yield()
-                
-                accumulated += token
-                streamingBuffer.append(token: token)
+                accumulated += tokenItem
+                streamingBuffer.append(token: tokenItem)
             }
             
             streamingBuffer.flush()
             let finalText = streamingBuffer.stopAndGetFinalText()
+            let resultText = finalText.isEmpty ? accumulated : finalText
             
             self.lock.lock()
-            self.activeTasks.removeValue(forKey: taskId)
+            self.activeTokens.removeValue(forKey: taskId)
             self.lock.unlock()
             
-            await MainActor.run {
-                onCompletion(finalText.isEmpty ? accumulated : finalText)
+            DispatchQueue.main.async {
+                onCompletion(resultText)
             }
         }
-        
-        lock.lock()
-        activeTasks[taskId] = task
-        lock.unlock()
         
         return taskId
     }
@@ -81,8 +105,8 @@ public final class AIProgressiveScheduler {
     /// Annule une tâche précise
     public func cancelTask(id: UUID) {
         lock.lock()
-        if let task = activeTasks.removeValue(forKey: id) {
-            task.cancel()
+        if let token = activeTokens.removeValue(forKey: id) {
+            token.cancel()
         }
         lock.unlock()
     }
@@ -90,19 +114,10 @@ public final class AIProgressiveScheduler {
     /// Annule toutes les tâches actives (Changement de conversation, Stop)
     public func cancelAllTasks() {
         lock.lock()
-        for (_, task) in activeTasks {
-            task.cancel()
+        for (_, token) in activeTokens {
+            token.cancel()
         }
-        activeTasks.removeAll()
+        activeTokens.removeAll()
         lock.unlock()
-    }
-    
-    private func taskPriorityToTaskPriority(_ p: AITaskPriority) -> TaskPriority {
-        switch p {
-        case .p1_userDirect: return .userInitiated
-        case .p2_userExplicitAction: return .medium
-        case .p3_secondaryAgent: return .utility
-        case .p4_maintenanceCache: return .background
-        }
     }
 }

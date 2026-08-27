@@ -73,7 +73,7 @@ public final class EmbeddedModelManager {
         // 2. Copier depuis le Bundle.main (lecture seule) vers Application Support (écriture)
         if let bundlePath = Bundle.main.path(forResource: profile.modelFileName, ofType: nil) ??
                             Bundle.main.path(forResource: (profile.modelFileName as NSString).deletingPathExtension, ofType: (profile.modelFileName as NSString).pathExtension) {
-            let bundleURL = URL(fileURLFileWithPath: bundlePath)
+            let bundleURL = URL(fileURLWithPath: bundlePath)
             do {
                 try fm.copyItem(at: bundleURL, to: destinationURL)
             } catch {
