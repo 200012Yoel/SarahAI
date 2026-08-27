@@ -377,8 +377,9 @@ public final class ChatViewModel: ObservableObject {
                 }
             }
             
-            if let sarahPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
-                self.voiceManager.speakHandoff(sarahTransition: sarahPart, agentGreeting: agentPart, targetAgent: response.agent)
+            if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
+                let src = response.handoffSourceAgent ?? .sarah
+                self.voiceManager.speakHandoff(transitionText: transitionPart, sourceAgent: src, agentGreeting: agentPart, targetAgent: response.agent)
             } else {
                 self.voiceManager.speak(text: response.spokenText, for: response.agent)
             }

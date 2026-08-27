@@ -87,29 +87,29 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
         synthesizer.speak(utterance)
     }
     
-    /// Exécute une passation vocale naturelle : Sarah parle d'abord ("Attends, ne quitte pas, je te le passe"), puis l'agent prend le relais avec sa voix
-    public func speakHandoff(sarahTransition: String, agentGreeting: String, targetAgent: AgentType) {
+    /// Exécute une passation vocale naturelle : L'agent source parle d'abord avec sa voix, puis l'agent cible prend le relais avec sa propre voix
+    public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
         stop()
         
-        let cleanSarah = cleanTextForSpeech(sarahTransition)
+        let cleanTransition = cleanTextForSpeech(transitionText)
         let cleanAgent = cleanTextForSpeech(agentGreeting)
         
-        guard !cleanSarah.isEmpty else {
+        guard !cleanTransition.isEmpty else {
             speak(text: cleanAgent, for: targetAgent)
             return
         }
         
         AudioSessionManager.shared.configurePlaybackSession()
         
-        // Préparer la suite pour quand Sarah a fini sa phrase
+        // Préparer la suite pour quand l'agent source a fini sa phrase de passage
         self.pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
             let agentUtterance = self.makeUtterance(cleaned: cleanAgent, for: targetAgent)
             self.synthesizer.speak(agentUtterance)
         }
         
-        let sarahUtterance = makeUtterance(cleaned: cleanSarah, for: .sarah)
-        synthesizer.speak(sarahUtterance)
+        let sourceUtterance = makeUtterance(cleaned: cleanTransition, for: sourceAgent)
+        synthesizer.speak(sourceUtterance)
     }
     
     private func makeUtterance(cleaned: String, for agent: AgentType) -> AVSpeechUtterance {

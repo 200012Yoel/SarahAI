@@ -5,6 +5,7 @@ import AVFoundation
 /// Coordinateur Central Multi-Agents (Sarah, Tom, Raphaël, Yohan).
 /// Analyse les requêtes utilisateur pour identifier l'agent expert approprié,
 /// effectue le routage instantané, bascule l'orbe et synthétise la voix Siri correspondante.
+/// Supporte la passation universelle entre n'importe quelle paire d'agents (ex: Tom -> Yohan, Sarah -> Tom, etc.)
 public final class MultiAgentCoordinator {
     
     public static let shared = MultiAgentCoordinator()
@@ -17,6 +18,7 @@ public final class MultiAgentCoordinator {
         public let generatedCode: String?
         public let handoffSarahTransition: String?
         public let handoffAgentGreeting: String?
+        public let handoffSourceAgent: AgentType?
         
         public init(
             agent: AgentType,
@@ -25,7 +27,8 @@ public final class MultiAgentCoordinator {
             openStudio: Bool = false,
             generatedCode: String? = nil,
             handoffSarahTransition: String? = nil,
-            handoffAgentGreeting: String? = nil
+            handoffAgentGreeting: String? = nil,
+            handoffSourceAgent: AgentType? = nil
         ) {
             self.agent = agent
             self.text = text
@@ -34,6 +37,7 @@ public final class MultiAgentCoordinator {
             self.generatedCode = generatedCode
             self.handoffSarahTransition = handoffSarahTransition
             self.handoffAgentGreeting = handoffAgentGreeting
+            self.handoffSourceAgent = handoffSourceAgent
         }
     }
     
@@ -53,10 +57,11 @@ public final class MultiAgentCoordinator {
     ) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalize(trimmed)
+        let sourceAgent = currentAgent ?? .sarah
         
         // 1. Détection prioritaire d'un ordre explicite de passage / bascule d'agent
         if let switchMatch = detectSwitchCommand(normalized: normalized, original: trimmed) {
-            handleAgentHandoff(to: switchMatch.targetAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
+            handleAgentHandoff(from: sourceAgent, to: switchMatch.targetAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
             return
         }
         
@@ -89,6 +94,7 @@ public final class MultiAgentCoordinator {
             .replacingOccurrences(of: ".", with: "")
             .replacingOccurrences(of: ",", with: " ")
             .replacingOccurrences(of: "'", with: " ")
+            .replacingOccurrences(of: "’", with: " ")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "«", with: "")
             .replacingOccurrences(of: "»", with: "")
@@ -113,6 +119,11 @@ public final class MultiAgentCoordinator {
             "appelle ", "reviens sur ", "reprends la main ", "reprend la main "
         ]
         
+        let yohanTokens = ["yoann", "yohan", "yoan", "johan", "yohan traducteur", "yoann traducteur"]
+        let tomTokens = ["tom", "thomas"]
+        let raphaelTokens = ["raphael", "raphaël", "raph", "rafael"]
+        let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
+        
         func extractResidual(trigger: String, agentToken: String) -> String {
             var working = normalized
             if let range = working.range(of: trigger + agentToken) {
@@ -126,34 +137,9 @@ public final class MultiAgentCoordinator {
             return working.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
-        // Cible Tom
-        let tomNames = ["tom", "thomas"]
+        // 1. Cible Yohan (priorité aux tokens les plus longs ex: yoann, yohan)
         for kw in switchKeywords {
-            for name in tomNames {
-                let targetPattern = kw + name
-                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
-                    let residual = extractResidual(trigger: kw, agentToken: name)
-                    return SwitchCommandMatch(targetAgent: .tom, residualPrompt: residual)
-                }
-            }
-        }
-        
-        // Cible Raphaël
-        let raphaelNames = ["raphael", "raphaël", "raph", "rafael"]
-        for kw in switchKeywords {
-            for name in raphaelNames {
-                let targetPattern = kw + name
-                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
-                    let residual = extractResidual(trigger: kw, agentToken: name)
-                    return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: residual)
-                }
-            }
-        }
-        
-        // Cible Yohan
-        let yohanNames = ["yohan", "yoan", "johan", "yoann", "yohan traducteur"]
-        for kw in switchKeywords {
-            for name in yohanNames {
+            for name in yohanTokens {
                 let targetPattern = kw + name
                 if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
                     let residual = extractResidual(trigger: kw, agentToken: name)
@@ -162,10 +148,31 @@ public final class MultiAgentCoordinator {
             }
         }
         
-        // Cible Sarah
-        let sarahNames = ["sarah", "sara", "la patronne", "pilote"]
+        // 2. Cible Tom
         for kw in switchKeywords {
-            for name in sarahNames {
+            for name in tomTokens {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .tom, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // 3. Cible Raphaël
+        for kw in switchKeywords {
+            for name in raphaelTokens {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: residual)
+                }
+            }
+        }
+        
+        // 4. Cible Sarah
+        for kw in switchKeywords {
+            for name in sarahTokens {
                 let targetPattern = kw + name
                 if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
                     let residual = extractResidual(trigger: kw, agentToken: name)
@@ -174,22 +181,30 @@ public final class MultiAgentCoordinator {
             }
         }
         
-        // Commandes directes d'appel en début de phrase ou isolées
-        if normalized == "tom" || normalized.starts(with: "tom ") {
-            let res = normalized.replacingOccurrences(of: "tom", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return SwitchCommandMatch(targetAgent: .tom, residualPrompt: res)
+        // Commandes directes d'appel isolées ou début de phrase
+        for name in yohanTokens {
+            if normalized == name || normalized.starts(with: name + " ") {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .yohan, residualPrompt: res)
+            }
         }
-        if normalized == "raphael" || normalized.starts(with: "raphael ") || normalized == "raphael code" {
-            let res = normalized.replacingOccurrences(of: "raphael", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: res)
+        for name in tomTokens {
+            if normalized == name || normalized.starts(with: name + " ") {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .tom, residualPrompt: res)
+            }
         }
-        if normalized == "yohan" || normalized.starts(with: "yohan ") {
-            let res = normalized.replacingOccurrences(of: "yohan", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return SwitchCommandMatch(targetAgent: .yohan, residualPrompt: res)
+        for name in raphaelTokens {
+            if normalized == name || normalized.starts(with: name + " ") || normalized == "\(name) code" {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: res)
+            }
         }
-        if normalized == "sarah" || normalized.starts(with: "sarah ") {
-            let res = normalized.replacingOccurrences(of: "sarah", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return SwitchCommandMatch(targetAgent: .sarah, residualPrompt: res)
+        for name in sarahTokens {
+            if normalized == name || normalized.starts(with: name + " ") {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .sarah, residualPrompt: res)
+            }
         }
         
         return nil
@@ -199,7 +214,7 @@ public final class MultiAgentCoordinator {
     
     private func detectTargetAgent(normalized: String) -> AgentType {
         // Yohan (Traduction Français <-> Hébreu)
-        if normalized.contains("yohan") || normalized.contains("yoan") || normalized.contains("johan") ||
+        if normalized.contains("yohan") || normalized.contains("yoann") || normalized.contains("yoan") || normalized.contains("johan") ||
            normalized.contains("en hebreu") || normalized.contains("en francais") ||
            normalized.contains("traduis") || normalized.contains("traduit") ||
            normalized.contains("comment on dit") || normalized.contains("comment dit on") ||
@@ -235,6 +250,7 @@ public final class MultiAgentCoordinator {
     // MARK: - Handoff & Accueil Personnalisé de l'Agent Cible
     
     private func handleAgentHandoff(
+        from sourceAgent: AgentType,
         to targetAgent: AgentType,
         residualPrompt: String,
         completion: @escaping (AgentResponse) -> Void
@@ -256,51 +272,76 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // Accueil naturel de passation : Sarah dit "Attends, ne quitte pas, je te le passe !" puis Tom/Raphaël/Yohan répond avec sa voix
+        // Phrase de transition personnalisée selon qui passe la main
+        let transitionLine: String
+        let sourceName: String
+        switch sourceAgent {
+        case .sarah:
+            transitionLine = "Attends, ne quitte pas, je te le passe !"
+            sourceName = "👑 **Sarah**"
+        case .tom:
+            transitionLine = "Pas de problème Yoël, je te le passe !"
+            sourceName = "🌍 **Tom**"
+        case .raphael:
+            transitionLine = "Ça marche, je te le passe tout de suite !"
+            sourceName = "⚡ **Raphaël**"
+        case .yohan:
+            transitionLine = "Beseder Yoël, je te le passe !"
+            sourceName = "🇮🇱 **Yohan**"
+        }
+        
         switch targetAgent {
         case .tom:
-            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
             let tomGreeting = "Bonjour Yoël ! C'est Tom. Je prends la suite. De quoi souhaites-tu discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
-            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n🌍 **Tom [Histoire & Géopolitique]** :\n\(tomGreeting)"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🌍 **Tom [Histoire & Géopolitique]** :\n\(tomGreeting)"
             
             completion(AgentResponse(
                 agent: .tom,
                 text: fullText,
-                spokenText: "\(sarahVoiceLine) \(tomGreeting)",
-                handoffSarahTransition: sarahVoiceLine,
-                handoffAgentGreeting: tomGreeting
+                spokenText: "\(transitionLine) \(tomGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: tomGreeting,
+                handoffSourceAgent: sourceAgent
             ))
             
         case .raphael:
-            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
             let raphGreeting = "Salut Yoël ! C'est Raphaël en ligne. Prêt pour tes développements, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
-            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n⚡ **Raphaël [Développeur & VAI Coding]** :\n\(raphGreeting)"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n⚡ **Raphaël [Développeur & VAI Coding]** :\n\(raphGreeting)"
             
             completion(AgentResponse(
                 agent: .raphael,
                 text: fullText,
-                spokenText: "\(sarahVoiceLine) \(raphGreeting)",
-                handoffSarahTransition: sarahVoiceLine,
-                handoffAgentGreeting: raphGreeting
+                spokenText: "\(transitionLine) \(raphGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: raphGreeting,
+                handoffSourceAgent: sourceAgent
             ))
             
         case .yohan:
-            let sarahVoiceLine = "Attends, ne quitte pas, je te le passe !"
             let yohanGreeting = "Shalom Yoël ! 🇮🇱 C'est Yohan. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou en français. Que veux-tu traduire ?"
-            let fullText = "👑 **Sarah** : *Attends, ne quitte pas, je te le passe !*\n\n🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
             
             completion(AgentResponse(
                 agent: .yohan,
                 text: fullText,
-                spokenText: "\(sarahVoiceLine) \(yohanGreeting)",
-                handoffSarahTransition: sarahVoiceLine,
-                handoffAgentGreeting: yohanGreeting
+                spokenText: "\(transitionLine) \(yohanGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: yohanGreeting,
+                handoffSourceAgent: sourceAgent
             ))
             
         case .sarah:
-            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\n— C'est Sarah ! Je reprends la main. Comment puis-je t'aider ou te coordonner ?"
-            let spoken = "C'est Sarah ! Je reprends la main. Comment puis-je t'aider ?"
-            completion(AgentResponse(agent: .sarah, text: greeting, spokenText: spoken))
+            let sarahGreeting = "C'est Sarah ! Je reprends la main. Comment puis-je t'aider ou te coordonner ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n👑 **Sarah [Patronne & Pilote]** :\n\(sarahGreeting)"
+            
+            completion(AgentResponse(
+                agent: .sarah,
+                text: fullText,
+                spokenText: "\(transitionLine) \(sarahGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: sarahGreeting,
+                handoffSourceAgent: sourceAgent
+            ))
         }
     }
     
@@ -310,9 +351,14 @@ public final class MultiAgentCoordinator {
         let clean = text
             .replacingOccurrences(of: "passe-moi yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "passe moi yohan", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe-moi yoann", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe moi yoann", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "donne-moi yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "donne moi yohan", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi yoann", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi yoann", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "yohan", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "yoann", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
         let queryText = clean.isEmpty ? text : clean
