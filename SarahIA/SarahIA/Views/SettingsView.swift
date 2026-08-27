@@ -83,20 +83,39 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 3. Inférence & Statut Hors-Ligne (llama.cpp / On-Device)
-                    Section(header: Text("Moteur LLM & RAG Local").foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))) {
+                    // 3. Moteur IA Adaptatif Embarqué & Ressources
+                    Section(header: Text("Moteur d'Intelligence Artificielle Locale").foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))) {
+                        let profile = AIResourceManager.shared.activeProfile
+                        let capability = DeviceCapabilityDetector.shared.detectProfile()
+                        
                         HStack {
-                            Text("Mode d'Inférence")
+                            Text("Statut du Moteur")
                             Spacer()
-                            Text("100% Hors-ligne (Metal)")
+                            Text("Actif & Intégré (100% Local)")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.green)
                         }
                         
                         HStack {
+                            Text("Profil Matériel Détecté")
+                            Spacer()
+                            Text("\(capability.hardwareTier.tierName)")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+                        }
+                        
+                        HStack {
                             Text("Modèle Embarqué")
                             Spacer()
-                            Text("Qwen2.5-Coder (Local)")
+                            Text(profile?.internalEngineId ?? "Sarah Adaptive Core")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack {
+                            Text("Mémoire Allouée Sécurisée")
+                            Spacer()
+                            Text("\(capability.safeMemoryBudgetBytes / (1024 * 1024)) Mo")
                                 .font(.system(size: 13))
                                 .foregroundColor(.gray)
                         }
