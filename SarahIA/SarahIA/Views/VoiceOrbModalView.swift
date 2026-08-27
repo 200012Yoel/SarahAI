@@ -20,7 +20,7 @@ public struct VoiceOrbModalView: View {
             Color.black.ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // 1. Barre Supérieure : Bouton Fermer & Sélecteur d'Agent
+                // 1. Barre Supérieure : Bouton Fermer épuré
                 HStack {
                     Button(action: {
                         HapticService.shared.buttonTap()
@@ -29,36 +29,6 @@ public struct VoiceOrbModalView: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 28))
                             .foregroundColor(Color.white.opacity(0.6))
-                    }
-                    
-                    Spacer()
-                    
-                    // Sélecteur des 4 Agents (Pill Switcher)
-                    HStack(spacing: 6) {
-                        ForEach(AgentType.allCases) { agent in
-                            Button(action: {
-                                HapticService.shared.buttonTap()
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    viewModel.activeAgent = agent
-                                }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: agent.iconName)
-                                        .font(.system(size: 11, weight: .bold))
-                                    Text(agent.rawValue)
-                                        .font(.system(size: 12, weight: .semibold))
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    viewModel.activeAgent == agent
-                                        ? agent.themeColor
-                                        : Color.white.opacity(0.08)
-                                )
-                                .foregroundColor(viewModel.activeAgent == agent ? .black : .white)
-                                .clipShape(Capsule())
-                            }
-                        }
                     }
                     
                     Spacer()

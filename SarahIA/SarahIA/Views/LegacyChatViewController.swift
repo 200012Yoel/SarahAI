@@ -126,7 +126,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     private func loadInitialMessages() {
         let welcome = Message(
-            content: "Bonjour ! 👋 Je suis Sarah, votre agent pilote hors-ligne. Touchez mon nom en haut à gauche pour basculer vers Tom, Raphaël ou Yohan.",
+            content: "Bonjour ! 👋 Je suis Sarah, votre assistante IA. Dites-moi simplement « Passe-moi Tom », « Passe-moi Raphaël » ou « Passe-moi Yohan » pour basculer d'un agent à l'autre à tout moment.",
             isFromUser: false
         )
         messages.append(welcome)

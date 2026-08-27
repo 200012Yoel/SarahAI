@@ -43,86 +43,93 @@ public struct MessageBar: View {
             let sendBtnSize: CGFloat = isCompact ? 36 : 38
             
             VStack(spacing: 8) {
-                // 0. Sélecteur Défilant des 4 Agents & Raccourcis Rapides (Sarah, Tom, Raphaël, Yohan, Torche)
+                // 0. Chips / Raccourcis Rapides du haut (Allume la torche, Pikoud HaOref, i24News, YouTube)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        // 0.1 Sélecteur des 4 Agents Autonomes
-                        ForEach(AgentType.allCases) { agent in
-                            Button(action: {
-                                HapticService.shared.buttonTap()
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                                    activeAgent = agent
-                                }
-                            }) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: agent.iconName)
-                                        .font(.system(size: isCompact ? 11 : 12, weight: .bold))
-                                    Text(agent.rawValue)
-                                        .font(.system(size: isCompact ? 11 : 12, weight: .bold))
-                                }
-                                .foregroundColor(activeAgent == agent ? (agent == .yohan ? .white : .black) : .white)
-                                .padding(.horizontal, isCompact ? 10 : 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    activeAgent == agent
-                                        ? agent.themeColor
-                                        : Color(red: 0.16, green: 0.16, blue: 0.20)
-                                )
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule().stroke(
-                                        activeAgent == agent ? Color.white.opacity(0.8) : Color.white.opacity(0.12),
-                                        lineWidth: 1
-                                    )
-                                )
-                                .shadow(
-                                    color: activeAgent == agent ? agent.themeColor.opacity(0.5) : Color.clear,
-                                    radius: 6,
-                                    x: 0,
-                                    y: 2
-                                )
-                            }
-                            .fixedSize(horizontal: true, vertical: false)
-                        }
-                        
-                        // 0.2 Bouton Torche Rapide
+                        // 0.1 Allume la torche
                         Button(action: {
                             flashlight.toggleTorch()
                         }) {
-                            HStack(spacing: 5) {
+                            HStack(spacing: 6) {
                                 Image(systemName: flashlight.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
-                                    .font(.system(size: isCompact ? 11 : 12, weight: .bold))
-                                Text(flashlight.isTorchOn ? "Éteindre" : "Torche")
-                                    .font(.system(size: isCompact ? 11 : 12, weight: .semibold))
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
+                                Text(flashlight.isTorchOn ? "Éteins la torche" : "Allume la torche")
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
                             }
-                            .foregroundColor(flashlight.isTorchOn ? .black : .white)
-                            .padding(.horizontal, isCompact ? 10 : 12)
-                            .padding(.vertical, 6)
-                            .background(
-                                flashlight.isTorchOn
-                                    ? Color(red: 0.98, green: 0.82, blue: 0.20)
-                                    : Color(red: 0.18, green: 0.18, blue: 0.22)
-                            )
+                            .foregroundColor(.white)
+                            .padding(.horizontal, isCompact ? 12 : 14)
+                            .padding(.vertical, 7)
+                            .background(Color(red: 0.14, green: 0.16, blue: 0.20))
                             .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
                         }
                         .fixedSize(horizontal: true, vertical: false)
                         
-                        // 0.3 Bouton Studio VAI Coding
+                        // 0.2 Pikoud HaOref (Alerte Rouge)
                         Button(action: {
                             HapticService.shared.buttonTap()
-                            onOpenVAICoding()
+                            onSend("Alertes Pikoud HaOref")
                         }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: "curlybraces")
-                                    .font(.system(size: isCompact ? 11 : 12, weight: .bold))
-                                Text("VAI Coding")
-                                    .font(.system(size: isCompact ? 11 : 12, weight: .semibold))
+                            HStack(spacing: 6) {
+                                Text("🚨")
+                                    .font(.system(size: isCompact ? 12 : 13))
+                                Text("Pikoud HaOref")
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
                             }
-                            .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                            .padding(.horizontal, isCompact ? 10 : 12)
-                            .padding(.vertical, 6)
-                            .background(Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.18))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, isCompact ? 12 : 14)
+                            .padding(.vertical, 7)
+                            .background(Color(red: 0.35, green: 0.12, blue: 0.14))
                             .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.red.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        
+                        // 0.3 i24News
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            onSend("Actualités i24news")
+                        }) {
+                            HStack(spacing: 6) {
+                                Text("📰")
+                                    .font(.system(size: isCompact ? 12 : 13))
+                                Text("i24news")
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, isCompact ? 12 : 14)
+                            .padding(.vertical, 7)
+                            .background(Color(red: 0.12, green: 0.18, blue: 0.28))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        
+                        // 0.4 YouTube
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            onSend("YouTube")
+                        }) {
+                            HStack(spacing: 6) {
+                                Text("▶️")
+                                    .font(.system(size: isCompact ? 12 : 13))
+                                Text("YouTube")
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, isCompact ? 12 : 14)
+                            .padding(.vertical, 7)
+                            .background(Color(red: 0.20, green: 0.12, blue: 0.12))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.red.opacity(0.3), lineWidth: 1)
+                            )
                         }
                         .fixedSize(horizontal: true, vertical: false)
                     }
@@ -130,70 +137,55 @@ public struct MessageBar: View {
                 }
                 .frame(maxWidth: .infinity)
                 
-                // 1. Barre de saisie principale avec Bouton Capsule Audio
+                // 1. Barre de saisie principale (Capsule)
                 HStack(spacing: isCompact ? 6 : 8) {
-                    // 1.1 Bouton Action Rapide / Ajout (+)
+                    // 1.1 Bouton (+) Action Rapide
                     Button(action: {
                         HapticService.shared.buttonTap()
                         onPlusTapped?()
                     }) {
                         ZStack {
                             Circle()
-                                .fill(Color.white.opacity(0.08))
+                                .fill(Color.white.opacity(0.10))
                                 .frame(width: btnSize, height: btnSize)
                             
                             Image(systemName: "plus")
-                                .font(.system(size: isCompact ? 15 : 17, weight: .semibold))
+                                .font(.system(size: isCompact ? 16 : 18, weight: .bold))
                                 .foregroundColor(.white)
                         }
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                     
-                    // 1.2 Champ de Saisie Texte Dynamique
-                    TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
+                    // 1.2 Champ de Saisie Texte
+                    TextField("Demander à Sarah...", text: $text, onCommit: {
                         submitMessage()
                     })
-                        .font(.system(size: isCompact ? 15 : 16, weight: .regular))
+                        .font(.system(size: isCompact ? 14 : 15, weight: .regular))
                         .foregroundColor(.white)
-                        .accentColor(activeAgent.themeColor)
+                        .accentColor(Color(red: 0.15, green: 0.72, blue: 1.0))
                         .autocapitalization(.sentences)
                         .disableAutocorrection(false)
                         .padding(.horizontal, 4)
                         .lineLimit(1)
                     
-                    // 1.3 BOUTON CAPSULE AUDIO (Pastille à ondes blanches pour ouvrir Voice Orb)
+                    // 1.3 Bouton Caméra
                     Button(action: {
                         HapticService.shared.buttonTap()
-                        onOpenVoiceOrb()
+                        onPlusTapped?()
                     }) {
                         ZStack {
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [activeAgent.themeColor, activeAgent.themeColor.opacity(0.7)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: isCompact ? 40 : 44, height: btnSize)
-                                .shadow(color: activeAgent.themeColor.opacity(0.5), radius: 6)
+                            Circle()
+                                .fill(Color.white.opacity(0.10))
+                                .frame(width: btnSize, height: btnSize)
                             
-                            HStack(spacing: 2) {
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 10)
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 16)
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 8)
-                            }
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: isCompact ? 13 : 15, weight: .medium))
+                                .foregroundColor(.white)
                         }
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                     
-                    // 1.4 Bouton Dictée Vocale / Microphone Direct
+                    // 1.4 Bouton Dictée Vocale (Microphone)
                     Button(action: {
                         onToggleMic()
                     }) {
@@ -211,27 +203,29 @@ public struct MessageBar: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     
-                    // 1.5 Bouton Envoi / Validation
+                    // 1.5 Bouton Mode Vocal / Ondes (Ouvre le mode vocal / Voice Orb)
                     Button(action: {
-                        submitMessage()
+                        HapticService.shared.buttonTap()
+                        onOpenVoiceOrb()
                     }) {
                         ZStack {
                             Circle()
-                                .fill(
-                                    text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                        ? Color(red: 0.18, green: 0.18, blue: 0.20)
-                                        : activeAgent.themeColor
-                                )
+                                .fill(Color.white.opacity(0.12))
                                 .frame(width: sendBtnSize, height: sendBtnSize)
                             
-                            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: isCompact ? 15 : 17, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.4))
-                            } else {
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: isCompact ? 15 : 17, weight: .bold))
-                                    .foregroundColor(activeAgent == .yohan ? .white : .black)
+                            HStack(spacing: 2.5) {
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.white)
+                                    .frame(width: 2.5, height: 10)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.white)
+                                    .frame(width: 2.5, height: 18)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.white)
+                                    .frame(width: 2.5, height: 14)
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.white)
+                                    .frame(width: 2.5, height: 8)
                             }
                         }
                     }
@@ -240,27 +234,21 @@ public struct MessageBar: View {
                 .padding(.leading, isCompact ? 8 : 10)
                 .padding(.trailing, isCompact ? 6 : 8)
                 .padding(.vertical, 6)
-                .background(
-                    LinearGradient(
-                        colors: [Color(red: 0.13, green: 0.13, blue: 0.16), Color(red: 0.08, green: 0.08, blue: 0.10)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .background(Color(red: 0.10, green: 0.11, blue: 0.14))
                 .clipShape(Capsule())
                 .overlay(
                     Capsule()
                         .stroke(
                             LinearGradient(
-                                colors: [activeAgent.themeColor.opacity(0.5), Color.white.opacity(0.12)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                colors: [Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.4), Color.white.opacity(0.10)],
+                                startPoint: .leading,
+                                endPoint: .trailing
                             ),
                             lineWidth: 1.0
                         )
                 )
                 .padding(.horizontal, isCompact ? 10 : 16)
-                .shadow(color: activeAgent.themeColor.opacity(0.15), radius: 12, x: 0, y: 4)
+                .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
             }
         }
         .frame(height: 98)

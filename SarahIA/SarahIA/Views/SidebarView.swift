@@ -84,47 +84,7 @@ public struct SidebarView: View {
                     .padding(.top, max(16, geo.safeAreaInsets.top + 8))
                     .padding(.bottom, 8)
                     
-                    // 2. Section des 4 Agents Rapides dans le Menu
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("AGENTS AUTONOMES")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 4)
-                        
-                        ForEach(AgentType.allCases) { agent in
-                            Button(action: {
-                                HapticService.shared.buttonTap()
-                                viewModel.activeAgent = agent
-                                viewModel.closeDrawer()
-                            }) {
-                                HStack(spacing: 10) {
-                                    Circle()
-                                        .fill(agent.themeColor)
-                                        .frame(width: 8, height: 8)
-                                    
-                                    Text(agent.rawValue)
-                                        .font(.system(size: 14, weight: viewModel.activeAgent == agent ? .bold : .medium))
-                                        .foregroundColor(.white)
-                                    
-                                    Spacer()
-                                    
-                                    if viewModel.activeAgent == agent {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(agent.themeColor)
-                                    }
-                                }
-                                .padding(.horizontal, horizontalPadding)
-                                .padding(.vertical, 7)
-                                .background(viewModel.activeAgent == agent ? Color.white.opacity(0.08) : Color.clear)
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                    .padding(.bottom, 8)
-                    
-                    Divider().background(Color.white.opacity(0.1)).padding(.horizontal, horizontalPadding)
+
                     
                     // 3. Liste Déroulante des Discussions
                     ScrollView(.vertical, showsIndicators: false) {

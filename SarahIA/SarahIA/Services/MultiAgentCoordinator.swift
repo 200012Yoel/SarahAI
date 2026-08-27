@@ -248,26 +248,26 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // Accueil naturel de passation de témoin (Handoff Greeting)
+        // Accueil naturel de passation de témoin avec phrase de relais "Attends, je te le passe !"
         switch targetAgent {
         case .tom:
-            let greeting = "🌍 **Tom [Histoire & Géopolitique]**\n\nC'est Tom à l'appareil ! Je prends le relais. De quoi voulez-vous discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
-            let spoken = "C'est Tom à l'appareil ! Je prends le relais. De quoi souhaitez-vous discuter ?"
+            let greeting = "🌍 **Tom [Histoire & Géopolitique]**\n\nAttends, je te le passe !\n\n— C'est Tom ! Je prends la suite. De quoi souhaites-tu discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
+            let spoken = "Attends, je te le passe ! C'est Tom. Je prends le relais, de quoi souhaites-tu discuter ?"
             completion(AgentResponse(agent: .tom, text: greeting, spokenText: spoken))
             
         case .raphael:
-            let greeting = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nRaphaël en ligne ! Je suis prêt pour vos automatisations, raccourcis Apple, projets Swift et composants web. Quel est votre projet de code ?"
-            let spoken = "Raphaël en ligne ! Je prends le relais. Quel projet de code ou raccourci souhaitez-vous développer ?"
+            let greeting = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nAttends, je te le passe !\n\n— C'est Raphaël en ligne ! Prêt pour tes automatisations, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
+            let spoken = "Attends, je te le passe ! C'est Raphaël. Quel est ton projet de code ou d'automatisation ?"
             completion(AgentResponse(agent: .raphael, text: greeting, spokenText: spoken))
             
         case .yohan:
-            let greeting = "🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]**\n\nShalom ! 🇮🇱 Je suis Yohan. Je suis à votre disposition pour toute traduction, expression idiomatique ou analyse linguistique en hébreu ou en français. Que souhaitez-vous traduire ?"
-            let spoken = "Shalom ! Je suis Yohan. Je prends le relais pour vos traductions en hébreu et français."
+            let greeting = "🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]**\n\nAttends, je te le passe !\n\n— Shalom ! 🇮🇱 C'est Yohan. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou français. Que veux-tu traduire ?"
+            let spoken = "Attends, je te le passe ! Shalom, c'est Yohan. Que souhaites-tu traduire ?"
             completion(AgentResponse(agent: .yohan, text: greeting, spokenText: spoken))
             
         case .sarah:
-            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\nJe reprends la main ! Que puis-je faire pour vous coordonner ou vous assister ?"
-            let spoken = "Je reprends la main ! Que puis-je faire pour vous ?"
+            let greeting = "👑 **Sarah [Patronne & Pilote]**\n\nAttends, je te la passe !\n\n— C'est Sarah ! Je reprends la main. Comment puis-je t'aider ou te coordonner ?"
+            let spoken = "Attends, je te la passe ! C'est Sarah, je reprends la main. Comment puis-je t'aider ?"
             completion(AgentResponse(agent: .sarah, text: greeting, spokenText: spoken))
         }
     }
