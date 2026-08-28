@@ -471,7 +471,67 @@ public final class MultiAgentCoordinator {
         let prompt = clean.isEmpty ? text : clean
         let lower = prompt.lowercased()
         
-        if lower.contains("shortcut") || lower.contains("raccourci") {
+        // 1. Déploiement en ligne direct
+        if lower.contains("met en ligne") || lower.contains("mettre en ligne") || lower.contains("deploie") || lower.contains("deploiement") || lower.contains("deploy") || lower.contains("publie") {
+            let currentCode = VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
+            let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
+            completion(AgentResponse(
+                agent: .raphael,
+                text: status,
+                spokenText: "Votre projet a été déployé et mis en ligne avec succès sur \(liveURL).",
+                openStudio: true,
+                generatedCode: currentCode
+            ))
+        }
+        // 2. Connexion GitHub
+        else if lower.contains("github") || lower.contains("connecte a github") || lower.contains("connexion github") || lower.contains("login github") {
+            let authURL = VAICodeEngine.shared.getGitHubAuthURL()
+            DispatchQueue.main.async {
+                UIApplication.shared.open(authURL, options: [:], completionHandler: nil)
+            }
+            let responseText = "⚡ **Raphaël [GitHub Integration & OAuth]**\n\nJ'ai ouvert le portail officiel de connexion GitHub : [github.com/login](\(authURL.absoluteString)).\nUne fois connecté, vos dépôts distants et vos déploiements automatiques seront synchronisés !"
+            completion(AgentResponse(
+                agent: .raphael,
+                text: responseText,
+                spokenText: "J'ai lancé la connexion à GitHub. Vous pouvez vous identifier directement sur la page sécurisée.",
+                openStudio: false,
+                generatedCode: nil
+            ))
+        }
+        // 3. Google / Gmail
+        else if lower.contains("gmail") || lower.contains("google mail") || lower.contains("mes mails") || lower.contains("boite mail") {
+            let mailURL = VAICodeEngine.shared.getGoogleMailURL()
+            DispatchQueue.main.async {
+                UIApplication.shared.open(mailURL, options: [:], completionHandler: nil)
+            }
+            let responseText = "⚡ **Raphaël [Intégration Google & Gmail]**\n\nOuverture de votre messagerie Gmail en cours : [mail.google.com](\(mailURL.absoluteString))."
+            completion(AgentResponse(
+                agent: .raphael,
+                text: responseText,
+                spokenText: "J'ouvre votre boîte de réception Gmail.",
+                openStudio: false,
+                generatedCode: nil
+            ))
+        }
+        // 4. Google Play Store / Console Développeur
+        else if lower.contains("google play") || lower.contains("play store") || lower.contains("play console") || lower.contains("console developpeur") {
+            let consoleURL = VAICodeEngine.shared.getGooglePlayConsoleURL()
+            DispatchQueue.main.async {
+                UIApplication.shared.open(consoleURL, options: [:], completionHandler: nil)
+            }
+            let manifest = VAICodeEngine.shared.generateGooglePlayManifest(appName: "Sarah IA", packageName: "com.sarahia.app")
+            _ = VAICodeEngine.shared.saveFile(filename: "AndroidManifest.xml", content: manifest)
+            let responseText = "⚡ **Raphaël [Google Play Developer Console]**\n\nAccès direct au tableau de bord Google Play Console : [play.google.com/console](\(consoleURL.absoluteString)).\nLe fichier de configuration `AndroidManifest.xml` a été compilé dans votre espace `Documents/VAI_Workspace/`."
+            completion(AgentResponse(
+                agent: .raphael,
+                text: responseText,
+                spokenText: "Je vous connecte à la console développeur Google Play Store.",
+                openStudio: true,
+                generatedCode: manifest
+            ))
+        }
+        // 5. Raccourcis Apple Shortcuts
+        else if lower.contains("shortcut") || lower.contains("raccourci") {
             let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
             let responseText = "⚡ **Raphaël [Export Apple Shortcut]**\n\nRaccourci Apple généré et compilé avec succès dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
             completion(AgentResponse(
@@ -481,7 +541,9 @@ public final class MultiAgentCoordinator {
                 openStudio: true,
                 generatedCode: json
             ))
-        } else {
+        }
+        // 6. Code & Studio VAI Coding par défaut
+        else {
             let html = VAICodeEngine.shared.generateWebUI(prompt: prompt)
             _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
             let responseText = "⚡ **Raphaël [Studio VAI Coding]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nAffichage en direct dans le Studio VAI Coding."

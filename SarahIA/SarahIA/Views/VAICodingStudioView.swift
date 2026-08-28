@@ -22,6 +22,7 @@ public struct VAICodingStudioView: View {
         case preview
         case editor
         case shortcuts
+        case cloudDeploy
     }
     
     public init(viewModel: ChatViewModel) {
@@ -94,11 +95,12 @@ public struct VAICodingStudioView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 10)
                 
-                // 2. Sélecteur d'Onglets (Rendu Live / Éditeur Code / Raccourcis Apple)
+                // 2. Sélecteur d'Onglets (Rendu Live / Éditeur Code / Raccourcis Apple / Déploiement Cloud)
                 Picker("", selection: $selectedTab) {
                     Text("🌐 Rendu Live").tag(StudioTab.preview)
                     Text("💻 Code Source").tag(StudioTab.editor)
                     Text("⚡ Raccourcis").tag(StudioTab.shortcuts)
+                    Text("🚀 Cloud & Déploiement").tag(StudioTab.cloudDeploy)
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding(.horizontal, 16)
@@ -138,45 +140,63 @@ public struct VAICodingStudioView: View {
                             .padding(.horizontal, 12)
                             .padding(.bottom, 8)
                     }
-                } else {
+                } else if selectedTab == .shortcuts {
                     // Compilateur & Exportateur Apple Shortcuts (.shortcut)
                     shortcutsTabContent
+                } else {
+                    // Déploiement en Ligne, GitHub, Gmail & Play Console
+                    cloudDeployTabContent
                 }
                 
                 // 4. Barre d'Actions Inférieure
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     Button(action: {
                         startSampleStreaming(prompt: "dashboard")
                     }) {
-                        HStack {
+                        HStack(spacing: 4) {
                             Image(systemName: "sparkles")
-                            Text("Générer Dashboard")
+                            Text("Générer")
                         }
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10)
                         .background(Color(red: 0.15, green: 0.72, blue: 1.0))
-                        .cornerRadius(14)
+                        .cornerRadius(12)
                     }
                     
                     Button(action: {
-                        startSampleStreaming(prompt: "calculatrice")
+                        deployLiveOnline()
                     }) {
-                        HStack {
-                            Image(systemName: "function")
-                            Text("Calculatrice")
+                        HStack(spacing: 4) {
+                            Image(systemName: "globe")
+                            Text("Mettre en ligne")
                         }
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(red: 0.10, green: 0.80, blue: 0.45))
+                        .cornerRadius(12)
+                    }
+                    
+                    Button(action: {
+                        openGitHubAuth()
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "link")
+                            Text("GitHub")
+                        }
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                         .background(Color.white.opacity(0.12))
-                        .cornerRadius(14)
+                        .cornerRadius(12)
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
                 .background(Color(red: 0.08, green: 0.08, blue: 0.10))
             }
         }
@@ -269,6 +289,160 @@ public struct VAICodingStudioView: View {
         }
     }
     
+    // MARK: - Onglet Déploiement & Cloud (GitHub, Gmail, Google Play)
+    
+    private var cloudDeployTabContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("🚀 Déploiement en Ligne & Intégrations Développeur")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("Raphaël met votre projet en ligne immédiatement et le connecte à vos plateformes.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                
+                // 1. Bouton Mettre en ligne en 1 clic
+                Button(action: {
+                    deployLiveOnline()
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.10, green: 0.80, blue: 0.45).opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "globe")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(Color(red: 0.10, green: 0.80, blue: 0.45))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Mettre en Ligne Directement (Live URL)")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Déploie votre page HTML/CSS/JS sur le Web mondial")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(Color(red: 0.10, green: 0.80, blue: 0.45))
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color(red: 0.10, green: 0.80, blue: 0.45).opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .padding(.horizontal, 16)
+                
+                // 2. Bouton GitHub
+                Button(action: {
+                    openGitHubAuth()
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.purple.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "link.circle.fill")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.purple)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Se Connecter à GitHub")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Synchronise vos dépôts distants et commits Git")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal, 16)
+                
+                // 3. Bouton Google / Gmail
+                Button(action: {
+                    openGmail()
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "envelope.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.red)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Google & Messagerie Gmail")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Accès rapide à votre boîte de réception et alertes")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal, 16)
+                
+                // 4. Bouton Google Play Developer Console
+                Button(action: {
+                    openGooglePlayConsole()
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.blue.opacity(0.2))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "gamecontroller.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.blue)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Google Play Console (Développeur)")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Publication et gestion des bundles Android")
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(14)
+                    .background(Color.white.opacity(0.06))
+                    .cornerRadius(14)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+    
     // MARK: - Feuille d'Ingestion Figma / Stitch
     
     private var figmaSheetView: some View {
@@ -347,11 +521,30 @@ public struct VAICodingStudioView: View {
         }
     }
     
-    private func exportShortcut(title: String, prompt: String) {
+    private func deployLiveOnline() {
         HapticService.shared.buttonTap()
-        let (_, fileURL) = VAICodeEngine.shared.generateAppleShortcut(title: title, prompt: prompt)
-        exportMessage = "Le raccourci « \(title) » a été compilé dans : \(fileURL?.lastPathComponent ?? "Documents/VAI_Workspace/")"
+        let currentCode = codeText.isEmpty ? (viewModel.vaiCurrentCode ?? VAICodeEngine.shared.generateWebUI(prompt: "dashboard")) : codeText
+        let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-Live-App", htmlCode: currentCode)
+        exportMessage = status
         isShowingExportAlert = true
+    }
+    
+    private func openGitHubAuth() {
+        HapticService.shared.buttonTap()
+        let url = VAICodeEngine.shared.getGitHubAuthURL()
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+    
+    private func openGmail() {
+        HapticService.shared.buttonTap()
+        let url = VAICodeEngine.shared.getGoogleMailURL()
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+    
+    private func openGooglePlayConsole() {
+        HapticService.shared.buttonTap()
+        let url = VAICodeEngine.shared.getGooglePlayConsoleURL()
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 }
 

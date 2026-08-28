@@ -78,13 +78,29 @@ public struct ChatScreenView: View {
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
-                title: Text("Écosystème 4 Agents Autonomes"),
+                title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
-                    .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
-                        viewModel.isShowingVoiceOrbModal = true
-                    },
                     .default(Text("💻 Studio VAI Coding (Raphaël)")) {
                         viewModel.isShowingVAICodingStudio = true
+                    },
+                    .default(Text("🚀 Mettre mon Projet en Ligne")) {
+                        viewModel.activeAgent = .raphael
+                        viewModel.sendMessage("Mets en ligne mon projet")
+                    },
+                    .default(Text("🐙 Se Connecter à GitHub")) {
+                        viewModel.activeAgent = .raphael
+                        viewModel.sendMessage("Connecte-toi à GitHub")
+                    },
+                    .default(Text("📧 Boîte Google Gmail")) {
+                        viewModel.activeAgent = .raphael
+                        viewModel.sendMessage("Ouvre mes mails Gmail")
+                    },
+                    .default(Text("🎮 Google Play Console (Développeur)")) {
+                        viewModel.activeAgent = .raphael
+                        viewModel.sendMessage("Google Play Console")
+                    },
+                    .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
+                        viewModel.isShowingVoiceOrbModal = true
                     },
                     .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
                         viewModel.activeAgent = .yohan
