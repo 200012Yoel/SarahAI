@@ -140,6 +140,11 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
                 utterance.pitchMultiplier = 1.05
                 utterance.rate = 0.50
             }
+            
+        case .nathan:
+            utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
+            utterance.pitchMultiplier = 0.98  // Voix légèrement grave, expert tech
+            utterance.rate = 0.55
         }
         return utterance
     }

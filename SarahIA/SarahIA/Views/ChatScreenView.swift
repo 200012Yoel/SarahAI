@@ -6,11 +6,14 @@ import SwiftUI
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
+    @Binding var isShowingSettings: Bool
     
     @State private var isShowingActionSheet: Bool = false
+    @State private var isShowingVideoShare: Bool = false
     
-    public init(viewModel: ChatViewModel) {
+    public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
+        self._isShowingSettings = isShowingSettings
     }
     
     public var body: some View {
@@ -42,7 +45,7 @@ public struct ChatScreenView: View {
                         }
                     )
                     
-                    // 3. Barre de saisie (MessageBar) avec Capsule Vocale et switch des 4 agents
+                     // 3. Barre de saisie (MessageBar) avec Capsule Vocale et switch des agents
                     MessageBar(
                         text: $viewModel.inputText,
                         activeAgent: $viewModel.activeAgent,
@@ -61,6 +64,9 @@ public struct ChatScreenView: View {
                         },
                         onPlusTapped: {
                             isShowingActionSheet = true
+                        },
+                        onShareVideo: {
+                            isShowingVideoShare = true
                         }
                     )
                     .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
@@ -76,16 +82,29 @@ public struct ChatScreenView: View {
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
             VAICodingStudioView(viewModel: viewModel)
         }
+        .sheet(isPresented: $isShowingVideoShare) {
+            if #available(iOS 16.0, *) {
+                VideoShareView(viewModel: viewModel)
+            }
+        }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
+                    .default(Text("🤖 Nathan — Derniers modèles IA")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
+                    },
+                    .default(Text("🎬 Nathan — Générer une vidéo (Voo)")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.inputText = "Génère une vidéo de "
+                    },
+                    .default(Text("🎵 Nathan — Composer de la musique (Suno)")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.inputText = "Compose une musique "
+                    },
                     .default(Text("💻 Studio VAI Coding (Raphaël)")) {
                         viewModel.isShowingVAICodingStudio = true
-                    },
-                    .default(Text("🚀 Mettre mon Projet en Ligne")) {
-                        viewModel.activeAgent = .raphael
-                        viewModel.sendMessage("Mets en ligne mon projet")
                     },
                     .default(Text("🐙 Se Connecter à GitHub")) {
                         viewModel.activeAgent = .raphael
@@ -94,10 +113,6 @@ public struct ChatScreenView: View {
                     .default(Text("📧 Boîte Google Gmail")) {
                         viewModel.activeAgent = .raphael
                         viewModel.sendMessage("Ouvre mes mails Gmail")
-                    },
-                    .default(Text("🎮 Google Play Console (Développeur)")) {
-                        viewModel.activeAgent = .raphael
-                        viewModel.sendMessage("Google Play Console")
                     },
                     .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
                         viewModel.isShowingVoiceOrbModal = true
@@ -144,62 +159,40 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Titre & Indicateur d'Agent Actif + Bouton Nouvelle Discussion
-            VStack(spacing: 4) {
-                Button(action: {
-                    viewModel.isShowingVoiceOrbModal = true
-                }) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(viewModel.activeAgent.themeColor)
-                            .frame(width: 8, height: 8)
-                        
-                        Text(viewModel.activeAgent.rawValue)
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.gray)
-                    }
+            // Titre de l'agent actif (centre) — sans bouton sous Sarah
+            Button(action: {
+                viewModel.isShowingVoiceOrbModal = true
+            }) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(viewModel.activeAgent.themeColor)
+                        .frame(width: 8, height: 8)
+                    
+                    Text(viewModel.activeAgent.rawValue)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.gray)
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-                // Bouton Nouvelle discussion (+) sous le nom Sarah
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    keyboard.dismiss()
-                    viewModel.startNewChat()
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("Nouvelle discussion")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundColor(Color.blue)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 3)
-                    .background(Color.blue.opacity(0.15))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(ScaleBounceButtonStyle())
             }
+            .buttonStyle(PlainButtonStyle())
             
             Spacer()
             
-            // Bouton Nouvelle Discussion rapide (icône crayon)
+            // Bouton Paramètres — Roue crantée ⚙️ (remplace l'ancien bouton crayon)
             Button(action: {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
-                viewModel.startNewChat()
+                isShowingSettings = true
             }) {
                 ZStack {
                     Circle()
                         .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
                         .frame(width: 44, height: 44)
                     
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: "gearshape.fill")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                 }

@@ -87,6 +87,9 @@ public final class MultiAgentCoordinator {
             
         case .sarah:
             processWithSarah(text: trimmed, completion: completion)
+            
+        case .nathan:
+            processWithNathan(text: trimmed, completion: completion)
         }
     }
     
@@ -107,19 +110,20 @@ public final class MultiAgentCoordinator {
         
         if isAskingTeam {
             let teamDescription = """
-            Voici l'équipe complète de vos 4 agents intégrés :
+            Voici l'équipe complète de vos 5 agents intégrés :
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
             ⚡ **Raphaël [Développeur & VAI Coding]** : Création de code, Apple Shortcuts, intégrations web et studio de code.
-            🇮🇱 **Yohan [Traducteur Français ⇄ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
+            🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
+            🤖 **Nathan [Expert IA & Créatif]** : Veille sur les derniers modèles d'IA, génération vidéo (Voo) et musicale (Suno).
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Raphaël » ou « Donne-moi Yohan » !*
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Nathan » ou « Donne-moi Yohan » !*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 4 agents dans cette application : Sarah la patronne et pilote, Tom pour l'histoire et la géopolitique, Raphaël pour le code et les raccourcis, et Yohan pour la traduction en hébreu.",
+                spokenText: "Nous sommes 5 agents dans cette application : Sarah la patronne et pilote, Tom pour l'histoire et la géopolitique, Raphaël pour le code et les raccourcis, Yohan pour la traduction en hébreu, et Nathan l'expert en intelligence artificielle et création.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -143,9 +147,14 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .raphael, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël et Yohan, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yohan et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yohan et Nathan, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yohan, Nathan et moi-même pour vous assister au mieux."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
+                
+            case .nathan:
+                let text = "🤖 **Nathan [Expert IA & Création]**\n\nJe suis **Nathan**, l'expert intelligence artificielle de l'équipe ! Je suis connecté aux dernières nouveautés du monde de l'IA : modèles de langage, génération vidéo avec **Voo**, composition musicale avec **Suno**, et tout ce qui sort de nouveau. Posez-moi vos questions sur les dernières innovations en intelligence artificielle !"
+                let spoken = "Je suis Nathan, expert en intelligence artificielle ! Je connais tous les derniers modèles qui sortent, GPT, Claude, Gemini, et je peux vous aider à créer des vidéos et de la musique. Qu'est-ce que vous souhaitez explorer ?"
+                return AgentResponse(agent: .nathan, text: text, spokenText: spoken)
             }
         }
         
@@ -200,6 +209,7 @@ public final class MultiAgentCoordinator {
         let tomTokens = ["tom", "thomas"]
         let raphaelTokens = ["raphael", "raphaël", "raph", "rafael"]
         let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
+        let nathanTokens = ["nathan", "natan", "l expert ia", "expert ia"]
         
         func extractResidual(trigger: String, agentToken: String) -> String {
             var working = normalized
@@ -258,6 +268,17 @@ public final class MultiAgentCoordinator {
             }
         }
         
+        // 5. Cible Nathan
+        for kw in switchKeywords {
+            for name in nathanTokens {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .nathan, residualPrompt: residual)
+                }
+            }
+        }
+        
         // Commandes directes d'appel isolées ou début de phrase
         for name in yohanTokens {
             if normalized == name || normalized.starts(with: name + " ") {
@@ -281,6 +302,12 @@ public final class MultiAgentCoordinator {
             if normalized == name || normalized.starts(with: name + " ") {
                 let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
                 return SwitchCommandMatch(targetAgent: .sarah, residualPrompt: res)
+            }
+        }
+        for name in nathanTokens {
+            if normalized == name || normalized.starts(with: name + " ") {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .nathan, residualPrompt: res)
             }
         }
         
@@ -320,6 +347,18 @@ public final class MultiAgentCoordinator {
             return .tom
         }
         
+        // Nathan (Expert IA, modèles, vidéo, musique)
+        if normalized.contains("nathan") || normalized.contains("natan") ||
+           normalized.contains("meilleur modele") || normalized.contains("dernier modele") ||
+           normalized.contains("modele ia") || normalized.contains("intelligence artificielle") ||
+           normalized.contains("chatgpt") || normalized.contains("claude") || normalized.contains("gemini") ||
+           normalized.contains("generate une video") || normalized.contains("genere une video") ||
+           normalized.contains("compose une musique") || normalized.contains("cree une musique") ||
+           normalized.contains("voo") || normalized.contains("suno") ||
+           normalized.contains("nouveau modele") || normalized.contains("nouveaux modeles") {
+            return .nathan
+        }
+        
         // Par défaut : Sarah (Patronne & Pilote)
         return .sarah
     }
@@ -345,6 +384,8 @@ public final class MultiAgentCoordinator {
                 processWithYohan(text: cleanResidual, completion: completion)
             case .sarah:
                 processWithSarah(text: cleanResidual, completion: completion)
+            case .nathan:
+                processWithNathan(text: cleanResidual, completion: completion)
             }
             return
         }
@@ -365,6 +406,9 @@ public final class MultiAgentCoordinator {
         case .yohan:
             transitionLine = "Beseder Yoël, je te le passe !"
             sourceName = "🇮🇱 **Yohan**"
+        case .nathan:
+            transitionLine = "Je te le passe de suite, let's go !"
+            sourceName = "🤖 **Nathan**"
         }
         
         switch targetAgent {
@@ -417,6 +461,19 @@ public final class MultiAgentCoordinator {
                 spokenText: "\(transitionLine) \(sarahGreeting)",
                 handoffSarahTransition: transitionLine,
                 handoffAgentGreeting: sarahGreeting,
+                handoffSourceAgent: sourceAgent
+            ))
+            
+        case .nathan:
+            let nathanGreeting = "Yo ! C'est Nathan ! 🤖 Je suis branché sur tous les derniers modèles d'IA. GPT, Claude, Gemini, Llama, Mistral... je suis au courant de tout ce qui sort. Dis-moi ce que tu cherches : un modèle pour coder, pour discuter, pour générer des vidéos avec Voo, ou de la musique avec Suno ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🤖 **Nathan [Expert IA & Création]** :\n\(nathanGreeting)"
+            
+            completion(AgentResponse(
+                agent: .nathan,
+                text: fullText,
+                spokenText: "\(transitionLine) \(nathanGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: nathanGreeting,
                 handoffSourceAgent: sourceAgent
             ))
         }
@@ -597,5 +654,111 @@ public final class MultiAgentCoordinator {
             openStudio: false,
             generatedCode: nil
         ))
+    }
+    
+    // MARK: - Nathan (Expert IA, Modèles, Vidéo, Musique)
+    
+    private func processWithNathan(text: String, completion: @escaping (AgentResponse) -> Void) {
+        let lower = text.lowercased()
+        
+        // Voo — Génération Vidéo
+        if lower.contains("voo") || lower.contains("génère une vidéo") || lower.contains("genere une video") || lower.contains("générer une vidéo") {
+            let vooURL = URL(string: "https://voo.ai")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(vooURL)
+            }
+            let responseText = "🤖 **Nathan [Génération Vidéo — Voo AI]**\n\nJ'ai ouvert **Voo** pour toi ! C'est l'un des meilleurs outils IA de génération vidéo.\n\n🎬 Tu peux y décrire ta scène en français ou en anglais et Voo va générer une vidéo complète avec des visuels réalistes ou animés.\n\n*Tu veux que je t'aide à rédiger un prompt vidéo efficace ?*"
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: "J'ai ouvert Voo, le meilleur outil de génération vidéo par intelligence artificielle. Tu peux décrire ta scène et Voo va créer la vidéo pour toi.",
+                openStudio: false,
+                generatedCode: nil
+            ))
+            return
+        }
+        
+        // Suno — Génération Musicale
+        if lower.contains("suno") || lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("crée une chanson") || lower.contains("cree une chanson") {
+            let sunoURL = URL(string: "https://suno.com")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(sunoURL)
+            }
+            let responseText = "🤖 **Nathan [Composition Musicale — Suno AI]**\n\nJ'ai lancé **Suno** ! C'est l'outil de composition musicale le plus puissant du moment.\n\n🎵 Describe ton ambiance, ton genre musical, tes paroles, et Suno va composer une chanson complète avec voix et instruments.\n\n*Genres disponibles : Pop, Hip-Hop, Jazz, Classique, Electro, Rock, K-Pop, Rai, Mizrahi...*"
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: "J'ai ouvert Suno, l'outil de composition musicale par IA. Tu peux décrire le style et les paroles que tu veux, et Suno va créer la chanson complète.",
+                openStudio: false,
+                generatedCode: nil
+            ))
+            return
+        }
+        
+        // Comparaison ou information sur les modèles IA
+        if lower.contains("meilleur modèle") || lower.contains("meilleur modele") || lower.contains("dernier modèle") ||
+           lower.contains("dernier modele") || lower.contains("modèle ia") || lower.contains("modele ia") ||
+           lower.contains("chatgpt") || lower.contains("claude") || lower.contains("gemini") ||
+           lower.contains("gpt") || lower.contains("llama") || lower.contains("mistral") ||
+           lower.contains("nouveau modèle") || lower.contains("nouveau modele") {
+            let responseText = """
+            🤖 **Nathan [Veille IA Mondiale — Meilleurs Modèles 2025]**
+
+            Voici un état des lieux des modèles d'IA les plus puissants en ce moment :
+
+            **🏆 Meilleur pour le texte & raisonnement :**
+            • **Claude Sonnet 4.5 / Opus 4** (Anthropic) — Excellence en raisonnement complexe et code
+            • **GPT-4o** (OpenAI) — Polyvalent, rapide, multimodal
+            • **Gemini 1.5 Pro / Ultra** (Google) — Très long contexte (1M tokens)
+
+            **📱 Meilleur sur iPhone (local, hors-ligne) :**
+            • **iPhone 14 Pro / 15 Pro / 16** : GPT-4o mini, Phi-3 Medium
+            • **iPhone 12 / 13 / 14** : Llama 3.1 8B Q4, Mistral 7B
+            • **iPhone 11 / XR** : Phi-3 Mini, Gemini Nano
+            • **iPhone 5s / 6 / 7 / 8** : TinyLlama 1.1B, Phi-2
+
+            **🎨 Génération image :**
+            • **Midjourney v7**, **DALL-E 3**, **Stable Diffusion 3.5**
+
+            **🎬 Génération vidéo :**
+            • **Voo AI**, **Runway Gen-3**, **Sora** (OpenAI)
+
+            **🎵 Génération musicale :**
+            • **Suno v4**, **Udio**, **MusicGen** (Meta)
+
+            *Tu veux que j'ouvre un de ces outils ?*
+            """
+            let spoken = "Voici les meilleurs modèles d'intelligence artificielle du moment. Pour le texte : Claude, GPT-4o et Gemini. Pour les vidéos : Voo et Runway. Pour la musique : Suno et Udio."
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: spoken,
+                openStudio: false,
+                generatedCode: nil
+            ))
+            return
+        }
+        
+        // Réponse générale Nathan
+        let responseText = "🤖 **Nathan [Expert IA & Création]**\n\nBonjour ! Je suis Nathan, ton expert en intelligence artificielle !\n\nJe peux t'aider à :\n• **Trouver le meilleur modèle d'IA** selon ton téléphone et tes besoins\n• **Générer des vidéos** avec Voo AI\n• **Composer de la musique** avec Suno\n• **Rester informé** des derniers modèles qui sortent (GPT, Claude, Gemini, Llama...)\n\n*Sur ton iPhone, voici le meilleur modèle disponible maintenant : \(getBestModelForCurrentDevice())*"
+        let spoken = "Bonjour ! Je suis Nathan, expert en intelligence artificielle. Dis-moi ce que tu veux faire : trouver le meilleur modèle, générer une vidéo avec Voo, ou composer de la musique avec Suno ?"
+        completion(AgentResponse(
+            agent: .nathan,
+            text: responseText,
+            spokenText: spoken,
+            openStudio: false,
+            generatedCode: nil
+        ))
+    }
+    
+    private func getBestModelForCurrentDevice() -> String {
+        let memory = ProcessInfo.processInfo.physicalMemory
+        if memory >= 6 * 1024 * 1024 * 1024 {
+            return "GPT-4o / Claude Sonnet 4.5 (iPhone haut de gamme)"
+        } else if memory >= 3 * 1024 * 1024 * 1024 {
+            return "Llama 3.1 8B / Mistral 7B Q4 (iPhone milieu de gamme)"
+        } else {
+            return "TinyLlama 1.1B / Phi-2 (iPhone compact)"
+        }
     }
 }

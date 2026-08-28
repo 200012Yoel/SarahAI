@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// Menu Latéral (Sidebar) Épuré et Fluide :
-/// - 1. En-tête : Avatar 'S' bleu + Titre "Sarah IA" + Bouton Fermer '✕'
-/// - 2. Titre de section "Discussions"
+/// - 1. En-tête : Logo + Titre "Sarah IA" + Bouton Fermer '✕'
+/// - 2. Titre de section "Discussions" + Bouton Nouveau
 /// - 3. Cartes de discussions affichant directement la première question
 /// - 4. Fond sombre pleine hauteur avec respiration sous la barre d'état
+/// Fix : suppression du bouton "Effacer l'historique" (non désiré)
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -20,38 +21,53 @@ public struct SidebarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // 1. En-tête (Descendu sous la barre d'état et l'heure de l'iPhone)
-            HStack(spacing: 12) {
+            HStack(spacing: 14) {
+                // Logo Sarah — dégradé néon rose/violet
                 ZStack {
-                    Circle()
-                        .fill(Color.blue.opacity(0.2))
-                        .frame(width: 38, height: 38)
+                    LinearGradient(
+                        colors: [
+                            Color(red: 1.0, green: 0.18, blue: 0.65),
+                            Color(red: 0.55, green: 0.10, blue: 0.90)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .frame(width: 36, height: 36)
+
                     Text("S")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.blue)
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
                 }
 
-                Text("Sarah IA")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Sarah")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Text("Intelligence Artificielle")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.gray)
+                }
 
                 Spacer()
 
+                // Bouton fermer le menu
                 Button(action: {
                     HapticService.shared.buttonTap()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
                         viewModel.closeDrawer()
                     }
                 }) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(8)
-                        .background(Color.white.opacity(0.1))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(9)
+                        .background(Color.white.opacity(0.08))
                         .clipShape(Circle())
                 }
                 .buttonStyle(ScaleBounceButtonStyle())
             }
-            .padding(.top, 54) // Dégagement franc sous l'heure et l'encoche
+            .padding(.top, 58) // Dégagement franc sous la barre de statut
             .padding(.horizontal, 4)
 
             // 2. Titre de section & Bouton Nouveau Tchat
@@ -138,20 +154,6 @@ public struct SidebarView: View {
                     }
                 }
                 
-                // Effacer l'historique en bas
-                Button(role: .destructive, action: {
-                    HapticService.shared.buttonTap()
-                    isShowingClearAllAlert = true
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 12))
-                        Text("Effacer l'historique")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundColor(.red.opacity(0.75))
-                    .padding(.top, 4)
-                }
             }
         }
         .padding(.horizontal, 18)

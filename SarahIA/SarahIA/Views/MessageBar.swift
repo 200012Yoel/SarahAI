@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Barre de saisie 100% native SwiftUI (MessageBar) avec Capsule Vocale Dédiée,
-/// sélecteur rapide des 4 agents (Sarah, Tom, Raphaël, Yohan), dictée vocale continue et actions rapides.
+/// sélecteur rapide des agents (Sarah, Tom, Raphaël, Yohan, Nathan), dictée vocale continue et actions rapides.
 @available(iOS 14.0, *)
 public struct MessageBar: View {
     @Binding var text: String
@@ -12,6 +12,7 @@ public struct MessageBar: View {
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
     var onPlusTapped: (() -> Void)? = nil
+    var onShareVideo: (() -> Void)? = nil
     
     @ObservedObject private var flashlight: ObservableFlashlight
     
@@ -23,7 +24,8 @@ public struct MessageBar: View {
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
         onOpenVAICoding: @escaping () -> Void,
-        onPlusTapped: (() -> Void)? = nil
+        onPlusTapped: (() -> Void)? = nil,
+        onShareVideo: (() -> Void)? = nil
     ) {
         self._text = text
         self._activeAgent = activeAgent
@@ -33,6 +35,7 @@ public struct MessageBar: View {
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
         self.onPlusTapped = onPlusTapped
+        self.onShareVideo = onShareVideo
         self._flashlight = ObservedObject(wrappedValue: ObservableFlashlight.shared)
     }
     
@@ -129,6 +132,28 @@ public struct MessageBar: View {
                             .clipShape(Capsule())
                             .overlay(
                                 Capsule().stroke(Color.red.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .fixedSize(horizontal: true, vertical: false)
+                        
+                        // 0.5 Partager une Vidéo
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            onShareVideo?()
+                        }) {
+                            HStack(spacing: 6) {
+                                Text("📹")
+                                    .font(.system(size: isCompact ? 12 : 13))
+                                Text("Vidéo")
+                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, isCompact ? 12 : 14)
+                            .padding(.vertical, 7)
+                            .background(Color(red: 0.12, green: 0.20, blue: 0.16))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().stroke(Color.green.opacity(0.3), lineWidth: 1)
                             )
                         }
                         .fixedSize(horizontal: true, vertical: false)

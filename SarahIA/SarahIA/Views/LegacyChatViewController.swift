@@ -140,10 +140,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         let next: AgentType
         switch activeAgent {
-        case .sarah: next = .tom
-        case .tom: next = .raphael
+        case .sarah:   next = .tom
+        case .tom:     next = .raphael
         case .raphael: next = .yohan
-        case .yohan: next = .sarah
+        case .yohan:   next = .nathan
+        case .nathan:  next = .sarah
         }
         activeAgent = next
         agentSwitchButton.setTitle("\(next.rawValue)", for: .normal)

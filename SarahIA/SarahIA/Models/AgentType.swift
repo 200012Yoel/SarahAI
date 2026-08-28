@@ -5,12 +5,15 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Énumération des 4 agents autonomes 100% hors-ligne du système Sarah AI.
+/// Énumération des 5 agents autonomes du système Sarah AI.
+/// Nathan est le nouvel agent expert IA, connecté à Internet, spécialisé dans
+/// les derniers modèles d'intelligence artificielle, la génération vidéo et musicale.
 public enum AgentType: String, CaseIterable, Identifiable, Codable {
     case sarah = "Sarah"
     case tom = "Tom"
     case raphael = "Raphaël"
     case yohan = "Yohan"
+    case nathan = "Nathan"
     
     public var id: String { rawValue }
     
@@ -24,6 +27,8 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
             return "Développeur & Code Engine (Shortcuts / Web)"
         case .yohan:
             return "Traducteur Universel (Français ⇄ Hébreu)"
+        case .nathan:
+            return "Expert IA & Génération Créative (Vidéo / Musique)"
         }
     }
     
@@ -37,6 +42,8 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
             return "Génération Swift/Web & Ingestion Figma/Stitch"
         case .yohan:
             return "Dictionnaires locaux fusionnés (FR ⇄ HE)"
+        case .nathan:
+            return "Veille IA mondiale · Voo · Suno · Derniers modèles"
         }
     }
     
@@ -45,13 +52,15 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var themeColor: Color {
         switch self {
         case .sarah:
-            return Color(red: 1.0, green: 0.18, blue: 0.65) // Rose Néon / Magenta
+            return Color(red: 1.0, green: 0.18, blue: 0.65)   // Rose Néon / Magenta
         case .tom:
-            return Color(red: 0.05, green: 0.85, blue: 0.45) // Vert Émeraude
+            return Color(red: 0.05, green: 0.85, blue: 0.45)  // Vert Émeraude
         case .raphael:
-            return Color(red: 0.15, green: 0.72, blue: 1.0) // Bleu Ciel / Azur
+            return Color(red: 0.15, green: 0.72, blue: 1.0)   // Bleu Ciel / Azur
         case .yohan:
-            return Color(red: 0.0, green: 0.45, blue: 0.90) // Bleu Mer Profond
+            return Color(red: 0.0, green: 0.45, blue: 0.90)   // Bleu Mer Profond
+        case .nathan:
+            return Color(red: 0.85, green: 0.55, blue: 1.0)   // Violet Électrique IA
         }
     }
     
@@ -66,16 +75,19 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
             return [Color.white, Color(red: 0.35, green: 0.80, blue: 1.0), Color(red: 0.05, green: 0.60, blue: 0.98)]
         case .yohan:
             return [Color.white, Color(red: 0.70, green: 0.88, blue: 1.0), Color(red: 0.0, green: 0.40, blue: 0.85)]
+        case .nathan:
+            return [Color.white, Color(red: 0.90, green: 0.65, blue: 1.0), Color(red: 0.65, green: 0.15, blue: 0.95)]
         }
     }
     #endif
     
     public var iconName: String {
         switch self {
-        case .sarah: return "crown.fill"
-        case .tom: return "globe.europe.africa.fill"
+        case .sarah:   return "crown.fill"
+        case .tom:     return "globe.europe.africa.fill"
         case .raphael: return "chevron.left.forwardslash.chevron.right"
-        case .yohan: return "character.book.closed.fill"
+        case .yohan:   return "character.book.closed.fill"
+        case .nathan:  return "brain.filled.head.profile"
         }
     }
 }
