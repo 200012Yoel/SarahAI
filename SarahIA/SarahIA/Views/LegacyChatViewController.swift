@@ -45,9 +45,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         topBar.addSubview(agentSwitchButton)
         
         newChatButton.translatesAutoresizingMaskIntoConstraints = false
-        newChatButton.setTitle("＋ Nouveau", for: .normal)
+        newChatButton.setTitle("＋ Nouvelle discussion", for: .normal)
         newChatButton.setTitleColor(UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0), for: .normal)
-        newChatButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 14)
+        newChatButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 13)
+        newChatButton.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.15)
+        newChatButton.layer.cornerRadius = 12
+        newChatButton.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
         newChatButton.addTarget(self, action: #selector(newChatTapped), for: .touchUpInside)
         topBar.addSubview(newChatButton)
         

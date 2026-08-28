@@ -128,11 +128,11 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Titre & Indicateur d'Agent Actif (Sarah, Tom, Raphaël, Yohan)
-            Button(action: {
-                viewModel.isShowingVoiceOrbModal = true
-            }) {
-                VStack(spacing: 2) {
+            // Titre & Indicateur d'Agent Actif + Bouton Nouvelle Discussion
+            VStack(spacing: 4) {
+                Button(action: {
+                    viewModel.isShowingVoiceOrbModal = true
+                }) {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(viewModel.activeAgent.themeColor)
@@ -146,18 +146,33 @@ public struct ChatScreenView: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.gray)
                     }
-                    
-                    Text(viewModel.activeAgent.specialtySubtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.6))
-                        .lineLimit(1)
                 }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Bouton Nouvelle discussion (+) sous le nom Sarah
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    keyboard.dismiss()
+                    viewModel.startNewChat()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Nouvelle discussion")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(Color.blue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.15))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(ScaleBounceButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
             
             Spacer()
             
-            // Bouton Nouvelle Discussion
+            // Bouton Nouvelle Discussion rapide (icône crayon)
             Button(action: {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()

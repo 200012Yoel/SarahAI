@@ -19,7 +19,7 @@ public struct SidebarView: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // 1. En-tête (Descendu automatiquement sous la barre d'état)
+            // 1. En-tête (Descendu sous la barre d'état et l'heure de l'iPhone)
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -51,7 +51,8 @@ public struct SidebarView: View {
                 }
                 .buttonStyle(ScaleBounceButtonStyle())
             }
-            .padding(.top, 12) // Marge de respiration sous l'encoche
+            .padding(.top, 54) // Dégagement franc sous l'heure et l'encoche
+            .padding(.horizontal, 4)
 
             // 2. Titre de section & Bouton Nouveau Tchat
             HStack {

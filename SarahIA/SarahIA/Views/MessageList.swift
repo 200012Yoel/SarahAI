@@ -34,8 +34,9 @@ public struct MessageList: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 12) {
                     if messages.isEmpty {
-                        emptyStateSuggestions
-                            .padding(.top, 24)
+                        // Écran épuré et vierge : aucun texte ou suggestion résiduelle
+                        Spacer()
+                            .frame(height: 40)
                     } else {
                         ForEach(messages) { message in
                             ChatBubbleView(

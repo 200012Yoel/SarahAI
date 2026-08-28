@@ -96,5 +96,10 @@ public struct VoiceOrbModalView: View {
                 }
             }
         }
+        .onAppear {
+            if !viewModel.isMicRunning {
+                viewModel.toggleMicrophone()
+            }
+        }
     }
 }

@@ -42,8 +42,6 @@ public struct ContentView: View {
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .background(Color.black)
-                // Transformation 3D exacte : translateX scale et border-radius
-                .cornerRadius(viewModel.drawerProgress > 0.01 ? 44 : 0)
                 .scaleEffect(1.0 - (viewModel.drawerProgress * 0.08), anchor: .leading)
                 .offset(x: viewModel.drawerProgress * sidebarWidth)
                 .shadow(
@@ -51,10 +49,6 @@ public struct ContentView: View {
                     radius: 30,
                     x: -12,
                     y: 0
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: viewModel.drawerProgress > 0.01 ? 44 : 0)
-                        .stroke(Color.white.opacity(Double(viewModel.drawerProgress) * 0.14), lineWidth: 0.5)
                 )
                 // Geste de glissement haute priorité pour ouvrir (gauche -> droite) et fermer
                 .highPriorityGesture(
