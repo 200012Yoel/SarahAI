@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Barre de saisie 100% native SwiftUI (MessageBar) avec Capsule Vocale Dédiée,
-/// sélecteur rapide des agents (Sarah, Tom, Raphaël, Yohan, Nathan), dictée vocale continue et actions rapides.
+/// sélecteur rapide des agents (Sarah, Tom, Esther, Yohan, Nathan, Ethel), dictée vocale continue et actions rapides.
 @available(iOS 14.0, *)
 public struct MessageBar: View {
     @Binding var text: String
@@ -40,226 +40,119 @@ public struct MessageBar: View {
     }
     
     public var body: some View {
-        GeometryReader { geo in
-            let isCompact = geo.size.width <= 360
-            let btnSize: CGFloat = isCompact ? 34 : 36
-            let sendBtnSize: CGFloat = isCompact ? 36 : 38
-            
-            VStack(spacing: 8) {
-                // 0. Chips / Raccourcis Rapides du haut (Allume la torche, Pikoud HaOref, i24News, YouTube)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        // 0.1 Allume la torche
-                        Button(action: {
-                            flashlight.toggleTorch()
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: flashlight.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                                Text(flashlight.isTorchOn ? "Éteins la torche" : "Allume la torche")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 12 : 14)
-                            .padding(.vertical, 7)
-                            .background(Color(red: 0.14, green: 0.16, blue: 0.20))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        
-                        // 0.2 Pikoud HaOref (Alerte Rouge)
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            onSend("Alertes Pikoud HaOref")
-                        }) {
-                            HStack(spacing: 6) {
-                                Text("🚨")
-                                    .font(.system(size: isCompact ? 12 : 13))
-                                Text("Pikoud HaOref")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 12 : 14)
-                            .padding(.vertical, 7)
-                            .background(Color(red: 0.35, green: 0.12, blue: 0.14))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Color.red.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        
-                        // 0.3 i24News
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            onSend("Actualités i24news")
-                        }) {
-                            HStack(spacing: 6) {
-                                Text("📰")
-                                    .font(.system(size: isCompact ? 12 : 13))
-                                Text("i24news")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 12 : 14)
-                            .padding(.vertical, 7)
-                            .background(Color(red: 0.12, green: 0.18, blue: 0.28))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        
-                        // 0.4 YouTube
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            onSend("YouTube")
-                        }) {
-                            HStack(spacing: 6) {
-                                Text("▶️")
-                                    .font(.system(size: isCompact ? 12 : 13))
-                                Text("YouTube")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 12 : 14)
-                            .padding(.vertical, 7)
-                            .background(Color(red: 0.20, green: 0.12, blue: 0.12))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Color.red.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        
-                        // 0.5 Partager une Vidéo
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            onShareVideo?()
-                        }) {
-                            HStack(spacing: 6) {
-                                Text("📹")
-                                    .font(.system(size: isCompact ? 12 : 13))
-                                Text("Vidéo")
-                                    .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, isCompact ? 12 : 14)
-                            .padding(.vertical, 7)
-                            .background(Color(red: 0.12, green: 0.20, blue: 0.16))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule().stroke(Color.green.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
+        VStack(spacing: 12) {
+            // 0. Chips / Raccourcis Rapides du haut (Allume la torche, Pikoud HaOref, i24News)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    // 0.1 Allume la torche
+                    ActionChipButton(
+                        icon: flashlight.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
+                        text: flashlight.isTorchOn ? "Éteins la torche" : "Allume la torche",
+                        color: Color(white: 0.20)
+                    ) {
+                        flashlight.toggleTorch()
                     }
-                    .padding(.horizontal, isCompact ? 10 : 16)
-                }
-                .frame(maxWidth: .infinity)
-                
-                // 1. Barre de saisie principale (Capsule)
-                HStack(spacing: isCompact ? 6 : 8) {
-                    // 1.1 Bouton (+) Action Rapide
-                    Button(action: {
+                    
+                    // 0.2 Pikoud HaOref (Alerte Rouge)
+                    ActionChipButton(
+                        icon: "shield.fill",
+                        text: "Pikoud HaOref",
+                        color: Color.red.opacity(0.75)
+                    ) {
                         HapticService.shared.buttonTap()
-                        onPlusTapped?()
+                        onSend("Alertes Pikoud HaOref")
+                    }
+                    
+                    // 0.3 i24News
+                    ActionChipButton(
+                        icon: "newspaper.fill",
+                        text: "i24news",
+                        color: Color.blue.opacity(0.75)
+                    ) {
+                        HapticService.shared.buttonTap()
+                        onSend("Actualités i24news")
+                    }
+                    
+                    // 0.4 WhatsApp (Nathan)
+                    ActionChipButton(
+                        icon: "bubble.left.and.bubble.right.fill",
+                        text: "WhatsApp",
+                        color: Color.green.opacity(0.75)
+                    ) {
+                        HapticService.shared.buttonTap()
+                        activeAgent = .nathan
+                        onSend("Nathan, je veux mettre une vidéo sur mon statut WhatsApp")
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            
+            // 1. Barre de saisie principale (Capsule)
+            HStack(spacing: 10) {
+                // 1.1 Bouton (+) Action Rapide
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    onPlusTapped?()
+                }) {
+                    Image(systemName: "plus")
+                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color(white: 0.22)))
+                }
+                .buttonStyle(ScaleBounceButtonStyle())
+                
+                // 1.2 Champ de Saisie Texte
+                TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
+                    submitMessage()
+                })
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(.white)
+                .accentColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+                .autocapitalization(.sentences)
+                .disableAutocorrection(false)
+                .lineLimit(1)
+                
+                // 1.3 Bouton Dictée Vocale (Microphone)
+                Button(action: {
+                    onToggleMic()
+                }) {
+                    Image(systemName: isRecording ? "mic.fill" : "mic")
+                        .foregroundColor(isRecording ? Color.red : Color.gray)
+                        .font(.system(size: 18))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // 1.4 Bouton Ondes Vocales / Envoi
+                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: {
+                        submitMessage()
                     }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.10))
-                                .frame(width: btnSize, height: btnSize)
-                            
-                            Image(systemName: "plus")
-                                .font(.system(size: isCompact ? 16 : 18, weight: .bold))
-                                .foregroundColor(.white)
-                        }
+                        Image(systemName: "arrow.up.circle.fill")
+                            .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+                            .font(.system(size: 28))
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
-                    
-                    // 1.2 Champ de Saisie Texte
-                    TextField("Demander à Sarah...", text: $text, onCommit: {
-                        submitMessage()
-                    })
-                        .font(.system(size: isCompact ? 14 : 15, weight: .regular))
-                        .foregroundColor(.white)
-                        .accentColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                        .autocapitalization(.sentences)
-                        .disableAutocorrection(false)
-                        .padding(.horizontal, 4)
-                        .lineLimit(1)
-                    
-                    // 1.4 Bouton Dictée Vocale (Microphone)
-                    Button(action: {
-                        onToggleMic()
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(isRecording ? Color.red.opacity(0.25) : Color.clear)
-                                .frame(width: btnSize, height: btnSize)
-                            
-                            Image(systemName: isRecording ? "mic.fill" : "mic")
-                                .font(.system(size: isCompact ? 16 : 18, weight: isRecording ? .bold : .medium))
-                                .foregroundColor(isRecording ? Color.red : Color.white.opacity(0.85))
-                                .scaleEffect(isRecording ? 1.15 : 1.0)
-                                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isRecording)
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // 1.5 Bouton Mode Vocal / Ondes (Ouvre le mode vocal / Voice Orb)
+                } else {
                     Button(action: {
                         HapticService.shared.buttonTap()
                         onOpenVoiceOrb()
                     }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.12))
-                                .frame(width: sendBtnSize, height: sendBtnSize)
-                            
-                            HStack(spacing: 2.5) {
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 10)
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 18)
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 14)
-                                RoundedRectangle(cornerRadius: 1)
-                                    .fill(Color.white)
-                                    .frame(width: 2.5, height: 8)
-                            }
-                        }
+                        Image(systemName: "waveform")
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Color(white: 0.22)))
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                 }
-                .padding(.leading, isCompact ? 8 : 10)
-                .padding(.trailing, isCompact ? 6 : 8)
-                .padding(.vertical, 6)
-                .background(Color(red: 0.10, green: 0.11, blue: 0.14))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.4), Color.white.opacity(0.10)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            lineWidth: 1.0
-                        )
-                )
-                .padding(.horizontal, isCompact ? 10 : 16)
-                .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 28).fill(Color(white: 0.12)))
+            .padding(.horizontal, 16)
         }
-        .frame(height: 98)
+        .padding(.bottom, 8)
     }
     
     private func submitMessage() {
@@ -271,5 +164,30 @@ public struct MessageBar: View {
         } else {
             onToggleMic()
         }
+    }
+}
+
+// MARK: - ActionChipButton Helper
+@available(iOS 13.0, *)
+private struct ActionChipButton: View {
+    let icon: String
+    let text: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(text)
+                    .font(.footnote)
+                    .fontWeight(.medium)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(color))
+            .foregroundColor(.white)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
