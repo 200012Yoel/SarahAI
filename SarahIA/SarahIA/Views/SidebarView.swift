@@ -18,9 +18,17 @@ public struct SidebarView: View {
     }
     
     public var body: some View {
-        GeometryReader { geo in
-            let topInset = max(geo.safeAreaInsets.top, 44)
-            let bottomInset = max(geo.safeAreaInsets.bottom, 20)
+        GeometryReader { geometry in
+            let windowTop: CGFloat = {
+                if #available(iOS 13.0, *) {
+                    return UIApplication.shared.connectedScenes
+                        .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                        .first?.safeAreaInsets.top ?? 47
+                }
+                return 20
+            }()
+            let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
+            let bottomInset = max(geometry.safeAreaInsets.bottom, 20)
             
             VStack(alignment: .leading, spacing: 18) {
                 // 1. En-tête avec dégagement sécurisé sous la barre de statut
@@ -70,7 +78,7 @@ public struct SidebarView: View {
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                 }
-                .padding(.top, max(safeTopPadding, topInset) + 10)
+                .padding(.top, topPadding + 10)
                 .padding(.horizontal, 16)
                 
                 // 2. Titre de section & Bouton Nouveau
@@ -108,7 +116,7 @@ public struct SidebarView: View {
                     VStack(spacing: 12) {
                         Spacer()
                         Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 38))
+                            .font(.system(size: 32))
                             .foregroundColor(.gray.opacity(0.4))
                         Text("Aucune discussion")
                             .font(.system(size: 14, weight: .medium))
@@ -117,7 +125,7 @@ public struct SidebarView: View {
                     }
                     .frame(maxWidth: .infinity)
                 } else {
-                    ScrollView(showsIndicators: false) {
+                    ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(spacing: 8) {
                             ForEach(viewModel.conversations) { conv in
                                 let isSelected = (viewModel.currentConversationId == conv.id)
@@ -209,16 +217,5 @@ public struct SidebarView: View {
                 alignment: .trailing
             )
         }
-    }
-    
-    private var safeTopPadding: CGFloat {
-        if #available(iOS 13.0, *) {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first {
-                let top = window.safeAreaInsets.top
-                if top > 0 { return top }
-            }
-        }
-        return 50
     }
 }

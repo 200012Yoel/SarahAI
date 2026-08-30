@@ -17,63 +17,73 @@ public struct ChatScreenView: View {
     }
     
     public var body: some View {
-        GeometryReader { geo in
-            let topInset = geo.safeAreaInsets.top
-            let bottomInset = geo.safeAreaInsets.bottom
-            
-            ZStack(alignment: .topTrailing) {
-                VStack(spacing: 0) {
-                    // 1. Topbar Native avec indicateur d'Agent Actif
-                    topBar(topInset: topInset)
-                    
-                    // 2. Fil de discussion (MessageList)
-                    MessageList(
-                        messages: viewModel.messages,
-                        isTyping: viewModel.isTyping,
-                        isKeyboardVisible: keyboard.isVisible,
-                        onToggleSpeech: { message in
-                            viewModel.toggleSpeechForMessage(message.content)
-                        },
-                        onSelectSuggestion: { suggestionText in
-                            viewModel.sendMessage(suggestionText)
-                        },
-                        onIntroduceSarah: {
-                            viewModel.introduceSarah()
-                        },
-                        onDismissKeyboard: {
-                            keyboard.dismiss()
-                        }
-                    )
-                    
-                     // 3. Barre de saisie (MessageBar) avec Capsule Vocale et switch des agents
-                    MessageBar(
-                        text: $viewModel.inputText,
-                        activeAgent: $viewModel.activeAgent,
-                        isRecording: viewModel.isMicRunning,
-                        onSend: { text in
-                            viewModel.sendMessage(text)
-                        },
-                        onToggleMic: {
-                            viewModel.toggleMicrophone()
-                        },
-                        onOpenVoiceOrb: {
-                            viewModel.isShowingVoiceOrbModal = true
-                        },
-                        onOpenVAICoding: {
-                            viewModel.isShowingVAICodingStudio = true
-                        },
-                        onPlusTapped: {
-                            isShowingActionSheet = true
-                        },
-                        onShareVideo: {
-                            isShowingVideoShare = true
-                        }
-                    )
-                    .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
-                    .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
+        GeometryReader { geometry in
+            let windowTop: CGFloat = {
+                if #available(iOS 13.0, *) {
+                    return UIApplication.shared.connectedScenes
+                        .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                        .first?.safeAreaInsets.top ?? 47
                 }
-                .background(Color.black)
+                return 20
+            }()
+            let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
+            let bottomInset = geometry.safeAreaInsets.bottom
+            
+            VStack(spacing: 0) {
+                // 1. Topbar Native avec indicateur d'Agent Actif (calée sous l'encoche / Dynamic Island)
+                topBar
+                    .padding(.top, topPadding)
+                    .padding(.bottom, 6)
+                
+                // 2. Fil de discussion (MessageList)
+                MessageList(
+                    messages: viewModel.messages,
+                    isTyping: viewModel.isTyping,
+                    isKeyboardVisible: keyboard.isVisible,
+                    onToggleSpeech: { message in
+                        viewModel.toggleSpeechForMessage(message.content)
+                    },
+                    onSelectSuggestion: { suggestionText in
+                        viewModel.sendMessage(suggestionText)
+                    },
+                    onIntroduceSarah: {
+                        viewModel.introduceSarah()
+                    },
+                    onDismissKeyboard: {
+                        keyboard.dismiss()
+                    }
+                )
+                
+                // 3. Barre de saisie (MessageBar) avec Capsule Vocale et switch des agents
+                MessageBar(
+                    text: $viewModel.inputText,
+                    activeAgent: $viewModel.activeAgent,
+                    isRecording: viewModel.isMicRunning,
+                    onSend: { text in
+                        viewModel.sendMessage(text)
+                    },
+                    onToggleMic: {
+                        viewModel.toggleMicrophone()
+                    },
+                    onOpenVoiceOrb: {
+                        viewModel.isShowingVoiceOrbModal = true
+                    },
+                    onOpenVAICoding: {
+                        viewModel.isShowingVAICodingStudio = true
+                    },
+                    onPlusTapped: {
+                        isShowingActionSheet = true
+                    },
+                    onShareVideo: {
+                        isShowingVideoShare = true
+                    }
+                )
+                .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
+                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+            .ignoresSafeArea(edges: .top)
         }
         .ignoresSafeArea(.keyboard)
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
@@ -97,11 +107,11 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .nathan
                         viewModel.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
                     },
-                    .default(Text("🎬 Nathan — Générer une vidéo (Voo)")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.inputText = "Génère une vidéo de "
+                    .default(Text("🎨 Ethel — Créativité & Studio Graphique")) {
+                        viewModel.activeAgent = .ethel
+                        viewModel.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
                     },
-                    .default(Text("🎵 Nathan — Composer de la musique (Suno)")) {
+                    .default(Text("🎵 Nathan — Générer une Musique Rapide")) {
                         viewModel.activeAgent = .nathan
                         viewModel.inputText = "Compose une musique "
                     },
@@ -143,7 +153,7 @@ public struct ChatScreenView: View {
     
     // MARK: - Topbar
     
-    private func topBar(topInset: CGFloat) -> some View {
+    private var topBar: some View {
         HStack(alignment: .center) {
             // Bouton Menu Tiroir (Sidebar)
             Button(action: {
@@ -165,7 +175,7 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Titre de l'agent actif (centre) — sans bouton sous Sarah
+            // Titre de l'agent actif (centre)
             Button(action: {
                 viewModel.isShowingVoiceOrbModal = true
             }) {
@@ -187,7 +197,7 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Bouton Paramètres — Roue crantée ⚙️ (remplace l'ancien bouton crayon)
+            // Bouton Paramètres — Roue crantée ⚙️
             Button(action: {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
@@ -206,18 +216,5 @@ public struct ChatScreenView: View {
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
-        .padding(.top, max(safeTopPadding, topInset) + 8)
-        .padding(.bottom, 6)
-    }
-    
-    private var safeTopPadding: CGFloat {
-        if #available(iOS 13.0, *) {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first {
-                let top = window.safeAreaInsets.top
-                if top > 0 { return top }
-            }
-        }
-        return 50 // Dégagement sécurisé par défaut pour encoche / Dynamic Island iPhone
     }
 }
