@@ -206,6 +206,8 @@ public struct SidebarView: View {
                     .fill(Color.white.opacity(0.06))
                     .frame(width: 1)
                     .frame(maxHeight: .infinity),
+                alignment: .trailing
+            )
         }
     }
     
