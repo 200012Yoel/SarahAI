@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Écran principal de discussion 100% natif SwiftUI avec interface multi-agents,
-/// synchronisation dynamique du clavier au-dessus de MessageBar, Voice Orb plein écran et Studio VAI Coding.
-@available(iOS 14.0, *)
+/// safeAreaInset en bas pour positionner MessageBar au-dessus du clavier et de la barre système,
+/// Voice Orb plein écran et Studio VAI Coding.
+@available(iOS 15.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
@@ -27,34 +28,45 @@ public struct ChatScreenView: View {
                 return 20
             }()
             let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
-            let bottomInset = geometry.safeAreaInsets.bottom
             
-            VStack(spacing: 0) {
-                // 1. Topbar Native avec indicateur d'Agent Actif (calée sous l'encoche / Dynamic Island)
-                topBar
-                    .padding(.top, topPadding)
-                    .padding(.bottom, 6)
+            ZStack {
+                Color.black.ignoresSafeArea()
                 
-                // 2. Fil de discussion (MessageList)
-                MessageList(
-                    messages: viewModel.messages,
-                    isTyping: viewModel.isTyping,
-                    isKeyboardVisible: keyboard.isVisible,
-                    onToggleSpeech: { message in
-                        viewModel.toggleSpeechForMessage(message.content)
-                    },
-                    onSelectSuggestion: { suggestionText in
-                        viewModel.sendMessage(suggestionText)
-                    },
-                    onIntroduceSarah: {
-                        viewModel.introduceSarah()
-                    },
-                    onDismissKeyboard: {
+                // 1. CORPS PRINCIPAL : TOPBAR + FIL DE DISCUSSION
+                VStack(spacing: 0) {
+                    // Topbar calée sous la zone de statut / Dynamic Island
+                    topBar
+                        .padding(.top, topPadding)
+                        .padding(.bottom, 6)
+                    
+                    // Fil de discussion prenant tout l'espace central
+                    MessageList(
+                        messages: viewModel.messages,
+                        isTyping: viewModel.isTyping,
+                        isKeyboardVisible: keyboard.isVisible,
+                        onToggleSpeech: { message in
+                            viewModel.toggleSpeechForMessage(message.content)
+                        },
+                        onSelectSuggestion: { suggestionText in
+                            viewModel.sendMessage(suggestionText)
+                        },
+                        onIntroduceSarah: {
+                            viewModel.introduceSarah()
+                        },
+                        onDismissKeyboard: {
+                            keyboard.dismiss()
+                        }
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
                         keyboard.dismiss()
                     }
-                )
-                
-                // 3. Barre de saisie (MessageBar) avec Capsule Vocale et switch des agents
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(edges: .top)
+            // 2. ZONE FIXÉE EN BAS (AU-DESSUS DU CLAVIER OU DU BAS DE L'ÉCRAN)
+            .safeAreaInset(edge: .bottom) {
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
@@ -78,14 +90,9 @@ public struct ChatScreenView: View {
                         isShowingVideoShare = true
                     }
                 )
-                .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
-                .animation(.interpolatingSpring(stiffness: 300, damping: 30), value: keyboard.keyboardHeight)
+                .background(Color.black)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
-            .ignoresSafeArea(edges: .top)
         }
-        .ignoresSafeArea(.keyboard)
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)
         }
@@ -162,15 +169,11 @@ public struct ChatScreenView: View {
                 keyboard.dismiss()
                 viewModel.openDrawer()
             }) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 18))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(Circle().fill(Color(white: 0.16)))
             }
             .buttonStyle(ScaleBounceButtonStyle())
             
@@ -186,11 +189,11 @@ public struct ChatScreenView: View {
                         .frame(width: 8, height: 8)
                     
                     Text(viewModel.activeAgent.rawValue)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .font(.headline)
                         .foregroundColor(.white)
                     
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.caption2)
                         .foregroundColor(.gray)
                 }
             }
@@ -204,15 +207,11 @@ public struct ChatScreenView: View {
                 keyboard.dismiss()
                 isShowingSettings = true
             }) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(Circle().fill(Color(white: 0.16)))
             }
             .buttonStyle(ScaleBounceButtonStyle())
         }
