@@ -16,74 +16,46 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.delegate = self
     }
     
-    /// Récupère la voix Siri exacte de l'agent (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
-    public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
-        // 1. Recherche prioritaire par l'identifiant système Apple TTS Bundle Siri exact
-        if let directVoice = AVSpeechSynthesisVoice(identifier: agent.speechIdentifier) {
-            return directVoice
-        }
-        
+    /// Résout la voix Siri exacte selon l'ordre des voix système installées
+    public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         
-        // 2. Filtrer toutes les voix de la région cible (fr-FR ou fr-CA)
-        let availableVoices = allVoices.filter {
-            $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix(agent.localeCode)
-        }
+        // Liste des voix françaises de France et du Canada installées
+        let franceVoices = allVoices.filter { $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix("fr-FR") }
+        let canadaVoices = allVoices.filter { $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix("fr-CA") }
         
-        // 3. Extraire les voix labellisées Siri
-        let siriVoices = availableVoices.filter {
-            $0.identifier.localizedCaseInsensitiveContains("siri") ||
-            $0.name.localizedCaseInsensitiveContains("siri")
-        }
-        
-        // 3a. Recherche par index dans les voix Siri réelles installées
-        if agent.voiceIndexOrder < siriVoices.count {
-            return siriVoices[agent.voiceIndexOrder]
-        }
-        
-        // 3b. Recherche par index dans la liste ordonnée des voix de la région
-        if agent.voiceIndexOrder < availableVoices.count {
-            return availableVoices[agent.voiceIndexOrder]
-        }
-        
-        // 4. Recherche par timbres nominatifs emblématiques Siri
-        let targetNames: [String]
         switch agent {
-        case .sarah:  targetNames = ["audrey", "marie", "amélie", "amelie", "celine"]
-        case .nathan: targetNames = ["thomas", "nicolas", "lucas", "paul"]
-        case .esther: targetNames = ["aurélien", "aurelien", "paul", "claire", "audrey"]
-        case .tom:    targetNames = ["rémi", "remi", "pierre", "alain", "thomas"]
-        case .yohan:  targetNames = ["antoine", "alain", "nicolas", "thomas"]
-        case .ethel:  targetNames = ["chantal", "amelie", "amélie", "audrey"]
+        case .sarah:
+            // Sarah = Voix 1 France
+            return franceVoices.indices.contains(0) ? franceVoices[0] : AVSpeechSynthesisVoice(language: "fr-FR")
+            
+        case .nathan:
+            // Nathan = Voix 2 France
+            return franceVoices.indices.contains(1) ? franceVoices[1] : AVSpeechSynthesisVoice(language: "fr-FR")
+            
+        case .esther:
+            // Esther = Voix 3 France
+            return franceVoices.indices.contains(2) ? franceVoices[2] : AVSpeechSynthesisVoice(language: "fr-FR")
+            
+        case .tom:
+            // Tom = Voix 4 France
+            return franceVoices.indices.contains(3) ? franceVoices[3] : AVSpeechSynthesisVoice(language: "fr-FR")
+            
+        case .yohan:
+            // Yohan = Voix 1 Canada
+            return canadaVoices.indices.contains(0) ? canadaVoices[0] : AVSpeechSynthesisVoice(language: "fr-CA")
+            
+        case .ethel:
+            // Ethel = Voix 2 Canada (Féminine canadienne)
+            return canadaVoices.indices.contains(1) ? canadaVoices[1] : AVSpeechSynthesisVoice(language: "fr-CA")
         }
-        
-        for name in targetNames {
-            if let matched = availableVoices.first(where: {
-                $0.name.localizedCaseInsensitiveContains(name) ||
-                $0.identifier.localizedCaseInsensitiveContains(name)
-            }) {
-                return matched
-            }
-        }
-        
-        // 5. Filtrage par genre sous iOS 13+
-        if #available(iOS 13.0, *) {
-            let wantsFemale = (agent == .sarah || agent == .esther || agent == .ethel)
-            let desiredGender: AVSpeechSynthesisVoiceGender = wantsFemale ? .female : .male
-            if let genderVoice = availableVoices.first(where: { $0.gender == desiredGender }) {
-                return genderVoice
-            }
-        }
-        
-        // 6. Fallback direct sur la première voix disponible de la région
-        if let fallback = availableVoices.first {
-            return fallback
-        }
-        
-        return AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
     }
     
-    /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri
+    public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
+        return getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
+    }
+    
+    /// Énonciation vocale dédiée pour l'agent ciblé
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         stop()
         pendingSpeechBlock = nil
@@ -94,12 +66,13 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         AudioSessionManager.shared.configurePlaybackSession()
         
         let utterance = AVSpeechUtterance(string: cleaned)
-        let selectedVoice = getVoice(for: agent)
+        let selectedVoice = getSiriVoice(for: agent)
         utterance.voice = selectedVoice
         utterance.rate = rate
         
-        // Affichage console pour vérification immédiate du timbre en direct
-        print("🗣️ Agent: \(agent.rawValue) | Voix: \(selectedVoice.name) | Langue: \(selectedVoice.language) | ID: \(selectedVoice.identifier)")
+        if let v = selectedVoice {
+            print("🗣️ Agent: \(agent.rawValue) | Voix: \(v.name) | Langue: \(v.language) | ID: \(v.identifier)")
+        }
         
         synthesizer.speak(utterance)
     }
@@ -109,7 +82,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         speak(text: text, as: agent)
     }
     
-    /// Exécute une passation vocale naturelle (ex: Sarah passe la main à Esther / Tom / Nathan / Yoann / Ethel)
+    /// Passation vocale séquentielle fluide entre deux agents
     public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
         stop()
         
@@ -123,17 +96,16 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         
         AudioSessionManager.shared.configurePlaybackSession()
         
-        // Préparer la suite pour quand l'agent source a fini sa phrase de passage
         self.pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
             let agentUtterance = AVSpeechUtterance(string: cleanAgent)
-            agentUtterance.voice = self.getVoice(for: targetAgent)
+            agentUtterance.voice = self.getSiriVoice(for: targetAgent)
             agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
             self.synthesizer.speak(agentUtterance)
         }
         
         let sourceUtterance = AVSpeechUtterance(string: cleanTransition)
-        sourceUtterance.voice = getVoice(for: sourceAgent)
+        sourceUtterance.voice = getSiriVoice(for: sourceAgent)
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
         synthesizer.speak(sourceUtterance)
     }
@@ -156,17 +128,6 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             .replacingOccurrences(of: "`", with: "")
             .replacingOccurrences(of: "—", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    // MARK: - Validation & Inspection
-    /// Liste toutes les voix Français/Hébreu installées sur l'appareil (pour vérification console)
-    public func listAvailableFrenchVoices() {
-        let voices = AVSpeechSynthesisVoice.speechVoices().filter {
-            $0.language.starts(with: "fr") || $0.language.starts(with: "he")
-        }
-        for (index, voice) in voices.enumerated() {
-            print("[\(index)] Nom: \(voice.name) | Langue: \(voice.language) | ID: \(voice.identifier)")
-        }
     }
     
     // MARK: - AVSpeechSynthesizerDelegate
