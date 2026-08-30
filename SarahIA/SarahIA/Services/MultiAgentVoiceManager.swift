@@ -40,13 +40,16 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
         
         // 2. Recherche parmi toutes les voix de haute qualité installées
-        if #available(iOS 13.0, *) {
-            let highQualityVoices = localeVoices.filter { $0.quality == .premium || $0.quality == .enhanced }
-            if !highQualityVoices.isEmpty {
-                let index = (Int(agent.siriVoiceNumber) ?? 1) - 1
-                if highQualityVoices.indices.contains(index) {
-                    return highQualityVoices[index]
-                }
+        let highQualityVoices: [AVSpeechSynthesisVoice]
+        if #available(iOS 16.0, *) {
+            highQualityVoices = localeVoices.filter { $0.quality == .premium || $0.quality == .enhanced }
+        } else {
+            highQualityVoices = localeVoices.filter { $0.quality == .enhanced }
+        }
+        if !highQualityVoices.isEmpty {
+            let index = (Int(agent.siriVoiceNumber) ?? 1) - 1
+            if highQualityVoices.indices.contains(index) {
+                return highQualityVoices[index]
             }
         }
         

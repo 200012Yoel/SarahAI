@@ -60,8 +60,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // Bouton Hamburger ☰
         menuButton.translatesAutoresizingMaskIntoConstraints = false
-        menuButton.setImage(UIImage(systemName: "line.3.horizontal") ?? UIImage(named: "menu"), for: .normal)
-        menuButton.setTitle(UIImage(systemName: "line.3.horizontal") == nil ? "☰" : nil, for: .normal)
+        if #available(iOS 13.0, *), let img = UIImage(systemName: "line.3.horizontal") {
+            menuButton.setImage(img, for: .normal)
+        } else {
+            menuButton.setTitle("☰", for: .normal)
+        }
         menuButton.tintColor = .white
         menuButton.setTitleColor(.white, for: .normal)
         menuButton.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .bold)
@@ -82,8 +85,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // Bouton Paramètres ⚙️
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
-        settingsButton.setImage(UIImage(systemName: "gearshape.fill") ?? UIImage(named: "gear"), for: .normal)
-        settingsButton.setTitle(UIImage(systemName: "gearshape.fill") == nil ? "⚙️" : nil, for: .normal)
+        if #available(iOS 13.0, *), let img = UIImage(systemName: "gearshape.fill") {
+            settingsButton.setImage(img, for: .normal)
+        } else {
+            settingsButton.setTitle("⚙️", for: .normal)
+        }
         settingsButton.tintColor = .white
         settingsButton.setTitleColor(.white, for: .normal)
         settingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
