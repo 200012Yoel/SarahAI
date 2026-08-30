@@ -85,8 +85,6 @@ public struct ChatScreenView: View {
                             isShowingVideoShare = true
                         }
                     )
-                    .padding(.bottom, keyboard.isVisible ? 2 : 8)
-                    .background(Color.black)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -150,9 +150,10 @@ public struct MessageBar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 28).fill(Color(white: 0.12)))
-            .padding(.horizontal, 16)
         }
-        .padding(.bottom, 8)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+        .background(Color.black)
     }
     
     private func submitMessage() {
