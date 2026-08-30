@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Barre de saisie 100% native SwiftUI (MessageBar) avec Capsule Vocale Dédiée,
-/// sélecteur rapide des agents (Sarah, Tom, Esther, Yohan, Nathan, Ethel), dictée vocale continue et actions rapides.
+/// sélecteur rapide des agents (Sarah, Tom, Esther, Yohan, Nathan, Ethel), dictée vocale et actions rapides.
 @available(iOS 14.0, *)
 public struct MessageBar: View {
     @Binding var text: String
@@ -40,44 +40,44 @@ public struct MessageBar: View {
     }
     
     public var body: some View {
-        VStack(spacing: 12) {
-            // 0. Chips / Raccourcis Rapides du haut (Allume la torche, Pikoud HaOref, i24News)
+        VStack(spacing: 8) {
+            // 1. Raccourcis Rapides (Shortcuts)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    // 0.1 Allume la torche
-                    ActionChipButton(
+                    // Allume la torche
+                    ShortcutButton(
+                        title: flashlight.isTorchOn ? "Éteins la torche" : "Allume la torche",
                         icon: flashlight.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill",
-                        text: flashlight.isTorchOn ? "Éteins la torche" : "Allume la torche",
-                        color: Color(white: 0.20)
+                        color: Color(white: 0.2)
                     ) {
                         flashlight.toggleTorch()
                     }
                     
-                    // 0.2 Pikoud HaOref (Alerte Rouge)
-                    ActionChipButton(
+                    // Pikoud HaOref
+                    ShortcutButton(
+                        title: "Pikoud HaOref",
                         icon: "shield.fill",
-                        text: "Pikoud HaOref",
-                        color: Color.red.opacity(0.75)
+                        color: Color(red: 0.8, green: 0.2, blue: 0.2)
                     ) {
                         HapticService.shared.buttonTap()
                         onSend("Alertes Pikoud HaOref")
                     }
                     
-                    // 0.3 i24News
-                    ActionChipButton(
+                    // i24news
+                    ShortcutButton(
+                        title: "i24news",
                         icon: "newspaper.fill",
-                        text: "i24news",
-                        color: Color.blue.opacity(0.75)
+                        color: Color(red: 0.0, green: 0.45, blue: 0.85)
                     ) {
                         HapticService.shared.buttonTap()
                         onSend("Actualités i24news")
                     }
                     
-                    // 0.4 WhatsApp (Nathan)
-                    ActionChipButton(
+                    // WhatsApp
+                    ShortcutButton(
+                        title: "WhatsApp",
                         icon: "bubble.left.and.bubble.right.fill",
-                        text: "WhatsApp",
-                        color: Color.green.opacity(0.75)
+                        color: Color(red: 0.1, green: 0.55, blue: 0.25)
                     ) {
                         HapticService.shared.buttonTap()
                         activeAgent = .nathan
@@ -87,72 +87,68 @@ public struct MessageBar: View {
                 .padding(.horizontal, 16)
             }
             
-            // 1. Barre de saisie principale (Capsule)
-            HStack(spacing: 10) {
-                // 1.1 Bouton (+) Action Rapide
+            // 2. Barre de Saisie Principale
+            HStack(spacing: 8) {
+                // Bouton Plus ＋
                 Button(action: {
                     HapticService.shared.buttonTap()
                     onPlusTapped?()
                 }) {
                     Image(systemName: "plus")
+                        .font(.system(size: 20))
                         .foregroundColor(.white)
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(Color(white: 0.22)))
+                        .frame(width: 40, height: 40)
+                        .background(Color(white: 0.15))
+                        .clipShape(Circle())
                 }
                 .buttonStyle(ScaleBounceButtonStyle())
                 
-                // 1.2 Champ de Saisie Texte
-                TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
-                    submitMessage()
-                })
-                .font(.system(size: 15, weight: .regular))
-                .foregroundColor(.white)
-                .accentColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                .autocapitalization(.sentences)
-                .disableAutocorrection(false)
-                .lineLimit(1)
-                
-                // 1.3 Bouton Dictée Vocale (Microphone)
-                Button(action: {
-                    onToggleMic()
-                }) {
-                    Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .foregroundColor(isRecording ? Color.red : Color.gray)
-                        .font(.system(size: 18))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                // 1.4 Bouton Ondes Vocales / Envoi
-                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Button(action: {
+                // Champ texte avec Micro intégré
+                HStack(spacing: 8) {
+                    TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
                         submitMessage()
-                    }) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                            .font(.system(size: 28))
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                } else {
+                    })
+                    .foregroundColor(.white)
+                    .tint(.blue)
+                    .font(.system(size: 15))
+                    
                     Button(action: {
+                        onToggleMic()
+                    }) {
+                        Image(systemName: isRecording ? "mic.fill" : "mic")
+                            .foregroundColor(isRecording ? .red : .gray)
+                            .font(.system(size: 18))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .background(Color(white: 0.15))
+                .cornerRadius(20)
+                
+                // Bouton Waveform / Envoi
+                let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                Button(action: {
+                    if hasText {
+                        submitMessage()
+                    } else {
                         HapticService.shared.buttonTap()
                         onOpenVoiceOrb()
-                    }) {
-                        Image(systemName: "waveform")
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Circle().fill(Color(white: 0.22)))
                     }
-                    .buttonStyle(ScaleBounceButtonStyle())
+                }) {
+                    Image(systemName: hasText ? "arrow.up" : "waveform")
+                        .font(.system(size: 18, weight: hasText ? .bold : .regular))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(hasText ? Color.blue : Color(white: 0.15))
+                        .clipShape(Circle())
                 }
+                .buttonStyle(ScaleBounceButtonStyle())
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 28).fill(Color(white: 0.12)))
+            .padding(.horizontal, 16)
         }
         .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.bottom, 8)
         .background(Color.black)
     }
     
@@ -168,26 +164,33 @@ public struct MessageBar: View {
     }
 }
 
-// MARK: - ActionChipButton Helper
+// MARK: - ShortcutButton Helper
 @available(iOS 13.0, *)
-private struct ActionChipButton: View {
-    let icon: String
-    let text: String
-    let color: Color
-    let action: () -> Void
+public struct ShortcutButton: View {
+    public let title: String
+    public let icon: String
+    public let color: Color
+    public var action: () -> Void
     
-    var body: some View {
+    public init(title: String, icon: String, color: Color, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.color = color
+        self.action = action
+    }
+    
+    public var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                Text(text)
-                    .font(.footnote)
-                    .fontWeight(.medium)
+                Text(title)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(color))
+            .font(.system(size: 13, weight: .medium))
             .foregroundColor(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(color)
+            .cornerRadius(20)
         }
         .buttonStyle(PlainButtonStyle())
     }
