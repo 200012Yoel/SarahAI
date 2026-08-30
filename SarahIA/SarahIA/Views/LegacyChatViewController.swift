@@ -94,7 +94,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             conversations[index].messages = messages
         } else if !messages.isEmpty {
             let title = messages.first(where: { $0.isFromUser })?.content.prefix(30) ?? "Nouvelle discussion"
-            let newConv = Conversation(id: currentId, title: String(title), messages: messages, createdAt: Date())
+            let newConv = Conversation(id: currentId, title: String(title), createdAt: Date(), messages: messages)
             conversations.insert(newConv, at: 0)
         }
         
