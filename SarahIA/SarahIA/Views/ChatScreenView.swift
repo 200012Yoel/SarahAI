@@ -83,9 +83,7 @@ public struct ChatScreenView: View {
             VAICodingStudioView(viewModel: viewModel)
         }
         .sheet(isPresented: $isShowingVideoShare) {
-            if #available(iOS 16.0, *) {
-                VideoShareView(viewModel: viewModel)
-            }
+            VideoShareView(viewModel: viewModel)
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(

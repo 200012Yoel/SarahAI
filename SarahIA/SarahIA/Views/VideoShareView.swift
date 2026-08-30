@@ -2,25 +2,81 @@ import SwiftUI
 import PhotosUI
 import AVKit
 
-/// Vue de partage de vidéo dans Sarah IA.
-/// - Sélection de vidéo depuis la galerie photo
-/// - Affichage thumbnail en haut du chat
-/// - Partage automatique sur les réseaux sociaux connectés
-/// - Conversion/upload avec message associé
-@available(iOS 16.0, *)
+/// Sélecteur de vidéo utilisant PHPickerViewController (iOS 14.0+)
+@available(iOS 14.0, *)
+public struct VideoPickerRepresentable: UIViewControllerRepresentable {
+    @Binding var selectedVideoURL: URL?
+    @Binding var thumbnailImage: UIImage?
+    @Environment(\.presentationMode) var presentationMode
+    
+    public init(selectedVideoURL: Binding<URL?>, thumbnailImage: Binding<UIImage?>) {
+        self._selectedVideoURL = selectedVideoURL
+        self._thumbnailImage = thumbnailImage
+    }
+    
+    public func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .videos
+        config.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    public func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    public class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: VideoPickerRepresentable
+        
+        init(_ parent: VideoPickerRepresentable) {
+            self.parent = parent
+        }
+        
+        public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard let provider = results.first?.itemProvider else { return }
+            
+            if provider.hasItemConformingToTypeIdentifier("public.movie") {
+                provider.loadFileRepresentation(forTypeIdentifier: "public.movie") { url, error in
+                    guard let url = url else { return }
+                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "_" + url.lastPathComponent)
+                    try? FileManager.default.copyItem(at: url, to: tempURL)
+                    
+                    let asset = AVURLAsset(url: tempURL)
+                    let generator = AVAssetImageGenerator(asset: asset)
+                    generator.appliesPreferredTrackTransform = true
+                    let time = CMTime(seconds: 1.0, preferredTimescale: 60)
+                    let image: UIImage? = (try? generator.copyCGImage(at: time, actualTime: nil)).map { UIImage(cgImage: $0) }
+                    
+                    DispatchQueue.main.async {
+                        self.parent.selectedVideoURL = tempURL
+                        self.parent.thumbnailImage = image
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Vue de partage de vidéo dans Sarah IA (iOS 14.0+)
+@available(iOS 14.0, *)
 public struct VideoShareView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject var viewModel: ChatViewModel
     
-    @State private var selectedItem: PhotosPickerItem? = nil
     @State private var selectedVideoURL: URL? = nil
     @State private var thumbnailImage: UIImage? = nil
     @State private var messageText: String = ""
     @State private var isSharing: Bool = false
     @State private var shareSuccess: Bool = false
     @State private var showPlayer: Bool = false
+    @State private var showPicker: Bool = false
     
-    // Réseaux sociaux connectés (à lire depuis UserDefaults en prod)
+    // Réseaux sociaux connectés
     @State private var shareToWhatsApp: Bool = true
     @State private var shareToInstagram: Bool = true
     @State private var shareToTikTok: Bool = true
@@ -38,14 +94,11 @@ public struct VideoShareView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // 1. Sélecteur de vidéo
-                        PhotosPicker(
-                            selection: $selectedItem,
-                            matching: .videos,
-                            photoLibrary: .shared()
-                        ) {
+                        // 1. Zone de sélection de vidéo
+                        Button(action: {
+                            showPicker = true
+                        }) {
                             if let thumb = thumbnailImage {
-                                // Thumbnail de la vidéo sélectionnée
                                 ZStack(alignment: .bottomLeading) {
                                     Image(uiImage: thumb)
                                         .resizable()
@@ -53,7 +106,7 @@ public struct VideoShareView: View {
                                         .frame(maxWidth: .infinity)
                                         .frame(height: 200)
                                         .clipped()
-                                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                     
                                     // Overlay play
                                     ZStack {
@@ -66,7 +119,6 @@ public struct VideoShareView: View {
                                     }
                                     .padding(12)
                                     
-                                    // Badge "Changer"
                                     Text("Changer")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundColor(.white)
@@ -78,207 +130,134 @@ public struct VideoShareView: View {
                                         .frame(maxWidth: .infinity, alignment: .trailing)
                                 }
                             } else {
-                                // Zone de sélection vide
-                                VStack(spacing: 14) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color(red: 0.12, green: 0.20, blue: 0.16))
-                                            .frame(height: 160)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 16)
-                                                    .stroke(
-                                                        LinearGradient(
-                                                            colors: [Color.green.opacity(0.5), Color.blue.opacity(0.3)],
-                                                            startPoint: .topLeading,
-                                                            endPoint: .bottomTrailing
-                                                        ),
-                                                        style: StrokeStyle(lineWidth: 1.5, dash: [6])
-                                                    )
-                                            )
-                                        
-                                        VStack(spacing: 10) {
-                                            Image(systemName: "video.badge.plus")
-                                                .font(.system(size: 36))
-                                                .foregroundColor(.green.opacity(0.8))
-                                            Text("Sélectionner une vidéo")
-                                                .font(.system(size: 15, weight: .semibold))
-                                                .foregroundColor(.white)
-                                            Text("Appuyez pour choisir depuis votre galerie")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.gray)
-                                        }
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color(red: 0.10, green: 0.14, blue: 0.12))
+                                        .frame(height: 160)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .stroke(
+                                                    LinearGradient(
+                                                        colors: [Color.green.opacity(0.6), Color.blue.opacity(0.4)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ),
+                                                    style: StrokeStyle(lineWidth: 1.5, dash: [6])
+                                                )
+                                        )
+                                    
+                                    VStack(spacing: 10) {
+                                        Image(systemName: "video.badge.plus")
+                                            .font(.system(size: 36))
+                                            .foregroundColor(.green)
+                                        Text("Sélectionner une vidéo")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.white)
+                                        Text("Appuyez pour choisir depuis votre galerie")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
                                     }
                                 }
                             }
                         }
-                        .onChange(of: selectedItem) { newItem in
-                            Task {
-                                await loadVideo(from: newItem)
-                            }
-                        }
+                        .buttonStyle(PlainButtonStyle())
                         
-                        // 2. Champ de message
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Message accompagnant la vidéo")
+                        // 2. Champ de description
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Message ou description")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.gray)
                             
-                            TextField("Écrire un message...", text: $messageText)
-                                .font(.system(size: 15))
+                            TextField("Ex : Super moment en famille ! 🌟", text: $messageText)
+                                .padding(12)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .foregroundColor(.white)
-                                .padding(14)
-                                .background(Color(red: 0.12, green: 0.12, blue: 0.16))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                                )
                         }
                         
-                        // 3. Sélection des réseaux sociaux
+                        // 3. Réseaux cibles
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Partager sur")
+                            Text("Destinations de partage")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.gray)
                             
-                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                    socialToggle("WhatsApp Statut", icon: "bubble.left.and.bubble.right.fill", color: Color(red: 0.15, green: 0.85, blue: 0.40), isOn: $shareToWhatsApp)
-                                    socialToggle("Instagram", icon: "camera.fill", color: Color(red: 0.85, green: 0.15, blue: 0.55), isOn: $shareToInstagram)
-                                    socialToggle("TikTok", icon: "music.note", color: Color(red: 0.95, green: 0.15, blue: 0.35), isOn: $shareToTikTok)
-                                    socialToggle("YouTube", icon: "play.rectangle.fill", color: .red, isOn: $shareToYouTube)
-                                    socialToggle("Twitter / X", icon: "xmark.circle.fill", color: .white, isOn: $shareToTwitter)
-                                }
+                            networkToggle(name: "WhatsApp Statut & Chat", icon: "bubble.left.and.bubble.right.fill", color: .green, isOn: $shareToWhatsApp)
+                            networkToggle(name: "Instagram Reels & Story", icon: "camera.fill", color: .purple, isOn: $shareToInstagram)
+                            networkToggle(name: "TikTok", icon: "music.note", color: .pink, isOn: $shareToTikTok)
+                            networkToggle(name: "YouTube Shorts", icon: "play.rectangle.fill", color: .red, isOn: $shareToYouTube)
+                            networkToggle(name: "Twitter / X", icon: "bubble.left.fill", color: .blue, isOn: $shareToTwitter)
                         }
                         
                         // 4. Bouton Partager
-                        Button(action: {
-                            shareVideo()
-                        }) {
-                            ZStack {
+                        Button(action: shareVideo) {
+                            HStack(spacing: 8) {
                                 if isSharing {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else if shareSuccess {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 18))
-                                        Text("Vidéo partagée !")
-                                            .font(.system(size: 16, weight: .bold))
-                                    }
-                                    .foregroundColor(.white)
+                                    ProgressView().tint(.white)
                                 } else {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "paperplane.fill")
-                                            .font(.system(size: 16))
-                                        Text(selectedVideoURL == nil ? "Sélectionner une vidéo d'abord" : "Partager sur tous mes réseaux")
-                                            .font(.system(size: 16, weight: .bold))
-                                    }
-                                    .foregroundColor(.white)
+                                    Image(systemName: "paperplane.fill")
+                                    Text(shareSuccess ? "Partagé !" : "Publier la vidéo")
                                 }
                             }
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
+                            .frame(height: 50)
                             .background(
-                                Group {
-                                    if selectedVideoURL != nil && !isSharing {
-                                        LinearGradient(
-                                            colors: [Color.green, Color.blue.opacity(0.8)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    } else {
-                                        LinearGradient(
-                                            colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    }
-                                }
+                                selectedVideoURL == nil
+                                ? Color.gray.opacity(0.3)
+                                : Color(red: 0.15, green: 0.75, blue: 0.45)
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .shadow(color: selectedVideoURL != nil ? Color.green.opacity(0.3) : Color.clear, radius: 12)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .disabled(selectedVideoURL == nil || isSharing)
-                        .buttonStyle(ScaleBounceButtonStyle())
                     }
-                    .padding(20)
+                    .padding(18)
                 }
             }
             .navigationTitle("📹 Partager une Vidéo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Annuler") {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Fermer") {
                         presentationMode.wrappedValue.dismiss()
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color.green)
                 }
             }
-        }
-    }
-    
-    // MARK: - Social Toggle
-    
-    @ViewBuilder
-    private func socialToggle(_ title: String, icon: String, color: Color, isOn: Binding<Bool>) -> some View {
-        Button(action: {
-            HapticService.shared.buttonTap()
-            isOn.wrappedValue.toggle()
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(isOn.wrappedValue ? color : .gray)
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(isOn.wrappedValue ? .white : .gray)
-                Spacer()
-                Image(systemName: isOn.wrappedValue ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundColor(isOn.wrappedValue ? color : .gray.opacity(0.4))
+            .sheet(isPresented: $showPicker) {
+                VideoPickerRepresentable(selectedVideoURL: $selectedVideoURL, thumbnailImage: $thumbnailImage)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(isOn.wrappedValue ? color.opacity(0.10) : Color(red: 0.12, green: 0.12, blue: 0.16))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isOn.wrappedValue ? color.opacity(0.35) : Color.white.opacity(0.05), lineWidth: 1)
-            )
         }
-        .buttonStyle(PlainButtonStyle())
     }
     
-    // MARK: - Chargement vidéo
-    
-    @MainActor
-    private func loadVideo(from item: PhotosPickerItem?) async {
-        guard let item = item else { return }
-        
-        if let data = try? await item.loadTransferable(type: Data.self) {
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sarah_video_\(UUID().uuidString).mp4")
-            try? data.write(to: tempURL)
-            selectedVideoURL = tempURL
+    private func networkToggle(name: String, icon: String, color: Color, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(color)
+                .frame(width: 26)
             
-            // Générer la thumbnail
-            let asset = AVURLAsset(url: tempURL)
-            let generator = AVAssetImageGenerator(asset: asset)
-            generator.appliesPreferredTrackTransform = true
-            if let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) {
-                thumbnailImage = UIImage(cgImage: cgImage)
-            }
+            Text(name)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+            
+            Spacer()
+            
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(color)
         }
+        .padding(12)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
-    
-    // MARK: - Partage vidéo
     
     private func shareVideo() {
         guard let videoURL = selectedVideoURL else { return }
         isSharing = true
         
-        // Informer Nathan & Sarah du partage dans le chat
         let networksList = [
-            shareToWhatsApp ? "WhatsApp (Statut & Messages)" : nil,
+            shareToWhatsApp ? "WhatsApp" : nil,
             shareToInstagram ? "Instagram" : nil,
             shareToTikTok ? "TikTok" : nil,
             shareToYouTube ? "YouTube" : nil,
@@ -286,29 +265,32 @@ public struct VideoShareView: View {
         ].compactMap { $0 }.joined(separator: ", ")
         
         let chatMessage = messageText.isEmpty
-            ? "📹 Vidéo partagée sur : \(networksList.isEmpty ? "aucun réseau sélectionné" : networksList)"
-            : "📹 \"\(messageText)\" — Partagé sur : \(networksList.isEmpty ? "aucun réseau sélectionné" : networksList)"
+            ? "📹 Vidéo partagée sur : \(networksList.isEmpty ? "aucun réseau" : networksList)"
+            : "📹 \"\(messageText)\" — Partagé sur : \(networksList.isEmpty ? "aucun réseau" : networksList)"
         
-        // Simuler le partage (en production : appels API OAuth réseaux sociaux)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             isSharing = false
             shareSuccess = true
-            
-            // Envoyer confirmation dans le chat
             viewModel.sendMessage(chatMessage)
             
-            // Ouvrir le partage natif iOS comme fallback
-            let activityVC = UIActivityViewController(
-                activityItems: [videoURL, messageText.isEmpty ? "Partagé avec Sarah IA" : messageText],
-                applicationActivities: nil
-            )
+            var rootVC: UIViewController? = nil
+            if #available(iOS 13.0, *) {
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? scene.windows.first?.rootViewController
+                }
+            } else {
+                rootVC = UIApplication.shared.keyWindow?.rootViewController
+            }
             
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
+            if let rootVC = rootVC {
+                let activityVC = UIActivityViewController(
+                    activityItems: [videoURL, messageText.isEmpty ? "Partagé via Sarah IA" : messageText],
+                    applicationActivities: nil
+                )
                 rootVC.present(activityVC, animated: true)
             }
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                 presentationMode.wrappedValue.dismiss()
             }
         }

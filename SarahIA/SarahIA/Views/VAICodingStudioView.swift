@@ -521,6 +521,14 @@ public struct VAICodingStudioView: View {
         }
     }
     
+    private func exportShortcut(title: String, prompt: String) {
+        HapticService.shared.buttonTap()
+        let shortcutContent = VAICodeEngine.shared.generateShortcutJSON(name: title, prompt: prompt)
+        _ = VAICodeEngine.shared.saveFile(filename: "\(title).json", content: shortcutContent)
+        exportMessage = "Raccourci « \(title) » généré avec succès ! Vous pouvez l'importer dans Apple Shortcuts."
+        isShowingExportAlert = true
+    }
+    
     private func deployLiveOnline() {
         HapticService.shared.buttonTap()
         let currentCode = codeText.isEmpty ? (viewModel.vaiCurrentCode ?? VAICodeEngine.shared.generateWebUI(prompt: "dashboard")) : codeText

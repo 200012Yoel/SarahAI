@@ -144,7 +144,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         case .tom:     next = .raphael
         case .raphael: next = .yohan
         case .yohan:   next = .nathan
-        case .nathan:  next = .sarah
+        case .nathan:  next = .ethel
+        case .ethel:   next = .sarah
         }
         activeAgent = next
         agentSwitchButton.setTitle("\(next.rawValue)", for: .normal)

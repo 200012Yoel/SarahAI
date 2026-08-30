@@ -1006,8 +1006,16 @@ public final class MultiAgentCoordinator {
             }
             
             // Fallback partage système
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
+            var rootVC: UIViewController? = nil
+            if #available(iOS 13.0, *) {
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? scene.windows.first?.rootViewController
+                }
+            } else {
+                rootVC = UIApplication.shared.keyWindow?.rootViewController
+            }
+            
+            if let rootVC = rootVC {
                 let activityVC = UIActivityViewController(activityItems: [fullCaption], applicationActivities: nil)
                 rootVC.present(activityVC, animated: true)
             }
