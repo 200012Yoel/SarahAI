@@ -119,15 +119,16 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .nathan
                         viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
                     },
-                    .default(Text("💻 Studio VAI Coding (Raphaël)")) {
+                    .default(Text("💻 Studio VAI Coding & Build (Esther)")) {
+                        viewModel.activeAgent = .esther
                         viewModel.isShowingVAICodingStudio = true
                     },
                     .default(Text("🐙 Se Connecter à GitHub")) {
-                        viewModel.activeAgent = .raphael
+                        viewModel.activeAgent = .esther
                         viewModel.sendMessage("Connecte-toi à GitHub")
                     },
                     .default(Text("📧 Boîte Google Gmail")) {
-                        viewModel.activeAgent = .raphael
+                        viewModel.activeAgent = .esther
                         viewModel.sendMessage("Ouvre mes mails Gmail")
                     },
                     .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {

@@ -79,8 +79,8 @@ public final class MultiAgentCoordinator {
         case .yohan:
             processWithYohan(text: trimmed, completion: completion)
             
-        case .raphael:
-            processWithRaphael(text: trimmed, completion: completion)
+        case .esther:
+            processWithEsther(text: trimmed, completion: completion)
             
         case .tom:
             processWithTom(text: trimmed, completion: completion)
@@ -117,17 +117,17 @@ public final class MultiAgentCoordinator {
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
-            ⚡ **Raphaël [Développeur & VAI Coding]** : Création de code, Apple Shortcuts, intégrations web et studio de code.
+            💻 **Esther [Synthèse Build & Voice Coding]** : Voix de synthèse build & code, Apple Shortcuts, intégrations web et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
             🤖 **Nathan [Réseaux Sociaux, WhatsApp & IA]** : Accès à tous vos réseaux sociaux, publication de statuts & vidéos WhatsApp, veille IA.
             ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Ethel » ou « Donne-moi Yoann » !*
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Esther », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Raphaël pour le code, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et WhatsApp, et Ethel, notre nouvel agent créatif.",
+                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Esther pour le code et le build, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et WhatsApp, et Ethel pour la créativité.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -145,14 +145,14 @@ public final class MultiAgentCoordinator {
                 let spoken = "Je m'appelle Tom ! Je suis votre agent expert en histoire contemporaine et géopolitique mondiale depuis 1948. De quel sujet historique ou politique souhaites-tu débattre ?"
                 return AgentResponse(agent: .tom, text: text, spokenText: spoken)
                 
-            case .raphael:
-                let text = "⚡ **Raphaël [Développeur & VAI Coding]**\n\nJe m'appelle **Raphaël**, développeur et architecte logiciel de l'équipe. Je conçois des composants interactifs Web, du code Swift, Python, des raccourcis Apple Shortcuts et je pilote le Studio VAI Coding directement sur votre iPhone."
-                let spoken = "Je m'appelle Raphaël, développeur de l'équipe Sarah IA. Je crée du code, des raccourcis Apple et des interfaces interactives. Quel est votre projet de développement ?"
-                return AgentResponse(agent: .raphael, text: text, spokenText: spoken)
+            case .esther:
+                let text = "💻 **Esther [Synthèse Build & Voice Coding]**\n\nJe m'appelle **Esther**, voix de synthèse build & code et architecte logiciel de l'équipe. Je conçois des composants interactifs Web, du code Swift, Python, des raccourcis Apple Shortcuts et je pilote le Studio VAI Coding directement sur votre iPhone."
+                let spoken = "Je m'appelle Esther, voix de synthèse build et code de l'équipe Sarah IA. Je crée du code, des raccourcis Apple et des interfaces interactives. Quel est votre projet de développement ?"
+                return AgentResponse(agent: .esther, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Esther, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Esther, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
@@ -216,7 +216,7 @@ public final class MultiAgentCoordinator {
         
         let yohanTokens = ["yoann", "yohan", "yoan", "johan", "yohan traducteur", "yoann traducteur"]
         let tomTokens = ["tom", "thomas"]
-        let raphaelTokens = ["raphael", "raphaël", "raph", "rafael"]
+        let estherTokens = ["esther", "ester", "esther code", "raphael", "raphaël", "raph", "rafael"]
         let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
         let nathanTokens = ["nathan", "natan", "l expert ia", "expert ia"]
         let ethelTokens = ["ethel", "etel", "aethel", "ehtel"]
@@ -256,13 +256,13 @@ public final class MultiAgentCoordinator {
             }
         }
         
-        // 3. Cible Raphaël
+        // 3. Cible Esther (Voice Coding & Build)
         for kw in switchKeywords {
-            for name in raphaelTokens {
+            for name in estherTokens {
                 let targetPattern = kw + name
                 if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
                     let residual = extractResidual(trigger: kw, agentToken: name)
-                    return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: residual)
+                    return SwitchCommandMatch(targetAgent: .esther, residualPrompt: residual)
                 }
             }
         }
@@ -442,9 +442,9 @@ public final class MultiAgentCoordinator {
         case .tom:
             transitionLine = "Pas de problème Yoël, je te le passe !"
             sourceName = "🌍 **Tom**"
-        case .raphael:
-            transitionLine = "Ça marche, je te le passe tout de suite !"
-            sourceName = "⚡ **Raphaël**"
+        case .esther:
+            transitionLine = "Ça marche, je te la passe tout de suite !"
+            sourceName = "💻 **Esther**"
         case .yohan:
             transitionLine = "Beseder Yoël, je te le passe !"
             sourceName = "🇮🇱 **Yohan**"
@@ -452,7 +452,7 @@ public final class MultiAgentCoordinator {
             transitionLine = "Je te le passe de suite, let's go !"
             sourceName = "🤖 **Nathan**"
         case .ethel:
-            transitionLine = "Pas de souci Yoël, je te le passe !"
+            transitionLine = "Pas de souci Yoël, je te la passe !"
             sourceName = "✨ **Ethel**"
         }
         
@@ -470,16 +470,16 @@ public final class MultiAgentCoordinator {
                 handoffSourceAgent: sourceAgent
             ))
             
-        case .raphael:
-            let raphGreeting = "Salut Yoël ! C'est Raphaël en ligne. Prêt pour tes développements, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n⚡ **Raphaël [Développeur & VAI Coding]** :\n\(raphGreeting)"
+        case .esther:
+            let estherGreeting = "Salut Yoël ! C'est Esther en ligne. Prête pour tes développements, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n💻 **Esther [Synthèse Build & Voice Coding]** :\n\(estherGreeting)"
             
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: fullText,
-                spokenText: "\(transitionLine) \(raphGreeting)",
+                spokenText: "\(transitionLine) \(estherGreeting)",
                 handoffSarahTransition: transitionLine,
-                handoffAgentGreeting: raphGreeting,
+                handoffAgentGreeting: estherGreeting,
                 handoffSourceAgent: sourceAgent
             ))
             
@@ -582,15 +582,15 @@ public final class MultiAgentCoordinator {
         ))
     }
     
-    private func processWithRaphael(text: String, completion: @escaping (AgentResponse) -> Void) {
+    private func processWithEsther(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
-            .replacingOccurrences(of: "vas-y raphaël", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "vas-y raphael", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "vas y raphael", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "passe-moi raphaël", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "passe moi raphael", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "donne-moi raphaël", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "donne moi raphael", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "vas-y esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "vas y esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe-moi esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe moi esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi esther", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "esther", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "raphaël", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "raphael", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -603,7 +603,7 @@ public final class MultiAgentCoordinator {
             let currentCode = VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
             let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: status,
                 spokenText: "Votre projet a été déployé et mis en ligne avec succès sur \(liveURL).",
                 openStudio: true,
@@ -616,9 +616,9 @@ public final class MultiAgentCoordinator {
             DispatchQueue.main.async {
                 UIApplication.shared.open(authURL, options: [:], completionHandler: nil)
             }
-            let responseText = "⚡ **Raphaël [GitHub Integration & OAuth]**\n\nJ'ai ouvert le portail officiel de connexion GitHub : [github.com/login](\(authURL.absoluteString)).\nUne fois connecté, vos dépôts distants et vos déploiements automatiques seront synchronisés !"
+            let responseText = "💻 **Esther [GitHub Integration & OAuth]**\n\nJ'ai ouvert le portail officiel de connexion GitHub : [github.com/login](\(authURL.absoluteString)).\nUne fois connecté, vos dépôts distants et vos déploiements automatiques seront synchronisés !"
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: responseText,
                 spokenText: "J'ai lancé la connexion à GitHub. Vous pouvez vous identifier directement sur la page sécurisée.",
                 openStudio: false,
@@ -631,9 +631,9 @@ public final class MultiAgentCoordinator {
             DispatchQueue.main.async {
                 UIApplication.shared.open(mailURL, options: [:], completionHandler: nil)
             }
-            let responseText = "⚡ **Raphaël [Intégration Google & Gmail]**\n\nOuverture de votre messagerie Gmail en cours : [mail.google.com](\(mailURL.absoluteString))."
+            let responseText = "💻 **Esther [Intégration Google & Gmail]**\n\nOuverture de votre messagerie Gmail en cours : [mail.google.com](\(mailURL.absoluteString))."
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: responseText,
                 spokenText: "J'ouvre votre boîte de réception Gmail.",
                 openStudio: false,
@@ -648,9 +648,9 @@ public final class MultiAgentCoordinator {
             }
             let manifest = VAICodeEngine.shared.generateGooglePlayManifest(appName: "Sarah IA", packageName: "com.sarahia.app")
             _ = VAICodeEngine.shared.saveFile(filename: "AndroidManifest.xml", content: manifest)
-            let responseText = "⚡ **Raphaël [Google Play Developer Console]**\n\nAccès direct au tableau de bord Google Play Console : [play.google.com/console](\(consoleURL.absoluteString)).\nLe fichier de configuration `AndroidManifest.xml` a été compilé dans votre espace `Documents/VAI_Workspace/`."
+            let responseText = "💻 **Esther [Google Play Developer Console]**\n\nAccès direct au tableau de bord Google Play Console : [play.google.com/console](\(consoleURL.absoluteString)).\nLe fichier de configuration `AndroidManifest.xml` a été compilé dans votre espace `Documents/VAI_Workspace/`."
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: responseText,
                 spokenText: "Je vous connecte à la console développeur Google Play Store.",
                 openStudio: true,
@@ -659,10 +659,10 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "⚡ **Raphaël [Export Apple Shortcut]**\n\nRaccourci Apple généré et compilé avec succès dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
+            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Esther", prompt: prompt)
+            let responseText = "💻 **Esther [Export Apple Shortcut]**\n\nRaccourci Apple généré et compilé avec succès dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: responseText,
                 spokenText: "Raccourci Apple généré avec succès dans votre espace de travail.",
                 openStudio: true,
@@ -673,15 +673,20 @@ public final class MultiAgentCoordinator {
         else {
             let html = VAICodeEngine.shared.generateWebUI(prompt: prompt)
             _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
-            let responseText = "⚡ **Raphaël [Studio VAI Coding]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nAffichage en direct dans le Studio VAI Coding."
+            let responseText = "💻 **Esther [Studio VAI Coding]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nAffichage en direct dans le Studio VAI Coding."
             completion(AgentResponse(
-                agent: .raphael,
+                agent: .esther,
                 text: responseText,
                 spokenText: "C'est codé ! Voici le rendu interactif dans le studio VAI Coding.",
                 openStudio: true,
                 generatedCode: html
             ))
         }
+    }
+    
+    // Alias rétrocompatible
+    private func processWithRaphael(text: String, completion: @escaping (AgentResponse) -> Void) {
+        processWithEsther(text: text, completion: completion)
     }
     
     private func processWithTom(text: String, completion: @escaping (AgentResponse) -> Void) {
