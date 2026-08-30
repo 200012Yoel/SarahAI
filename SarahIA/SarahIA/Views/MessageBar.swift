@@ -109,7 +109,7 @@ public struct MessageBar: View {
                         submitMessage()
                     })
                     .foregroundColor(.white)
-                    .tint(.blue)
+                    .accentColor(.blue)
                     .font(.system(size: 15))
                     
                     Button(action: {
