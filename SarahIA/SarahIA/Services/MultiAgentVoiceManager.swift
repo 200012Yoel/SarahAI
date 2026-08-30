@@ -40,13 +40,27 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         
         // 4. Fallback par recherche de genre ou nom
         if agent.localeCode == "fr-CA" {
-            if agent == .yohan {
-                if let maleCA = localeVoices.first(where: { $0.gender == .male }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .male }) {
-                    return maleCA
+            if #available(iOS 13.0, *) {
+                if agent == .yohan {
+                    if let maleCA = localeVoices.first(where: { $0.gender == .male }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .male }) {
+                        return maleCA
+                    }
+                } else if agent == .ethel {
+                    if let femaleCA = localeVoices.first(where: { $0.gender == .female }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .female }) {
+                        return femaleCA
+                    }
                 }
-            } else if agent == .ethel {
-                if let femaleCA = localeVoices.first(where: { $0.gender == .female }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .female }) {
-                    return femaleCA
+            } else {
+                if agent == .yohan {
+                    let maleNames = ["antoine", "remi", "alain", "pierre", "nicolas", "thomas"]
+                    if let maleCA = localeVoices.first(where: { v in maleNames.contains(where: { v.name.lowercased().contains($0) }) }) {
+                        return maleCA
+                    }
+                } else if agent == .ethel {
+                    let femaleNames = ["chantal", "amelie", "audrey", "marie"]
+                    if let femaleCA = localeVoices.first(where: { v in femaleNames.contains(where: { v.name.lowercased().contains($0) }) }) {
+                        return femaleCA
+                    }
                 }
             }
         }

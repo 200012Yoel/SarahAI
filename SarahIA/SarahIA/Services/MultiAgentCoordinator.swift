@@ -313,10 +313,10 @@ public final class MultiAgentCoordinator {
                 return SwitchCommandMatch(targetAgent: .tom, residualPrompt: res)
             }
         }
-        for name in raphaelTokens {
+        for name in estherTokens {
             if normalized == name || normalized.starts(with: name + " ") || normalized == "\(name) code" {
                 let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-                return SwitchCommandMatch(targetAgent: .raphael, residualPrompt: res)
+                return SwitchCommandMatch(targetAgent: .esther, residualPrompt: res)
             }
         }
         for name in sarahTokens {
@@ -358,15 +358,15 @@ public final class MultiAgentCoordinator {
             return .yohan
         }
         
-        // Raphaël (Code, VAI Coding, Shortcuts, HTML/JS, Swift, Python, Figma)
-        if normalized.contains("raphael") ||
+        // Esther (Code, VAI Coding, Shortcuts, HTML/JS, Swift, Python, Figma)
+        if normalized.contains("esther") || normalized.contains("raphael") ||
            normalized.contains("code") || normalized.contains("programme") ||
            normalized.contains("shortcut") || normalized.contains("raccourci") ||
            normalized.contains("html") || normalized.contains("swift") ||
            normalized.contains("python") || normalized.contains("figma") ||
            normalized.contains("stitch") || normalized.contains("calculatrice") ||
            normalized.contains("composant web") || normalized.contains("studio") {
-            return .raphael
+            return .esther
         }
         
         // Tom (Histoire, Géopolitique depuis 1948, Conflits, Débats, Wikipédia, Ve République)
@@ -412,8 +412,8 @@ public final class MultiAgentCoordinator {
             switch targetAgent {
             case .tom:
                 processWithTom(text: cleanResidual, completion: completion)
-            case .raphael:
-                processWithRaphael(text: cleanResidual, completion: completion)
+            case .esther:
+                processWithEsther(text: cleanResidual, completion: completion)
             case .yohan:
                 processWithYohan(text: cleanResidual, completion: completion)
             case .sarah:
