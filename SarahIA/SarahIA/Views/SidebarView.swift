@@ -70,7 +70,7 @@ public struct SidebarView: View {
                     }
                     .buttonStyle(ScaleBounceButtonStyle())
                 }
-                .padding(.top, topInset + 10)
+                .padding(.top, max(safeTopPadding, topInset) + 10)
                 .padding(.horizontal, 16)
                 
                 // 2. Titre de section & Bouton Nouveau
@@ -206,8 +206,17 @@ public struct SidebarView: View {
                     .fill(Color.white.opacity(0.06))
                     .frame(width: 1)
                     .frame(maxHeight: .infinity),
-                alignment: .trailing
-            )
         }
+    }
+    
+    private var safeTopPadding: CGFloat {
+        if #available(iOS 13.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first {
+                let top = window.safeAreaInsets.top
+                if top > 0 { return top }
+            }
+        }
+        return 50
     }
 }

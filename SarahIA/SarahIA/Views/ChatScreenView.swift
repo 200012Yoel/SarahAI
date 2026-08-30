@@ -206,7 +206,18 @@ public struct ChatScreenView: View {
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
-        .padding(.top, max(12, topInset + 4))
+        .padding(.top, max(safeTopPadding, topInset) + 8)
         .padding(.bottom, 6)
+    }
+    
+    private var safeTopPadding: CGFloat {
+        if #available(iOS 13.0, *) {
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first {
+                let top = window.safeAreaInsets.top
+                if top > 0 { return top }
+            }
+        }
+        return 50 // Dégagement sécurisé par défaut pour encoche / Dynamic Island iPhone
     }
 }
