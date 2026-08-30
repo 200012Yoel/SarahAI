@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Écran principal de discussion 100% natif SwiftUI avec interface multi-agents,
-/// safeAreaInset en bas pour positionner MessageBar au-dessus du clavier et de la barre système,
+/// disposition fixe Header / Messages / Barre basse au-dessus du clavier,
 /// Voice Orb plein écran et Studio VAI Coding.
 @available(iOS 15.0, *)
 public struct ChatScreenView: View {
@@ -32,14 +32,13 @@ public struct ChatScreenView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                // 1. CORPS PRINCIPAL : TOPBAR + FIL DE DISCUSSION
                 VStack(spacing: 0) {
-                    // Topbar calée sous la zone de statut / Dynamic Island
+                    // 1. HEADER (Haut fixe calé sous la barre de statut / Dynamic Island)
                     topBar
                         .padding(.top, topPadding)
                         .padding(.bottom, 6)
                     
-                    // Fil de discussion prenant tout l'espace central
+                    // 2. ZONE DE MESSAGES SCROLLABLE
                     MessageList(
                         messages: viewModel.messages,
                         isTyping: viewModel.isTyping,
@@ -61,37 +60,37 @@ public struct ChatScreenView: View {
                     .onTapGesture {
                         keyboard.dismiss()
                     }
+                    
+                    // 3. BLOC DU BAS FIXÉ (Actions rapides + Barre de saisie)
+                    MessageBar(
+                        text: $viewModel.inputText,
+                        activeAgent: $viewModel.activeAgent,
+                        isRecording: viewModel.isMicRunning,
+                        onSend: { text in
+                            viewModel.sendMessage(text)
+                        },
+                        onToggleMic: {
+                            viewModel.toggleMicrophone()
+                        },
+                        onOpenVoiceOrb: {
+                            viewModel.isShowingVoiceOrbModal = true
+                        },
+                        onOpenVAICoding: {
+                            viewModel.isShowingVAICodingStudio = true
+                        },
+                        onPlusTapped: {
+                            isShowingActionSheet = true
+                        },
+                        onShareVideo: {
+                            isShowingVideoShare = true
+                        }
+                    )
+                    .padding(.bottom, keyboard.isVisible ? 2 : 8)
+                    .background(Color.black)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .top)
-            // 2. ZONE FIXÉE EN BAS (AU-DESSUS DU CLAVIER OU DU BAS DE L'ÉCRAN)
-            .safeAreaInset(edge: .bottom) {
-                MessageBar(
-                    text: $viewModel.inputText,
-                    activeAgent: $viewModel.activeAgent,
-                    isRecording: viewModel.isMicRunning,
-                    onSend: { text in
-                        viewModel.sendMessage(text)
-                    },
-                    onToggleMic: {
-                        viewModel.toggleMicrophone()
-                    },
-                    onOpenVoiceOrb: {
-                        viewModel.isShowingVoiceOrbModal = true
-                    },
-                    onOpenVAICoding: {
-                        viewModel.isShowingVAICodingStudio = true
-                    },
-                    onPlusTapped: {
-                        isShowingActionSheet = true
-                    },
-                    onShareVideo: {
-                        isShowingVideoShare = true
-                    }
-                )
-                .background(Color.black)
-            }
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)
