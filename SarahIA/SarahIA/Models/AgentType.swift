@@ -51,7 +51,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
-    // Index de la voix Siri sélectionnée
+    // Index de la voix Siri sélectionnée (1-based String)
     public var voiceIndex: String {
         switch self {
         case .sarah:  return "1"
@@ -60,6 +60,30 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .tom:    return "4"
         case .yohan:  return "1"
         case .ethel:  return "2"
+        }
+    }
+    
+    // Index dans la liste des voix du système pour cette région (0-based Int)
+    public var voiceIndexOrder: Int {
+        switch self {
+        case .sarah:  return 0 // Voix 1 France
+        case .nathan: return 1 // Voix 2 France
+        case .esther: return 2 // Voix 3 France
+        case .tom:    return 3 // Voix 4 France
+        case .yohan:  return 0 // Voix 1 Canada
+        case .ethel:  return 1 // Voix 2 Canada
+        }
+    }
+    
+    // Identifiants Siri exacts Apple TTS Bundle
+    public var speechIdentifier: String {
+        switch self {
+        case .sarah:  return "com.apple.ttsbundle.siri_fr-FR_compact_1"
+        case .nathan: return "com.apple.ttsbundle.siri_fr-FR_compact_2"
+        case .esther: return "com.apple.ttsbundle.siri_fr-FR_compact_3"
+        case .tom:    return "com.apple.ttsbundle.siri_fr-FR_compact_4"
+        case .yohan:  return "com.apple.ttsbundle.siri_fr-CA_compact_1"
+        case .ethel:  return "com.apple.ttsbundle.siri_fr-CA_compact_2"
         }
     }
     
