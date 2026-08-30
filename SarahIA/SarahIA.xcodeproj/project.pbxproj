@@ -80,6 +80,7 @@
 		A1B2C3D40001000100000086 /* AIStreamingBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */; };
 		A1B2C3D40001000100000087 /* AIProgressiveScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */; };
 		A1B2C3D40001000100000088 /* HardwareDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000088 /* HardwareDetector.swift */; };
+		A1B2C3D40001000100000089 /* VideoShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000089 /* VideoShareView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -158,6 +159,7 @@
 		A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIStreamingBuffer.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProgressiveScheduler.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000088 /* HardwareDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareDetector.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000089 /* VideoShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoShareView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -280,6 +282,7 @@
 				A1B2C3D40002000100000060 /* YouTubePlayerViewController.swift */,
 				A1B2C3D40002000100000068 /* SarahVoiceWaveSquareView.swift */,
 				A1B2C3D4000200010000006B /* AlertCardRenderer.swift */,
+				A1B2C3D40002000100000089 /* VideoShareView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -442,6 +445,7 @@
 				A1B2C3D40001000100000086 /* AIStreamingBuffer.swift in Sources */,
 				A1B2C3D40001000100000087 /* AIProgressiveScheduler.swift in Sources */,
 				A1B2C3D40001000100000088 /* HardwareDetector.swift in Sources */,
+				A1B2C3D40001000100000089 /* VideoShareView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

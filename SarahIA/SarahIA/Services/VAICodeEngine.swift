@@ -281,4 +281,35 @@ public final class VAICodeEngine {
         parsedSummary += "\n✨ Composant Web prêt à être généré dans `Documents/VAI_Workspace/`."
         return parsedSummary
     }
+    
+    /// Générateur de fichier Shortcut JSON pour Apple Shortcuts
+    public func generateShortcutJSON(name: String, prompt: String) -> String {
+        return """
+        {
+          "WFWorkflowClientVersion": "2607.1",
+          "WFWorkflowMinimumClientVersion": 900,
+          "WFWorkflowIcon": {
+            "WFWorkflowIconGlyphNumber": 59511,
+            "WFWorkflowIconStartColor": 431817727
+          },
+          "WFWorkflowImportQuestions": [],
+          "WFWorkflowTypes": ["NCWidget", "WatchKit", "MenuBar"],
+          "WFWorkflowActions": [
+            {
+              "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
+              "WFWorkflowActionParameters": {
+                "WFTextActionText": "\(prompt)"
+              }
+            },
+            {
+              "WFWorkflowActionIdentifier": "is.workflow.actions.shownotification",
+              "WFWorkflowActionParameters": {
+                "WFNotificationActionTitle": "\(name)",
+                "WFNotificationActionBody": "Exécuté avec Sarah IA"
+              }
+            }
+          ]
+        }
+        """
+    }
 }
