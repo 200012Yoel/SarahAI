@@ -16,46 +16,54 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.delegate = self
     }
     
-    /// Résout la voix Siri exacte selon l'ordre des voix système installées
+    /// Résout la voix Siri exacte pour l'agent (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
     public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         
-        // Liste des voix françaises de France et du Canada installées
-        let franceVoices = allVoices.filter { $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix("fr-FR") }
-        let canadaVoices = allVoices.filter { $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix("fr-CA") }
-        
-        switch agent {
-        case .sarah:
-            // Sarah = Voix 1 France
-            return franceVoices.indices.contains(0) ? franceVoices[0] : AVSpeechSynthesisVoice(language: "fr-FR")
-            
-        case .nathan:
-            // Nathan = Voix 2 France
-            return franceVoices.indices.contains(1) ? franceVoices[1] : AVSpeechSynthesisVoice(language: "fr-FR")
-            
-        case .esther:
-            // Esther = Voix 3 France
-            return franceVoices.indices.contains(2) ? franceVoices[2] : AVSpeechSynthesisVoice(language: "fr-FR")
-            
-        case .tom:
-            // Tom = Voix 4 France
-            return franceVoices.indices.contains(3) ? franceVoices[3] : AVSpeechSynthesisVoice(language: "fr-FR")
-            
-        case .yohan:
-            // Yohan = Voix 1 Canada
-            return canadaVoices.indices.contains(0) ? canadaVoices[0] : AVSpeechSynthesisVoice(language: "fr-CA")
-            
-        case .ethel:
-            // Ethel = Voix 2 Canada (Féminine canadienne)
-            return canadaVoices.indices.contains(1) ? canadaVoices[1] : AVSpeechSynthesisVoice(language: "fr-CA")
+        // 1. Filtrer les voix de la bonne langue (fr-FR ou fr-CA)
+        let localeVoices = allVoices.filter { 
+            $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix(agent.localeCode) 
         }
+        
+        // Priorité aux voix Siri Premium / Enhanced avec le numéro demandé
+        if let premiumSiriVoice = localeVoices.first(where: { voice in
+            let id = voice.identifier.lowercased()
+            let name = voice.name.lowercased()
+            let num = agent.siriVoiceNumber
+            
+            let isSiri = id.contains("siri") || name.contains("siri")
+            let hasNumber = id.contains("voice\(num)") || id.contains("_\(num)") || name.contains("voix \(num)") || name.contains("voice \(num)")
+            
+            return isSiri && hasNumber
+        }) {
+            return premiumSiriVoice
+        }
+        
+        // 2. Recherche parmi toutes les voix de haute qualité installées
+        if #available(iOS 13.0, *) {
+            let highQualityVoices = localeVoices.filter { $0.quality == .premium || $0.quality == .enhanced }
+            if !highQualityVoices.isEmpty {
+                let index = (Int(agent.siriVoiceNumber) ?? 1) - 1
+                if highQualityVoices.indices.contains(index) {
+                    return highQualityVoices[index]
+                }
+            }
+        }
+        
+        // 3. Fallback index direct sur les voix disponibles
+        let targetIndex = (Int(agent.siriVoiceNumber) ?? 1) - 1
+        if localeVoices.indices.contains(targetIndex) {
+            return localeVoices[targetIndex]
+        }
+        
+        return AVSpeechSynthesisVoice(language: agent.localeCode)
     }
     
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
-        return getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
+        return getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR")!
     }
     
-    /// Énonciation vocale dédiée pour l'agent ciblé
+    /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         stop()
         pendingSpeechBlock = nil
@@ -66,13 +74,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         AudioSessionManager.shared.configurePlaybackSession()
         
         let utterance = AVSpeechUtterance(string: cleaned)
-        let selectedVoice = getSiriVoice(for: agent)
-        utterance.voice = selectedVoice
+        let voice = getSiriVoice(for: agent)
+        utterance.voice = voice
         utterance.rate = rate
+        utterance.pitchMultiplier = 1.0
         
-        if let v = selectedVoice {
-            print("🗣️ Agent: \(agent.rawValue) | Voix: \(v.name) | Langue: \(v.language) | ID: \(v.identifier)")
-        }
+        print("🔊 Lecture [\(agent.rawValue)] via Voix: \(voice?.name ?? "Inconnue") | ID: \(voice?.identifier ?? "")")
         
         synthesizer.speak(utterance)
     }
@@ -101,12 +108,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             let agentUtterance = AVSpeechUtterance(string: cleanAgent)
             agentUtterance.voice = self.getSiriVoice(for: targetAgent)
             agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
+            agentUtterance.pitchMultiplier = 1.0
             self.synthesizer.speak(agentUtterance)
         }
         
         let sourceUtterance = AVSpeechUtterance(string: cleanTransition)
         sourceUtterance.voice = getSiriVoice(for: sourceAgent)
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        sourceUtterance.pitchMultiplier = 1.0
         synthesizer.speak(sourceUtterance)
     }
     

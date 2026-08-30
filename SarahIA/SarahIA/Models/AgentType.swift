@@ -51,16 +51,21 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
+    // Numéro de voix Siri correspondant aux réglages iOS
+    public var siriVoiceNumber: String {
+        switch self {
+        case .sarah:  return "1" // France Voix 1
+        case .nathan: return "2" // France Voix 2
+        case .esther: return "3" // France Voix 3
+        case .tom:    return "4" // France Voix 4
+        case .yohan:  return "1" // Canada Voix 1
+        case .ethel:  return "2" // Canada Voix 2
+        }
+    }
+    
     // Index de la voix Siri sélectionnée (1-based String)
     public var voiceIndex: String {
-        switch self {
-        case .sarah:  return "1"
-        case .nathan: return "2"
-        case .esther: return "3"
-        case .tom:    return "4"
-        case .yohan:  return "1"
-        case .ethel:  return "2"
-        }
+        return siriVoiceNumber
     }
     
     // Index dans la liste des voix du système pour cette région (0-based Int)
