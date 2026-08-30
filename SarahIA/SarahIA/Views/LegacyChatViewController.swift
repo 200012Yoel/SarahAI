@@ -6,11 +6,11 @@ import WebKit
 /// Contrôleur UIKit 100% Natif de Secours (iOS 12 à iOS 14 / iPhone 5s, 6, 6 Plus)
 /// avec l'interface EXACTEMENT IDENTIQUE à celle des iPhone 7 et iPhone 14 :
 /// - Header avec bouton Hamburger ☰, Capsule d'agent actif (Sarah, Nathan, Esther, Tom, Yohan, Ethel) et Roue crantée ⚙️
-/// - Menu latéral (Sidebar) coulissant avec historique des discussions, bouton "＋ Nouveau", sélecteur des 6 agents et bouton Réglages
-/// - Geste de glissement universel de gauche vers la droite pour ouvrir le menu
+/// - Menu latéral (Sidebar) coulissant fluide avec historique des discussions, bouton "＋ Nouveau", sélecteur des 6 agents et bouton Réglages
+/// - Geste universel de glissement gauche -> droite pour ouvrir le menu
 /// - Raccourcis d'actions rapides (Allume la torche, Pikoud HaOref, i24News, WhatsApp)
 /// - Barre de saisie Capsule moderne avec +, Champ, Micro, Waveform et Envoi
-public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate {
+public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate {
     
     // MARK: - Propriétés UI Principales
     
@@ -30,7 +30,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let waveformButton = UIButton(type: .system)
     private let sendButton = UIButton(type: .system)
     
-    // MARK: - Menu Tiroir (Sidebar) Complet
+    // MARK: - Menu Tiroir (Sidebar)
     
     private let drawerOverlay = UIView()
     private let drawerView = UIView()
@@ -62,7 +62,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         loadSavedData()
         setupUI()
         setupDrawer()
-        setupGestureRecognizers()
+        setupPanGesture()
         setupSpeechPipeline()
         
         if messages.isEmpty {
@@ -70,7 +70,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }
     }
     
-    // MARK: - Chargement des Données
+    // MARK: - Chargement & Sauvegarde
     
     private func loadSavedData() {
         let state = StorageService.shared.loadState()
@@ -105,7 +105,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerTableView.reloadData()
     }
     
-    // MARK: - Configuration de l'Interface Principale
+    // MARK: - Configuration Interface
     
     private func setupUI() {
         // 1. Topbar
@@ -123,7 +123,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         menuButton.tintColor = .white
         menuButton.setTitleColor(.white, for: .normal)
         menuButton.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .bold)
-        menuButton.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        menuButton.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
         menuButton.layer.cornerRadius = 20
         menuButton.addTarget(self, action: #selector(toggleDrawer), for: .touchUpInside)
         topBar.addSubview(menuButton)
@@ -148,12 +148,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         settingsButton.tintColor = .white
         settingsButton.setTitleColor(.white, for: .normal)
         settingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
-        settingsButton.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        settingsButton.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
         settingsButton.layer.cornerRadius = 20
         settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         topBar.addSubview(settingsButton)
         
-        // 2. TableView (Fil de discussion)
+        // 2. TableView Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .black
         tableView.separatorStyle = .none
@@ -163,7 +163,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.estimatedRowHeight = 60
         view.addSubview(tableView)
         
-        // 3. Barre d'actions rapides (Allume la torche, Pikoud HaOref, i24News, WhatsApp)
+        // 3. Actions Rapides (Chips)
         quickActionsScrollView.translatesAutoresizingMaskIntoConstraints = false
         quickActionsScrollView.showsHorizontalScrollIndicator = false
         view.addSubview(quickActionsScrollView)
@@ -175,13 +175,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         setupQuickActionChips()
         
-        // 4. Barre de Saisie Capsule (Bas)
+        // 4. Barre de Saisie Capsule
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
         composerContainer.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
         composerContainer.layer.cornerRadius = 22
         view.addSubview(composerContainer)
         
-        // Bouton Plus ＋
+        // Bouton ＋
         plusButton.translatesAutoresizingMaskIntoConstraints = false
         plusButton.setTitle("＋", for: .normal)
         plusButton.setTitleColor(.white, for: .normal)
@@ -203,14 +203,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         inputTextField.returnKeyType = .send
         composerContainer.addSubview(inputTextField)
         
-        // Bouton Micro 🎤
+        // Micro 🎤
         micButton.translatesAutoresizingMaskIntoConstraints = false
         micButton.setTitle("🎤", for: .normal)
         micButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
         micButton.addTarget(self, action: #selector(micTapped), for: .touchUpInside)
         composerContainer.addSubview(micButton)
         
-        // Bouton Waveform 〰️
+        // Waveform 〰️
         waveformButton.translatesAutoresizingMaskIntoConstraints = false
         waveformButton.setTitle("〰️", for: .normal)
         waveformButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
@@ -219,7 +219,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         waveformButton.addTarget(self, action: #selector(waveformTapped), for: .touchUpInside)
         composerContainer.addSubview(waveformButton)
         
-        // Bouton Envoi ⬆️
+        // Envoi ⬆️
         sendButton.translatesAutoresizingMaskIntoConstraints = false
         sendButton.setTitle("⬆️", for: .normal)
         sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
@@ -228,7 +228,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         composerContainer.addSubview(sendButton)
         
-        // Contraintes AutoLayout
         NSLayoutConstraint.activate([
             topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -343,10 +342,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         )
     }
     
-    // MARK: - Configuration Complète du Menu Latéral (Sidebar)
+    // MARK: - Configuration du Menu Latéral (Sidebar)
     
     private func setupDrawer() {
-        // Voile sombre
         drawerOverlay.translatesAutoresizingMaskIntoConstraints = false
         drawerOverlay.backgroundColor = UIColor.black.withAlphaComponent(0.65)
         drawerOverlay.alpha = 0
@@ -354,7 +352,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerOverlay.addGestureRecognizer(tap)
         view.addSubview(drawerOverlay)
         
-        // Conteneur du menu
         drawerView.translatesAutoresizingMaskIntoConstraints = false
         drawerView.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
         view.addSubview(drawerView)
@@ -362,7 +359,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let drawerWidth = min(view.bounds.width * 0.84, 330)
         drawerLeadingConstraint = drawerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -drawerWidth)
         
-        // En-tête du tiroir
         drawerHeaderView.translatesAutoresizingMaskIntoConstraints = false
         drawerView.addSubview(drawerHeaderView)
         
@@ -399,7 +395,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerCloseButton.addTarget(self, action: #selector(closeDrawerAnimated), for: .touchUpInside)
         drawerHeaderView.addSubview(drawerCloseButton)
         
-        // Bouton ＋ Nouveau Chat
         newChatDrawerButton.translatesAutoresizingMaskIntoConstraints = false
         newChatDrawerButton.setTitle("＋  Nouvelle discussion", for: .normal)
         newChatDrawerButton.setTitleColor(.white, for: .normal)
@@ -409,7 +404,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         newChatDrawerButton.addTarget(self, action: #selector(startNewChat), for: .touchUpInside)
         drawerView.addSubview(newChatDrawerButton)
         
-        // TableView des discussions & agents
         drawerTableView.translatesAutoresizingMaskIntoConstraints = false
         drawerTableView.backgroundColor = .clear
         drawerTableView.separatorStyle = .singleLine
@@ -418,7 +412,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerTableView.delegate = self
         drawerView.addSubview(drawerTableView)
         
-        // Bouton Réglages du bas
         drawerSettingsButton.translatesAutoresizingMaskIntoConstraints = false
         drawerSettingsButton.setTitle("⚙️  Réglages de l'application", for: .normal)
         drawerSettingsButton.setTitleColor(.white, for: .normal)
@@ -480,35 +473,71 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    // MARK: - Gestes Universels de Glissement (Gauche vers la Droite)
+    // MARK: - Geste de Glissement (Swipe Left-to-Right)
     
-    private func setupGestureRecognizers() {
-        let edgePan = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleScreenEdgePan(_:)))
-        edgePan.edges = .left
-        view.addGestureRecognizer(edgePan)
-        
-        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(closeDrawerAnimated))
-        swipeLeft.direction = .left
-        drawerView.addGestureRecognizer(swipeLeft)
+    private func setupPanGesture() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePanGesture(_:)))
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
     }
     
-    @objc private func handleScreenEdgePan(_ recognizer: UIScreenEdgePanGestureRecognizer) {
-        let translation = recognizer.translation(in: view)
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
+    }
+    
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if let pan = gestureRecognizer as? UIPanGestureRecognizer {
+            let velocity = pan.velocity(in: view)
+            if abs(velocity.x) > abs(velocity.y) * 1.1 {
+                if !isDrawerOpen {
+                    return velocity.x > 0
+                } else {
+                    return velocity.x < 0
+                }
+            }
+            return false
+        }
+        return true
+    }
+    
+    @objc private func handlePanGesture(_ pan: UIPanGestureRecognizer) {
+        let translation = pan.translation(in: view)
+        let velocity = pan.velocity(in: view)
         let drawerWidth = min(view.bounds.width * 0.84, 330)
         
-        if recognizer.state == .changed {
-            if translation.x > 0 {
-                let progress = min(translation.x / drawerWidth, 1.0)
-                drawerLeadingConstraint?.constant = -drawerWidth + (progress * drawerWidth)
-                drawerOverlay.alpha = progress
-                view.layoutIfNeeded()
-            }
-        } else if recognizer.state == .ended || recognizer.state == .cancelled {
-            if translation.x > drawerWidth * 0.35 {
-                openDrawerAnimated()
+        switch pan.state {
+        case .began, .changed:
+            if !isDrawerOpen {
+                if translation.x > 0 {
+                    let progress = min(translation.x / drawerWidth, 1.0)
+                    drawerLeadingConstraint?.constant = -drawerWidth + (progress * drawerWidth)
+                    drawerOverlay.alpha = progress
+                    view.layoutIfNeeded()
+                }
             } else {
-                closeDrawerAnimated()
+                if translation.x < 0 {
+                    let progress = max(0.0, 1.0 + (translation.x / drawerWidth))
+                    drawerLeadingConstraint?.constant = -drawerWidth + (progress * drawerWidth)
+                    drawerOverlay.alpha = progress
+                    view.layoutIfNeeded()
+                }
             }
+        case .ended, .cancelled:
+            if !isDrawerOpen {
+                if translation.x > 60 || velocity.x > 250 {
+                    openDrawerAnimated()
+                } else {
+                    closeDrawerAnimated()
+                }
+            } else {
+                if translation.x < -60 || velocity.x < -250 {
+                    closeDrawerAnimated()
+                } else {
+                    openDrawerAnimated()
+                }
+            }
+        default:
+            break
         }
     }
     
@@ -558,7 +587,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         openSettings()
     }
     
-    // MARK: - Actions & Menus
+    // MARK: - Actions Utilisateur
     
     @objc private func showAgentPicker() {
         HapticService.shared.buttonTap()
@@ -696,13 +725,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.scrollToRow(at: indexPath, at: .bottom, animated: true)
     }
     
-    // MARK: - UITableViewDataSource & Delegate (Fil de Discussion + Drawer)
+    // MARK: - UITableViewDataSource & Delegate
     
     public func numberOfSections(in tableView: UITableView) -> Int {
         if tableView == self.tableView {
             return 1
         } else {
-            // Drawer a 2 sections : 1. Écosystème des 6 Agents, 2. Discussions Récentes
             return 2
         }
     }
@@ -711,11 +739,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         if tableView == self.tableView {
             return messages.count
         } else {
-            if section == 0 {
-                return AgentType.allCases.count
-            } else {
-                return conversations.count
-            }
+            return section == 0 ? AgentType.allCases.count : conversations.count
         }
     }
     
@@ -784,7 +808,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             
             return cell
         } else {
-            // Cellule du Menu Latéral (Drawer)
             let cell = UITableViewCell(style: .subtitle, reuseIdentifier: "DrawerCell")
             cell.backgroundColor = .clear
             cell.textLabel?.textColor = .white
@@ -833,10 +856,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     public func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        if tableView == self.drawerTableView && indexPath.section == 1 {
-            return true
-        }
-        return false
+        return (tableView == self.drawerTableView && indexPath.section == 1)
     }
     
     public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
