@@ -192,7 +192,7 @@ public struct VideoShareView: View {
                         Button(action: shareVideo) {
                             HStack(spacing: 8) {
                                 if isSharing {
-                                    ProgressView().tint(.white)
+                                    ProgressView()
                                 } else {
                                     Image(systemName: "paperplane.fill")
                                     Text(shareSuccess ? "Partagé !" : "Publier la vidéo")
@@ -245,7 +245,7 @@ public struct VideoShareView: View {
             
             Toggle("", isOn: isOn)
                 .labelsHidden()
-                .tint(color)
+                .toggleStyle(SwitchToggleStyle(tint: color))
         }
         .padding(12)
         .background(Color.white.opacity(0.05))
