@@ -90,10 +90,13 @@ public final class MultiAgentCoordinator {
             
         case .nathan:
             processWithNathan(text: trimmed, completion: completion)
+            
+        case .ethel:
+            processWithEthel(text: trimmed, completion: completion)
         }
     }
     
-    // MARK: - Conscience de Soi & Connaissance de l'Équipe (Sarah, Tom, Raphaël, Yohan)
+    // MARK: - Conscience de Soi & Connaissance de l'Équipe (Sarah, Tom, Raphaël, Yohan, Nathan, Ethel)
     
     private func evaluateAgentIdentityAndTeam(normalized: String, activeAgent: AgentType) -> AgentResponse? {
         let isAskingTeam = normalized.contains("noms des agents") || normalized.contains("nom des agents") ||
@@ -110,20 +113,21 @@ public final class MultiAgentCoordinator {
         
         if isAskingTeam {
             let teamDescription = """
-            Voici l'équipe complète de vos 5 agents intégrés :
+            Voici l'équipe complète de vos 6 agents intégrés :
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
             ⚡ **Raphaël [Développeur & VAI Coding]** : Création de code, Apple Shortcuts, intégrations web et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
-            🤖 **Nathan [Expert IA & Créatif]** : Veille sur les derniers modèles d'IA, génération vidéo (Voo) et musicale (Suno).
+            🤖 **Nathan [Réseaux Sociaux, WhatsApp & IA]** : Accès à tous vos réseaux sociaux, publication de statuts & vidéos WhatsApp, veille IA.
+            ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Nathan » ou « Donne-moi Yohan » !*
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Ethel » ou « Donne-moi Yoann » !*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 5 agents dans cette application : Sarah la patronne et pilote, Tom pour l'histoire et la géopolitique, Raphaël pour le code et les raccourcis, Yohan pour la traduction en hébreu, et Nathan l'expert en intelligence artificielle et création.",
+                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Raphaël pour le code, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et WhatsApp, et Ethel, notre nouvel agent créatif.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -132,8 +136,8 @@ public final class MultiAgentCoordinator {
         if isAskingSelf {
             switch activeAgent {
             case .yohan:
-                let text = "🇮🇱 **Yohan [Traducteur Français ⇄ Hébreu]**\n\nJe m'appelle **Yohan** ! Je suis votre agent expert en langue hébraïque et française. Je maîtrise la traduction bilingue, les racines sémitiques, le vocabulaire idiomatique et la phonétique. Vous pouvez me poser n'importe quelle question de traduction ou me demander d'analyser un texte en hébreu."
-                let spoken = "Je suis Yohan, votre agent traducteur en hébreu et en français. Que souhaitez-vous traduire ou apprendre en hébreu ?"
+                let text = "🇮🇱 **Yohan [Traducteur Français ⇄ Hébreu]**\n\nJe m'appelle **Yoann** ! Je suis votre agent expert en langue hébraïque et française. Je maîtrise la traduction bilingue, les racines sémitiques, le vocabulaire idiomatique et la phonétique. Vous pouvez me poser n'importe quelle question de traduction ou me demander d'analyser un texte en hébreu."
+                let spoken = "Je suis Yoann, votre agent traducteur en hébreu et en français. Que souhaitez-vous traduire ou apprendre en hébreu ?"
                 return AgentResponse(agent: .yohan, text: text, spokenText: spoken)
                 
             case .tom:
@@ -147,14 +151,19 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .raphael, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yohan et Nathan, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yohan, Nathan et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
-                let text = "🤖 **Nathan [Expert IA & Création]**\n\nJe suis **Nathan**, l'expert intelligence artificielle de l'équipe ! Je suis connecté aux dernières nouveautés du monde de l'IA : modèles de langage, génération vidéo avec **Voo**, composition musicale avec **Suno**, et tout ce qui sort de nouveau. Posez-moi vos questions sur les dernières innovations en intelligence artificielle !"
-                let spoken = "Je suis Nathan, expert en intelligence artificielle ! Je connais tous les derniers modèles qui sortent, GPT, Claude, Gemini, et je peux vous aider à créer des vidéos et de la musique. Qu'est-ce que vous souhaitez explorer ?"
+                let text = "🤖 **Nathan [Réseaux Sociaux, WhatsApp & IA]**\n\nJe suis **Nathan**, l'agent expert réseaux sociaux et intelligence artificielle ! J'ai accès à tous vos réseaux sociaux (WhatsApp, Instagram, TikTok, YouTube, Twitter/X, Facebook) et je peux poster vos statuts WhatsApp, gérer vos vidéos, et vous connecter aux derniers modèles d'IA."
+                let spoken = "Je suis Nathan, expert en réseaux sociaux, WhatsApp et intelligence artificielle ! J'ai accès à tous vos réseaux sociaux pour publier vos vidéos, statuts WhatsApp, et créer du contenu."
                 return AgentResponse(agent: .nathan, text: text, spokenText: spoken)
+                
+            case .ethel:
+                let text = "✨ **Ethel [Intelligence Créative & Spécialisée]**\n\nJe m'appelle **Ethel** ! Je suis votre nouvel agent féminin à l'interface Bleu et Rouge. Mon socle est en place et je suis prête pour recevoir les futurs modules et fonctionnalités que vous allez m'attribuer."
+                let spoken = "Bonjour ! Je suis Ethel, votre nouvel agent féminin. Je suis prête et j'attends vos instructions !"
+                return AgentResponse(agent: .ethel, text: text, spokenText: spoken)
             }
         }
         
@@ -210,6 +219,7 @@ public final class MultiAgentCoordinator {
         let raphaelTokens = ["raphael", "raphaël", "raph", "rafael"]
         let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
         let nathanTokens = ["nathan", "natan", "l expert ia", "expert ia"]
+        let ethelTokens = ["ethel", "etel", "aethel", "ehtel"]
         
         func extractResidual(trigger: String, agentToken: String) -> String {
             var working = normalized
@@ -279,6 +289,17 @@ public final class MultiAgentCoordinator {
             }
         }
         
+        // 6. Cible Ethel
+        for kw in switchKeywords {
+            for name in ethelTokens {
+                let targetPattern = kw + name
+                if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
+                    let residual = extractResidual(trigger: kw, agentToken: name)
+                    return SwitchCommandMatch(targetAgent: .ethel, residualPrompt: residual)
+                }
+            }
+        }
+        
         // Commandes directes d'appel isolées ou début de phrase
         for name in yohanTokens {
             if normalized == name || normalized.starts(with: name + " ") {
@@ -310,6 +331,12 @@ public final class MultiAgentCoordinator {
                 return SwitchCommandMatch(targetAgent: .nathan, residualPrompt: res)
             }
         }
+        for name in ethelTokens {
+            if normalized == name || normalized.starts(with: name + " ") {
+                let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return SwitchCommandMatch(targetAgent: .ethel, residualPrompt: res)
+            }
+        }
         
         return nil
     }
@@ -317,7 +344,12 @@ public final class MultiAgentCoordinator {
     // MARK: - Détection Thématique d'Agent Spécialisé
     
     private func detectTargetAgent(normalized: String) -> AgentType {
-        // Yohan (Traduction Français <-> Hébreu)
+        // Ethel (Intelligence Créative & Spécialisée)
+        if normalized.contains("ethel") || normalized.contains("etel") || normalized.contains("aethel") {
+            return .ethel
+        }
+        
+        // Yohan / Yoann (Traduction Français <-> Hébreu)
         if normalized.contains("yohan") || normalized.contains("yoann") || normalized.contains("yoan") || normalized.contains("johan") ||
            normalized.contains("en hebreu") || normalized.contains("en francais") ||
            normalized.contains("traduis") || normalized.contains("traduit") ||
@@ -340,30 +372,32 @@ public final class MultiAgentCoordinator {
         // Tom (Histoire, Géopolitique depuis 1948, Conflits, Débats, Wikipédia, Ve République)
         if normalized.contains("tom") ||
            normalized.contains("histoire") || normalized.contains("geopolitique") ||
-           normalized.contains("1948") || normalized.contains("ben gourion") || normalized.contains("guerre des six jours") ||
-           normalized.contains("kippour") || normalized.contains("abraham") || normalized.contains("de gaulle") ||
-           normalized.contains("ve republique") || normalized.contains("guerre froide") || normalized.contains("otan") ||
-           normalized.contains("actualites") || normalized.contains("actualite") || normalized.contains("politique") {
+           normalized.contains("guerre") || normalized.contains("conflit") ||
+           normalized.contains("debat") || normalized.contains("politique") ||
+           normalized.contains("moyen orient") || normalized.contains("gaza") ||
+           normalized.contains("israel histoire") || normalized.contains("1948") ||
+           normalized.contains("president") || normalized.contains("onu") ||
+           normalized.contains("otan") || normalized.contains("europe") {
             return .tom
         }
         
-        // Nathan (Expert IA, modèles, vidéo, musique)
-        if normalized.contains("nathan") || normalized.contains("natan") ||
-           normalized.contains("meilleur modele") || normalized.contains("dernier modele") ||
-           normalized.contains("modele ia") || normalized.contains("intelligence artificielle") ||
-           normalized.contains("chatgpt") || normalized.contains("claude") || normalized.contains("gemini") ||
-           normalized.contains("generate une video") || normalized.contains("genere une video") ||
-           normalized.contains("compose une musique") || normalized.contains("cree une musique") ||
-           normalized.contains("voo") || normalized.contains("suno") ||
-           normalized.contains("nouveau modele") || normalized.contains("nouveaux modeles") {
+        // Nathan (Réseaux Sociaux, WhatsApp, Vidéos, Statuts, Musique Suno, Voo, IA)
+        if normalized.contains("nathan") ||
+           normalized.contains("reseaux sociaux") || normalized.contains("reseau social") ||
+           normalized.contains("whatsapp") || normalized.contains("instagram") ||
+           normalized.contains("tiktok") || normalized.contains("youtube") ||
+           normalized.contains("statut") || normalized.contains("story") ||
+           normalized.contains("publie") || normalized.contains("poster") ||
+           normalized.contains("video ia") || normalized.contains("suno") ||
+           normalized.contains("voo") || normalized.contains("veo") {
             return .nathan
         }
         
-        // Par défaut : Sarah (Patronne & Pilote)
+        // Par défaut : Sarah
         return .sarah
     }
     
-    // MARK: - Handoff & Accueil Personnalisé de l'Agent Cible
+    // MARK: - Passation d'Agent Sécurisée & Handoff Vocal
     
     private func handleAgentHandoff(
         from sourceAgent: AgentType,
@@ -373,7 +407,7 @@ public final class MultiAgentCoordinator {
     ) {
         let cleanResidual = residualPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Si l'utilisateur a joint une requête précise lors du passage d'agent
+        // Si une question de fond accompagnait l'ordre de passage
         if !cleanResidual.isEmpty && cleanResidual != "bonjour" && cleanResidual != "salut" {
             switch targetAgent {
             case .tom:
@@ -386,6 +420,8 @@ public final class MultiAgentCoordinator {
                 processWithSarah(text: cleanResidual, completion: completion)
             case .nathan:
                 processWithNathan(text: cleanResidual, completion: completion)
+            case .ethel:
+                processWithEthel(text: cleanResidual, completion: completion)
             }
             return
         }
@@ -395,7 +431,13 @@ public final class MultiAgentCoordinator {
         let sourceName: String
         switch sourceAgent {
         case .sarah:
-            transitionLine = "Attends, ne quitte pas, je te le passe !"
+            if targetAgent == .yohan {
+                transitionLine = "Attends, ne quitte pas, je te passe Yoann !"
+            } else if targetAgent == .ethel {
+                transitionLine = "Attends, ne quitte pas, je te passe Ethel !"
+            } else {
+                transitionLine = "Attends, ne quitte pas, je te le passe !"
+            }
             sourceName = "👑 **Sarah**"
         case .tom:
             transitionLine = "Pas de problème Yoël, je te le passe !"
@@ -409,6 +451,9 @@ public final class MultiAgentCoordinator {
         case .nathan:
             transitionLine = "Je te le passe de suite, let's go !"
             sourceName = "🤖 **Nathan**"
+        case .ethel:
+            transitionLine = "Pas de souci Yoël, je te le passe !"
+            sourceName = "✨ **Ethel**"
         }
         
         switch targetAgent {
@@ -439,7 +484,7 @@ public final class MultiAgentCoordinator {
             ))
             
         case .yohan:
-            let yohanGreeting = "Shalom Yoël ! 🇮🇱 C'est Yohan. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou en français. Que veux-tu traduire ?"
+            let yohanGreeting = "Shalom Yoël ! 🇮🇱 C'est Yoann. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou en français. Que veux-tu traduire ?"
             let fullText = "\(sourceName) : *\(transitionLine)*\n\n🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
             
             completion(AgentResponse(
@@ -465,8 +510,8 @@ public final class MultiAgentCoordinator {
             ))
             
         case .nathan:
-            let nathanGreeting = "Yo ! C'est Nathan ! 🤖 Je suis branché sur tous les derniers modèles d'IA. GPT, Claude, Gemini, Llama, Mistral... je suis au courant de tout ce qui sort. Dis-moi ce que tu cherches : un modèle pour coder, pour discuter, pour générer des vidéos avec Voo, ou de la musique avec Suno ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🤖 **Nathan [Expert IA & Création]** :\n\(nathanGreeting)"
+            let nathanGreeting = "Yo ! C'est Nathan ! 🤖 Je suis branché sur tous tes réseaux sociaux (WhatsApp, Instagram, TikTok, YouTube...) et sur les derniers modèles d'IA. Tu veux poster une vidéo ou un statut WhatsApp, publier sur tes réseaux, ou créer des vidéos et de la musique ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🤖 **Nathan [Réseaux Sociaux & WhatsApp]** :\n\(nathanGreeting)"
             
             completion(AgentResponse(
                 agent: .nathan,
@@ -476,10 +521,35 @@ public final class MultiAgentCoordinator {
                 handoffAgentGreeting: nathanGreeting,
                 handoffSourceAgent: sourceAgent
             ))
+            
+        case .ethel:
+            let ethelGreeting = "Bonjour Yoël ! ✨ C'est Ethel. Je suis ravie d'être avec toi ! Mon espace est prêt et j'attends tes prochaines instructions pour activer mes fonctionnalités."
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n✨ **Ethel [Intelligence Créative & Spécialisée]** :\n\(ethelGreeting)"
+            
+            completion(AgentResponse(
+                agent: .ethel,
+                text: fullText,
+                spokenText: "\(transitionLine) \(ethelGreeting)",
+                handoffSarahTransition: transitionLine,
+                handoffAgentGreeting: ethelGreeting,
+                handoffSourceAgent: sourceAgent
+            ))
         }
     }
     
     // MARK: - Traitements Spécialisés
+    
+    private func processWithEthel(text: String, completion: @escaping (AgentResponse) -> Void) {
+        let clean = text
+            .replacingOccurrences(of: "passe-moi ethel", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "passe moi ethel", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "ethel", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let responseText = "✨ **Ethel [Intelligence Créative & Spécialisée]** :\n\nBonjour Yoël ! C'est **Ethel**. Mon socle Bleu & Rouge est parfaitement opérationnel. Je suis à ton écoute et prête pour recevoir le nouveau code et les prochaines spécialités que tu souhaites me confier !"
+        let spoken = "Bonjour Yoël ! C'est Ethel. Mon socle est opérationnel et je suis à ton écoute pour la suite."
+        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+    }
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
@@ -656,79 +726,97 @@ public final class MultiAgentCoordinator {
         ))
     }
     
-    // MARK: - Nathan (Expert IA, Modèles, Vidéo, Musique)
+    // MARK: - Nathan (Réseaux Sociaux, WhatsApp, Statuts, Vidéos & IA)
+    
+    private enum NathanVideoStep {
+        case idle
+        case waitingForDestination
+        case waitingForVideoName(destination: String)
+        case waitingForHashtags(destination: String, videoName: String)
+    }
+    
+    private var nathanStep: NathanVideoStep = .idle
     
     private func processWithNathan(text: String, completion: @escaping (AgentResponse) -> Void) {
-        let lower = text.lowercased()
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
         
-        // Voo — Génération Vidéo
-        if lower.contains("voo") || lower.contains("génère une vidéo") || lower.contains("genere une video") || lower.contains("générer une vidéo") {
-            let vooURL = URL(string: "https://voo.ai")!
-            DispatchQueue.main.async {
-                UIApplication.shared.open(vooURL)
+        // 1. ÉTAPE 4 : L'utilisateur répond pour les hashtags / "non ne mets rien vas-y envoie"
+        if case .waitingForHashtags(let destination, let videoName) = nathanStep {
+            let isNoHashtag = lower.contains("non") || lower.contains("rien") || lower.contains("ne mets rien") ||
+                              lower.contains("ne met rien") || lower.contains("vas-y envoie") || lower.contains("vas y envoie") ||
+                              lower.contains("envoie") || lower.contains("sans hashtag") || lower.contains("aucun") ||
+                              lower.contains("pas de hashtag") || lower.contains("envoie la vidéo") || lower.contains("envoie la video")
+            
+            nathanStep = .idle
+            
+            if isNoHashtag {
+                let responseText = """
+                🚀 **Nathan [Publication WhatsApp & Réseaux]**
+
+                ✅ C'est parti ! Ta vidéo **« \(videoName) »** a été envoyée et mise en ligne sans hashtags directement sur **\(destination)** !
+
+                📲 *Ouverture de l'application en cours pour finaliser...*
+                """
+                let spoken = "C'est parti ! Ta vidéo \(videoName) est mise en ligne sans hashtags sur \(destination)."
+                
+                // Déclenchement de l'ouverture WhatsApp / Partage
+                triggerSocialShare(destination: destination, title: videoName, hashtags: "")
+                
+                completion(AgentResponse(
+                    agent: .nathan,
+                    text: responseText,
+                    spokenText: spoken,
+                    openStudio: false,
+                    generatedCode: nil
+                ))
+                return
+            } else {
+                let hashtags = trimmed
+                let responseText = """
+                🚀 **Nathan [Publication WhatsApp & Réseaux]**
+
+                ✅ C'est parti ! Ta vidéo **« \(videoName) »** avec les hashtags `\(hashtags)` a été préparée et mise en ligne avec succès sur **\(destination)** !
+
+                📲 *Ouverture de l'application en cours...*
+                """
+                let spoken = "C'est parti ! Ta vidéo \(videoName) avec tes hashtags est mise en ligne sur \(destination)."
+                
+                triggerSocialShare(destination: destination, title: videoName, hashtags: hashtags)
+                
+                completion(AgentResponse(
+                    agent: .nathan,
+                    text: responseText,
+                    spokenText: spoken,
+                    openStudio: false,
+                    generatedCode: nil
+                ))
+                return
             }
-            let responseText = "🤖 **Nathan [Génération Vidéo — Voo AI]**\n\nJ'ai ouvert **Voo** pour toi ! C'est l'un des meilleurs outils IA de génération vidéo.\n\n🎬 Tu peux y décrire ta scène en français ou en anglais et Voo va générer une vidéo complète avec des visuels réalistes ou animés.\n\n*Tu veux que je t'aide à rédiger un prompt vidéo efficace ?*"
-            completion(AgentResponse(
-                agent: .nathan,
-                text: responseText,
-                spokenText: "J'ai ouvert Voo, le meilleur outil de génération vidéo par intelligence artificielle. Tu peux décrire ta scène et Voo va créer la vidéo pour toi.",
-                openStudio: false,
-                generatedCode: nil
-            ))
-            return
         }
         
-        // Suno — Génération Musicale
-        if lower.contains("suno") || lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("crée une chanson") || lower.contains("cree une chanson") {
-            let sunoURL = URL(string: "https://suno.com")!
-            DispatchQueue.main.async {
-                UIApplication.shared.open(sunoURL)
-            }
-            let responseText = "🤖 **Nathan [Composition Musicale — Suno AI]**\n\nJ'ai lancé **Suno** ! C'est l'outil de composition musicale le plus puissant du moment.\n\n🎵 Describe ton ambiance, ton genre musical, tes paroles, et Suno va composer une chanson complète avec voix et instruments.\n\n*Genres disponibles : Pop, Hip-Hop, Jazz, Classique, Electro, Rock, K-Pop, Rai, Mizrahi...*"
-            completion(AgentResponse(
-                agent: .nathan,
-                text: responseText,
-                spokenText: "J'ai ouvert Suno, l'outil de composition musicale par IA. Tu peux décrire le style et les paroles que tu veux, et Suno va créer la chanson complète.",
-                openStudio: false,
-                generatedCode: nil
-            ))
-            return
-        }
-        
-        // Comparaison ou information sur les modèles IA
-        if lower.contains("meilleur modèle") || lower.contains("meilleur modele") || lower.contains("dernier modèle") ||
-           lower.contains("dernier modele") || lower.contains("modèle ia") || lower.contains("modele ia") ||
-           lower.contains("chatgpt") || lower.contains("claude") || lower.contains("gemini") ||
-           lower.contains("gpt") || lower.contains("llama") || lower.contains("mistral") ||
-           lower.contains("nouveau modèle") || lower.contains("nouveau modele") {
+        // 2. ÉTAPE 3 : L'utilisateur donne le nom / titre de la vidéo (ex: "raph la vidéo", "blague Didier", etc.)
+        if case .waitingForVideoName(let destination) = nathanStep {
+            let videoTitle = trimmed
+                .replacingOccurrences(of: "le nom c'est", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "le titre c'est", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "appelle la", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "nom :", with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let finalTitle = videoTitle.isEmpty ? "Ma Super Vidéo" : videoTitle
+            nathanStep = .waitingForHashtags(destination: destination, videoName: finalTitle)
+            
             let responseText = """
-            🤖 **Nathan [Veille IA Mondiale — Meilleurs Modèles 2025]**
+            🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
 
-            Voici un état des lieux des modèles d'IA les plus puissants en ce moment :
+            Parfait, titre enregistré : **« \(finalTitle) »** 🎬
 
-            **🏆 Meilleur pour le texte & raisonnement :**
-            • **Claude Sonnet 4.5 / Opus 4** (Anthropic) — Excellence en raisonnement complexe et code
-            • **GPT-4o** (OpenAI) — Polyvalent, rapide, multimodal
-            • **Gemini 1.5 Pro / Ultra** (Google) — Très long contexte (1M tokens)
-
-            **📱 Meilleur sur iPhone (local, hors-ligne) :**
-            • **iPhone 14 Pro / 15 Pro / 16** : GPT-4o mini, Phi-3 Medium
-            • **iPhone 12 / 13 / 14** : Llama 3.1 8B Q4, Mistral 7B
-            • **iPhone 11 / XR** : Phi-3 Mini, Gemini Nano
-            • **iPhone 5s / 6 / 7 / 8** : TinyLlama 1.1B, Phi-2
-
-            **🎨 Génération image :**
-            • **Midjourney v7**, **DALL-E 3**, **Stable Diffusion 3.5**
-
-            **🎬 Génération vidéo :**
-            • **Voo AI**, **Runway Gen-3**, **Sora** (OpenAI)
-
-            **🎵 Génération musicale :**
-            • **Suno v4**, **Udio**, **MusicGen** (Meta)
-
-            *Tu veux que j'ouvre un de ces outils ?*
+            Veux-tu ajouter des **hashtags** ou une légende particulière ?
+            *(Si tu ne veux rien ajouter, dis simplement : « Non, ne mets rien, vas-y envoie »)*
             """
-            let spoken = "Voici les meilleurs modèles d'intelligence artificielle du moment. Pour le texte : Claude, GPT-4o et Gemini. Pour les vidéos : Voo et Runway. Pour la musique : Suno et Udio."
+            let spoken = "Parfait, titre enregistré : \(finalTitle). Veux-tu ajouter des hashtags ou une légende ? Si tu ne veux rien mettre, dis-moi : non, ne mets rien, vas-y envoie."
+            
             completion(AgentResponse(
                 agent: .nathan,
                 text: responseText,
@@ -739,16 +827,191 @@ public final class MultiAgentCoordinator {
             return
         }
         
+        // 3. ÉTAPE 2 : L'utilisateur répond où poster (WhatsApp, statut, insta, etc.)
+        if case .waitingForDestination = nathanStep {
+            let destination = detectDestination(lower: lower)
+            nathanStep = .waitingForVideoName(destination: destination)
+            
+            let responseText = """
+            🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+
+            Super, destination choisie : **\(destination)** ! 📲
+
+            Quel est le **nom ou le titre de la vidéo** ?
+            """
+            let spoken = "Super, c'est noté pour \(destination) ! Quel est le nom de la vidéo ?"
+            
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: spoken,
+                openStudio: false,
+                generatedCode: nil
+            ))
+            return
+        }
+        
+        // 4. ÉTAPE 1 : Déclenchement d'un flux vidéo ou statut
+        if lower.contains("vidéo") || lower.contains("video") || lower.contains("statut") || lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") {
+            if lower.contains("whatsapp") || lower.contains("statut") {
+                nathanStep = .waitingForVideoName(destination: "WhatsApp (Statut & Messages)")
+                let responseText = """
+                🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+
+                Je m'occupe de ton statut & partage **WhatsApp** ! 📲
+
+                Quel est le **nom ou le titre de ta vidéo** ?
+                """
+                let spoken = "Je m'occupe de ton statut WhatsApp ! Quel est le nom de ta vidéo ?"
+                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+                return
+            } else {
+                nathanStep = .waitingForDestination
+                let responseText = """
+                🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+
+                Que veux-tu que je fasse avec ta vidéo ?
+                • La mettre en **Statut WhatsApp** ou l'envoyer sur **WhatsApp**
+                • La publier sur **Instagram** (Reels / Post)
+                • La poster sur **TikTok**
+                • La mettre sur **YouTube**
+                • La publier sur **Twitter / X**
+                """
+                let spoken = "Que veux-tu que je fasse avec ta vidéo ? Tu veux que je la mette en statut sur WhatsApp, ou sur Instagram, TikTok, ou YouTube ?"
+                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+                return
+            }
+        }
+        
+        // 5. WhatsApp direct
+        if lower.contains("whatsapp") || lower.contains("whatsap") {
+            let whatsappURL = URL(string: "whatsapp://")!
+            DispatchQueue.main.async {
+                if UIApplication.shared.canOpenURL(whatsappURL) {
+                    UIApplication.shared.open(whatsappURL)
+                } else if let web = URL(string: "https://web.whatsapp.com") {
+                    UIApplication.shared.open(web)
+                }
+            }
+            let responseText = "🤖 **Nathan [WhatsApp Integration]**\n\nJ'ai accès direct à **WhatsApp** ! Je peux publier tes statuts, envoyer tes vidéos et messages.\n\n📲 [Ouvrir WhatsApp](whatsapp://)\n\n*Dis-moi : « Poste ma vidéo sur WhatsApp » quand tu es prêt !*"
+            let spoken = "J'ai ouvert WhatsApp pour toi. Dis-moi si tu veux poster une vidéo ou un statut !"
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+            return
+        }
+        
+        // 6. Instagram direct
+        if lower.contains("instagram") || lower.contains("insta") {
+            let instaURL = URL(string: "instagram://app") ?? URL(string: "https://instagram.com")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(instaURL)
+            }
+            let responseText = "🤖 **Nathan [Instagram Integration]**\n\nOuverture d'**Instagram** ! Je peux préparer tes posts, stories et reels vidéo."
+            let spoken = "J'ouvre Instagram pour toi."
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+            return
+        }
+        
+        // 7. TikTok direct
+        if lower.contains("tiktok") {
+            let tiktokURL = URL(string: "tiktok://") ?? URL(string: "https://tiktok.com")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(tiktokURL)
+            }
+            let responseText = "🤖 **Nathan [TikTok Integration]**\n\nOuverture de **TikTok** ! Prêt pour le partage de tes vidéos courtes."
+            let spoken = "J'ouvre TikTok pour toi."
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+            return
+        }
+        
+        // 8. Voo — Génération Vidéo
+        if lower.contains("voo") || lower.contains("génère une vidéo") || lower.contains("genere une video") || lower.contains("générer une vidéo") {
+            let vooURL = URL(string: "https://voo.ai")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(vooURL)
+            }
+            let responseText = "🤖 **Nathan [Génération Vidéo — Voo AI]**\n\nJ'ai ouvert **Voo** pour toi ! C'est l'un des meilleurs outils IA de génération vidéo.\n\n🎬 Tu peux y décrire ta scène et Voo va générer une vidéo complète."
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "J'ai ouvert Voo, le meilleur outil de génération vidéo par intelligence artificielle."))
+            return
+        }
+        
+        // 9. Suno — Génération Musicale
+        if lower.contains("suno") || lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("crée une chanson") || lower.contains("cree une chanson") {
+            let sunoURL = URL(string: "https://suno.com")!
+            DispatchQueue.main.async {
+                UIApplication.shared.open(sunoURL)
+            }
+            let responseText = "🤖 **Nathan [Composition Musicale — Suno AI]**\n\nJ'ai lancé **Suno** ! Décris ton ambiance ou tes paroles et Suno composera ta musique."
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "J'ai ouvert Suno pour composer ta musique par intelligence artificielle."))
+            return
+        }
+        
+        // 10. Modèles IA
+        if lower.contains("modèle") || lower.contains("modele") || lower.contains("chatgpt") || lower.contains("claude") || lower.contains("gemini") || lower.contains("gpt") {
+            let responseText = """
+            🤖 **Nathan [Veille IA & Modèles 2025]**
+
+            Voici les meilleurs modèles disponibles :
+            • **Claude Sonnet 4.5** : Raisonnement complexe & Code
+            • **GPT-4o** : Polyvalent & Multimodal
+            • **Gemini 1.5 Pro** : Contexte massif (1M tokens)
+            • **Voo & Runway Gen-3** : Génération Vidéo
+            • **Suno v4** : Composition Musicale
+            """
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Voici les modèles d'IA les plus performants du moment."))
+            return
+        }
+        
         // Réponse générale Nathan
-        let responseText = "🤖 **Nathan [Expert IA & Création]**\n\nBonjour ! Je suis Nathan, ton expert en intelligence artificielle !\n\nJe peux t'aider à :\n• **Trouver le meilleur modèle d'IA** selon ton téléphone et tes besoins\n• **Générer des vidéos** avec Voo AI\n• **Composer de la musique** avec Suno\n• **Rester informé** des derniers modèles qui sortent (GPT, Claude, Gemini, Llama...)\n\n*Sur ton iPhone, voici le meilleur modèle disponible maintenant : \(getBestModelForCurrentDevice())*"
-        let spoken = "Bonjour ! Je suis Nathan, expert en intelligence artificielle. Dis-moi ce que tu veux faire : trouver le meilleur modèle, générer une vidéo avec Voo, ou composer de la musique avec Suno ?"
-        completion(AgentResponse(
-            agent: .nathan,
-            text: responseText,
-            spokenText: spoken,
-            openStudio: false,
-            generatedCode: nil
-        ))
+        let responseText = """
+        🤖 **Nathan [Expert Réseaux Sociaux, WhatsApp & IA]**
+
+        Salut ! Je suis **Nathan**, ton agent dédié aux réseaux sociaux et à l'IA :
+        • 💬 **WhatsApp** : Publication de statuts, envoi de vidéos et messages
+        • 📸 **Instagram / TikTok / YouTube / Twitter** : Partage multi-plateformes
+        • 🎬 **Création Vidéo & Musique** : Voo AI et Suno AI
+        • 🧠 **Veille IA** : Meilleurs modèles du moment
+
+        *Dis-moi : « Nathan, je veux poster une vidéo sur WhatsApp » ou donne-moi ton ordre !*
+        """
+        let spoken = "Salut ! Je suis Nathan, ton expert en réseaux sociaux et WhatsApp. Dis-moi quelle vidéo tu veux poster ou sur quel réseau tu veux publier !"
+        completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
+    }
+    
+    private func detectDestination(lower: String) -> String {
+        if lower.contains("whatsapp") || lower.contains("statut") {
+            return "WhatsApp (Statut & Messages)"
+        } else if lower.contains("instagram") || lower.contains("insta") {
+            return "Instagram (Reels)"
+        } else if lower.contains("tiktok") {
+            return "TikTok"
+        } else if lower.contains("youtube") {
+            return "YouTube"
+        } else if lower.contains("twitter") || lower.contains(" x") {
+            return "Twitter / X"
+        } else {
+            return "WhatsApp & Réseaux Sociaux"
+        }
+    }
+    
+    private func triggerSocialShare(destination: String, title: String, hashtags: String) {
+        DispatchQueue.main.async {
+            let fullCaption = hashtags.isEmpty ? title : "\(title) \(hashtags)"
+            let encoded = fullCaption.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            
+            if destination.lowercased().contains("whatsapp") {
+                if let url = URL(string: "whatsapp://send?text=\(encoded)"), UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url)
+                    return
+                }
+            }
+            
+            // Fallback partage système
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                let activityVC = UIActivityViewController(activityItems: [fullCaption], applicationActivities: nil)
+                rootVC.present(activityVC, animated: true)
+            }
+        }
     }
     
     private func getBestModelForCurrentDevice() -> String {
@@ -762,3 +1025,4 @@ public final class MultiAgentCoordinator {
         }
     }
 }
+

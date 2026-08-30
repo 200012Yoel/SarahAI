@@ -91,9 +91,13 @@ public struct ChatScreenView: View {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
-                    .default(Text("🤖 Nathan — Derniers modèles IA")) {
+                    .default(Text("💬 Nathan — Statut & Vidéo WhatsApp")) {
                         viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
+                        viewModel.sendMessage("Nathan, je veux mettre une vidéo sur mon statut WhatsApp")
+                    },
+                    .default(Text("📱 Nathan — Publier sur les Réseaux Sociaux")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
                     },
                     .default(Text("🎬 Nathan — Générer une vidéo (Voo)")) {
                         viewModel.activeAgent = .nathan
@@ -102,6 +106,10 @@ public struct ChatScreenView: View {
                     .default(Text("🎵 Nathan — Composer de la musique (Suno)")) {
                         viewModel.activeAgent = .nathan
                         viewModel.inputText = "Compose une musique "
+                    },
+                    .default(Text("🤖 Nathan — Meilleurs modèles d'IA")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
                     },
                     .default(Text("💻 Studio VAI Coding (Raphaël)")) {
                         viewModel.isShowingVAICodingStudio = true

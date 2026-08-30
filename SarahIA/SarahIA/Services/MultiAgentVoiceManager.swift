@@ -19,6 +19,8 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
     private var raphaelVoice: AVSpeechSynthesisVoice?
     private var yohanFrVoice: AVSpeechSynthesisVoice?
     private var yohanHeVoice: AVSpeechSynthesisVoice?
+    private var nathanVoice: AVSpeechSynthesisVoice?
+    private var ethelVoice: AVSpeechSynthesisVoice?
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -36,11 +38,12 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
         let frenchVoices = allVoices.filter { $0.language.starts(with: "fr") }
         let hebrewVoices = allVoices.filter { $0.language.starts(with: "he") }
         
-        let maleNames = ["thomas", "nicolas", "paul", "aurelien", "antoine", "remi", "alain", "pierre"]
+        let maleNames = ["thomas", "nicolas", "paul", "aurelien", "antoine", "remi", "alain", "pierre", "jean-pierre"]
         
-        // 1. Sarah (Féminine principale)
+        // 1. Sarah (Féminine principale de France — chaleureuse et dynamique)
         if #available(iOS 13.0, *) {
             sarahVoice = frenchVoices.first(where: { $0.gender == .female && ($0.name.contains("Amélie") || $0.name.contains("Audrey")) })
+                ?? frenchVoices.first(where: { $0.gender == .female && $0.language == "fr-FR" })
                 ?? frenchVoices.first(where: { $0.gender == .female })
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         } else {
@@ -49,29 +52,60 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         }
         
-        // 2. Tom (Masculine conversationnelle)
+        // 2. Tom (Masculine conversationnelle — posée et claire)
         if #available(iOS 13.0, *) {
             tomVoice = frenchVoices.first(where: { $0.gender == .male && ($0.name.contains("Thomas") || $0.name.contains("Nicolas")) })
+                ?? frenchVoices.first(where: { $0.gender == .male && $0.language == "fr-FR" })
                 ?? frenchVoices.first(where: { $0.gender == .male })
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         } else {
             tomVoice = frenchVoices.first(where: { voice in
-                maleNames.contains(where: { name in
-                    voice.name.lowercased().contains(name.lowercased())
-                })
-            })
-                ?? frenchVoices.first
+                maleNames.contains(where: { name in voice.name.lowercased().contains(name) })
+            }) ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        }
+        
+        // 3. Raphaël (Masculine technique & vive)
+        if #available(iOS 13.0, *) {
+            raphaelVoice = frenchVoices.first(where: { $0.gender == .male && ($0.name.contains("Paul") || $0.name.contains("Aurélien")) })
+                ?? tomVoice
+                ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        } else {
+            raphaelVoice = frenchVoices.first(where: { $0.name.contains("Paul") || $0.name.contains("Aurélien") })
+                ?? tomVoice
                 ?? AVSpeechSynthesisVoice(language: "fr-FR")
         }
         
-        // 3. Raphaël (Masculine technique / dynamique)
-        raphaelVoice = frenchVoices.first(where: { $0.name.contains("Paul") || $0.name.contains("Aurélien") || $0.name.contains("Thomas") })
-            ?? tomVoice
-            ?? AVSpeechSynthesisVoice(language: "fr-FR")
-        
-        // 4. Yohan (Français & Hébreu)
-        yohanFrVoice = sarahVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        // 4. Yohan (Voix 100% MASCULINE — Siri Canadien / Voix masculine distincte)
+        if #available(iOS 13.0, *) {
+            yohanFrVoice = frenchVoices.first(where: { $0.gender == .male && $0.language == "fr-CA" })
+                ?? frenchVoices.first(where: { $0.gender == .male && ($0.name.contains("Antoine") || $0.name.contains("Rémi") || $0.name.contains("Alain")) })
+                ?? frenchVoices.first(where: { $0.gender == .male })
+                ?? AVSpeechSynthesisVoice(language: "fr-CA")
+        } else {
+            let caVoice = frenchVoices.first(where: { $0.language == "fr-CA" })
+            yohanFrVoice = caVoice ?? tomVoice ?? AVSpeechSynthesisVoice(language: "fr-CA")
+        }
         yohanHeVoice = hebrewVoices.first ?? AVSpeechSynthesisVoice(language: "he-IL")
+        
+        // 5. Nathan (Masculine jeune expert tech)
+        if #available(iOS 13.0, *) {
+            nathanVoice = frenchVoices.first(where: { $0.gender == .male && $0.name.contains("Nicolas") })
+                ?? tomVoice
+                ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        } else {
+            nathanVoice = tomVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        }
+        
+        // 6. Ethel (Féminine distincte — douce et créative)
+        if #available(iOS 13.0, *) {
+            ethelVoice = frenchVoices.first(where: { $0.gender == .female && $0.language == "fr-CA" })
+                ?? frenchVoices.first(where: { $0.gender == .female && $0.name.contains("Chantal") })
+                ?? frenchVoices.first(where: { $0.gender == .female && $0.name != sarahVoice?.name })
+                ?? sarahVoice
+                ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        } else {
+            ethelVoice = sarahVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        }
     }
     
     /// Synthétise la voix d'un agent unique
@@ -117,7 +151,7 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
         switch agent {
         case .sarah:
             utterance.voice = sarahVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
-            utterance.pitchMultiplier = 1.12
+            utterance.pitchMultiplier = 1.10
             utterance.rate = 0.52
             
         case .tom:
@@ -131,20 +165,27 @@ public final class MultiAgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate
             utterance.rate = 0.54
             
         case .yohan:
+            // Voix 100% Masculine pour Yoann
             if YohanLexiconEngine.shared.isHebrew(cleaned) {
                 utterance.voice = yohanHeVoice ?? AVSpeechSynthesisVoice(language: "he-IL")
-                utterance.pitchMultiplier = 1.0
+                utterance.pitchMultiplier = 0.92
                 utterance.rate = 0.48
             } else {
-                utterance.voice = yohanFrVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
-                utterance.pitchMultiplier = 1.05
+                utterance.voice = yohanFrVoice ?? AVSpeechSynthesisVoice(language: "fr-CA")
+                utterance.pitchMultiplier = 0.88
                 utterance.rate = 0.50
             }
             
         case .nathan:
-            utterance.voice = AVSpeechSynthesisVoice(language: "fr-FR")
-            utterance.pitchMultiplier = 0.98  // Voix légèrement grave, expert tech
+            utterance.voice = nathanVoice ?? tomVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
+            utterance.pitchMultiplier = 0.98
             utterance.rate = 0.55
+            
+        case .ethel:
+            // Voix Féminine dédiée pour Ethel (distincte de Sarah)
+            utterance.voice = ethelVoice ?? AVSpeechSynthesisVoice(language: "fr-FR")
+            utterance.pitchMultiplier = 1.02
+            utterance.rate = 0.51
         }
         return utterance
     }

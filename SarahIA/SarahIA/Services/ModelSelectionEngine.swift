@@ -16,7 +16,7 @@ public final class ModelSelectionEngine {
         // Tier 1 : iPhone 5s, 6, SE 1 (~100 Mo max)
         let tier1 = ModelProfile(
             profileId: "profile_tier1_nano",
-            internalEngineId: "sarah_core_nano",
+            internalEngineId: "Sarah Core Nano v4 (A7/A8/A9)",
             targetTier: .tier1_legacyCompact,
             maxContextLength: 512,
             maxGenerationTokens: 256,
@@ -30,7 +30,7 @@ public final class ModelSelectionEngine {
         // Tier 2 : iPhone 7, 8 (~250 Mo max)
         let tier2 = ModelProfile(
             profileId: "profile_tier2_micro",
-            internalEngineId: "sarah_core_micro",
+            internalEngineId: "Sarah Core Micro v4 (A10/A11)",
             targetTier: .tier2_legacyStandard,
             maxContextLength: 1024,
             maxGenerationTokens: 512,
@@ -44,7 +44,7 @@ public final class ModelSelectionEngine {
         // Tier 3 : iPhone X, 11 (~450 Mo max)
         let tier3 = ModelProfile(
             profileId: "profile_tier3_core",
-            internalEngineId: "sarah_core_intermediate",
+            internalEngineId: "Sarah Core Intermediate v4 (A12/A13)",
             targetTier: .tier3_intermediate,
             maxContextLength: 2048,
             maxGenerationTokens: 1024,
@@ -58,7 +58,7 @@ public final class ModelSelectionEngine {
         // Tier 4 : iPhone 12, 13 (~800 Mo max)
         let tier4 = ModelProfile(
             profileId: "profile_tier4_pro",
-            internalEngineId: "sarah_core_pro",
+            internalEngineId: "Sarah Neural Core Pro v4 (A14 Bionic)",
             targetTier: .tier4_advanced,
             maxContextLength: 3072,
             maxGenerationTokens: 1536,
@@ -69,10 +69,10 @@ public final class ModelSelectionEngine {
             fallbackProfileId: "profile_tier3_core"
         )
         
-        // Tier 5 : iPhone 14 / 14 Pro (Cible Principale ~1.4 Go max)
+        // Tier 5 : iPhone 14 / 14 Plus / 14 Pro (Cible Principale — Modèle le plus puissant du marché pour iPhone 14)
         let tier5 = ModelProfile(
             profileId: "profile_tier5_flagship_i14",
-            internalEngineId: "sarah_core_flagship",
+            internalEngineId: "Sarah Neural Engine Flagship v4 (iPhone 14 — Neural Core A15/A16 6GB)",
             targetTier: .tier5_flagship,
             maxContextLength: 4096,
             maxGenerationTokens: 2048,
@@ -86,7 +86,7 @@ public final class ModelSelectionEngine {
         // Tier 6 : iPhone 15, 16 (~1.8 Go max)
         let tier6 = ModelProfile(
             profileId: "profile_tier6_ultra",
-            internalEngineId: "sarah_core_ultra",
+            internalEngineId: "Sarah Neural Engine Ultra v4 (A17 Pro / A18 8GB)",
             targetTier: .tier6_ultra,
             maxContextLength: 6144,
             maxGenerationTokens: 3072,
@@ -100,7 +100,7 @@ public final class ModelSelectionEngine {
         // Tier 7 : iPhone 17+ / M-Series (~2.5 Go+ max)
         let tier7 = ModelProfile(
             profileId: "profile_tier7_max_titan",
-            internalEngineId: "sarah_core_titan",
+            internalEngineId: "Sarah Neural Titan Max v4 (Apple Silicon 16GB)",
             targetTier: .tier7_max,
             maxContextLength: 8192,
             maxGenerationTokens: 4096,

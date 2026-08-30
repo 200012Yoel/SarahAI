@@ -546,9 +546,17 @@ class SarahLocalEngine:
                 "Super bien ! Prête à répondre à toutes vos questions ou à exécuter vos ordres. 💪"
             ])
 
-        # 13. Identité
-        if any(p in norm for p in ["qui es tu", "tu es qui", "ton nom", "c est quoi ton nom", "qui t a cree"]):
-            return ("👩🏻‍💼 Je suis **Sarah IA**, votre assistante intelligente ultra-rapide.\n"
+        # 13. Identité & Équipe des 6 Agents (Sarah, Tom, Raphaël, Yohan, Nathan, Ethel)
+        if any(p in norm for p in ["qui es tu", "tu es qui", "ton nom", "c est quoi ton nom", "les agents", "nathan", "ethel", "qui est nathan", "qui est ethel", "whatsapp"]):
+            if "ethel" in norm:
+                return ("✨ **Ethel [Intelligence Créative & Spécialisée]** :\n"
+                        "Je suis Ethel ! Mon interface est habillée de Bleu au centre et de Rouge autour. "
+                        "Mon socle est opérationnel et prêt à accueillir de nouvelles compétences.")
+            if "nathan" in norm or "whatsapp" in norm or "reseaux" in norm:
+                return ("🤖 **Nathan [Expert Réseaux Sociaux & WhatsApp]** :\n"
+                        "Je suis Nathan ! J'ai accès à tous vos réseaux sociaux (WhatsApp, Instagram, TikTok, YouTube, Twitter/X) "
+                        "et je peux publier vos statuts, partager vos vidéos et vous connecter aux derniers modèles d'IA.")
+            return ("👩🏻‍💼 Je suis **Sarah IA**, votre assistante intelligente et patronne de l'équipe multi-agents (Tom, Raphaël, Yoann, Nathan, Ethel).\n"
                     "Je fonctionne à 100% en local sur votre appareil, sans temps d'attente ni coupure de connexion !")
 
         # 14. Blagues, Citations, Anecdotes

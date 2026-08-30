@@ -14,6 +14,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     case raphael = "Raphaël"
     case yohan = "Yohan"
     case nathan = "Nathan"
+    case ethel = "Ethel"
     
     public var id: String { rawValue }
     
@@ -28,14 +29,16 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .yohan:
             return "Traducteur Universel (Français ⇄ Hébreu)"
         case .nathan:
-            return "Expert IA & Génération Créative (Vidéo / Musique)"
+            return "Expert Réseaux Sociaux (WhatsApp, Insta, TikTok) & IA"
+        case .ethel:
+            return "Intelligence Créative & Spécialisée (Ethel)"
         }
     }
     
     public var specialtySubtitle: String {
         switch self {
         case .sarah:
-            return "Centre de commandement"
+            return "Patronne & Agent Pilote"
         case .tom:
             return "Encyclopédie & Débats mondiaux (1948 - Aujourd'hui)"
         case .raphael:
@@ -43,7 +46,9 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .yohan:
             return "Dictionnaires locaux fusionnés (FR ⇄ HE)"
         case .nathan:
-            return "Veille IA mondiale · Voo · Suno · Derniers modèles"
+            return "WhatsApp (Statuts & Vidéos) · Tous Réseaux · Veille IA"
+        case .ethel:
+            return "Agent Féminin Polyvalent · Design Bleu & Rouge"
         }
     }
     
@@ -61,6 +66,8 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
             return Color(red: 0.0, green: 0.45, blue: 0.90)   // Bleu Mer Profond
         case .nathan:
             return Color(red: 0.85, green: 0.55, blue: 1.0)   // Violet Électrique IA
+        case .ethel:
+            return Color(red: 0.95, green: 0.15, blue: 0.35)   // Rouge Écarlate / Bleu Lumineux
         }
     }
     
@@ -77,6 +84,9 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
             return [Color.white, Color(red: 0.70, green: 0.88, blue: 1.0), Color(red: 0.0, green: 0.40, blue: 0.85)]
         case .nathan:
             return [Color.white, Color(red: 0.90, green: 0.65, blue: 1.0), Color(red: 0.65, green: 0.15, blue: 0.95)]
+        case .ethel:
+            // Centre Bleu électrique entouré de Rouge flamboyant
+            return [Color(red: 0.15, green: 0.75, blue: 1.0), Color(red: 0.60, green: 0.10, blue: 0.80), Color(red: 0.95, green: 0.10, blue: 0.30)]
         }
     }
     #endif
@@ -87,7 +97,8 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .tom:     return "globe.europe.africa.fill"
         case .raphael: return "chevron.left.forwardslash.chevron.right"
         case .yohan:   return "character.book.closed.fill"
-        case .nathan:  return "brain.filled.head.profile"
+        case .nathan:  return "bubble.left.and.bubble.right.fill"
+        case .ethel:   return "wand.and.stars"
         }
     }
 }

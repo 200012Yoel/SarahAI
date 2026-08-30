@@ -1,10 +1,10 @@
 import SwiftUI
 
 /// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents :
-/// - Section Connexions : GitHub, Google, réseaux sociaux (Instagram, TikTok, YouTube, Twitter/X)
+/// - Section Mode : Bouton et sélecteur interactif des Modes (Nathan, Sarah, Raphaël, Tom, Yohan)
+/// - Section Connexions : WhatsApp (Statuts & Vidéos), Instagram, TikTok, YouTube, Twitter/X, GitHub, Google
 /// - Section Modèle IA adaptatif : détection automatique selon l'appareil
 /// - Contrôles de vitesse, tonalité et détection vocale VAD
-/// - Les 5 agents autonomes : Sarah, Tom, Raphaël, Yohan, Nathan
 @available(iOS 15.0, *)
 public struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -15,15 +15,13 @@ public struct SettingsView: View {
     @State private var vadSensitivity: Double = 0.65
     
     // Connexions
-    @State private var isGitHubConnected: Bool = false
-    @State private var isGoogleConnected: Bool = false
+    @State private var isWhatsAppConnected: Bool = true
     @State private var isInstagramConnected: Bool = false
     @State private var isTikTokConnected: Bool = false
     @State private var isYouTubeConnected: Bool = false
     @State private var isTwitterConnected: Bool = false
-    @State private var showConnectionAlert: Bool = false
-    @State private var connectionAlertTitle: String = ""
-    @State private var connectionAlertMessage: String = ""
+    @State private var isGitHubConnected: Bool = false
+    @State private var isGoogleConnected: Bool = false
     
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
@@ -36,84 +34,92 @@ public struct SettingsView: View {
                     .ignoresSafeArea()
                 
                 Form {
-                    // 0. Section Modèle IA Adaptatif
-                    Section(header: Text("🤖 Intelligence Artificielle Adaptative").foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))) {
-                        let profile = AIResourceManager.shared.activeProfile
-                        let capability = DeviceCapabilityDetector.shared.detectProfile()
+                    // 0. Section Mode de Fonctionnement & Agent Actif
+                    Section(header: Text("✨ Mode de Fonctionnement").foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))) {
                         
-                        HStack {
-                            Label("Statut du Moteur", systemImage: "bolt.fill")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("Actif (100% Local)")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.green)
+                        // Carte du Mode Actuel avec bouton interactif
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(viewModel.activeAgent.themeColor.opacity(0.2))
+                                        .frame(width: 42, height: 42)
+                                    
+                                    Image(systemName: viewModel.activeAgent.iconName)
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(viewModel.activeAgent.themeColor)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text("Mode \(viewModel.activeAgent.rawValue)")
+                                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                        
+                                        Text("ACTIF")
+                                            .font(.system(size: 10, weight: .black))
+                                            .foregroundColor(.black)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(viewModel.activeAgent.themeColor)
+                                            .clipShape(Capsule())
+                                    }
+                                    
+                                    Text(viewModel.activeAgent.specialtySubtitle)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                Spacer()
+                            }
+                            
+                            // Grille des Modes disponibles
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(AgentType.allCases) { agent in
+                                        let isSelected = (viewModel.activeAgent == agent)
+                                        Button(action: {
+                                            HapticService.shared.buttonTap()
+                                            viewModel.activeAgent = agent
+                                        }) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: agent.iconName)
+                                                    .font(.system(size: 12, weight: .bold))
+                                                Text(agent.rawValue)
+                                                    .font(.system(size: 13, weight: .semibold))
+                                            }
+                                            .foregroundColor(isSelected ? .white : .gray)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 7)
+                                            .background(isSelected ? agent.themeColor.opacity(0.35) : Color(red: 0.16, green: 0.16, blue: 0.20))
+                                            .clipShape(Capsule())
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(isSelected ? agent.themeColor : Color.white.opacity(0.08), lineWidth: 1.2)
+                                            )
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
                         }
-                        
-                        HStack {
-                            Label("Appareil Détecté", systemImage: "iphone")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(capability.hardwareTier.tierName)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))
-                        }
-                        
-                        HStack {
-                            Label("Modèle Embarqué", systemImage: "cpu")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(profile?.internalEngineId ?? "Sarah Adaptive Core v2")
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        HStack {
-                            Label("Mémoire Allouée", systemImage: "memorychip")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("\(capability.safeMemoryBudgetBytes / (1024 * 1024)) Mo")
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        // Meilleur modèle selon l'iPhone
-                        HStack {
-                            Label("Meilleur Modèle Dispo", systemImage: "star.fill")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(bestModelForDevice())
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
-                                .multilineTextAlignment(.trailing)
-                        }
+                        .padding(.vertical, 6)
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 1. Section Connexions
-                    Section(header: Text("🔗 Connexions").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
+                    // 1. Section Connexions & Réseaux Sociaux (WhatsApp en premier)
+                    Section(header: Text("🔗 Réseaux Sociaux & Connexions").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
                         
-                        // GitHub
+                        // WhatsApp (Statuts & Vidéos)
                         connectionRow(
-                            title: "GitHub",
-                            icon: "chevron.left.forwardslash.chevron.right",
-                            iconColor: Color.white,
-                            isConnected: $isGitHubConnected,
-                            description: "Accès dépôts & code",
+                            title: "WhatsApp",
+                            icon: "bubble.left.and.bubble.right.fill",
+                            iconColor: Color(red: 0.15, green: 0.85, blue: 0.40),
+                            isConnected: $isWhatsAppConnected,
+                            description: "Publication de statuts, vidéos & messages",
                             onConnect: {
-                                openURL("https://github.com/login")
-                            }
-                        )
-                        
-                        // Google / Firebase Stitch
-                        connectionRow(
-                            title: "Google / Firebase",
-                            icon: "g.circle.fill",
-                            iconColor: Color(red: 0.98, green: 0.45, blue: 0.15),
-                            isConnected: $isGoogleConnected,
-                            description: "Google Stitch & Play Console",
-                            onConnect: {
-                                openURL("https://accounts.google.com")
+                                openURL("whatsapp://")
                             }
                         )
                         
@@ -123,7 +129,7 @@ public struct SettingsView: View {
                             icon: "camera.fill",
                             iconColor: Color(red: 0.85, green: 0.15, blue: 0.55),
                             isConnected: $isInstagramConnected,
-                            description: "Partage de photos & reels",
+                            description: "Partage de photos & reels vidéo",
                             onConnect: {
                                 openURL("https://www.instagram.com/accounts/login/")
                             }
@@ -164,15 +170,104 @@ public struct SettingsView: View {
                                 openURL("https://twitter.com/login")
                             }
                         )
+                        
+                        // GitHub
+                        connectionRow(
+                            title: "GitHub",
+                            icon: "chevron.left.forwardslash.chevron.right",
+                            iconColor: Color.white,
+                            isConnected: $isGitHubConnected,
+                            description: "Accès dépôts & code",
+                            onConnect: {
+                                openURL("https://github.com/login")
+                            }
+                        )
+                        
+                        // Google / Firebase
+                        connectionRow(
+                            title: "Google / Firebase",
+                            icon: "g.circle.fill",
+                            iconColor: Color(red: 0.98, green: 0.45, blue: 0.15),
+                            isConnected: $isGoogleConnected,
+                            description: "Google Stitch & Play Console",
+                            onConnect: {
+                                openURL("https://accounts.google.com")
+                            }
+                        )
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 2. Les 5 Agents Autonomes & Voix Siri Locales
-                    Section(header: Text("Écosystème des 5 Agents Autonomes").foregroundColor(.white)) {
+                    // 2. Section Modèle IA Adaptatif
+                    Section(header: Text("🤖 Intelligence Artificielle Adaptative").foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))) {
+                        let profile = AIResourceManager.shared.activeProfile
+                        let capability = DeviceCapabilityDetector.shared.detectProfile()
+                        
+                        HStack {
+                            Label("Statut du Moteur", systemImage: "bolt.fill")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("Actif (100% Local)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.green)
+                        }
+                        
+                        HStack {
+                            Label("Appareil Détecté", systemImage: "iphone")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text(capability.hardwareTier.tierName)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))
+                        }
+                        
+                        HStack {
+                            Label("Modèle Embarqué", systemImage: "cpu")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text(profile?.internalEngineId ?? "Sarah Adaptive Core v2")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack {
+                            Label("Mémoire Allouée", systemImage: "memorychip")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("\(capability.safeMemoryBudgetBytes / (1024 * 1024)) Mo")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack {
+                            Label("Meilleur Modèle Dispo", systemImage: "star.fill")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text(bestModelForDevice())
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
+                    // 3. Écosystème des 6 Agents & Voix Siri
+                    Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
+                        agentRow(
+                            agent: .nathan,
+                            subtitle: "Expert Réseaux Sociaux & WhatsApp (Violet Néon)",
+                            testPhrase: "Salut ! C'est Nathan. J'ai accès à tous tes réseaux sociaux et à WhatsApp pour poster tes vidéos !"
+                        )
+                        
                         agentRow(
                             agent: .sarah,
                             subtitle: "Voix système principale (Rose néon)",
                             testPhrase: "Bonjour ! Je suis Sarah, votre agent pilote."
+                        )
+                        
+                        agentRow(
+                            agent: .ethel,
+                            subtitle: "Voix féminine dédiée (Thème Bleu & Rouge)",
+                            testPhrase: "Bonjour ! Je suis Ethel. Mon espace est prêt et attend vos prochaines instructions !"
                         )
                         
                         agentRow(
@@ -189,19 +284,13 @@ public struct SettingsView: View {
                         
                         agentRow(
                             agent: .yohan,
-                            subtitle: "Voix bilingue FR ⇄ HE (Bleu Mer & Blanc)",
-                            testPhrase: "Shalom ! Yohan à votre service pour toutes vos traductions en hébreu."
-                        )
-                        
-                        agentRow(
-                            agent: .nathan,
-                            subtitle: "Expert IA mondial & Créatif (Violet Électrique)",
-                            testPhrase: "Bonjour ! Je suis Nathan. Je suis connecté aux derniers modèles d'IA et je peux générer des vidéos et de la musique."
+                            subtitle: "Voix masculine bilingue FR ⇄ HE (Siri Canadien)",
+                            testPhrase: "Shalom ! C'est Yoann à votre service pour toutes vos traductions en hébreu."
                         )
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 3. Microphone & Détection Vocale Full-Duplex
+                    // 4. Microphone & Détection Vocale Full-Duplex
                     Section(header: Text("Microphone & Détection Vocale VAD").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -227,7 +316,7 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 4. Historique & Réinitialisation
+                    // 5. Historique & Réinitialisation
                     Section(header: Text("Historique de Discussion").foregroundColor(.red)) {
                         Button(role: .destructive, action: {
                             HapticService.shared.buttonTap()
@@ -274,18 +363,18 @@ public struct SettingsView: View {
     private func bestModelForDevice() -> String {
         let capability = DeviceCapabilityDetector.shared.detectProfile()
         switch capability.hardwareTier {
-        case _ where capability.safeMemoryBudgetBytes >= 4 * 1024 * 1024 * 1024:
-            // iPhone 14 Pro / 15 Pro / 16 Pro — 6 Go RAM
-            return "GPT-4o · Claude 3.7 Sonnet"
-        case _ where capability.safeMemoryBudgetBytes >= 2 * 1024 * 1024 * 1024:
-            // iPhone 12 / 13 / 14 — 4 Go RAM
-            return "GPT-4o mini · Llama 3.1 8B"
-        case _ where capability.safeMemoryBudgetBytes >= 1 * 1024 * 1024 * 1024:
-            // iPhone 11 / XR — 3 Go RAM
-            return "Gemini Flash · Mistral 7B Q4"
+        case .tier7_max, .tier6_ultra, .tier5_flagship:
+            // iPhone 14, 14 Pro, 15, 16, 17
+            return "Sarah Neural Engine Flagship v4 (Le plus puissant du marché)"
+        case .tier4_advanced:
+            // iPhone 12, 13
+            return "Sarah Neural Core Pro v4 (Neural Engine A14)"
+        case .tier3_intermediate:
+            // iPhone 11, XR
+            return "Sarah Core Intermediate v4 (100% Local)"
         default:
-            // iPhone plus ancien (5s, 6, 7, 8)
-            return "Phi-3 Mini · TinyLlama 1.1B"
+            // iPhone 5s, 6, 7, 8
+            return "Sarah Core Nano v4 (100% Local)"
         }
     }
     
@@ -323,7 +412,6 @@ public struct SettingsView: View {
             Spacer()
             
             if isConnected.wrappedValue {
-                // Connecté — bouton déconnecter
                 Button(action: {
                     HapticService.shared.buttonTap()
                     isConnected.wrappedValue = false
@@ -338,7 +426,6 @@ public struct SettingsView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
             } else {
-                // Non connecté — bouton se connecter
                 Button(action: {
                     HapticService.shared.buttonTap()
                     onConnect()

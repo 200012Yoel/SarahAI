@@ -21,6 +21,7 @@ public struct VideoShareView: View {
     @State private var showPlayer: Bool = false
     
     // Réseaux sociaux connectés (à lire depuis UserDefaults en prod)
+    @State private var shareToWhatsApp: Bool = true
     @State private var shareToInstagram: Bool = true
     @State private var shareToTikTok: Bool = true
     @State private var shareToYouTube: Bool = false
@@ -140,12 +141,13 @@ public struct VideoShareView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.gray)
                             
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                socialToggle("Instagram", icon: "camera.fill", color: Color(red: 0.85, green: 0.15, blue: 0.55), isOn: $shareToInstagram)
-                                socialToggle("TikTok", icon: "music.note", color: Color(red: 0.95, green: 0.15, blue: 0.35), isOn: $shareToTikTok)
-                                socialToggle("YouTube", icon: "play.rectangle.fill", color: .red, isOn: $shareToYouTube)
-                                socialToggle("Twitter / X", icon: "xmark.circle.fill", color: .white, isOn: $shareToTwitter)
-                            }
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                    socialToggle("WhatsApp Statut", icon: "bubble.left.and.bubble.right.fill", color: Color(red: 0.15, green: 0.85, blue: 0.40), isOn: $shareToWhatsApp)
+                                    socialToggle("Instagram", icon: "camera.fill", color: Color(red: 0.85, green: 0.15, blue: 0.55), isOn: $shareToInstagram)
+                                    socialToggle("TikTok", icon: "music.note", color: Color(red: 0.95, green: 0.15, blue: 0.35), isOn: $shareToTikTok)
+                                    socialToggle("YouTube", icon: "play.rectangle.fill", color: .red, isOn: $shareToYouTube)
+                                    socialToggle("Twitter / X", icon: "xmark.circle.fill", color: .white, isOn: $shareToTwitter)
+                                }
                         }
                         
                         // 4. Bouton Partager
@@ -274,8 +276,9 @@ public struct VideoShareView: View {
         guard let videoURL = selectedVideoURL else { return }
         isSharing = true
         
-        // Informer Sarah du partage dans le chat
+        // Informer Nathan & Sarah du partage dans le chat
         let networksList = [
+            shareToWhatsApp ? "WhatsApp (Statut & Messages)" : nil,
             shareToInstagram ? "Instagram" : nil,
             shareToTikTok ? "TikTok" : nil,
             shareToYouTube ? "YouTube" : nil,
