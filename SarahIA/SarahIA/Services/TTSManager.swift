@@ -3,42 +3,54 @@ import AVFoundation
 import UIKit
 
 /// Gestionnaire de Synthèse Vocale Unifié et Rétro-compatible pour Sarah AI.
-/// Redirige vers `MultiAgentVoiceManager` pour les 4 agents (Sarah, Tom, Raphaël, Yohan).
+/// Redirige vers `AgentVoiceManager` pour les 6 agents (Sarah, Nathan, Esther, Tom, Yohan, Ethel).
 public final class TTSManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = TTSManager()
     
-    private let multiVoice = MultiAgentVoiceManager.shared
+    private let agentVoice = AgentVoiceManager.shared
     
     private override init() {
         super.init()
     }
     
     public func speakAsSarah(_ text: String) {
-        multiVoice.speak(text: text, for: .sarah)
+        agentVoice.speak(text: text, as: .sarah)
+    }
+    
+    public func speakAsNathan(_ text: String) {
+        agentVoice.speak(text: text, as: .nathan)
+    }
+    
+    public func speakAsEsther(_ text: String) {
+        agentVoice.speak(text: text, as: .esther)
     }
     
     public func speakAsTom(_ text: String) {
-        multiVoice.speak(text: text, for: .tom)
-    }
-    
-    public func speakAsRaphael(_ text: String) {
-        multiVoice.speak(text: text, for: .raphael)
+        agentVoice.speak(text: text, as: .tom)
     }
     
     public func speakAsYohan(_ text: String) {
-        multiVoice.speak(text: text, for: .yohan)
+        agentVoice.speak(text: text, as: .yohan)
+    }
+    
+    public func speakAsEthel(_ text: String) {
+        agentVoice.speak(text: text, as: .ethel)
+    }
+    
+    public func speakAsRaphael(_ text: String) {
+        agentVoice.speak(text: text, as: .esther)
     }
     
     public func speak(text: String) {
-        multiVoice.speak(text: text, for: .sarah)
+        agentVoice.speak(text: text, as: .sarah)
     }
     
     public func stop() {
-        multiVoice.stop()
+        agentVoice.stop()
     }
     
     public var isSpeaking: Bool {
-        return multiVoice.isSpeaking
+        return agentVoice.isSpeaking
     }
 }

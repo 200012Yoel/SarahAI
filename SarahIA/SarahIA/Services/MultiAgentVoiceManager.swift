@@ -16,60 +16,106 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.delegate = self
     }
     
-    /// Résout et retourne la voix Siri exacte pour l'agent selon la locale (fr-FR / fr-CA) et l'index (1, 2, 3, 4)
+    /// Résout la voix Siri exacte pour l'agent (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         
-        // 1. Filtrer par locale (fr-FR ou fr-CA)
+        // 1. Filtrer les voix de la locale ciblée (fr-FR ou fr-CA)
         let localeVoices = allVoices.filter { $0.language == agent.localeCode }
         
-        // 2. Trouver la voix Siri correspondant à l'index (ex: "Voice 3", "voix 3", etc.)
-        if let matchedVoice = localeVoices.first(where: { voice in
-            voice.name.localizedCaseInsensitiveContains(agent.voiceIndex) ||
-            voice.identifier.localizedCaseInsensitiveContains("voice\(agent.voiceIndex)") ||
-            voice.identifier.localizedCaseInsensitiveContains("_\(agent.voiceIndex)")
+        // 2. Extraire les voix contenant "Siri" pour cette locale
+        let siriVoices = localeVoices.filter {
+            $0.identifier.localizedCaseInsensitiveContains("siri") ||
+            $0.name.localizedCaseInsensitiveContains("siri")
+        }
+        
+        // 3. Recherche directe par numéro/index de voix Siri ("Voix 1", "Voix 2", "Voice 1", "_1", etc.)
+        let indexStr = agent.voiceIndex
+        let targetIndexInt = Int(indexStr) ?? 1
+        
+        // 3a. Recherche dans les voix Siri nommées
+        if let directSiri = siriVoices.first(where: {
+            $0.name.localizedCaseInsensitiveContains("Voix \(indexStr)") ||
+            $0.name.localizedCaseInsensitiveContains("Voice \(indexStr)") ||
+            $0.name.localizedCaseInsensitiveContains(indexStr) ||
+            $0.identifier.localizedCaseInsensitiveContains("siri_\(indexStr)") ||
+            $0.identifier.localizedCaseInsensitiveContains("voice\(indexStr)") ||
+            $0.identifier.localizedCaseInsensitiveContains("_\(indexStr)")
         }) {
-            return matchedVoice
+            return directSiri
         }
         
-        // 3. Fallback direct par recherche d'identifiant Siri compact/premium
-        let potentialId = "com.apple.ttsbundle.siri_\(agent.localeCode)_compact_\(agent.voiceIndex)"
-        if let directVoice = AVSpeechSynthesisVoice(identifier: potentialId) {
-            return directVoice
-        }
-        
-        // 4. Fallback par recherche de genre ou nom
-        if agent.localeCode == "fr-CA" {
-            if #available(iOS 13.0, *) {
-                if agent == .yohan {
-                    if let maleCA = localeVoices.first(where: { $0.gender == .male }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .male }) {
-                        return maleCA
-                    }
-                } else if agent == .ethel {
-                    if let femaleCA = localeVoices.first(where: { $0.gender == .female }) ?? allVoices.first(where: { $0.language.starts(with: "fr") && $0.gender == .female }) {
-                        return femaleCA
-                    }
-                }
-            } else {
-                if agent == .yohan {
-                    let maleNames = ["antoine", "remi", "alain", "pierre", "nicolas", "thomas"]
-                    if let maleCA = localeVoices.first(where: { v in maleNames.contains(where: { v.name.lowercased().contains($0) }) }) {
-                        return maleCA
-                    }
-                } else if agent == .ethel {
-                    let femaleNames = ["chantal", "amelie", "audrey", "marie"]
-                    if let femaleCA = localeVoices.first(where: { v in femaleNames.contains(where: { v.name.lowercased().contains($0) }) }) {
-                        return femaleCA
-                    }
-                }
+        // 3b. Si plusieurs voix Siri existent pour la locale, utiliser l'index ordonné (1-based)
+        if !siriVoices.isEmpty {
+            let zeroIndex = targetIndexInt - 1
+            if zeroIndex >= 0 && zeroIndex < siriVoices.count {
+                return siriVoices[zeroIndex]
             }
         }
         
-        // 5. Fallback par défaut selon la région
+        // 4. Recherche par identifiant système Apple TTS bundle Siri connu
+        let knownSiriIds = [
+            "com.apple.ttsbundle.siri_\(agent.localeCode)_compact_\(indexStr)",
+            "com.apple.ttsbundle.siri_\(agent.localeCode)_\(indexStr)",
+            "com.apple.ttsbundle.siri_\(agent.localeCode)_\(indexStr)_compact",
+            "com.apple.voice.compact.\(agent.localeCode).Siri\(indexStr)",
+            "com.apple.voice.premium.\(agent.localeCode).Siri\(indexStr)",
+            "com.apple.ttsbundle.siri_\(agent.localeCode)_female",
+            "com.apple.ttsbundle.siri_\(agent.localeCode)_male"
+        ]
+        for siriId in knownSiriIds {
+            if let v = AVSpeechSynthesisVoice(identifier: siriId) {
+                return v
+            }
+        }
+        
+        // 5. Mapping précis sur les voix Apple Siri Premium / Compact emblématiques
+        let targetNames: [String]
+        switch agent {
+        case .sarah:
+            // Siri France Voix 1 (Féminine)
+            targetNames = ["audrey", "marie", "amélie", "amelie", "celine"]
+        case .nathan:
+            // Siri France Voix 2 (Masculine)
+            targetNames = ["thomas", "nicolas", "lucas", "paul"]
+        case .esther:
+            // Siri France Voix 3 (Féminine / Tech)
+            targetNames = ["aurélien", "aurelien", "paul", "claire", "audrey"]
+        case .tom:
+            // Siri France Voix 4 (Masculine)
+            targetNames = ["rémi", "remi", "pierre", "alain", "thomas"]
+        case .yohan:
+            // Siri Canada Voix 1 (Masculine — Siri Canadien)
+            targetNames = ["antoine", "alain", "nicolas", "thomas"]
+        case .ethel:
+            // Siri Canada Voix 2 (Féminine — Siri Canadien)
+            targetNames = ["chantal", "amelie", "amélie", "audrey"]
+        }
+        
+        // Recherche dans localeVoices par nom de timbre
+        for name in targetNames {
+            if let matched = localeVoices.first(where: {
+                $0.name.localizedCaseInsensitiveContains(name) ||
+                $0.identifier.localizedCaseInsensitiveContains(name)
+            }) {
+                return matched
+            }
+        }
+        
+        // 6. Filtrage par genre si disponible sous iOS 13+
+        if #available(iOS 13.0, *) {
+            let wantsFemale = (agent == .sarah || agent == .esther || agent == .ethel)
+            let desiredGender: AVSpeechSynthesisVoiceGender = wantsFemale ? .female : .male
+            if let genderVoice = localeVoices.first(where: { $0.gender == desiredGender }) {
+                return genderVoice
+            }
+        }
+        
+        // 7. Fallback par défaut selon la région
         return AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR")!
     }
     
-    /// Énonciation vocale dédiée pour l'agent ciblé
+    /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         stop()
         pendingSpeechBlock = nil
@@ -82,7 +128,16 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         let utterance = AVSpeechUtterance(string: cleaned)
         utterance.voice = getVoice(for: agent)
         utterance.rate = rate
-        utterance.pitchMultiplier = (agent == .yohan ? 0.90 : (agent == .sarah ? 1.08 : 1.0))
+        
+        // Pitch personnalisé pour différencier les personnalités
+        switch agent {
+        case .sarah:  utterance.pitchMultiplier = 1.08
+        case .nathan: utterance.pitchMultiplier = 0.98
+        case .esther: utterance.pitchMultiplier = 1.05
+        case .tom:    utterance.pitchMultiplier = 0.95
+        case .yohan:  utterance.pitchMultiplier = 0.90
+        case .ethel:  utterance.pitchMultiplier = 1.02
+        }
         
         synthesizer.speak(utterance)
     }
@@ -92,7 +147,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         speak(text: text, as: agent)
     }
     
-    /// Exécute une passation vocale naturelle (ex: Sarah passe la main à Esther / Tom / Nathan / Yohan / Ethel)
+    /// Exécute une passation vocale naturelle (ex: Sarah passe la main à Esther / Tom / Nathan / Yoann / Ethel)
     public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
         stop()
         
@@ -112,14 +167,28 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             let agentUtterance = AVSpeechUtterance(string: cleanAgent)
             agentUtterance.voice = self.getVoice(for: targetAgent)
             agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
-            agentUtterance.pitchMultiplier = (targetAgent == .yohan ? 0.90 : 1.0)
+            switch targetAgent {
+            case .sarah:  agentUtterance.pitchMultiplier = 1.08
+            case .nathan: agentUtterance.pitchMultiplier = 0.98
+            case .esther: agentUtterance.pitchMultiplier = 1.05
+            case .tom:    agentUtterance.pitchMultiplier = 0.95
+            case .yohan:  agentUtterance.pitchMultiplier = 0.90
+            case .ethel:  agentUtterance.pitchMultiplier = 1.02
+            }
             self.synthesizer.speak(agentUtterance)
         }
         
         let sourceUtterance = AVSpeechUtterance(string: cleanTransition)
         sourceUtterance.voice = getVoice(for: sourceAgent)
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
-        sourceUtterance.pitchMultiplier = (sourceAgent == .sarah ? 1.08 : 1.0)
+        switch sourceAgent {
+        case .sarah:  sourceUtterance.pitchMultiplier = 1.08
+        case .nathan: sourceUtterance.pitchMultiplier = 0.98
+        case .esther: sourceUtterance.pitchMultiplier = 1.05
+        case .tom:    sourceUtterance.pitchMultiplier = 0.95
+        case .yohan:  sourceUtterance.pitchMultiplier = 0.90
+        case .ethel:  sourceUtterance.pitchMultiplier = 1.02
+        }
         synthesizer.speak(sourceUtterance)
     }
     

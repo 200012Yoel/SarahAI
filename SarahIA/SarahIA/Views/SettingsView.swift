@@ -277,9 +277,9 @@ public struct SettingsView: View {
                         )
                         
                         agentRow(
-                            agent: .raphael,
+                            agent: .esther,
                             subtitle: "Voix de synthèse build & code (Bleu ciel)",
-                            testPhrase: "Raphaël au rapport ! Prêt à générer vos applications et raccourcis Apple."
+                            testPhrase: "Bonjour ! C'est Esther. Prête pour le build et le voice coding !"
                         )
                         
                         agentRow(
