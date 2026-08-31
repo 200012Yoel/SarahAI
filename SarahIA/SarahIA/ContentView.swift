@@ -18,7 +18,7 @@ public struct ContentView: View {
             ZStack(alignment: .leading) {
                 // 1. ÉCRAN PRINCIPAL : Chat Screen (Plein écran stable)
                 ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
-                    .frame(width: geo.size.width, height: geo.size.height)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .disabled(viewModel.isDrawerOpen)
                 
                 // 2. VOILE D'OBSCURCISSEMENT au-dessus du chat lors de l'ouverture du tiroir

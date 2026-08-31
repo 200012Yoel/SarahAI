@@ -40,7 +40,7 @@ public struct MessageBar: View {
     }
     
     public var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             // 1. Raccourcis Rapides (Shortcuts)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -87,22 +87,8 @@ public struct MessageBar: View {
                 .padding(.horizontal, 16)
             }
             
-            // 2. Barre de Saisie Principale
+            // 2. Barre de Saisie Principale (Sans le bouton +, champ de saisie direct + micro + bouton d'action)
             HStack(spacing: 8) {
-                // Bouton Plus ＋
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    onPlusTapped?()
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(Color(white: 0.15))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(ScaleBounceButtonStyle())
-                
                 // Champ texte avec Micro intégré
                 HStack(spacing: 8) {
                     TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
@@ -122,9 +108,9 @@ public struct MessageBar: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 14)
-                .frame(height: 40)
+                .frame(height: 42)
                 .background(Color(white: 0.15))
-                .cornerRadius(20)
+                .cornerRadius(21)
                 
                 // Bouton Waveform / Envoi
                 let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -139,7 +125,7 @@ public struct MessageBar: View {
                     Image(systemName: hasText ? "arrow.up" : "waveform")
                         .font(.system(size: 18, weight: hasText ? .bold : .regular))
                         .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 42, height: 42)
                         .background(hasText ? Color.blue : Color(white: 0.15))
                         .clipShape(Circle())
                 }
@@ -147,9 +133,9 @@ public struct MessageBar: View {
             }
             .padding(.horizontal, 16)
         }
-        .padding(.top, 6)
-        .padding(.bottom, 8)
-        .background(Color.black)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
+        .background(Color.black.ignoresSafeArea(edges: .bottom))
     }
     
     private func submitMessage() {
