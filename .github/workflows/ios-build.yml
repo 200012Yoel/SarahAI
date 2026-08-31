@@ -141,10 +141,12 @@ jobs:
         run: |
           echo "### ❌ Xcode Build Compilation Error Summary" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          if [ -f "${{ github.workspace }}/xcode_errors.txt" ]; then
-            cat "${{ github.workspace }}/xcode_errors.txt" | head -n 100 >> $GITHUB_STEP_SUMMARY
+          if [ -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
+            cat "$GITHUB_WORKSPACE/xcode_errors.txt" | head -n 100 >> $GITHUB_STEP_SUMMARY
+          elif [ -f "$GITHUB_WORKSPACE/xcodebuild.log" ]; then
+            grep -E "(\.swift:[0-9]+:[0-9]+: error:|error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" | head -n 100 >> $GITHUB_STEP_SUMMARY || tail -n 100 "$GITHUB_WORKSPACE/xcodebuild.log" >> $GITHUB_STEP_SUMMARY
           else
-            echo "No xcode_errors.txt generated" >> $GITHUB_STEP_SUMMARY
+            echo "No xcode logs generated" >> $GITHUB_STEP_SUMMARY
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
 

@@ -40,7 +40,7 @@ public struct GeneratedImageCardView: View {
                         
                         VStack(spacing: 8) {
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .sarahCyan))
+                                .progressViewStyle(CircularProgressViewStyle())
                                 .scaleEffect(1.2)
                             
                             Text("Génération du visuel HD...")
