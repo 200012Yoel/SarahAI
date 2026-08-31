@@ -27,7 +27,16 @@ public struct ChatScreenView: View {
                 }
                 return 20
             }()
-            let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
+            let windowBottom: CGFloat = {
+                if #available(iOS 13.0, *) {
+                    return UIApplication.shared.connectedScenes
+                        .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                        .first?.safeAreaInsets.bottom ?? 34
+                }
+                return 0
+            }()
+            let rawBottom = geometry.safeAreaInsets.bottom > 0 ? geometry.safeAreaInsets.bottom : windowBottom
+            let bottomPadding: CGFloat = keyboard.isVisible ? 4 : max(rawBottom, 12)
             
             ZStack {
                 Color.black.ignoresSafeArea()
@@ -66,6 +75,7 @@ public struct ChatScreenView: View {
                         text: $viewModel.inputText,
                         activeAgent: $viewModel.activeAgent,
                         isRecording: viewModel.isMicRunning,
+                        bottomInset: bottomPadding,
                         onSend: { text in
                             viewModel.sendMessage(text)
                         },
@@ -88,7 +98,7 @@ public struct ChatScreenView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)

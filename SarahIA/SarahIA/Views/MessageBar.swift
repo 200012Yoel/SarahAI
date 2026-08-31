@@ -7,6 +7,7 @@ public struct MessageBar: View {
     @Binding var text: String
     @Binding var activeAgent: AgentType
     var isRecording: Bool
+    var bottomInset: CGFloat = 8
     var onSend: (String) -> Void
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
@@ -20,6 +21,7 @@ public struct MessageBar: View {
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
         isRecording: Bool,
+        bottomInset: CGFloat = 8,
         onSend: @escaping (String) -> Void,
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
@@ -30,6 +32,7 @@ public struct MessageBar: View {
         self._text = text
         self._activeAgent = activeAgent
         self.isRecording = isRecording
+        self.bottomInset = bottomInset
         self.onSend = onSend
         self.onToggleMic = onToggleMic
         self.onOpenVoiceOrb = onOpenVoiceOrb
@@ -148,7 +151,7 @@ public struct MessageBar: View {
             .padding(.horizontal, 16)
         }
         .padding(.top, 4)
-        .padding(.bottom, 8)
+        .padding(.bottom, bottomInset)
         .background(Color.black)
     }
     
