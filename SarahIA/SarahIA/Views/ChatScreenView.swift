@@ -41,7 +41,8 @@ public struct ChatScreenView: View {
     
     private var currentBottomPadding: CGFloat {
         if keyboard.keyboardHeight > 0 {
-            return keyboard.keyboardHeight
+            // Le clavier iOS couvre déjà le Home Indicator (bottomSafeArea), on le soustrait pour coller la barre au clavier
+            return max(0, keyboard.keyboardHeight - bottomSafeArea + 4)
         }
         return bottomSafeArea
     }
