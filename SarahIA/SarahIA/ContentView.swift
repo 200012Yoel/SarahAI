@@ -83,6 +83,7 @@ public struct ContentView: View {
                             }
                         }
                     }
+            )
         }
         // Feuille de Paramètres Native (#sheet)
         .sheet(isPresented: $isShowingSettings) {
