@@ -17,15 +17,15 @@ public final class KeyboardObserver: ObservableObject {
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
             .compactMap { notification -> (CGFloat, Double)? in
                 guard let userInfo = notification.userInfo,
-                      let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-                      let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else {
+                      let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
                     return nil
                 }
+                let duration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
                 return (endFrame.height, duration)
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] height, duration in
-                withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                withAnimation(.easeOut(duration: duration > 0 ? duration : 0.25)) {
                     self?.keyboardHeight = height
                     self?.isVisible = true
                 }
@@ -34,12 +34,12 @@ public final class KeyboardObserver: ObservableObject {
         
         // 2. Détection de la descente du clavier
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-            .compactMap { notification -> Double? in
-                notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
+            .compactMap { notification -> Double in
+                (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] duration in
-                withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                withAnimation(.easeOut(duration: duration > 0 ? duration : 0.25)) {
                     self?.keyboardHeight = 0
                     self?.isVisible = false
                 }
@@ -50,17 +50,17 @@ public final class KeyboardObserver: ObservableObject {
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)
             .compactMap { notification -> (CGFloat, Double)? in
                 guard let userInfo = notification.userInfo,
-                      let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-                      let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else {
+                      let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
                     return nil
                 }
+                let duration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
                 let screenHeight = UIScreen.main.bounds.height
                 let actualHeight = max(0, screenHeight - endFrame.minY)
                 return (actualHeight, duration)
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] height, duration in
-                withAnimation(.interpolatingSpring(stiffness: 300, damping: 30)) {
+                withAnimation(.easeOut(duration: duration > 0 ? duration : 0.25)) {
                     self?.keyboardHeight = height
                     self?.isVisible = height > 20
                 }

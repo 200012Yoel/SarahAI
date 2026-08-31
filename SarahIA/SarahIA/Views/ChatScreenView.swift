@@ -6,7 +6,7 @@ import SwiftUI
 @available(iOS 15.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
-    @StateObject private var keyboard = KeyboardObserver()
+    @ObservedObject private var keyboard = KeyboardObserver.shared
     @Binding var isShowingSettings: Bool
     
     @State private var isShowingActionSheet: Bool = false
@@ -17,17 +17,45 @@ public struct ChatScreenView: View {
         self._isShowingSettings = isShowingSettings
     }
     
+    private var topSafeArea: CGFloat {
+        if #available(iOS 13.0, *) {
+            let window = UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                .first
+            let top = window?.safeAreaInsets.top ?? 0
+            return top > 0 ? top : 47
+        }
+        return 20
+    }
+    
+    private var bottomSafeArea: CGFloat {
+        if #available(iOS 13.0, *) {
+            let window = UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                .first
+            let bottom = window?.safeAreaInsets.bottom ?? 0
+            return bottom > 0 ? bottom : 34
+        }
+        return 0
+    }
+    
+    private var currentBottomPadding: CGFloat {
+        if keyboard.keyboardHeight > 0 {
+            return keyboard.keyboardHeight
+        }
+        return bottomSafeArea
+    }
+    
     public var body: some View {
         ZStack {
-            // Seul le fond noir ignore les marges de l'écran
+            // Fond noir plein écran
             Color.black
                 .ignoresSafeArea()
             
-            // Tout le reste est contraint dans le Safe Area natif
             VStack(spacing: 0) {
-                // 1. En-tête (TopBar)
+                // 1. En-tête (TopBar calée sous l'encoche / Dynamic Island)
                 topBar
-                    .padding(.top, 4)
+                    .padding(.top, topSafeArea)
                     .padding(.bottom, 6)
                 
                 // 2. Liste des messages (ScrollView)
@@ -53,7 +81,7 @@ public struct ChatScreenView: View {
                     keyboard.dismiss()
                 }
                 
-                // 3. Zone de saisie
+                // 3. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
@@ -77,8 +105,9 @@ public struct ChatScreenView: View {
                         isShowingVideoShare = true
                     }
                 )
-                .padding(.bottom, keyboard.isVisible ? 0 : 8)
+                .padding(.bottom, 4)
             }
+            .padding(.bottom, currentBottomPadding)
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)
