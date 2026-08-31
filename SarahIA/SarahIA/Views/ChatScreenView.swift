@@ -19,13 +19,15 @@ public struct ChatScreenView: View {
     
     public var body: some View {
         ZStack {
-            // Fond noir plein écran
+            // Seul le fond noir ignore les marges de l'écran
             Color.black
                 .ignoresSafeArea()
             
+            // Tout le reste est contraint dans le Safe Area natif
             VStack(spacing: 0) {
                 // 1. En-tête (TopBar)
                 topBar
+                    .padding(.top, 4)
                     .padding(.bottom, 6)
                 
                 // 2. Liste des messages (ScrollView)
@@ -75,8 +77,7 @@ public struct ChatScreenView: View {
                         isShowingVideoShare = true
                     }
                 )
-                // 16 pt au repos pour surélever la barre au-dessus du Home Indicator, 6 pt quand le clavier est actif
-                .padding(.bottom, keyboard.isVisible ? 6 : 16)
+                .padding(.bottom, keyboard.isVisible ? 0 : 8)
             }
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
