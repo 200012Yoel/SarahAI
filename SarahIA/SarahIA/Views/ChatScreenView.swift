@@ -19,7 +19,7 @@ public struct ChatScreenView: View {
     
     public var body: some View {
         ZStack {
-            // Fond plein écran (le seul à ignorer les marges)
+            // Fond noir plein écran
             Color.black
                 .ignoresSafeArea()
             
@@ -51,7 +51,7 @@ public struct ChatScreenView: View {
                     keyboard.dismiss()
                 }
                 
-                // 3. Zone de saisie (au-dessus de la barre Home)
+                // 3. Zone de saisie
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
@@ -75,7 +75,8 @@ public struct ChatScreenView: View {
                         isShowingVideoShare = true
                     }
                 )
-                .padding(.bottom, 8) // Espace de respiration au-dessus de la Home Bar
+                // 16 pt au repos pour surélever la barre au-dessus du Home Indicator, 6 pt quand le clavier est actif
+                .padding(.bottom, keyboard.isVisible ? 6 : 16)
             }
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
