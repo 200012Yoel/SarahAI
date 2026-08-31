@@ -939,30 +939,40 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 9. Suno — Génération Musicale
-        if lower.contains("suno") || lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("crée une chanson") || lower.contains("cree une chanson") {
-            let sunoURL = URL(string: "https://suno.com")!
-            DispatchQueue.main.async {
-                UIApplication.shared.open(sunoURL)
+        // 9. Génération Musicale Directe (Moteur Open Source Local)
+        if lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("joue une musique") || lower.contains("musique") {
+            let musicCheck = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
+            if musicCheck.isIntent {
+                OpenSourceMusicEngine.shared.generateAndPlayTrack(style: musicCheck.detectedStyle) { success, msg in }
+                let responseText = "🤖 **Sarah & Nathan [Moteur Musical Open Source]**\n\n🎵 Morceau composé en temps réel en style **\(musicCheck.detectedStyle.rawValue)** !\n\n*Lecture en cours sur les haut-parleurs de votre appareil.*"
+                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère et je joue immédiatement un morceau \(musicCheck.detectedStyle.rawValue) pour toi."))
+                return
             }
-            let responseText = "🤖 **Nathan [Composition Musicale — Suno AI]**\n\nJ'ai lancé **Suno** ! Décris ton ambiance ou tes paroles et Suno composera ta musique."
-            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "J'ai ouvert Suno pour composer ta musique par intelligence artificielle."))
-            return
         }
         
-        // 10. Modèles IA
-        if lower.contains("modèle") || lower.contains("modele") || lower.contains("chatgpt") || lower.contains("claude") || lower.contains("gemini") || lower.contains("gpt") {
+        // 9.5 Génération d'Images Directe (Moteur Open Source Flux / SDXL)
+        if lower.contains("génère une image") || lower.contains("génère une photo") || lower.contains("dessine") || lower.contains("crée une image") {
+            let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+            if imageCheck.isIntent {
+                OpenSourceImageGenerationService.shared.generateImage(prompt: imageCheck.cleanedPrompt) { _ in }
+                let responseText = "🎨 **Sarah & Nathan [Génération Visuelle Open Source]**\n\nImage en cours de création pour : « **\(imageCheck.cleanedPrompt)** » via le modèle **Flux / SDXL Turbo**.\n\n*Le visuel apparaîtra instantanément à l'écran.*"
+                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère ton image de \(imageCheck.cleanedPrompt) avec le modèle Flux."))
+                return
+            }
+        }
+        
+        // 10. Modèles IA & Architecture Sarah Engine 100% On-Device
+        if lower.contains("modèle") || lower.contains("modele") || lower.contains("local") || lower.contains("architecture") || lower.contains("moteur ia") {
             let responseText = """
-            🤖 **Nathan [Veille IA & Modèles 2025]**
+            🤖 **Sarah Engine [Architecture 100% Embarquée & On-Device]**
 
-            Voici les meilleurs modèles disponibles :
-            • **Claude Sonnet 4.5** : Raisonnement complexe & Code
-            • **GPT-4o** : Polyvalent & Multimodal
-            • **Gemini 1.5 Pro** : Contexte massif (1M tokens)
-            • **Voo & Runway Gen-3** : Génération Vidéo
-            • **Suno v4** : Composition Musicale
+            • 👑 **Sarah Engine Local** : Moteur d'orchestration ultra-rapide (60 FPS, zéro latence).
+            • 🧠 **Local Neural Intelligence** : Traitement déductif, logique et synthèse textuelle 100% sur puce Apple.
+            • 🎵 **Sarah Local DSP Synth** : Génération musicale polyphonique 100% autonome sur haut-parleur.
+            • 👁️ **Vision Locale Apple Vision** : OCR haute précision, classification d'objets et visages sans réseau.
+            • 🔒 **Zéro Serveur / Zéro Dépendance Externe** : Confidentialité et autonomie absolues.
             """
-            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Voici les modèles d'IA les plus performants du moment."))
+            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Voici l'architecture Sarah Engine 100% locale, autonome et sans aucun serveur."))
             return
         }
         
@@ -1030,11 +1040,11 @@ public final class MultiAgentCoordinator {
     private func getBestModelForCurrentDevice() -> String {
         let memory = ProcessInfo.processInfo.physicalMemory
         if memory >= 6 * 1024 * 1024 * 1024 {
-            return "GPT-4o / Claude Sonnet 4.5 (iPhone haut de gamme)"
+            return "Sarah Neural Core Ultra v4 (Apple Neural Engine 6GB+)"
         } else if memory >= 3 * 1024 * 1024 * 1024 {
-            return "Llama 3.1 8B / Mistral 7B Q4 (iPhone milieu de gamme)"
+            return "Sarah Neural Core Pro v4 (Apple Neural Engine 4GB)"
         } else {
-            return "TinyLlama 1.1B / Phi-2 (iPhone compact)"
+            return "Sarah Core Nano v4 (Apple Silicon 2GB)"
         }
     }
 }

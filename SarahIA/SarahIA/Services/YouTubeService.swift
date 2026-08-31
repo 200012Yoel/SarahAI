@@ -50,6 +50,11 @@ public final class YouTubeService: NSObject {
             return
         }
         
+        guard NetworkMonitor.shared.isOnline else {
+            completion([])
+            return
+        }
+        
         let encoded = cleanQuery.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? cleanQuery
         
         // 1. Recherche via Invidious / Piped Public API (Haute Fiabilité & Confidentialité)

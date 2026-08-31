@@ -64,6 +64,11 @@ public final class RedAlertService: NSObject {
     public func checkAlerts(completion: (([AlertItem]) -> Void)? = nil) {
         lastCheckDate = Date()
         
+        guard NetworkMonitor.shared.isOnline else {
+            completion?(self.activeAlerts)
+            return
+        }
+        
         // Endpoint officiel Pikoud HaOref (Front Intérieur)
         guard let url = URL(string: "https://www.oref.org.il/WarningMessages/alert/alerts.json") else {
             completion?([])

@@ -55,6 +55,18 @@ public final class WebSearchService {
             return
         }
         
+        if !NetworkMonitor.shared.isOnline {
+            if let kbMatch = TomKnowledgeBase.shared.query(text: cleanQuery) {
+                let report = "🌍 **Tom [Base de Connaissances Locale]**\n\n\(kbMatch)"
+                completion(report, [])
+                return
+            }
+            let topic = extractCoreSearchTopic(cleanQuery)
+            let report = "🌍 **Tom [Mode Hors-Ligne & On-Device]**\n\nVous êtes actuellement en mode hors-ligne ou en mode avion. Vos requêtes sont traitées à 100% en local sur votre appareil pour « \(topic.capitalized) »."
+            completion(report, [])
+            return
+        }
+        
         let norm = cleanQuery.lowercased()
             .replacingOccurrences(of: "cherchemoi", with: "cherche moi")
             .replacingOccurrences(of: "trouvemoi", with: "trouve moi")

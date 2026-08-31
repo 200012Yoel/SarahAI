@@ -169,6 +169,11 @@ public final class TranslationEngine {
             return
         }
         
+        guard NetworkMonitor.shared.isOnline else {
+            completion(clean)
+            return
+        }
+        
         // 2. Requête API distante sécurisée avec timeout 4s
         guard let encoded = clean.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=\(sourceLang)|\(targetLang.rawValue)") else {

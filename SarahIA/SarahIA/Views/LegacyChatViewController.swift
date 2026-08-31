@@ -768,13 +768,108 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             bubble.translatesAutoresizingMaskIntoConstraints = false
             bubble.layer.cornerRadius = 14
             
+            let stackView = UIStackView()
+            stackView.translatesAutoresizingMaskIntoConstraints = false
+            stackView.axis = .vertical
+            stackView.spacing = 8
+            stackView.alignment = .fill
+            bubble.addSubview(stackView)
+            
             let label = UILabel()
             label.translatesAutoresizingMaskIntoConstraints = false
             label.numberOfLines = 0
             label.font = UIFont.systemFont(ofSize: 15)
             label.textColor = .white
             label.text = msg.content
-            bubble.addSubview(label)
+            stackView.addArrangedSubview(label)
+            
+            // 1. Support Image Générée (Flux / SDXL)
+            if let imageURLStr = msg.detectedImageURL, let imgURL = URL(string: imageURLStr) {
+                let imgContainer = UIView()
+                imgContainer.translatesAutoresizingMaskIntoConstraints = false
+                imgContainer.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
+                imgContainer.layer.cornerRadius = 10
+                imgContainer.clipsToBounds = true
+                
+                let imageView = UIImageView()
+                imageView.translatesAutoresizingMaskIntoConstraints = false
+                imageView.contentMode = .scaleAspectFill
+                imageView.clipsToBounds = true
+                imgContainer.addSubview(imageView)
+                
+                NSLayoutConstraint.activate([
+                    imgContainer.heightAnchor.constraint(equalToConstant: 180),
+                    imageView.topAnchor.constraint(equalTo: imgContainer.topAnchor),
+                    imageView.bottomAnchor.constraint(equalTo: imgContainer.bottomAnchor),
+                    imageView.leadingAnchor.constraint(equalTo: imgContainer.leadingAnchor),
+                    imageView.trailingAnchor.constraint(equalTo: imgContainer.trailingAnchor)
+                ])
+                
+                DispatchQueue.global(qos: .userInitiated).async {
+                    if let data = try? Data(contentsOf: imgURL), let image = UIImage(data: data) {
+                        DispatchQueue.main.async {
+                            imageView.image = image
+                        }
+                    }
+                }
+                stackView.addArrangedSubview(imgContainer)
+            }
+            
+            // 2. Support Musique Générative Locale (OpenSourceMusicEngine)
+            if let musicStyle = msg.detectedMusicStyle {
+                let musicCard = UIView()
+                musicCard.translatesAutoresizingMaskIntoConstraints = false
+                musicCard.backgroundColor = UIColor(red: 0.10, green: 0.10, blue: 0.14, alpha: 1.0)
+                musicCard.layer.cornerRadius = 10
+                musicCard.layer.borderColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.3).cgColor
+                musicCard.layer.borderWidth = 1
+                
+                let musicTitle = UILabel()
+                musicTitle.translatesAutoresizingMaskIntoConstraints = false
+                musicTitle.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                musicTitle.textColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+                musicTitle.text = "🎵 Sarah Music Engine • \(musicStyle)"
+                musicCard.addSubview(musicTitle)
+                
+                let playBtn = UIButton(type: .system)
+                playBtn.translatesAutoresizingMaskIntoConstraints = false
+                let isCurrentPlaying = OpenSourceMusicEngine.shared.isPlaying
+                playBtn.setTitle(isCurrentPlaying ? "⏹️ Arrêter" : "▶️ Écouter le morceau", for: .normal)
+                playBtn.setTitleColor(.white, for: .normal)
+                playBtn.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+                playBtn.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.25)
+                playBtn.layer.cornerRadius = 8
+                
+                let targetStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(where: { musicStyle.contains($0.rawValue) }) ?? .lofi
+                let handler = UIActionHandler {
+                    if OpenSourceMusicEngine.shared.isPlaying {
+                        OpenSourceMusicEngine.shared.stopMusic()
+                        playBtn.setTitle("▶️ Écouter le morceau", for: .normal)
+                    } else {
+                        OpenSourceMusicEngine.shared.generateAndPlayTrack(style: targetStyle) { success, _ in
+                            DispatchQueue.main.async {
+                                playBtn.setTitle(success ? "⏹️ Arrêter" : "▶️ Écouter le morceau", for: .normal)
+                            }
+                        }
+                    }
+                }
+                objc_setAssociatedObject(playBtn, "music_handler", handler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                playBtn.addTarget(handler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+                musicCard.addSubview(playBtn)
+                
+                NSLayoutConstraint.activate([
+                    musicTitle.topAnchor.constraint(equalTo: musicCard.topAnchor, constant: 8),
+                    musicTitle.leadingAnchor.constraint(equalTo: musicCard.leadingAnchor, constant: 10),
+                    musicTitle.trailingAnchor.constraint(equalTo: musicCard.trailingAnchor, constant: -10),
+                    
+                    playBtn.topAnchor.constraint(equalTo: musicTitle.bottomAnchor, constant: 6),
+                    playBtn.leadingAnchor.constraint(equalTo: musicCard.leadingAnchor, constant: 10),
+                    playBtn.trailingAnchor.constraint(equalTo: musicCard.trailingAnchor, constant: -10),
+                    playBtn.bottomAnchor.constraint(equalTo: musicCard.bottomAnchor, constant: -8),
+                    playBtn.heightAnchor.constraint(equalToConstant: 30)
+                ])
+                stackView.addArrangedSubview(musicCard)
+            }
             
             cell.contentView.addSubview(bubble)
             
@@ -786,23 +881,27 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                     bubble.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor, constant: -4),
                     bubble.leadingAnchor.constraint(greaterThanOrEqualTo: cell.contentView.leadingAnchor, constant: 60),
                     
-                    label.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
-                    label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
-                    label.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-                    label.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12)
+                    stackView.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+                    stackView.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+                    stackView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+                    stackView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12)
                 ])
             } else {
                 bubble.backgroundColor = UIColor(white: 0.14, alpha: 1.0)
+                if msg.isVisionReport {
+                    bubble.layer.borderColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.4).cgColor
+                    bubble.layer.borderWidth = 1
+                }
                 NSLayoutConstraint.activate([
                     bubble.leadingAnchor.constraint(equalTo: cell.contentView.leadingAnchor, constant: 14),
                     bubble.topAnchor.constraint(equalTo: cell.contentView.topAnchor, constant: 4),
                     bubble.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor, constant: -4),
                     bubble.trailingAnchor.constraint(lessThanOrEqualTo: cell.contentView.trailingAnchor, constant: -60),
                     
-                    label.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
-                    label.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
-                    label.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-                    label.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12)
+                    stackView.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 8),
+                    stackView.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -8),
+                    stackView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+                    stackView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12)
                 ])
             }
             

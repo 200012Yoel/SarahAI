@@ -59,6 +59,10 @@ public final class NewsService: NSObject, XMLParserDelegate {
     // MARK: - Récupération des Actualités
     
     public func fetchLatestNews(source: NewsSource = .i24news, limit: Int = 4, completion: @escaping ([NewsArticle]) -> Void) {
+        guard NetworkMonitor.shared.isOnline else {
+            completion([])
+            return
+        }
         let urls = source.feedURLs
         fetchFromURLs(urls, index: 0, source: source.rawValue, limit: limit, completion: completion)
     }

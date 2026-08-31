@@ -11,7 +11,7 @@ import Combine
 /// Moniteur Réseau Universel et Résilient (iOS 12.0+ à iOS 18.0+) :
 /// - Détecte instantanément les transitions En-Ligne ⇄ Hors-Ligne
 /// - Utilise NWPathMonitor sur iOS 13+ et SCNetworkReachability sur iOS 12
-/// - Permet de basculer du Cloud OpenAI vers le moteur local hors-ligne en 0ms sans latence
+/// - Maintient l'état réseau passif pour optimiser les performances du moteur local Sarah Engine en 0ms sans latence
 public final class NetworkMonitor: NSObject {
     
     public static let shared = NetworkMonitor()

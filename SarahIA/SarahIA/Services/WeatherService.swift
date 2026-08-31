@@ -91,6 +91,11 @@ public final class WeatherService: NSObject, CLLocationManagerDelegate {
     
     /// Récupère la météo actuelle pour la position actuelle ou une ville spécifique
     public func fetchWeather(for cityQuery: String? = nil, completion: @escaping (WeatherInfo?) -> Void) {
+        guard NetworkMonitor.shared.isOnline else {
+            completion(nil)
+            return
+        }
+        
         if let city = cityQuery, !city.isEmpty {
             // Recherche par nom de ville
             let geocoder = CLGeocoder()

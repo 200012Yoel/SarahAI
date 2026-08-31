@@ -111,6 +111,11 @@ public final class IsraelAlertService: NSObject {
     // MARK: - Interrogation Directe des Alertes Officielles
     
     public func checkOfficialAlerts(completion: (([AlertEvent]) -> Void)? = nil) {
+        guard NetworkMonitor.shared.isOnline else {
+            completion?(self.activeAlerts)
+            return
+        }
+        
         guard let url = URL(string: "https://www.oref.org.il/WarningMessages/alert/alerts.json") else {
             completion?([])
             return

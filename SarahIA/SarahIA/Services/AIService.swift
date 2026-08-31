@@ -24,7 +24,6 @@ public final class AIService {
     
     private let storage = StorageService.shared
     private let device = DeviceController.shared
-    private let openAI = OpenAIService.shared
     private let translation = TranslationEngine.shared
     
     // App Group pour le partage en temps réel avec les Widgets
@@ -133,6 +132,24 @@ public final class AIService {
         if let contextualActionResponse = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
             recordExchange(userText: trimmed, assistantResponse: contextualActionResponse)
             return contextualActionResponse
+        }
+        
+        // 1.1 GÉNÉRATION MUSICALE OPEN SOURCE & LOCALE (AVAudioEngine)
+        let musicCheck = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
+        if musicCheck.isIntent {
+            OpenSourceMusicEngine.shared.generateAndPlayTrack(style: musicCheck.detectedStyle) { _, _ in }
+            let reply = "🎵 Je compose et je lance immédiatement un morceau en style **\(musicCheck.detectedStyle.rawValue)** pour vous !"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
+        }
+        
+        // 1.2 GÉNÉRATION D'IMAGES & PHOTOS OPEN SOURCE (Flux / SDXL Turbo)
+        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        if imageCheck.isIntent {
+            OpenSourceImageGenerationService.shared.generateImage(prompt: imageCheck.cleanedPrompt) { _ in }
+            let reply = "🎨 Je génère votre image de « **\(imageCheck.cleanedPrompt)** » avec le modèle open source Flux. Elle s'affiche dans un instant !"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
         
         var state = storage.loadState()
@@ -372,18 +389,19 @@ public final class AIService {
             return syncResponse
         }
         
-        // 5. OpenAI si configuré et disponible
+        // 8. MOTEUR NEURONAL EMBARQUÉ 100% LOCAL (Apple Silicon & Neural Engine - Zéro Serveur)
         let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
-        if openAI.isConfigured {
-            do {
-                let promptWithContext = pastContext != nil ? "\(trimmed) (Contexte récent : \(pastContext!))" : trimmed
-                let aiResponse = try await openAI.ask(prompt: promptWithContext)
-                SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: aiResponse, topicType: "conversation")
-                recordExchange(userText: trimmed, assistantResponse: aiResponse)
-                return aiResponse
-            } catch {
-                print("⚠️ [AIService] OpenAI indisponible, tentative recherche web ou moteur local.")
+        let localNeuralResult = await withCheckedContinuation { continuation in
+            var history: [String] = []
+            if let ctx = pastContext { history.append(ctx) }
+            LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { result in
+                continuation.resume(returning: result.text)
             }
+        }
+        if !localNeuralResult.isEmpty {
+            SemanticMemoryIndex.shared.indexExchange(userText: trimmed, assistantText: localNeuralResult, topicType: "local_neural")
+            recordExchange(userText: trimmed, assistantResponse: localNeuralResult)
+            return localNeuralResult
         }
         
         // 6. Fallback vers Recherche Web si requête inconnue et connexion active

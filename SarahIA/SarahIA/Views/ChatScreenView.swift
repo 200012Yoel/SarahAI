@@ -103,6 +103,15 @@ public struct ChatScreenView: View {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
+                    .default(Text("🎨 Générer une Image HD (Flux.1 Open Source)")) {
+                        viewModel.inputText = "Génère une photo de "
+                    },
+                    .default(Text("🎵 Composer une Musique 100% Locale (DSP)")) {
+                        viewModel.inputText = "Génère une musique lo-fi"
+                    },
+                    .default(Text("👁️ Vision & Analyse Multimodale (OCR)")) {
+                        viewModel.inputText = "Analyse cette photo et décris ce que tu vois"
+                    },
                     .default(Text("💬 Nathan — Statut & Vidéo WhatsApp")) {
                         viewModel.activeAgent = .nathan
                         viewModel.sendMessage("Nathan, je veux mettre une vidéo sur mon statut WhatsApp")
