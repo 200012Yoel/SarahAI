@@ -13,41 +13,38 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = min(geo.size.width * 0.82, 330)
+            let sidebarWidth: CGFloat = 280
             
             ZStack(alignment: .leading) {
-                // 1. ÉCRAN PRINCIPAL : Chat Screen (Plein écran stable)
+                // Vue Principale (Chat)
                 ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .disabled(viewModel.isDrawerOpen)
                 
-                // 2. VOILE D'OBSCURCISSEMENT au-dessus du chat lors de l'ouverture du tiroir
-                if viewModel.drawerProgress > 0.001 {
+                // Overlay sombre + Menu latéral
+                if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
                     Color.black
-                        .opacity(Double(viewModel.drawerProgress) * 0.60)
+                        .opacity(Double(viewModel.drawerProgress > 0.001 ? viewModel.drawerProgress : (viewModel.isDrawerOpen ? 1.0 : 0.0)) * 0.40)
                         .ignoresSafeArea()
                         .onTapGesture {
                             withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
                                 viewModel.closeDrawer()
                             }
                         }
+                    
+                    SidebarView(
+                        viewModel: viewModel,
+                        isShowingSettings: $isShowingSettings
+                    )
+                    .frame(maxWidth: sidebarWidth, maxHeight: .infinity)
+                    .background(Color(white: 0.12))
+                    .ignoresSafeArea(.all, edges: [.top, .bottom])
+                    .offset(x: (viewModel.drawerProgress > 0.001 ? viewModel.drawerProgress - 1.0 : (viewModel.isDrawerOpen ? 0.0 : -1.0)) * sidebarWidth)
+                    .transition(.move(edge: .leading))
+                    .zIndex(1)
                 }
-                
-                // 3. MENU LATÉRAL (Sidebar) : Glisse en superposition depuis la gauche
-                SidebarView(
-                    viewModel: viewModel,
-                    isShowingSettings: $isShowingSettings
-                )
-                .frame(width: sidebarWidth, height: geo.size.height)
-                .offset(x: (viewModel.drawerProgress - 1.0) * sidebarWidth)
-                .shadow(
-                    color: Color.black.opacity(viewModel.drawerProgress > 0.01 ? 0.65 : 0.0),
-                    radius: 20,
-                    x: 6,
-                    y: 0
-                )
             }
-            .frame(width: geo.size.width, height: geo.size.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
             // Geste universel de glissement pour ouvrir (gauche -> droite) et fermer (droite -> gauche)
             .highPriorityGesture(
@@ -86,7 +83,6 @@ public struct ContentView: View {
                             }
                         }
                     }
-            )
         }
         // Feuille de Paramètres Native (#sheet)
         .sheet(isPresented: $isShowingSettings) {

@@ -40,8 +40,8 @@ public struct MessageBar: View {
     }
     
     public var body: some View {
-        VStack(spacing: 6) {
-            // 1. Raccourcis Rapides (Shortcuts)
+        VStack(spacing: 8) {
+            // 1. Boutons d'actions rapides (Shortcuts)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     // Allume la torche
@@ -87,8 +87,22 @@ public struct MessageBar: View {
                 .padding(.horizontal, 16)
             }
             
-            // 2. Barre de Saisie Principale (Sans le bouton +, champ de saisie direct + micro + bouton d'action)
-            HStack(spacing: 8) {
+            // 2. Barre de Saisie
+            HStack(spacing: 12) {
+                // Bouton Plus ＋
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    onPlusTapped?()
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 44, height: 44)
+                .background(Color(white: 0.15))
+                .clipShape(Circle())
+                .buttonStyle(ScaleBounceButtonStyle())
+                
                 // Champ texte avec Micro intégré
                 HStack(spacing: 8) {
                     TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
@@ -107,10 +121,10 @@ public struct MessageBar: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 42)
+                .padding(.horizontal, 16)
+                .frame(height: 48)
                 .background(Color(white: 0.15))
-                .cornerRadius(21)
+                .cornerRadius(24)
                 
                 // Bouton Waveform / Envoi
                 let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -125,16 +139,16 @@ public struct MessageBar: View {
                     Image(systemName: hasText ? "arrow.up" : "waveform")
                         .font(.system(size: 18, weight: hasText ? .bold : .regular))
                         .foregroundColor(.white)
-                        .frame(width: 42, height: 42)
-                        .background(hasText ? Color.blue : Color(white: 0.15))
-                        .clipShape(Circle())
                 }
+                .frame(width: 44, height: 44)
+                .background(hasText ? Color.blue : Color(white: 0.15))
+                .clipShape(Circle())
                 .buttonStyle(ScaleBounceButtonStyle())
             }
             .padding(.horizontal, 16)
         }
         .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.bottom, 4)
         .background(Color.black.ignoresSafeArea(edges: .bottom))
     }
     
