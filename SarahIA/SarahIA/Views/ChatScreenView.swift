@@ -18,76 +18,65 @@ public struct ChatScreenView: View {
     }
     
     public var body: some View {
-        GeometryReader { geometry in
-            let windowTop: CGFloat = {
-                if #available(iOS 13.0, *) {
-                    return UIApplication.shared.connectedScenes
-                        .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                        .first?.safeAreaInsets.top ?? 47
-                }
-                return 20
-            }()
-            let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
+        ZStack {
+            // Fond plein écran (le seul à ignorer les marges)
+            Color.black
+                .ignoresSafeArea()
             
-            ZStack {
-                Color.black.ignoresSafeArea()
+            VStack(spacing: 0) {
+                // 1. En-tête (TopBar)
+                topBar
+                    .padding(.bottom, 6)
                 
-                VStack(spacing: 0) {
-                    // 1. HEADER (Haut fixe calé sous la barre de statut / Dynamic Island)
-                    topBar
-                        .padding(.top, topPadding)
-                        .padding(.bottom, 6)
-                    
-                    // 2. ZONE DE MESSAGES SCROLLABLE
-                    MessageList(
-                        messages: viewModel.messages,
-                        isTyping: viewModel.isTyping,
-                        isKeyboardVisible: keyboard.isVisible,
-                        onToggleSpeech: { message in
-                            viewModel.toggleSpeechForMessage(message.content)
-                        },
-                        onSelectSuggestion: { suggestionText in
-                            viewModel.sendMessage(suggestionText)
-                        },
-                        onIntroduceSarah: {
-                            viewModel.introduceSarah()
-                        },
-                        onDismissKeyboard: {
-                            keyboard.dismiss()
-                        }
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                // 2. Liste des messages (ScrollView)
+                MessageList(
+                    messages: viewModel.messages,
+                    isTyping: viewModel.isTyping,
+                    isKeyboardVisible: keyboard.isVisible,
+                    onToggleSpeech: { message in
+                        viewModel.toggleSpeechForMessage(message.content)
+                    },
+                    onSelectSuggestion: { suggestionText in
+                        viewModel.sendMessage(suggestionText)
+                    },
+                    onIntroduceSarah: {
+                        viewModel.introduceSarah()
+                    },
+                    onDismissKeyboard: {
                         keyboard.dismiss()
                     }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    keyboard.dismiss()
                 }
-                .safeAreaInset(edge: .bottom) {
-                    MessageBar(
-                        text: $viewModel.inputText,
-                        activeAgent: $viewModel.activeAgent,
-                        isRecording: viewModel.isMicRunning,
-                        onSend: { text in
-                            viewModel.sendMessage(text)
-                        },
-                        onToggleMic: {
-                            viewModel.toggleMicrophone()
-                        },
-                        onOpenVoiceOrb: {
-                            viewModel.isShowingVoiceOrbModal = true
-                        },
-                        onOpenVAICoding: {
-                            viewModel.isShowingVAICodingStudio = true
-                        },
-                        onPlusTapped: {
-                            isShowingActionSheet = true
-                        },
-                        onShareVideo: {
-                            isShowingVideoShare = true
-                        }
-                    )
-                }
+                
+                // 3. Zone de saisie (au-dessus de la barre Home)
+                MessageBar(
+                    text: $viewModel.inputText,
+                    activeAgent: $viewModel.activeAgent,
+                    isRecording: viewModel.isMicRunning,
+                    onSend: { text in
+                        viewModel.sendMessage(text)
+                    },
+                    onToggleMic: {
+                        viewModel.toggleMicrophone()
+                    },
+                    onOpenVoiceOrb: {
+                        viewModel.isShowingVoiceOrbModal = true
+                    },
+                    onOpenVAICoding: {
+                        viewModel.isShowingVAICodingStudio = true
+                    },
+                    onPlusTapped: {
+                        isShowingActionSheet = true
+                    },
+                    onShareVideo: {
+                        isShowingVideoShare = true
+                    }
+                )
+                .padding(.bottom, 8) // Espace de respiration au-dessus de la Home Bar
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)
