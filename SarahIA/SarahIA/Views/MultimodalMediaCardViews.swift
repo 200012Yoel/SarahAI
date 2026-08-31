@@ -346,7 +346,7 @@ public struct VisionReportCardView: View {
                 
                 Button(action: {
                     UIPasteboard.general.string = messageContent
-                    HapticService.shared.triggerNotificationSuccess()
+                    HapticService.shared.notificationSuccess()
                     isCopied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                         isCopied = false

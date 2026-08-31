@@ -62,8 +62,16 @@ public final class HapticService {
         notificationGenerator.notificationOccurred(.success)
     }
     
+    public func triggerNotificationSuccess() {
+        notificationSuccess()
+    }
+    
     /// Retour tactile d'erreur de notification
     public func notificationError() {
         notificationGenerator.notificationOccurred(.error)
+    }
+    
+    public func triggerNotificationError() {
+        notificationError()
     }
 }
