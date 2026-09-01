@@ -64,6 +64,50 @@ public struct Message: Identifiable, Equatable, Codable {
         return content.contains("Éléments identifiés") || content.contains("Texte extrait (OCR)") || content.contains("Visages détectés")
     }
     
+    /// Détecte si le message contient du code HTML (balises <html>, <!DOCTYPE html>, ou bloc de code ```html ... ```)
+    public var detectedHTMLCode: String? {
+        // 1. Détection bloc de code markdown avec balise explicite ```html
+        if content.contains("```html") {
+            let parts = content.components(separatedBy: "```html")
+            if parts.count > 1 {
+                let codePart = parts[1].components(separatedBy: "```").first ?? ""
+                let trimmed = codePart.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+        }
+        // 2. Détection bloc markdown générique ``` contenant du HTML
+        if content.contains("```") {
+            let parts = content.components(separatedBy: "```")
+            for i in stride(from: 1, to: parts.count, by: 2) {
+                var chunk = parts[i].trimmingCharacters(in: .whitespacesAndNewlines)
+                if chunk.hasPrefix("html\n") || chunk.hasPrefix("xml\n") {
+                    let lines = chunk.components(separatedBy: "\n")
+                    chunk = lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let lowerChunk = chunk.lowercased()
+                if lowerChunk.contains("<!doctype html") ||
+                    (lowerChunk.contains("<html") && lowerChunk.contains("</html>")) ||
+                    (lowerChunk.contains("<head") && lowerChunk.contains("<body")) ||
+                    (lowerChunk.contains("<div") && lowerChunk.contains("</div>") && (lowerChunk.contains("<style") || lowerChunk.contains("<script") || lowerChunk.contains("class="))) {
+                    return chunk
+                }
+            }
+        }
+        // 3. Détection HTML brut directement dans le corps du texte
+        let lower = content.lowercased()
+        if lower.contains("<!doctype html") ||
+            (lower.contains("<html") && lower.contains("</html>")) ||
+            (lower.contains("<head") && lower.contains("<body") && lower.contains("</body>")) {
+            return content.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
+    }
+    
+    /// Vrai si le message contient du code HTML interactif à prévisualiser
+    public var isHTMLCode: Bool {
+        return detectedHTMLCode != nil
+    }
+    
     /// Formate l'heure du message pour l'affichage (ex: "14:32")
     public var formattedTime: String {
         let formatter = DateFormatter()

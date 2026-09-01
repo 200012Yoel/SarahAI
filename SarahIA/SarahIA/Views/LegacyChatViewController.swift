@@ -909,6 +909,127 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 stackView.addArrangedSubview(musicCard)
             }
             
+            // 3. Support Détection Code HTML & Rendu iPhone Virtuel / WebView
+            if let htmlCode = msg.detectedHTMLCode {
+                let htmlCard = UIView()
+                htmlCard.translatesAutoresizingMaskIntoConstraints = false
+                htmlCard.backgroundColor = UIColor(red: 0.09, green: 0.10, blue: 0.14, alpha: 1.0)
+                htmlCard.layer.cornerRadius = 12
+                htmlCard.layer.borderColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.35).cgColor
+                htmlCard.layer.borderWidth = 1.2
+                
+                let cardStack = UIStackView()
+                cardStack.translatesAutoresizingMaskIntoConstraints = false
+                cardStack.axis = .vertical
+                cardStack.spacing = 8
+                htmlCard.addSubview(cardStack)
+                
+                // En-tête
+                let hRow = UIView()
+                hRow.translatesAutoresizingMaskIntoConstraints = false
+                let iconLbl = UILabel()
+                iconLbl.translatesAutoresizingMaskIntoConstraints = false
+                iconLbl.text = "🌐"
+                iconLbl.font = UIFont.systemFont(ofSize: 14)
+                hRow.addSubview(iconLbl)
+                
+                let titleLbl = UILabel()
+                titleLbl.translatesAutoresizingMaskIntoConstraints = false
+                titleLbl.text = "Code HTML & Web Détecté"
+                titleLbl.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+                titleLbl.textColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+                hRow.addSubview(titleLbl)
+                
+                let copyBtn = UIButton(type: .system)
+                copyBtn.translatesAutoresizingMaskIntoConstraints = false
+                copyBtn.setTitle("Copier", for: .normal)
+                copyBtn.setTitleColor(.white, for: .normal)
+                copyBtn.titleLabel?.font = UIFont.systemFont(ofSize: 10, weight: .bold)
+                copyBtn.backgroundColor = UIColor(white: 0.20, alpha: 1.0)
+                copyBtn.layer.cornerRadius = 6
+                let copyHandler = UIActionHandler {
+                    UIPasteboard.general.string = htmlCode
+                    HapticService.shared.notificationSuccess()
+                    copyBtn.setTitle("Copié !", for: .normal)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        copyBtn.setTitle("Copier", for: .normal)
+                    }
+                }
+                objc_setAssociatedObject(copyBtn, "copy_h", copyHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                copyBtn.addTarget(copyHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+                hRow.addSubview(copyBtn)
+                
+                NSLayoutConstraint.activate([
+                    iconLbl.leadingAnchor.constraint(equalTo: hRow.leadingAnchor),
+                    iconLbl.centerYAnchor.constraint(equalTo: hRow.centerYAnchor),
+                    
+                    titleLbl.leadingAnchor.constraint(equalTo: iconLbl.trailingAnchor, constant: 6),
+                    titleLbl.centerYAnchor.constraint(equalTo: hRow.centerYAnchor),
+                    
+                    copyBtn.trailingAnchor.constraint(equalTo: hRow.trailingAnchor),
+                    copyBtn.centerYAnchor.constraint(equalTo: hRow.centerYAnchor),
+                    copyBtn.widthAnchor.constraint(equalToConstant: 50),
+                    copyBtn.heightAnchor.constraint(equalToConstant: 22),
+                    hRow.heightAnchor.constraint(equalToConstant: 24)
+                ])
+                cardStack.addArrangedSubview(hRow)
+                
+                // Question de Sarah
+                let questionLbl = UILabel()
+                questionLbl.text = "Veux-tu que j'ouvre ce rendu dans le Simulateur iPhone Virtuel ou dans la WebView standard ?"
+                questionLbl.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+                questionLbl.textColor = UIColor(white: 0.90, alpha: 1.0)
+                questionLbl.numberOfLines = 0
+                cardStack.addArrangedSubview(questionLbl)
+                
+                // Bouton 1 : Ouvrir dans l'iPhone Virtuel
+                let iphoneBtn = UIButton(type: .system)
+                iphoneBtn.translatesAutoresizingMaskIntoConstraints = false
+                iphoneBtn.setTitle("📱  Ouvrir dans l'iPhone Virtuel", for: .normal)
+                iphoneBtn.setTitleColor(.white, for: .normal)
+                iphoneBtn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+                iphoneBtn.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.90)
+                iphoneBtn.layer.cornerRadius = 8
+                let iphoneHandler = UIActionHandler { [weak self] in
+                    guard let self = self else { return }
+                    HapticService.shared.buttonTap()
+                    let previewVC = LegacyVirtualIPhoneViewController(htmlContent: htmlCode, initialMode: .virtualIPhone)
+                    self.present(previewVC, animated: true, completion: nil)
+                }
+                objc_setAssociatedObject(iphoneBtn, "iphone_h", iphoneHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                iphoneBtn.addTarget(iphoneHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+                iphoneBtn.heightAnchor.constraint(equalToConstant: 34).isActive = true
+                cardStack.addArrangedSubview(iphoneBtn)
+                
+                // Bouton 2 : Ouvrir dans la WebView
+                let webBtn = UIButton(type: .system)
+                webBtn.translatesAutoresizingMaskIntoConstraints = false
+                webBtn.setTitle("🌐  Ouvrir dans le WebView", for: .normal)
+                webBtn.setTitleColor(.white, for: .normal)
+                webBtn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+                webBtn.backgroundColor = UIColor(white: 0.18, alpha: 1.0)
+                webBtn.layer.cornerRadius = 8
+                let webHandler = UIActionHandler { [weak self] in
+                    guard let self = self else { return }
+                    HapticService.shared.buttonTap()
+                    let previewVC = LegacyVirtualIPhoneViewController(htmlContent: htmlCode, initialMode: .standardWebView)
+                    self.present(previewVC, animated: true, completion: nil)
+                }
+                objc_setAssociatedObject(webBtn, "web_h", webHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                webBtn.addTarget(webHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+                webBtn.heightAnchor.constraint(equalToConstant: 32).isActive = true
+                cardStack.addArrangedSubview(webBtn)
+                
+                NSLayoutConstraint.activate([
+                    cardStack.topAnchor.constraint(equalTo: htmlCard.topAnchor, constant: 10),
+                    cardStack.leadingAnchor.constraint(equalTo: htmlCard.leadingAnchor, constant: 10),
+                    cardStack.trailingAnchor.constraint(equalTo: htmlCard.trailingAnchor, constant: -10),
+                    cardStack.bottomAnchor.constraint(equalTo: htmlCard.bottomAnchor, constant: -10)
+                ])
+                
+                stackView.addArrangedSubview(htmlCard)
+            }
+            
             cell.contentView.addSubview(bubble)
             
             if msg.isFromUser {
@@ -1702,5 +1823,268 @@ private final class UIActionHandler: NSObject {
     }
     @objc func invoke() {
         action()
+    }
+}
+
+// MARK: - Contrôleur UIKit du Simulateur iPhone Virtuel & Plein Écran WebView
+
+public final class LegacyVirtualIPhoneViewController: UIViewController {
+    
+    public enum DisplayMode {
+        case virtualIPhone
+        case standardWebView
+    }
+    
+    private let rawHTML: String
+    private var currentMode: DisplayMode
+    
+    private let topBar = UIView()
+    private let closeButton = UIButton(type: .system)
+    private let modeSegment = UISegmentedControl(items: ["📱 iPhone Virtuel", "🌐 Plein Écran"])
+    private let shareButton = UIButton(type: .system)
+    
+    private let iphoneFrame = UIView()
+    private let iphoneScreen = UIView()
+    private let dynamicIslandPill = UIView()
+    private let safariBar = UIView()
+    private let homeBar = UIView()
+    
+    private var webView: WKWebView!
+    
+    public init(htmlContent: String, initialMode: DisplayMode = .virtualIPhone) {
+        self.rawHTML = htmlContent
+        self.currentMode = initialMode
+        super.init(nibName: nil, bundle: nil)
+        self.modalPresentationStyle = .fullScreen
+    }
+    
+    required init?(coder: NSCoder) {
+        self.rawHTML = ""
+        self.currentMode = .virtualIPhone
+        super.init(coder: coder)
+    }
+    
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.07, alpha: 1.0)
+        setupTopBar()
+        setupWebView()
+        setupIPhoneFrame()
+        updateLayoutForMode()
+    }
+    
+    private func setupTopBar() {
+        topBar.translatesAutoresizingMaskIntoConstraints = false
+        topBar.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        view.addSubview(topBar)
+        
+        closeButton.translatesAutoresizingMaskIntoConstraints = false
+        closeButton.setTitle("✕", for: .normal)
+        closeButton.setTitleColor(.white, for: .normal)
+        closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .bold)
+        closeButton.backgroundColor = UIColor(white: 0.18, alpha: 1.0)
+        closeButton.layer.cornerRadius = 16
+        closeButton.addTarget(self, action: #selector(dismissModal), for: .touchUpInside)
+        topBar.addSubview(closeButton)
+        
+        modeSegment.translatesAutoresizingMaskIntoConstraints = false
+        modeSegment.selectedSegmentIndex = (currentMode == .virtualIPhone) ? 0 : 1
+        modeSegment.addTarget(self, action: #selector(modeChanged(_:)), for: .valueChanged)
+        topBar.addSubview(modeSegment)
+        
+        shareButton.translatesAutoresizingMaskIntoConstraints = false
+        shareButton.setTitle("📤", for: .normal)
+        shareButton.titleLabel?.font = UIFont.systemFont(ofSize: 15)
+        shareButton.backgroundColor = UIColor(white: 0.18, alpha: 1.0)
+        shareButton.layer.cornerRadius = 16
+        shareButton.addTarget(self, action: #selector(shareContent), for: .touchUpInside)
+        topBar.addSubview(shareButton)
+        
+        NSLayoutConstraint.activate([
+            topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topBar.heightAnchor.constraint(equalToConstant: 48),
+            
+            closeButton.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 14),
+            closeButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            closeButton.widthAnchor.constraint(equalToConstant: 32),
+            closeButton.heightAnchor.constraint(equalToConstant: 32),
+            
+            modeSegment.centerXAnchor.constraint(equalTo: topBar.centerXAnchor),
+            modeSegment.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            modeSegment.widthAnchor.constraint(equalToConstant: 240),
+            
+            shareButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -14),
+            shareButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            shareButton.widthAnchor.constraint(equalToConstant: 32),
+            shareButton.heightAnchor.constraint(equalToConstant: 32)
+        ])
+    }
+    
+    private func setupWebView() {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        
+        webView = WKWebView(frame: .zero, configuration: config)
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.isOpaque = false
+        webView.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.07, alpha: 1.0)
+        webView.scrollView.bounces = true
+        
+        let optimized = HTMLAdaptiveViewportOptimizer.optimizeHTMLForIPhoneScreen(html: rawHTML)
+        webView.loadHTMLString(optimized, baseURL: nil)
+    }
+    
+    private func setupIPhoneFrame() {
+        iphoneFrame.translatesAutoresizingMaskIntoConstraints = false
+        iphoneFrame.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+        iphoneFrame.layer.cornerRadius = 38
+        iphoneFrame.layer.borderColor = UIColor(white: 0.28, alpha: 1.0).cgColor
+        iphoneFrame.layer.borderWidth = 3.0
+        iphoneFrame.clipsToBounds = true
+        view.addSubview(iphoneFrame)
+        
+        iphoneScreen.translatesAutoresizingMaskIntoConstraints = false
+        iphoneScreen.backgroundColor = UIColor(red: 0.06, green: 0.06, blue: 0.08, alpha: 1.0)
+        iphoneScreen.layer.cornerRadius = 32
+        iphoneScreen.clipsToBounds = true
+        iphoneFrame.addSubview(iphoneScreen)
+        
+        // Status & Dynamic Island
+        let statusBar = UIView()
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
+        statusBar.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1.0)
+        iphoneScreen.addSubview(statusBar)
+        
+        let timeLbl = UILabel()
+        timeLbl.translatesAutoresizingMaskIntoConstraints = false
+        timeLbl.text = "9:41"
+        timeLbl.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+        timeLbl.textColor = .white
+        statusBar.addSubview(timeLbl)
+        
+        dynamicIslandPill.translatesAutoresizingMaskIntoConstraints = false
+        dynamicIslandPill.backgroundColor = .black
+        dynamicIslandPill.layer.cornerRadius = 11
+        let diLabel = UILabel()
+        diLabel.translatesAutoresizingMaskIntoConstraints = false
+        diLabel.text = "● Sarah Web"
+        diLabel.font = UIFont.systemFont(ofSize: 9, weight: .bold)
+        diLabel.textColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        dynamicIslandPill.addSubview(diLabel)
+        statusBar.addSubview(dynamicIslandPill)
+        
+        // Safari Bar
+        safariBar.translatesAutoresizingMaskIntoConstraints = false
+        safariBar.backgroundColor = UIColor(white: 0.14, alpha: 1.0)
+        safariBar.layer.cornerRadius = 7
+        
+        let lockLbl = UILabel()
+        lockLbl.translatesAutoresizingMaskIntoConstraints = false
+        lockLbl.text = "🔒 sarah.local / app.html"
+        lockLbl.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .medium)
+        lockLbl.textColor = UIColor(white: 0.85, alpha: 1.0)
+        safariBar.addSubview(lockLbl)
+        iphoneScreen.addSubview(safariBar)
+        
+        // Home Bar
+        let homeContainer = UIView()
+        homeContainer.translatesAutoresizingMaskIntoConstraints = false
+        homeContainer.backgroundColor = UIColor(red: 0.07, green: 0.07, blue: 0.09, alpha: 1.0)
+        
+        homeBar.translatesAutoresizingMaskIntoConstraints = false
+        homeBar.backgroundColor = UIColor(white: 1.0, alpha: 0.60)
+        homeBar.layer.cornerRadius = 2
+        homeContainer.addSubview(homeBar)
+        iphoneScreen.addSubview(homeContainer)
+        
+        NSLayoutConstraint.activate([
+            iphoneScreen.topAnchor.constraint(equalTo: iphoneFrame.topAnchor, constant: 5),
+            iphoneScreen.leadingAnchor.constraint(equalTo: iphoneFrame.leadingAnchor, constant: 5),
+            iphoneScreen.trailingAnchor.constraint(equalTo: iphoneFrame.trailingAnchor, constant: -5),
+            iphoneScreen.bottomAnchor.constraint(equalTo: iphoneFrame.bottomAnchor, constant: -5),
+            
+            statusBar.topAnchor.constraint(equalTo: iphoneScreen.topAnchor),
+            statusBar.leadingAnchor.constraint(equalTo: iphoneScreen.leadingAnchor),
+            statusBar.trailingAnchor.constraint(equalTo: iphoneScreen.trailingAnchor),
+            statusBar.heightAnchor.constraint(equalToConstant: 34),
+            
+            timeLbl.leadingAnchor.constraint(equalTo: statusBar.leadingAnchor, constant: 18),
+            timeLbl.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+            
+            dynamicIslandPill.centerXAnchor.constraint(equalTo: statusBar.centerXAnchor),
+            dynamicIslandPill.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+            dynamicIslandPill.widthAnchor.constraint(equalToConstant: 90),
+            dynamicIslandPill.heightAnchor.constraint(equalToConstant: 22),
+            
+            diLabel.centerXAnchor.constraint(equalTo: dynamicIslandPill.centerXAnchor),
+            diLabel.centerYAnchor.constraint(equalTo: dynamicIslandPill.centerYAnchor),
+            
+            safariBar.topAnchor.constraint(equalTo: statusBar.bottomAnchor, constant: 2),
+            safariBar.leadingAnchor.constraint(equalTo: iphoneScreen.leadingAnchor, constant: 10),
+            safariBar.trailingAnchor.constraint(equalTo: iphoneScreen.trailingAnchor, constant: -10),
+            safariBar.heightAnchor.constraint(equalToConstant: 24),
+            
+            lockLbl.centerXAnchor.constraint(equalTo: safariBar.centerXAnchor),
+            lockLbl.centerYAnchor.constraint(equalTo: safariBar.centerYAnchor),
+            
+            homeContainer.leadingAnchor.constraint(equalTo: iphoneScreen.leadingAnchor),
+            homeContainer.trailingAnchor.constraint(equalTo: iphoneScreen.trailingAnchor),
+            homeContainer.bottomAnchor.constraint(equalTo: iphoneScreen.bottomAnchor),
+            homeContainer.heightAnchor.constraint(equalToConstant: 16),
+            
+            homeBar.centerXAnchor.constraint(equalTo: homeContainer.centerXAnchor),
+            homeBar.centerYAnchor.constraint(equalTo: homeContainer.centerYAnchor),
+            homeBar.widthAnchor.constraint(equalToConstant: 100),
+            homeBar.heightAnchor.constraint(equalToConstant: 3)
+        ])
+    }
+    
+    private func updateLayoutForMode() {
+        webView.removeFromSuperview()
+        
+        if currentMode == .virtualIPhone {
+            iphoneFrame.isHidden = false
+            iphoneScreen.addSubview(webView)
+            
+            NSLayoutConstraint.activate([
+                iphoneFrame.topAnchor.constraint(equalTo: topBar.bottomAnchor, constant: 10),
+                iphoneFrame.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                iphoneFrame.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
+                iphoneFrame.widthAnchor.constraint(equalTo: iphoneFrame.heightAnchor, multiplier: 390.0 / 844.0),
+                
+                webView.topAnchor.constraint(equalTo: safariBar.bottomAnchor, constant: 2),
+                webView.leadingAnchor.constraint(equalTo: iphoneScreen.leadingAnchor),
+                webView.trailingAnchor.constraint(equalTo: iphoneScreen.trailingAnchor),
+                webView.bottomAnchor.constraint(equalTo: iphoneScreen.subviews.last!.topAnchor)
+            ])
+        } else {
+            iphoneFrame.isHidden = true
+            view.addSubview(webView)
+            
+            NSLayoutConstraint.activate([
+                webView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
+                webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            ])
+        }
+    }
+    
+    @objc private func modeChanged(_ sender: UISegmentedControl) {
+        HapticService.shared.buttonTap()
+        currentMode = (sender.selectedSegmentIndex == 0) ? .virtualIPhone : .standardWebView
+        updateLayoutForMode()
+    }
+    
+    @objc private func shareContent() {
+        let av = UIActivityViewController(activityItems: [rawHTML], applicationActivities: nil)
+        present(av, animated: true, completion: nil)
+    }
+    
+    @objc private func dismissModal() {
+        dismiss(animated: true, completion: nil)
     }
 }

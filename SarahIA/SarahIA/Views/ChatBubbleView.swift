@@ -139,6 +139,12 @@ public struct ChatBubbleView: View {
                         .frame(maxWidth: 280)
                 }
                 
+                // Carte Interactive de Détection HTML (iPhone Virtuel vs WebView)
+                if let htmlCode = message.detectedHTMLCode {
+                    HTMLPreviewPromptCardView(htmlContent: htmlCode)
+                        .frame(maxWidth: 290)
+                }
+                
                 // Carte d'alerte interactive HTML / Map (si présente)
                 if let alert = message.alertEvent {
                     AlertCardSwiftUIView(alert: alert)
