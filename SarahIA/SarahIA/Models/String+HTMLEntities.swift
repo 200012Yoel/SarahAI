@@ -43,26 +43,32 @@ extension String {
         
         // 1. Décodage des entités hexadécimales (ex: &#xF4;, &#xE0;, &#x27;)
         if let regexHex = try? NSRegularExpression(pattern: "&#x([0-9a-fA-F]+);", options: []) {
-            let matches = regexHex.matches(in: result, options: [], range: NSRange(location: 0, length: result.utf16.count))
+            let nsStr = result as NSString
+            let matches = regexHex.matches(in: result, options: [], range: NSRange(location: 0, length: nsStr.length))
             for match in matches.reversed() {
-                if let r = Range(match.range(at: 1), in: result),
-                   let fullRange = Range(match.range, in: result),
-                   let codePoint = UInt32(result[r], radix: 16),
+                let hexStr = nsStr.substring(with: match.range(at: 1))
+                if let codePoint = UInt32(hexStr, radix: 16),
                    let scalar = UnicodeScalar(codePoint) {
-                    result.replaceSubrange(fullRange, with: String(Character(scalar)))
+                    let charStr = String(Character(scalar))
+                    if let fullRange = Range(match.range, in: result) {
+                        result.replaceSubrange(fullRange, with: charStr)
+                    }
                 }
             }
         }
         
         // 2. Décodage des entités décimales (ex: &#244;, &#224;)
         if let regexDec = try? NSRegularExpression(pattern: "&#([0-9]+);", options: []) {
-            let matches = regexDec.matches(in: result, options: [], range: NSRange(location: 0, length: result.utf16.count))
+            let nsStr = result as NSString
+            let matches = regexDec.matches(in: result, options: [], range: NSRange(location: 0, length: nsStr.length))
             for match in matches.reversed() {
-                if let r = Range(match.range(at: 1), in: result),
-                   let fullRange = Range(match.range, in: result),
-                   let codePoint = UInt32(result[r], radix: 10),
+                let decStr = nsStr.substring(with: match.range(at: 1))
+                if let codePoint = UInt32(decStr, radix: 10),
                    let scalar = UnicodeScalar(codePoint) {
-                    result.replaceSubrange(fullRange, with: String(Character(scalar)))
+                    let charStr = String(Character(scalar))
+                    if let fullRange = Range(match.range, in: result) {
+                        result.replaceSubrange(fullRange, with: charStr)
+                    }
                 }
             }
         }

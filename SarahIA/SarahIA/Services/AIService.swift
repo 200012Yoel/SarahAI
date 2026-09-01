@@ -154,7 +154,8 @@ public final class AIService {
             case .failure(let error):
                 // En cas d'échec de la connexion distante :
                 // Vérifier si le moteur neuronal local possède une réponse experte hors-ligne
-                LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed) { localResult in
+                LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed) { [weak self] localResult in
+                    guard let self = self else { return }
                     if localResult.confidence >= 0.8 && !localResult.text.isEmpty && !localResult.text.contains("Je suis à votre entière disposition") {
                         let cleaned = localResult.text.decodingHTMLEntities()
                         self.recordExchange(userText: trimmed, assistantResponse: cleaned)
