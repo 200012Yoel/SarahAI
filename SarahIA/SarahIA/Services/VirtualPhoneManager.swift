@@ -102,9 +102,19 @@ public final class VirtualPhoneManager: NSObject {
         }
     }
     
-    // MARK: - 3. Commandes Directes vers JavaScript
+    // MARK: - 3. Commandes Directes vers JavaScript avec Watchdog Timeout (5.0s)
+    private var watchdogTimer: Timer?
+    
+    private func armWatchdogTimer(for toolName: String) {
+        watchdogTimer?.invalidate()
+        watchdogTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            print("⏱️ [VirtualPhoneManager] Watchdog Timeout (5s) atteint pour: \(toolName) — Déblocage automatique de l'agent.")
+            self?.onToolExecutionCompleted?(toolName, ["status": "timeout_auto_unblocked"])
+        }
+    }
     
     public func openApp(appId: String) {
+        armWatchdogTimer(for: "openApp")
         let escaped = sanitize(appId)
         executeJS("if (window.SarahVirtualPhoneBridge) { window.SarahVirtualPhoneBridge.openApp('\(escaped)'); }")
     }
@@ -114,12 +124,14 @@ public final class VirtualPhoneManager: NSObject {
     }
     
     public func typeText(targetSelector: String, text: String, speedMs: Int = 40) {
+        armWatchdogTimer(for: "typeText")
         let escapedSelector = sanitize(targetSelector)
         let escapedText = sanitize(text)
         executeJS("if (window.SarahVirtualPhoneBridge) { window.SarahVirtualPhoneBridge.typeText('\(escapedSelector)', '\(escapedText)', \(speedMs)); }")
     }
     
     public func showNotification(app: String, title: String, body: String) {
+        armWatchdogTimer(for: "showNotification")
         let escapedApp = sanitize(app)
         let escapedTitle = sanitize(title)
         let escapedBody = sanitize(body)
@@ -127,13 +139,20 @@ public final class VirtualPhoneManager: NSObject {
     }
     
     public func simulateTap(targetSelector: String) {
+        armWatchdogTimer(for: "simulateTap")
         let escaped = sanitize(targetSelector)
         executeJS("if (window.SarahVirtualPhoneBridge) { window.SarahVirtualPhoneBridge.simulateTap('\(escaped)'); }")
     }
     
     public func scroll(direction: String) {
+        armWatchdogTimer(for: "scroll")
         let escaped = sanitize(direction)
         executeJS("if (window.SarahVirtualPhoneBridge) { window.SarahVirtualPhoneBridge.scroll('\(escaped)'); }")
+    }
+    
+    /// Rôle exclusif Agent Développeur : Injection Live Preview
+    public func injectDevCode(html: String, css: String, js: String) {
+        DevCodeInjector.injectRender(html: html, css: css, js: js, in: activeWebView)
     }
     
     // MARK: - 4. Chargement Propre d'index.html dans WKWebView

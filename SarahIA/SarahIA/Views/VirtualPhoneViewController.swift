@@ -60,4 +60,17 @@ public final class VirtualPhoneViewController: UIViewController {
         HapticService.shared.buttonTap()
         dismiss(animated: true, completion: nil)
     }
+    
+    public override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        cleanupWebKitHandlers()
+    }
+    
+    deinit {
+        cleanupWebKitHandlers()
+    }
+    
+    private func cleanupWebKitHandlers() {
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "sarahVirtualPhone")
+    }
 }

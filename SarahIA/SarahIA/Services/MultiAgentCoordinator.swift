@@ -673,7 +673,8 @@ public final class MultiAgentCoordinator {
         else {
             let html = VAICodeEngine.shared.generateWebUI(prompt: prompt)
             _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
-            let responseText = "💻 **Esther [Studio VAI Coding]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nAffichage en direct dans le Studio VAI Coding."
+            DevCodeInjector.injectRender(html: html, css: "", js: "")
+            let responseText = "💻 **Esther [Studio VAI Coding & Live Preview]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nRendu en direct injecté dans l'écran virtuel (Live Preview avec Safe Area et Dynamic Island)."
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
