@@ -173,6 +173,29 @@ public final class SQLiteChatDatabase {
         }
     }
     
+    /// Supprime une conversation et tous ses messages associés
+    public func deleteConversationByUUID(uuid: String) {
+        dbQueue.async { [weak self] in
+            guard let self = self, let db = self.db else { return }
+            
+            let sqlMessages = "DELETE FROM chat_messages WHERE conversation_id = ?;"
+            var stmt1: OpaquePointer?
+            if sqlite3_prepare_v2(db, sqlMessages, -1, &stmt1, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt1, 1, (uuid as NSString).utf8String, -1, nil)
+                sqlite3_step(stmt1)
+            }
+            sqlite3_finalize(stmt1)
+            
+            let sqlConv = "DELETE FROM conversations WHERE id = ?;"
+            var stmt2: OpaquePointer?
+            if sqlite3_prepare_v2(db, sqlConv, -1, &stmt2, nil) == SQLITE_OK {
+                sqlite3_bind_text(stmt2, 1, (uuid as NSString).utf8String, -1, nil)
+                sqlite3_step(stmt2)
+            }
+            sqlite3_finalize(stmt2)
+        }
+    }
+    
     /// Efface l'historique complet
     public func clearAllHistory() {
         dbQueue.async { [weak self] in

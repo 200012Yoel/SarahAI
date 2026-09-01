@@ -123,12 +123,23 @@ public final class AIService {
             return
         }
         
-        // 2. Mémorisation directe ("Apprends papa = au travail")
-        if let directLearning = parseDirectLearningCommand(trimmed) {
-            let reply = recordExplicitMemory(trigger: directLearning.trigger, fact: directLearning.response)
-            recordExchange(userText: trimmed, assistantResponse: reply)
-            completion(reply.decodingHTMLEntities())
-            return
+        // 2. Mémorisation directe ("Apprends papa = au travail" ou "Retiens que X")
+        if normalized.hasPrefix("apprends ") || normalized.hasPrefix("retiens que ") || normalized.hasPrefix("memorise ") {
+            let clean = trimmed.replacingOccurrences(of: "Apprends ", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "Retiens que ", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "Memorise ", with: "", options: .caseInsensitive)
+            if clean.contains("=") {
+                let parts = clean.components(separatedBy: "=")
+                if parts.count == 2 {
+                    let trigger = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let fact = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                    StorageService.shared.saveMemory(trigger: trigger, response: fact)
+                    let reply = "C'est noté et mémorisé avec succès ! 🧠 (« \(trigger) » = « \(fact) »)"
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    completion(reply.decodingHTMLEntities())
+                    return
+                }
+            }
         }
         
         // 3. Calculs mathématiques rapides instantanés
@@ -556,7 +567,7 @@ public final class AIService {
         
         // 7. Traitement local synchrone prioritaire (Zéro latence)
         let syncResponse = generateSyncResponse(for: question)
-        let defaultGenericAnswers = defaultResponses + thanksResponses + identityResponses + moodResponsesOk + chitChatResponses
+        let defaultGenericAnswers = thanksResponses + identityResponses + moodResponsesOk + chitChatResponses
         
         // Si c'est un souvenir, un calcul, une action ou une réponse spécifique reconnue
         if !defaultGenericAnswers.contains(syncResponse) && syncResponse != generateDefaultResponse(for: trimmed) {
