@@ -13,6 +13,7 @@ public struct SettingsView: View {
     @State private var speechRate: Double = 0.52
     @State private var speechPitch: Double = 1.05
     @State private var vadSensitivity: Double = 0.65
+    @State private var isShowingWhatsAppGateway: Bool = false
     
     // Connexions
     @State private var isWhatsAppConnected: Bool = true
@@ -42,66 +43,73 @@ public struct SettingsView: View {
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(viewModel.activeAgent.themeColor.opacity(0.2))
-                                        .frame(width: 42, height: 42)
+                                        .fill(viewModel.activeAgent.themeColor.opacity(0.20))
+                                        .frame(width: 44, height: 44)
                                     
                                     Image(systemName: viewModel.activeAgent.iconName)
-                                        .font(.system(size: 18, weight: .bold))
+                                        .font(.system(size: 20, weight: .bold))
                                         .foregroundColor(viewModel.activeAgent.themeColor)
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 6) {
+                                    HStack {
                                         Text("Mode \(viewModel.activeAgent.rawValue)")
-                                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                                            .font(.system(size: 16, weight: .bold, design: .rounded))
                                             .foregroundColor(.white)
                                         
                                         Text("ACTIF")
-                                            .font(.system(size: 10, weight: .black))
+                                            .font(.system(size: 9, weight: .black, design: .rounded))
                                             .foregroundColor(.black)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
                                             .background(viewModel.activeAgent.themeColor)
-                                            .clipShape(Capsule())
+                                            .cornerRadius(4)
                                     }
                                     
                                     Text(viewModel.activeAgent.specialtySubtitle)
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 11))
                                         .foregroundColor(.gray)
+                                        .lineLimit(1)
                                 }
                                 
                                 Spacer()
                             }
                             
-                            // Grille des Modes disponibles
+                            // Barre horizontale des 6 capsules d'agents
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
                                     ForEach(AgentType.allCases) { agent in
-                                        let isSelected = (viewModel.activeAgent == agent)
                                         Button(action: {
                                             HapticService.shared.buttonTap()
                                             viewModel.activeAgent = agent
                                         }) {
-                                            HStack(spacing: 6) {
+                                            HStack(spacing: 5) {
                                                 Image(systemName: agent.iconName)
-                                                    .font(.system(size: 12, weight: .bold))
+                                                    .font(.system(size: 11, weight: .bold))
                                                 Text(agent.rawValue)
-                                                    .font(.system(size: 13, weight: .semibold))
+                                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                                             }
-                                            .foregroundColor(isSelected ? .white : .gray)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 7)
-                                            .background(isSelected ? agent.themeColor.opacity(0.35) : Color(red: 0.16, green: 0.16, blue: 0.20))
-                                            .clipShape(Capsule())
+                                            .foregroundColor(viewModel.activeAgent == agent ? .white : .gray)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                viewModel.activeAgent == agent ?
+                                                agent.themeColor.opacity(0.35) :
+                                                Color.white.opacity(0.06)
+                                            )
+                                            .cornerRadius(12)
                                             .overlay(
-                                                Capsule()
-                                                    .stroke(isSelected ? agent.themeColor : Color.white.opacity(0.08), lineWidth: 1.2)
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(
+                                                        viewModel.activeAgent == agent ? agent.themeColor : Color.clear,
+                                                        lineWidth: 1
+                                                    )
                                             )
                                         }
                                         .buttonStyle(PlainButtonStyle())
                                     }
                                 }
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 2)
                             }
                         }
                         .padding(.vertical, 6)
@@ -111,17 +119,23 @@ public struct SettingsView: View {
                     // 1. Section Connexions & Réseaux Sociaux (WhatsApp en premier)
                     Section(header: Text("🔗 Réseaux Sociaux & Connexions").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
                         
-                        // WhatsApp (Statuts & Vidéos)
+                        // WhatsApp (Passerelle Locale Baileys & QR Code)
                         connectionRow(
-                            title: "WhatsApp",
+                            title: "WhatsApp (Passerelle Locale)",
                             icon: "bubble.left.and.bubble.right.fill",
                             iconColor: Color(red: 0.15, green: 0.85, blue: 0.40),
-                            isConnected: $isWhatsAppConnected,
-                            description: "Publication de statuts, vidéos & messages",
+                            isConnected: Binding(
+                                get: { WhatsAppGatewayManager.shared.status.isConnected },
+                                set: { _ in }
+                            ),
+                            description: "Baileys pur WebSocket local · Réponse IA autonome",
                             onConnect: {
-                                openURL("whatsapp://")
+                                isShowingWhatsAppGateway = true
                             }
                         )
+                        .sheet(isPresented: $isShowingWhatsAppGateway) {
+                            WhatsAppGatewayView()
+                        }
                         
                         // Instagram
                         connectionRow(

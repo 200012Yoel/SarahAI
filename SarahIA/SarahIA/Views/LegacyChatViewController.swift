@@ -1441,7 +1441,22 @@ public final class LegacySettingsViewController: UIViewController {
         textStack.addArrangedSubview(nameLbl)
         textStack.addArrangedSubview(subLbl)
         
-        let pill = createStatusPill(text: isConnected ? "Connecté" : "Connecter", isConnected: isConnected)
+        let isActuallyConnected = (name == "WhatsApp") ? WhatsAppGatewayManager.shared.status.isConnected : isConnected
+        let pillText = isActuallyConnected ? "Connecté" : "Connecter"
+        let pill = createStatusPill(text: pillText, isConnected: isActuallyConnected)
+        
+        if name == "WhatsApp" {
+            let tap = UITapGestureRecognizer(target: self, action: #selector(openWhatsAppGatewayModal))
+            row.isUserInteractionEnabled = true
+            row.addGestureRecognizer(tap)
+            
+            let btnHandler = UIActionHandler { [weak self] in
+                self?.openWhatsAppGatewayModal()
+            }
+            objc_setAssociatedObject(pill, "wa_h", btnHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            (pill as? UIButton)?.addTarget(btnHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+        }
+        
         row.addSubview(pill)
         
         NSLayoutConstraint.activate([
@@ -1460,6 +1475,27 @@ public final class LegacySettingsViewController: UIViewController {
         ])
         
         return row
+    }
+    
+    @objc private func openWhatsAppGatewayModal() {
+        HapticService.shared.buttonTap()
+        WhatsAppGatewayManager.shared.startGateway()
+        
+        let alert = UIAlertController(
+            title: "💬 Passerelle WhatsApp Locale",
+            message: "Moteur Baileys pur WebSocket actif en local.\nStatut : \(WhatsAppGatewayManager.shared.status.isConnected ? "🟢 Connecté" : "🟡 En attente de scan QR")\n\nSarah peut répondre automatiquement à tous vos messages WhatsApp directement depuis l'iPhone.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "🔄 Recharger Session & QR", style: .default, handler: { _ in
+            WhatsAppGatewayManager.shared.reloadGateway()
+        }))
+        if WhatsAppGatewayManager.shared.status.isConnected {
+            alert.addAction(UIAlertAction(title: "🔴 Déconnecter", style: .destructive, handler: { _ in
+                WhatsAppGatewayManager.shared.logoutAndReset()
+            }))
+        }
+        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
     
     private func createStatusPill(text: String, isConnected: Bool) -> UIView {

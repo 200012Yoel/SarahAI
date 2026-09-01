@@ -85,6 +85,8 @@
 		A1B2C3D4000100010000008B /* OpenSourceMusicEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008B /* OpenSourceMusicEngine.swift */; };
 		A1B2C3D4000100010000008C /* OpenSourceImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008C /* OpenSourceImageGenerationService.swift */; };
 		A1B2C3D4000100010000008D /* MultimodalMediaCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */; };
+		A1B2C3D4000100010000008E /* WhatsAppGatewayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */; };
+		A1B2C3D4000100010000008F /* WhatsAppGatewayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -168,6 +170,8 @@
 		A1B2C3D4000200010000008B /* OpenSourceMusicEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceMusicEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008C /* OpenSourceImageGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceImageGenerationService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultimodalMediaCardViews.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppGatewayManager.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppGatewayView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -270,6 +274,7 @@
 				A1B2C3D40002000100000086 /* AIStreamingBuffer.swift */,
 				A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */,
 				A1B2C3D40002000100000088 /* HardwareDetector.swift */,
+				A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -295,6 +300,7 @@
 				A1B2C3D4000200010000006B /* AlertCardRenderer.swift */,
 				A1B2C3D40002000100000089 /* VideoShareView.swift */,
 				A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */,
+				A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -462,6 +468,8 @@
 				A1B2C3D40001000100000088 /* HardwareDetector.swift in Sources */,
 				A1B2C3D40001000100000089 /* VideoShareView.swift in Sources */,
 				A1B2C3D4000100010000008D /* MultimodalMediaCardViews.swift in Sources */,
+				A1B2C3D4000100010000008E /* WhatsAppGatewayManager.swift in Sources */,
+				A1B2C3D4000100010000008F /* WhatsAppGatewayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
