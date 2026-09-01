@@ -140,6 +140,19 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .ethel:   return "wand.and.stars"
         }
     }
+    
+    #if canImport(UIKit)
+    public var uiColor: UIColor {
+        switch self {
+        case .sarah:   return UIColor(red: 1.0, green: 0.18, blue: 0.65, alpha: 1.0)
+        case .tom:     return UIColor(red: 0.05, green: 0.85, blue: 0.45, alpha: 1.0)
+        case .esther:  return UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        case .yohan:   return UIColor(red: 0.0, green: 0.45, blue: 0.90, alpha: 1.0)
+        case .nathan:  return UIColor(red: 0.85, green: 0.55, blue: 1.0, alpha: 1.0)
+        case .ethel:   return UIColor(red: 0.95, green: 0.15, blue: 0.35, alpha: 1.0)
+        }
+    }
+    #endif
 }
 
 /// Alias AgentPersona pour compatibilité directe

@@ -296,25 +296,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func setupQuickActionChips() {
+        quickActionsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        
         let chip1 = createChip(title: "🔦 Allume la torche", color: UIColor(white: 0.18, alpha: 1.0)) { [weak self] in
             _ = DeviceController.shared.toggleTorch(enable: nil)
         }
-        let chip2 = createChip(title: "🚨 Pikoud HaOref", color: UIColor(red: 0.40, green: 0.10, blue: 0.12, alpha: 1.0)) { [weak self] in
+        let chip2 = createChip(title: "🛡️ Pikoud HaOref", color: UIColor(red: 0.40, green: 0.10, blue: 0.12, alpha: 1.0)) { [weak self] in
             self?.sendMessage("Alertes Pikoud HaOref")
         }
         let chip3 = createChip(title: "📰 i24news", color: UIColor(red: 0.10, green: 0.25, blue: 0.50, alpha: 1.0)) { [weak self] in
             self?.sendMessage("Actualités i24news")
         }
-        let chip4 = createChip(title: "💬 WhatsApp", color: UIColor(red: 0.10, green: 0.45, blue: 0.20, alpha: 1.0)) { [weak self] in
-            self?.activeAgent = .nathan
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Nathan, je veux poster une vidéo sur mon statut WhatsApp")
-        }
         
         quickActionsStack.addArrangedSubview(chip1)
         quickActionsStack.addArrangedSubview(chip2)
         quickActionsStack.addArrangedSubview(chip3)
-        quickActionsStack.addArrangedSubview(chip4)
     }
     
     private func createChip(title: String, color: UIColor, action: @escaping () -> Void) -> UIButton {
@@ -413,7 +409,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         drawerView.addSubview(drawerTableView)
         
         drawerSettingsButton.translatesAutoresizingMaskIntoConstraints = false
-        drawerSettingsButton.setTitle("⚙️  Réglages de l'application", for: .normal)
+        drawerSettingsButton.setTitle("⚙️  Réglages & Modes", for: .normal)
         drawerSettingsButton.setTitleColor(.white, for: .normal)
         drawerSettingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
         drawerSettingsButton.backgroundColor = UIColor(white: 0.14, alpha: 1.0)
@@ -606,33 +602,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func openSettings() {
         HapticService.shared.buttonTap()
-        let alert = UIAlertController(
-            title: "⚙️ Réglages Sarah IA",
-            message: "Agent actif : \(activeAgent.rawValue)\nModèle : Sarah Neural Flagship v4 (100% Hors-ligne)\nMatériel : A-Series Neural Engine",
-            preferredStyle: .actionSheet
-        )
-        
-        alert.addAction(UIAlertAction(title: "🧹 Nouvelle discussion & Vider le cache", style: .destructive, handler: { [weak self] _ in
+        let settingsVC = LegacySettingsViewController(activeAgent: activeAgent)
+        settingsVC.onAgentChanged = { [weak self] newAgent in
+            self?.activeAgent = newAgent
+            self?.updateAgentCapsuleTitle()
+            self?.drawerTableView.reloadData()
+        }
+        settingsVC.onResetConversation = { [weak self] in
             self?.startNewChat()
-        }))
-        alert.addAction(UIAlertAction(title: "🎙️ Voix Siri & Synthèse Vocale", style: .default, handler: { [weak self] _ in
-            guard let self = self else { return }
-            MultiAgentVoiceManager.shared.speak(text: "La synthèse vocale Siri est active sur tous vos agents.", for: self.activeAgent)
-        }))
-        alert.addAction(UIAlertAction(title: "🔒 Confidentialité & Stockage Local", style: .default, handler: { [weak self] _ in
-            let info = UIAlertController(title: "🔒 Confidentialité 100% Locale", message: "Toutes vos conversations, requêtes et codes sont traités directement sur la puce de votre iPhone sans aucun serveur distant.", preferredStyle: .alert)
-            info.addAction(UIAlertAction(title: "Compris", style: .cancel, handler: nil))
-            self?.present(info, animated: true, completion: nil)
-        }))
-        alert.addAction(UIAlertAction(title: "🔋 État Batterie & Optimisation", style: .default, handler: { [weak self] _ in
-            let batteryLevel = Int(UIDevice.current.batteryLevel * 100)
-            let msg = batteryLevel >= 0 ? "Niveau de batterie : \(batteryLevel)%\nMode économie : \(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Actif" : "Inactif")" : "Surveillance batterie active."
-            let info = UIAlertController(title: "🔋 Énergie & Performance", message: msg, preferredStyle: .alert)
-            info.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
-            self?.present(info, animated: true, completion: nil)
-        }))
-        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
+        }
+        let nav = UINavigationController(rootViewController: settingsVC)
+        nav.modalPresentationStyle = .pageSheet
+        present(nav, animated: true, completion: nil)
     }
     
     @objc private func plusTapped() {
@@ -789,24 +770,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     // MARK: - UITableViewDataSource & Delegate
     
     public func numberOfSections(in tableView: UITableView) -> Int {
-        if tableView == self.tableView {
-            return 1
-        } else {
-            return 2
-        }
+        return 1
     }
     
     public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if tableView == self.tableView {
             return messages.count
         } else {
-            return section == 0 ? AgentType.allCases.count : conversations.count
+            return conversations.count
         }
     }
     
     public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         if tableView == self.drawerTableView {
-            return section == 0 ? "AGENTS IA" : "DISCUSSIONS RÉCENTES"
+            return "DISCUSSIONS"
         }
         return nil
     }
@@ -970,24 +947,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         } else {
             let cell = UITableViewCell(style: .subtitle, reuseIdentifier: "DrawerCell")
             cell.backgroundColor = .clear
-            cell.textLabel?.textColor = .white
-            cell.textLabel?.font = UIFont.systemFont(ofSize: 14, weight: .medium)
-            cell.detailTextLabel?.textColor = UIColor.gray
-            cell.detailTextLabel?.font = UIFont.systemFont(ofSize: 11)
+            cell.selectionStyle = .none
             
-            if indexPath.section == 0 {
-                let agent = AgentType.allCases[indexPath.row]
-                let isSelected = (agent == activeAgent)
-                cell.textLabel?.text = "\(isSelected ? "● " : "")\(agent.rawValue)"
-                cell.textLabel?.textColor = isSelected ? UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0) : .white
-                cell.detailTextLabel?.text = agent.roleDescription
-            } else {
-                let conv = conversations[indexPath.row]
-                let isCurrent = (conv.id == currentConversationId)
-                cell.textLabel?.text = conv.title
-                cell.textLabel?.textColor = isCurrent ? UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0) : .white
-                cell.detailTextLabel?.text = "\(conv.messages.count) messages"
-            }
+            let conv = conversations[indexPath.row]
+            let isCurrent = (conv.id == currentConversationId)
+            
+            cell.textLabel?.text = "💬  \(conv.title)"
+            cell.textLabel?.font = UIFont.systemFont(ofSize: 14, weight: isCurrent ? .bold : .medium)
+            cell.textLabel?.textColor = isCurrent ? UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0) : .white
+            
+            cell.detailTextLabel?.text = "\(conv.messages.count) messages"
+            cell.detailTextLabel?.textColor = isCurrent ? UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.8) : UIColor(white: 0.60, alpha: 1.0)
+            cell.detailTextLabel?.font = UIFont.systemFont(ofSize: 11)
             
             return cell
         }
@@ -998,29 +969,22 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             HapticService.shared.buttonTap()
             tableView.deselectRow(at: indexPath, animated: true)
             
-            if indexPath.section == 0 {
-                let agent = AgentType.allCases[indexPath.row]
-                self.activeAgent = agent
-                self.updateAgentCapsuleTitle()
-                closeDrawerAnimated()
-            } else {
-                let selectedConv = conversations[indexPath.row]
-                saveCurrentState()
-                self.currentConversationId = selectedConv.id
-                self.messages = selectedConv.messages
-                self.tableView.reloadData()
-                self.scrollToBottom()
-                closeDrawerAnimated()
-            }
+            let selectedConv = conversations[indexPath.row]
+            saveCurrentState()
+            self.currentConversationId = selectedConv.id
+            self.messages = selectedConv.messages
+            self.tableView.reloadData()
+            self.scrollToBottom()
+            closeDrawerAnimated()
         }
     }
     
     public func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        return (tableView == self.drawerTableView && indexPath.section == 1)
+        return tableView == self.drawerTableView
     }
     
     public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        if tableView == self.drawerTableView && indexPath.section == 1 && editingStyle == .delete {
+        if tableView == self.drawerTableView && editingStyle == .delete {
             let conv = conversations.remove(at: indexPath.row)
             if currentConversationId == conv.id {
                 currentConversationId = conversations.first?.id ?? UUID()
@@ -1029,6 +993,703 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             }
             saveCurrentState()
             drawerTableView.deleteRows(at: [indexPath], with: .fade)
+        }
+    }
+}
+
+// MARK: - Contrôleur Réglages UIKit 100% Natif (Reproduction Fidèle de SettingsView SwiftUI)
+
+public final class LegacySettingsViewController: UIViewController {
+    
+    public var onAgentChanged: ((AgentType) -> Void)?
+    public var onResetConversation: (() -> Void)?
+    
+    private var activeAgent: AgentType
+    
+    private let scrollView = UIScrollView()
+    private let contentStack = UIStackView()
+    
+    // Mode Hero Views
+    private let heroAvatarCircle = UIView()
+    private let heroIconLabel = UILabel()
+    private let heroTitleLabel = UILabel()
+    private let heroActiveBadge = UILabel()
+    private let heroSubtitleLabel = UILabel()
+    private var agentPills: [UIButton] = []
+    
+    // VAD & Voice
+    private let vadValueLabel = UILabel()
+    private let speechRateValueLabel = UILabel()
+    
+    public init(activeAgent: AgentType) {
+        self.activeAgent = activeAgent
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        self.activeAgent = .sarah
+        super.init(coder: coder)
+    }
+    
+    public override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor(red: 0.05, green: 0.05, blue: 0.07, alpha: 1.0)
+        setupNavigationBar()
+        setupScrollView()
+        buildAllSections()
+    }
+    
+    private func setupNavigationBar() {
+        title = "⚙️ Réglages"
+        if let nav = navigationController {
+            nav.navigationBar.barTintColor = UIColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1.0)
+            nav.navigationBar.tintColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+            nav.navigationBar.isTranslucent = false
+            nav.navigationBar.titleTextAttributes = [
+                .foregroundColor: UIColor.white,
+                .font: UIFont.systemFont(ofSize: 17, weight: .bold)
+            ]
+        }
+        
+        let okBtn = UIBarButtonItem(title: "OK", style: .done, target: self, action: #selector(dismissSettings))
+        okBtn.tintColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        navigationItem.rightBarButtonItem = okBtn
+    }
+    
+    @objc private func dismissSettings() {
+        dismiss(animated: true, completion: nil)
+    }
+    
+    private func setupScrollView() {
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.backgroundColor = .clear
+        scrollView.alwaysBounceVertical = true
+        view.addSubview(scrollView)
+        
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.axis = .vertical
+        contentStack.spacing = 18
+        contentStack.alignment = .fill
+        scrollView.addSubview(contentStack)
+        
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            
+            contentStack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 14),
+            contentStack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 16),
+            contentStack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -16),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -30),
+            contentStack.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
+        ])
+    }
+    
+    private func buildAllSections() {
+        buildModeSection()
+        buildSocialConnectionsSection()
+        buildAdaptiveAISection()
+        buildEcosystemSection()
+        buildAudioVADSection()
+        buildHistoryResetSection()
+    }
+    
+    // MARK: - Section 1 : Mode de Fonctionnement
+    private func buildModeSection() {
+        let section = createSection(title: "✨ MODE DE FONCTIONNEMENT", titleColor: UIColor(red: 0.85, green: 0.55, blue: 1.0, alpha: 1.0))
+        let card = createCardView()
+        
+        // 1. Hero Card
+        let heroRow = UIView()
+        heroRow.translatesAutoresizingMaskIntoConstraints = false
+        
+        heroAvatarCircle.translatesAutoresizingMaskIntoConstraints = false
+        heroAvatarCircle.backgroundColor = activeAgent.uiColor.withAlphaComponent(0.20)
+        heroAvatarCircle.layer.cornerRadius = 21
+        heroAvatarCircle.layer.borderColor = activeAgent.uiColor.withAlphaComponent(0.40).cgColor
+        heroAvatarCircle.layer.borderWidth = 1.2
+        heroRow.addSubview(heroAvatarCircle)
+        
+        heroIconLabel.translatesAutoresizingMaskIntoConstraints = false
+        heroIconLabel.text = agentIconEmoji(activeAgent)
+        heroIconLabel.font = UIFont.systemFont(ofSize: 20)
+        heroAvatarCircle.addSubview(heroIconLabel)
+        
+        let textStack = UIStackView()
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        textStack.axis = .vertical
+        textStack.spacing = 3
+        heroRow.addSubview(textStack)
+        
+        let titleRow = UIStackView()
+        titleRow.axis = .horizontal
+        titleRow.spacing = 8
+        titleRow.alignment = .center
+        
+        heroTitleLabel.text = "Mode \(activeAgent.rawValue)"
+        heroTitleLabel.font = UIFont.systemFont(ofSize: 17, weight: .bold)
+        heroTitleLabel.textColor = .white
+        titleRow.addArrangedSubview(heroTitleLabel)
+        
+        heroActiveBadge.text = "  ACTIF  "
+        heroActiveBadge.font = UIFont.systemFont(ofSize: 10, weight: .black)
+        heroActiveBadge.textColor = .black
+        heroActiveBadge.backgroundColor = activeAgent.uiColor
+        heroActiveBadge.layer.cornerRadius = 8
+        heroActiveBadge.clipsToBounds = true
+        titleRow.addArrangedSubview(heroActiveBadge)
+        titleRow.addArrangedSubview(UIView())
+        
+        heroSubtitleLabel.text = activeAgent.specialtySubtitle
+        heroSubtitleLabel.font = UIFont.systemFont(ofSize: 12)
+        heroSubtitleLabel.textColor = UIColor(white: 0.65, alpha: 1.0)
+        heroSubtitleLabel.numberOfLines = 2
+        
+        textStack.addArrangedSubview(titleRow)
+        textStack.addArrangedSubview(heroSubtitleLabel)
+        
+        NSLayoutConstraint.activate([
+            heroAvatarCircle.leadingAnchor.constraint(equalTo: heroRow.leadingAnchor),
+            heroAvatarCircle.centerYAnchor.constraint(equalTo: heroRow.centerYAnchor),
+            heroAvatarCircle.widthAnchor.constraint(equalToConstant: 42),
+            heroAvatarCircle.heightAnchor.constraint(equalToConstant: 42),
+            
+            heroIconLabel.centerXAnchor.constraint(equalTo: heroAvatarCircle.centerXAnchor),
+            heroIconLabel.centerYAnchor.constraint(equalTo: heroAvatarCircle.centerYAnchor),
+            
+            textStack.leadingAnchor.constraint(equalTo: heroAvatarCircle.trailingAnchor, constant: 12),
+            textStack.trailingAnchor.constraint(equalTo: heroRow.trailingAnchor),
+            textStack.topAnchor.constraint(equalTo: heroRow.topAnchor),
+            textStack.bottomAnchor.constraint(equalTo: heroRow.bottomAnchor)
+        ])
+        
+        // 2. Horizontal Scroll des 6 Agents
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.showsHorizontalScrollIndicator = false
+        
+        let pillsStack = UIStackView()
+        pillsStack.translatesAutoresizingMaskIntoConstraints = false
+        pillsStack.axis = .horizontal
+        pillsStack.spacing = 8
+        scroll.addSubview(pillsStack)
+        
+        agentPills.removeAll()
+        for agent in AgentType.allCases {
+            let btn = UIButton(type: .system)
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            btn.setTitle("\(agentIconEmoji(agent)) \(agent.rawValue)", for: .normal)
+            btn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+            btn.layer.cornerRadius = 15
+            btn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            
+            let isSel = (agent == activeAgent)
+            btn.backgroundColor = isSel ? agent.uiColor.withAlphaComponent(0.35) : UIColor(red: 0.16, green: 0.16, blue: 0.20, alpha: 1.0)
+            btn.setTitleColor(isSel ? .white : UIColor.lightGray, for: .normal)
+            btn.layer.borderColor = isSel ? agent.uiColor.cgColor : UIColor(white: 1.0, alpha: 0.08).cgColor
+            btn.layer.borderWidth = 1.2
+            
+            let handler = UIActionHandler { [weak self, weak btn] in
+                guard let self = self else { return }
+                HapticService.shared.buttonTap()
+                self.selectAgent(agent)
+            }
+            objc_setAssociatedObject(btn, "agent_handler", handler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            btn.addTarget(handler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+            
+            agentPills.append(btn)
+            pillsStack.addArrangedSubview(btn)
+        }
+        
+        NSLayoutConstraint.activate([
+            pillsStack.topAnchor.constraint(equalTo: scroll.topAnchor),
+            pillsStack.bottomAnchor.constraint(equalTo: scroll.bottomAnchor),
+            pillsStack.leadingAnchor.constraint(equalTo: scroll.leadingAnchor),
+            pillsStack.trailingAnchor.constraint(equalTo: scroll.trailingAnchor),
+            pillsStack.heightAnchor.constraint(equalTo: scroll.heightAnchor)
+        ])
+        
+        let cardStack = UIStackView(arrangedSubviews: [heroRow, scroll])
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
+        cardStack.axis = .vertical
+        cardStack.spacing = 14
+        card.addSubview(cardStack)
+        
+        NSLayoutConstraint.activate([
+            scroll.heightAnchor.constraint(equalToConstant: 34),
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    private func selectAgent(_ agent: AgentType) {
+        activeAgent = agent
+        heroTitleLabel.text = "Mode \(agent.rawValue)"
+        heroActiveBadge.backgroundColor = agent.uiColor
+        heroSubtitleLabel.text = agent.specialtySubtitle
+        heroAvatarCircle.backgroundColor = agent.uiColor.withAlphaComponent(0.20)
+        heroAvatarCircle.layer.borderColor = agent.uiColor.withAlphaComponent(0.40).cgColor
+        heroIconLabel.text = agentIconEmoji(agent)
+        
+        for (i, a) in AgentType.allCases.enumerated() {
+            guard i < agentPills.count else { continue }
+            let btn = agentPills[i]
+            let isSel = (a == agent)
+            btn.backgroundColor = isSel ? a.uiColor.withAlphaComponent(0.35) : UIColor(red: 0.16, green: 0.16, blue: 0.20, alpha: 1.0)
+            btn.setTitleColor(isSel ? .white : UIColor.lightGray, for: .normal)
+            btn.layer.borderColor = isSel ? a.uiColor.cgColor : UIColor(white: 1.0, alpha: 0.08).cgColor
+        }
+        onAgentChanged?(agent)
+    }
+    
+    // MARK: - Section 2 : Réseaux Sociaux & Connexions
+    private func buildSocialConnectionsSection() {
+        let section = createSection(title: "🔗 RÉSEAUX SOCIAUX & CONNEXIONS", titleColor: UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0))
+        let card = createCardView()
+        
+        let connections: [(icon: String, name: String, sub: String, isConnected: Bool)] = [
+            ("💬", "WhatsApp", "Publication de statuts, vidéos & messages", true),
+            ("📸", "Instagram", "Stories, Reels & Directs", false),
+            ("🎵", "TikTok", "Vidéos courtes & tendances", false),
+            ("▶️", "YouTube", "Recherche de vidéos & streaming", false),
+            ("✖️", "Twitter / X", "Veille d'actualités & publications", false),
+            ("🐙", "GitHub", "Dépôts, commits & VAI Studio", false),
+            ("🌐", "Google & Firebase", "Gmail, Cloud Auth & Base de données", true)
+        ]
+        
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 14
+        
+        for (i, item) in connections.enumerated() {
+            let row = createConnectionRow(icon: item.icon, name: item.name, sub: item.sub, isConnected: item.isConnected)
+            stack.addArrangedSubview(row)
+            if i < connections.count - 1 {
+                let sep = UIView()
+                sep.backgroundColor = UIColor(white: 1.0, alpha: 0.06)
+                sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+                stack.addArrangedSubview(sep)
+            }
+        }
+        
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    private func createConnectionRow(icon: String, name: String, sub: String, isConnected: Bool) -> UIView {
+        let row = UIView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+        
+        let iconLbl = UILabel()
+        iconLbl.translatesAutoresizingMaskIntoConstraints = false
+        iconLbl.text = icon
+        iconLbl.font = UIFont.systemFont(ofSize: 22)
+        row.addSubview(iconLbl)
+        
+        let textStack = UIStackView()
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        textStack.axis = .vertical
+        textStack.spacing = 2
+        row.addSubview(textStack)
+        
+        let nameLbl = UILabel()
+        nameLbl.text = name
+        nameLbl.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        nameLbl.textColor = .white
+        
+        let subLbl = UILabel()
+        subLbl.text = sub
+        subLbl.font = UIFont.systemFont(ofSize: 11)
+        subLbl.textColor = UIColor.gray
+        
+        textStack.addArrangedSubview(nameLbl)
+        textStack.addArrangedSubview(subLbl)
+        
+        let pill = createStatusPill(text: isConnected ? "Connecté" : "Connecter", isConnected: isConnected)
+        row.addSubview(pill)
+        
+        NSLayoutConstraint.activate([
+            iconLbl.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            iconLbl.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            iconLbl.widthAnchor.constraint(equalToConstant: 30),
+            
+            textStack.leadingAnchor.constraint(equalTo: iconLbl.trailingAnchor, constant: 8),
+            textStack.trailingAnchor.constraint(lessThanOrEqualTo: pill.leadingAnchor, constant: -8),
+            textStack.topAnchor.constraint(equalTo: row.topAnchor),
+            textStack.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            
+            pill.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            pill.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            pill.heightAnchor.constraint(equalToConstant: 26)
+        ])
+        
+        return row
+    }
+    
+    private func createStatusPill(text: String, isConnected: Bool) -> UIView {
+        let btn = UIButton(type: .system)
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        btn.setTitle(text, for: .normal)
+        btn.titleLabel?.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        btn.layer.cornerRadius = 13
+        btn.contentEdgeInsets = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+        
+        if isConnected {
+            btn.backgroundColor = UIColor(red: 0.15, green: 0.85, blue: 0.40, alpha: 0.20)
+            btn.setTitleColor(UIColor(red: 0.20, green: 0.95, blue: 0.45, alpha: 1.0), for: .normal)
+            btn.layer.borderColor = UIColor(red: 0.15, green: 0.85, blue: 0.40, alpha: 0.40).cgColor
+            btn.layer.borderWidth = 1.0
+        } else {
+            btn.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.15)
+            btn.setTitleColor(UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0), for: .normal)
+            btn.layer.borderColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.30).cgColor
+            btn.layer.borderWidth = 1.0
+        }
+        return btn
+    }
+    
+    // MARK: - Section 3 : Intelligence Artificielle Adaptative
+    private func buildAdaptiveAISection() {
+        let section = createSection(title: "🤖 INTELLIGENCE ARTIFICIELLE ADAPTATIVE", titleColor: UIColor(red: 0.20, green: 0.85, blue: 0.45, alpha: 1.0))
+        let card = createCardView()
+        
+        let rows: [(label: String, val: String, isGreen: Bool)] = [
+            ("Statut Moteur", "● On-Device 100% Hors-Ligne", true),
+            ("Puce & Mémoire", "Apple A-Series (Tier 1 Optimisé)", false),
+            ("Modèle Actif", "Sarah Neural Flagship v4 (Qwen 2.5)", false),
+            ("Budget Mémoire", "~80 Mo (Garanti sans plantage)", false)
+        ]
+        
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 10
+        
+        for item in rows {
+            let r = UIView()
+            r.translatesAutoresizingMaskIntoConstraints = false
+            
+            let lLbl = UILabel()
+            lLbl.translatesAutoresizingMaskIntoConstraints = false
+            lLbl.text = item.label
+            lLbl.font = UIFont.systemFont(ofSize: 13)
+            lLbl.textColor = UIColor.gray
+            r.addSubview(lLbl)
+            
+            let vLbl = UILabel()
+            vLbl.translatesAutoresizingMaskIntoConstraints = false
+            vLbl.text = item.val
+            vLbl.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+            vLbl.textColor = item.isGreen ? UIColor(red: 0.20, green: 0.95, blue: 0.45, alpha: 1.0) : .white
+            r.addSubview(vLbl)
+            
+            NSLayoutConstraint.activate([
+                lLbl.leadingAnchor.constraint(equalTo: r.leadingAnchor),
+                lLbl.centerYAnchor.constraint(equalTo: r.centerYAnchor),
+                
+                vLbl.trailingAnchor.constraint(equalTo: r.trailingAnchor),
+                vLbl.centerYAnchor.constraint(equalTo: r.centerYAnchor),
+                r.heightAnchor.constraint(equalToConstant: 24)
+            ])
+            stack.addArrangedSubview(r)
+        }
+        
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    // MARK: - Section 4 : Écosystème des 6 Agents Autonomes
+    private func buildEcosystemSection() {
+        let section = createSection(title: "👥 ÉCOSYSTÈME DES 6 AGENTS AUTONOMES", titleColor: UIColor(red: 1.0, green: 0.60, blue: 0.0, alpha: 1.0))
+        let card = createCardView()
+        
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 12
+        
+        for (i, agent) in AgentType.allCases.enumerated() {
+            let row = UIView()
+            row.translatesAutoresizingMaskIntoConstraints = false
+            
+            let dot = UIView()
+            dot.translatesAutoresizingMaskIntoConstraints = false
+            dot.backgroundColor = agent.uiColor
+            dot.layer.cornerRadius = 5
+            row.addSubview(dot)
+            
+            let tStack = UIStackView()
+            tStack.translatesAutoresizingMaskIntoConstraints = false
+            tStack.axis = .vertical
+            tStack.spacing = 2
+            row.addSubview(tStack)
+            
+            let nameLbl = UILabel()
+            nameLbl.text = "\(agent.rawValue) — Voix Siri \(agent.siriVoiceNumber)"
+            nameLbl.font = UIFont.systemFont(ofSize: 14, weight: .bold)
+            nameLbl.textColor = .white
+            
+            let subLbl = UILabel()
+            subLbl.text = agent.roleDescription
+            subLbl.font = UIFont.systemFont(ofSize: 11)
+            subLbl.textColor = UIColor.gray
+            
+            tStack.addArrangedSubview(nameLbl)
+            tStack.addArrangedSubview(subLbl)
+            
+            let speakerBtn = UIButton(type: .system)
+            speakerBtn.translatesAutoresizingMaskIntoConstraints = false
+            speakerBtn.setTitle("🔊", for: .normal)
+            speakerBtn.titleLabel?.font = UIFont.systemFont(ofSize: 16)
+            speakerBtn.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
+            speakerBtn.layer.cornerRadius = 14
+            
+            let handler = UIActionHandler {
+                HapticService.shared.buttonTap()
+                MultiAgentVoiceManager.shared.speak(text: "Bonjour ! Je suis \(agent.rawValue).", for: agent)
+            }
+            objc_setAssociatedObject(speakerBtn, "speak_handler", handler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            speakerBtn.addTarget(handler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+            row.addSubview(speakerBtn)
+            
+            NSLayoutConstraint.activate([
+                dot.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+                dot.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                dot.widthAnchor.constraint(equalToConstant: 10),
+                dot.heightAnchor.constraint(equalToConstant: 10),
+                
+                tStack.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 10),
+                tStack.trailingAnchor.constraint(lessThanOrEqualTo: speakerBtn.leadingAnchor, constant: -8),
+                tStack.topAnchor.constraint(equalTo: row.topAnchor),
+                tStack.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+                
+                speakerBtn.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+                speakerBtn.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+                speakerBtn.widthAnchor.constraint(equalToConstant: 28),
+                speakerBtn.heightAnchor.constraint(equalToConstant: 28)
+            ])
+            
+            stack.addArrangedSubview(row)
+            if i < AgentType.allCases.count - 1 {
+                let sep = UIView()
+                sep.backgroundColor = UIColor(white: 1.0, alpha: 0.05)
+                sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+                stack.addArrangedSubview(sep)
+            }
+        }
+        
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    // MARK: - Section 5 : Microphone & Détection Vocale VAD
+    private func buildAudioVADSection() {
+        let section = createSection(title: "🎙️ MICROPHONE & DÉTECTION VOCALE VAD", titleColor: UIColor(red: 0.70, green: 0.40, blue: 1.0, alpha: 1.0))
+        let card = createCardView()
+        
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 14
+        
+        // Slider VAD
+        let vadHeader = UIView()
+        let vadTitle = UILabel()
+        vadTitle.translatesAutoresizingMaskIntoConstraints = false
+        vadTitle.text = "Sensibilité Détection VAD"
+        vadTitle.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        vadTitle.textColor = .white
+        vadHeader.addSubview(vadTitle)
+        
+        vadValueLabel.translatesAutoresizingMaskIntoConstraints = false
+        vadValueLabel.text = "65%"
+        vadValueLabel.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        vadValueLabel.textColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        vadHeader.addSubview(vadValueLabel)
+        
+        NSLayoutConstraint.activate([
+            vadTitle.leadingAnchor.constraint(equalTo: vadHeader.leadingAnchor),
+            vadTitle.centerYAnchor.constraint(equalTo: vadHeader.centerYAnchor),
+            vadValueLabel.trailingAnchor.constraint(equalTo: vadHeader.trailingAnchor),
+            vadValueLabel.centerYAnchor.constraint(equalTo: vadHeader.centerYAnchor),
+            vadHeader.heightAnchor.constraint(equalToConstant: 20)
+        ])
+        
+        let vadSlider = UISlider()
+        vadSlider.minimumValue = 0.1
+        vadSlider.maximumValue = 1.0
+        vadSlider.value = 0.65
+        vadSlider.tintColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        let vadHandler = UIActionHandler { [weak self, weak vadSlider] in
+            guard let self = self, let s = vadSlider else { return }
+            self.vadValueLabel.text = "\(Int(s.value * 100))%"
+        }
+        objc_setAssociatedObject(vadSlider, "vad_h", vadHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        vadSlider.addTarget(vadHandler, action: #selector(UIActionHandler.invoke), for: .valueChanged)
+        
+        // Slider Voix Siri
+        let rateHeader = UIView()
+        let rateTitle = UILabel()
+        rateTitle.translatesAutoresizingMaskIntoConstraints = false
+        rateTitle.text = "Vitesse de Parole Siri"
+        rateTitle.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
+        rateTitle.textColor = .white
+        rateHeader.addSubview(rateTitle)
+        
+        speechRateValueLabel.translatesAutoresizingMaskIntoConstraints = false
+        speechRateValueLabel.text = "1.0x"
+        speechRateValueLabel.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        speechRateValueLabel.textColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        rateHeader.addSubview(speechRateValueLabel)
+        
+        NSLayoutConstraint.activate([
+            rateTitle.leadingAnchor.constraint(equalTo: rateHeader.leadingAnchor),
+            rateTitle.centerYAnchor.constraint(equalTo: rateHeader.centerYAnchor),
+            speechRateValueLabel.trailingAnchor.constraint(equalTo: rateHeader.trailingAnchor),
+            speechRateValueLabel.centerYAnchor.constraint(equalTo: rateHeader.centerYAnchor),
+            rateHeader.heightAnchor.constraint(equalToConstant: 20)
+        ])
+        
+        let rateSlider = UISlider()
+        rateSlider.minimumValue = 0.3
+        rateSlider.maximumValue = 0.8
+        rateSlider.value = 0.52
+        rateSlider.tintColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+        let rateHandler = UIActionHandler { [weak self, weak rateSlider] in
+            guard let self = self, let s = rateSlider else { return }
+            let mult = (s.value / 0.52)
+            self.speechRateValueLabel.text = String(format: "%.1fx", mult)
+        }
+        objc_setAssociatedObject(rateSlider, "rate_h", rateHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        rateSlider.addTarget(rateHandler, action: #selector(UIActionHandler.invoke), for: .valueChanged)
+        
+        stack.addArrangedSubview(vadHeader)
+        stack.addArrangedSubview(vadSlider)
+        stack.addArrangedSubview(rateHeader)
+        stack.addArrangedSubview(rateSlider)
+        
+        card.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    // MARK: - Section 6 : Historique de Discussion
+    private func buildHistoryResetSection() {
+        let section = createSection(title: "🧹 HISTORIQUE DE DISCUSSION", titleColor: UIColor(red: 1.0, green: 0.25, blue: 0.25, alpha: 1.0))
+        let card = createCardView()
+        
+        let resetBtn = UIButton(type: .system)
+        resetBtn.translatesAutoresizingMaskIntoConstraints = false
+        resetBtn.setTitle("🗑️  Réinitialiser la conversation & Vider le cache", for: .normal)
+        resetBtn.setTitleColor(UIColor(red: 1.0, green: 0.30, blue: 0.30, alpha: 1.0), for: .normal)
+        resetBtn.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .bold)
+        resetBtn.backgroundColor = UIColor(red: 1.0, green: 0.15, blue: 0.15, alpha: 0.12)
+        resetBtn.layer.cornerRadius = 12
+        resetBtn.layer.borderColor = UIColor(red: 1.0, green: 0.25, blue: 0.25, alpha: 0.35).cgColor
+        resetBtn.layer.borderWidth = 1.0
+        
+        let resetHandler = UIActionHandler { [weak self] in
+            guard let self = self else { return }
+            HapticService.shared.buttonTap()
+            let alert = UIAlertController(
+                title: "Réinitialiser la discussion ?",
+                message: "Cette action effacera les messages actuels et réinitialisera le contexte conversationnel.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+            alert.addAction(UIAlertAction(title: "Réinitialiser", style: .destructive, handler: { [weak self] _ in
+                self?.onResetConversation?()
+                self?.dismissSettings()
+            }))
+            self.present(alert, animated: true, completion: nil)
+        }
+        objc_setAssociatedObject(resetBtn, "reset_h", resetHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        resetBtn.addTarget(resetHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+        
+        card.addSubview(resetBtn)
+        NSLayoutConstraint.activate([
+            resetBtn.topAnchor.constraint(equalTo: card.topAnchor, constant: 8),
+            resetBtn.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 8),
+            resetBtn.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -8),
+            resetBtn.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8),
+            resetBtn.heightAnchor.constraint(equalToConstant: 44)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    // MARK: - Helpers UI
+    private func createSection(title: String, titleColor: UIColor) -> UIStackView {
+        let sec = UIStackView()
+        sec.axis = .vertical
+        sec.spacing = 8
+        
+        let lbl = UILabel()
+        lbl.text = title
+        lbl.font = UIFont.systemFont(ofSize: 11, weight: .bold)
+        lbl.textColor = titleColor
+        lbl.textAlignment = .left
+        sec.addArrangedSubview(lbl)
+        
+        return sec
+    }
+    
+    private func createCardView() -> UIView {
+        let v = UIView()
+        v.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1.0)
+        v.layer.cornerRadius = 14
+        v.layer.borderColor = UIColor(white: 1.0, alpha: 0.07).cgColor
+        v.layer.borderWidth = 1.0
+        return v
+    }
+    
+    private func agentIconEmoji(_ agent: AgentType) -> String {
+        switch agent {
+        case .sarah:   return "👑"
+        case .nathan:  return "⚡"
+        case .esther:  return "💻"
+        case .tom:     return "🌍"
+        case .yohan:   return "🇮🇱"
+        case .ethel:   return "🎨"
         }
     }
 }
