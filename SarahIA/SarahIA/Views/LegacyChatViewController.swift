@@ -804,6 +804,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private func sendMessage(_ text: String) {
         let userMsg = Message(content: text, isFromUser: true)
         messages.append(userMsg)
+        
+        // Indicateur visuel immédiat pour l'utilisateur
+        let placeholderMsg = Message(content: "⏳ \(activeAgent.rawValue) réfléchit...", isFromUser: false)
+        messages.append(placeholderMsg)
+        
         tableView.reloadData()
         scrollToBottom()
         saveCurrentState()
@@ -824,6 +829,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             guard let self = self else { return }
             self.activeAgent = response.agent
             self.updateAgentCapsuleTitle()
+            
+            // Remplacer le placeholder par la réponse finale de l'IA
+            if let lastIndex = self.messages.indices.last, self.messages[lastIndex].id == placeholderMsg.id {
+                self.messages.remove(at: lastIndex)
+            }
             
             let aiMsg = Message(content: response.text, isFromUser: false)
             self.messages.append(aiMsg)

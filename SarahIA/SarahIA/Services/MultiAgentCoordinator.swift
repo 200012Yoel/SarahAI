@@ -722,14 +722,15 @@ public final class MultiAgentCoordinator {
     }
     
     private func processWithSarah(text: String, completion: @escaping (AgentResponse) -> Void) {
-        let response = AIService.shared.generateSyncResponse(for: text)
-        completion(AgentResponse(
-            agent: .sarah,
-            text: response,
-            spokenText: response.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "#", with: ""),
-            openStudio: false,
-            generatedCode: nil
-        ))
+        AIService.shared.processQuery(text) { response in
+            completion(AgentResponse(
+                agent: .sarah,
+                text: response,
+                spokenText: response.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "#", with: ""),
+                openStudio: false,
+                generatedCode: nil
+            ))
+        }
     }
     
     // MARK: - Nathan (Réseaux Sociaux, WhatsApp, Statuts, Vidéos & IA)

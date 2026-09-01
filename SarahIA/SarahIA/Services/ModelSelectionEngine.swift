@@ -147,4 +147,17 @@ public final class ModelSelectionEngine {
     public func getProfile(byId id: String) -> ModelProfile? {
         return registeredProfiles.first { $0.profileId == id }
     }
+    
+    /// Détermine si le chargement de poids locaux GGUF / llama.cpp est autorisé.
+    /// INTERDICTION STRICTE sur les appareils à 2 Go de RAM ou moins (iPhone 5s, 6, 7, 8, SE) pour éliminer tout crash Jetsam OOM.
+    public func isLocalGGUFAllowed() -> Bool {
+        let physicalMem = ProcessInfo.processInfo.physicalMemory
+        let memoryGB = Double(physicalMem) / (1024.0 * 1024.0 * 1024.0)
+        return memoryGB > 2.5
+    }
+    
+    /// Indique si l'inférence doit être obligatoirement routée vers le Cloud Fallback
+    public func shouldForceCloudFallback() -> Bool {
+        return !isLocalGGUFAllowed()
+    }
 }
