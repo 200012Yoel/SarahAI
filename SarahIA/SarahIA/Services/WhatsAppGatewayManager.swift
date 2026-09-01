@@ -124,6 +124,7 @@ public final class WhatsAppGatewayManager: NSObject {
             let config = WKWebViewConfiguration()
             let contentController = WKUserContentController()
             contentController.add(self, name: "sarahWhatsAppBridge")
+            contentController.add(self, name: "sarahBridge")
             config.userContentController = contentController
             
             // Configuration audio et tâches d'arrière-plan pour le socket
@@ -141,7 +142,7 @@ public final class WhatsAppGatewayManager: NSObject {
     // MARK: - Réception des Événements JavaScript (WKScriptMessageHandler)
     
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "sarahWhatsAppBridge",
+        guard message.name == "sarahWhatsAppBridge" || message.name == "sarahBridge",
               let dict = message.body as? [String: Any],
               let type = dict["type"] as? String else { return }
         
@@ -154,7 +155,7 @@ public final class WhatsAppGatewayManager: NSObject {
     
     private func handleBridgeEvent(type: String, data: [String: Any]) {
         switch type {
-        case "qr_received":
+        case "qr_received", "qr_ready":
             let rawQR = data["qrRaw"] as? String ?? ""
             let dataUrl = data["qrDataUrl"] as? String
             
@@ -165,9 +166,9 @@ public final class WhatsAppGatewayManager: NSObject {
             #endif
             NotificationCenter.default.post(name: NSNotification.Name("SarahWhatsAppQRReceived"), object: nil)
             
-        case "connected":
+        case "connection_open", "connected":
             let phone = data["phoneNumber"] as? String ?? "Connecté"
-            let name = data["pushName"] as? String ?? "Sarah Assistant"
+            let name = data["pushName"] as? String ?? "WhatsApp"
             #if canImport(Combine)
             self.connectedPhone = phone
             self.connectedName = name
@@ -248,24 +249,24 @@ public final class WhatsAppGatewayManager: NSObject {
     
     public func sendTyping(to jid: String) {
         let escapedJid = sanitizeForJS(jid)
-        executeJavaScript("if (typeof sendTyping === 'function') { sendTyping('\(escapedJid)'); }")
+        executeJavaScript("if (window.SarahWhatsAppBridge) { window.SarahWhatsAppBridge.sendComposingPresence('\(escapedJid)'); } else if (typeof sendTyping === 'function') { sendTyping('\(escapedJid)'); }")
     }
     
     public func sendRecordingPresence(to jid: String) {
         let escapedJid = sanitizeForJS(jid)
-        executeJavaScript("if (typeof sendRecordingPresence === 'function') { sendRecordingPresence('\(escapedJid)'); }")
+        executeJavaScript("if (window.SarahWhatsAppBridge) { window.SarahWhatsAppBridge.sendRecordingPresence('\(escapedJid)'); } else if (typeof sendRecordingPresence === 'function') { sendRecordingPresence('\(escapedJid)'); }")
     }
     
     public func sendVoiceNote(to jid: String, base64Audio: String, duration: Int = 3) {
         let escapedJid = sanitizeForJS(jid)
         let escapedAudio = sanitizeForJS(base64Audio)
-        executeJavaScript("if (typeof sendVoiceNote === 'function') { sendVoiceNote('\(escapedJid)', '\(escapedAudio)', \(duration)); }")
+        executeJavaScript("if (window.SarahWhatsAppBridge) { window.SarahWhatsAppBridge.sendVoicePTT('\(escapedJid)', '\(escapedAudio)', \(duration)); } else if (typeof sendVoiceNote === 'function') { sendVoiceNote('\(escapedJid)', '\(escapedAudio)', \(duration)); }")
     }
     
     public func sendMessage(to jid: String, text: String) {
         let escapedJid = sanitizeForJS(jid)
         let escapedText = sanitizeForJS(text)
-        executeJavaScript("if (typeof sendMessage === 'function') { sendMessage('\(escapedJid)', '\(escapedText)'); }")
+        executeJavaScript("if (window.SarahWhatsAppBridge) { window.SarahWhatsAppBridge.sendMessage('\(escapedJid)', '\(escapedText)'); } else if (typeof sendMessage === 'function') { sendMessage('\(escapedJid)', '\(escapedText)'); }")
     }
     
     private func executeJavaScript(_ script: String) {
@@ -337,6 +338,12 @@ public final class WhatsAppGatewayManager: NSObject {
     // MARK: - Modèle Hôte HTML / JS Baileys
     
     private func generateBridgeHostHTML() -> String {
+        var bundleJS = ""
+        if let path = Bundle.main.path(forResource: "whatsapp_baileys_bridge", ofType: "js"),
+           let content = try? String(contentsOfFile: path, encoding: .utf8) {
+            bundleJS = content
+        }
+        
         return """
         <!DOCTYPE html>
         <html>
@@ -346,23 +353,12 @@ public final class WhatsAppGatewayManager: NSObject {
         </head>
         <body>
             <script>
-            // Hôte Bridge Baileys embarqué
-            console.log("Démarrage du pont Baileys WhatsApp Sarah IA...");
+            \(bundleJS)
             
-            function sendToNativeHost(type, data) {
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sarahWhatsAppBridge) {
-                    window.webkit.messageHandlers.sarahWhatsAppBridge.postMessage({
-                        type: type,
-                        timestamp: new Date().toISOString(),
-                        data: data
-                    });
-                }
+            // Initialisation de la session Baileys avec window.SarahWhatsAppBridge
+            if (window.SarahWhatsAppBridge) {
+                window.SarahWhatsAppBridge.initSession('WhatsAppAuth');
             }
-            
-            // Simule l'initialisation du socket et le statut initial si autonome
-            setTimeout(function() {
-                sendToNativeHost('status_update', { status: 'initializing', message: 'Moteur Baileys prêt.' });
-            }, 100);
             </script>
         </body>
         </html>
