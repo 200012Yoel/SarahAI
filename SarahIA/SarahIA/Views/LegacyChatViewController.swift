@@ -302,13 +302,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func keyboardWillShow(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
-              let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+              let keyboardFrameVal = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
               let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
               let curveValue = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt else { return }
         
+        let convertedFrame = view.convert(keyboardFrameVal, from: nil)
+        let keyboardHeight = max(0, view.bounds.height - convertedFrame.minY)
         let bottomSafe = view.safeAreaInsets.bottom
-        let keyboardHeight = keyboardFrame.height
-        let offset = -(keyboardHeight - bottomSafe + 6)
+        let offset = -(max(keyboardHeight, 216) - bottomSafe + 6)
         
         composerBottomConstraint?.constant = offset
         let options = UIView.AnimationOptions(rawValue: curveValue << 16)
@@ -746,12 +747,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func waveformTapped() {
         HapticService.shared.buttonTap()
-        MultiAgentVoiceManager.shared.speak(text: "Je suis à votre écoute avec ma voix Siri.", for: activeAgent)
+        if MultiAgentVoiceManager.shared.isSpeaking {
+            MultiAgentVoiceManager.shared.stop()
+        } else if let lastMsg = messages.last(where: { !$0.isFromUser }) {
+            MultiAgentVoiceManager.shared.speak(text: lastMsg.content, for: activeAgent)
+        } else {
+            MultiAgentVoiceManager.shared.speak(text: "Bonjour ! Je suis Sarah, à votre écoute.", for: activeAgent)
+        }
     }
     
     private func setupSpeechPipeline() {
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] text in
-            self?.sendMessage(text)
+            guard let self = self else { return }
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return }
+            self.sendMessage(cleaned)
+            self.isRecording = false
+            self.micButton.setTitle("🎤", for: .normal)
         }
     }
     
