@@ -114,61 +114,132 @@ public final class AIService {
             return
         }
         
-        let physicalMem = ProcessInfo.processInfo.physicalMemory
-        let memoryGB = Double(physicalMem) / (1024.0 * 1024.0 * 1024.0)
+        let normalized = normalizeText(trimmed)
         
-        // 1. SÉCURITÉ RAM STRICTE (iPhone 5s / 6 / SE / 7 / 8 avec <= 2 Go de RAM) :
-        // Interdiction absolue de charger des poids GGUF ou llama.cpp en mémoire locale.
-        // Bascule directe vers le Cloud Fallback avec Mock de validation réseau.
-        if memoryGB <= 2.5 {
-            DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                guard let self = self else {
-                    DispatchQueue.main.async {
-                        completion("[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré.")
-                    }
-                    return
-                }
-                
-                do {
-                    let norm = self.normalizeText(trimmed)
-                    let finalReply: String
-                    if norm.contains("test") || norm.contains("ping") || norm.contains("reseau") || norm.contains("connexion") || norm == "bonjour" || norm == "hello" || norm == "salut" {
-                        finalReply = "Test réussi : Le réseau est connecté, je t'entends 5 sur 5."
-                    } else {
-                        finalReply = self.generateSyncResponse(for: question)
-                    }
-                    DispatchQueue.main.async {
-                        completion(finalReply)
-                    }
-                } catch {
-                    DispatchQueue.main.async {
-                        completion("Erreur Système : \(error.localizedDescription)")
-                    }
-                }
-            }
+        // 1. Actions contextuelles immédiates (Torche, Flashlight, Batterie, Stop, etc.)
+        if let contextual = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
+            recordExchange(userText: trimmed, assistantResponse: contextual)
+            completion(contextual.decodingHTMLEntities())
             return
         }
         
-        // 2. Appareils >= 3 Go (iPhone 11, 12, 13, 14, 15, 16, 17) :
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self = self else {
-                DispatchQueue.main.async {
-                    completion("[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré.")
-                }
-                return
-            }
+        // 2. Mémorisation directe ("Apprends papa = au travail")
+        if let directLearning = parseDirectLearningCommand(trimmed) {
+            let reply = recordExplicitMemory(trigger: directLearning.trigger, fact: directLearning.response)
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            completion(reply.decodingHTMLEntities())
+            return
+        }
+        
+        // 3. Calculs mathématiques rapides instantanés
+        if let mathResult = evaluateSimpleMath(in: trimmed) {
+            let reply = "Le résultat est : \(mathResult) 🧮"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            completion(reply.decodingHTMLEntities())
+            return
+        }
+        
+        // 4. Inférence Réelle vers le Moteur LLM Distant (Cloud Fallback)
+        callCloudLLM(prompt: trimmed) { [weak self] result in
+            guard let self = self else { return }
             
-            do {
-                let reply = self.generateSyncResponse(for: question)
+            switch result {
+            case .success(let llmResponse):
+                let cleaned = llmResponse.decodingHTMLEntities()
+                self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                 DispatchQueue.main.async {
-                    completion(reply)
+                    completion(cleaned)
                 }
-            } catch {
-                DispatchQueue.main.async {
-                    completion("Erreur Système : \(error.localizedDescription)")
+                
+            case .failure(let error):
+                // En cas d'échec de la connexion distante :
+                // Vérifier si le moteur neuronal local possède une réponse experte hors-ligne
+                LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed) { localResult in
+                    if localResult.confidence >= 0.8 && !localResult.text.isEmpty && !localResult.text.contains("Je suis à votre entière disposition") {
+                        let cleaned = localResult.text.decodingHTMLEntities()
+                        self.recordExchange(userText: trimmed, assistantResponse: cleaned)
+                        DispatchQueue.main.async {
+                            completion(cleaned)
+                        }
+                    } else {
+                        // Renvoyer la VRAIE erreur technique dans le chat sans masque poli
+                        let technicalError = "[Erreur Réseau : \(error.localizedDescription) — Impossible de contacter le serveur d'inférence LLM]"
+                        DispatchQueue.main.async {
+                            completion(technicalError)
+                        }
+                    }
                 }
             }
         }
+    }
+    
+    // MARK: - Inférence Cloud LLM (Vraie Requête HTTP POST URLSession)
+    
+    public func callCloudLLM(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
+        let endpointString = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? "https://api.openai.com/v1/chat/completions"
+        guard let endpoint = URL(string: endpointString) else {
+            completion(.failure(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL de l'endpoint LLM invalide"])))
+            return
+        }
+        
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let apiKey = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
+        if !apiKey.isEmpty {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        request.timeoutInterval = 12.0
+        
+        let messages: [[String: String]] = [
+            ["role": "system", "content": "Tu es Sarah, une intelligence artificielle française rapide, experte, chaleureuse et précise. Réponds directement en français."],
+            ["role": "user", "content": prompt]
+        ]
+        
+        let payload: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 1024
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+        } catch {
+            completion(.failure(error))
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Réponse serveur invalide"])))
+                return
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorDetails = data != nil ? (String(data: data!, encoding: .utf8) ?? "Code \(httpResponse.statusCode)") : "Code \(httpResponse.statusCode)"
+                completion(.failure(NSError(domain: "AIService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Erreur API HTTP \(httpResponse.statusCode) : \(errorDetails)"])))
+                return
+            }
+            
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let firstChoice = choices.first,
+                  let message = firstChoice["message"] as? [String: Any],
+                  let content = message["content"] as? String else {
+                completion(.failure(NSError(domain: "AIService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Réponse JSON inattendue du modèle"])))
+                return
+            }
+            
+            completion(.success(content.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }.resume()
     }
     
     /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
@@ -939,12 +1010,22 @@ public final class AIService {
             return pickRandom(from: goodbyeResponses)
         }
         
-        // Réponse par défaut intelligente
+        // Réponse par défaut intelligente via le moteur neuronal local
         return generateDefaultResponse(for: trimmed)
     }
     
     private func generateDefaultResponse(for trimmed: String) -> String {
-        return pickRandom(from: defaultResponses)
+        var localAnswer = ""
+        let sema = DispatchSemaphore(value: 0)
+        LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed) { res in
+            localAnswer = res.text
+            sema.signal()
+        }
+        _ = sema.wait(timeout: .now() + 0.1)
+        if !localAnswer.isEmpty {
+            return localAnswer
+        }
+        return "[Erreur : Aucune réponse du modèle LLM pour cette question.]"
     }
     
     // MARK: - Titrage Intelligent et Dynamique des Discussions (Sidebar)
@@ -1185,13 +1266,6 @@ public final class AIService {
     private let chitChatResponses = [
         "Je suis là pour vous aider ! 😊",
         "À votre écoute ! 🎧"
-    ]
-    
-    private let defaultResponses = [
-        "C'est une remarque très intéressante ! 🤔 Vous pouvez aussi m'enseigner quoi répondre précisément en disant : « Apprends [mot] = [réponse] » !",
-        "Je comprends parfaitement ! 💡 Je m'adapte et j'apprends continuellement à vos côtés.",
-        "Je note cela avec attention ! 🧠 N'hésitez pas si vous avez une question, un calcul ou besoin d'un coup de main.",
-        "Je suis à votre entière disposition ! 📚 Vous pouvez me demander des calculs, des blagues, des anecdotes ou allumer la torche !"
     ]
     
     private func pickRandom(from pool: [String]) -> String {

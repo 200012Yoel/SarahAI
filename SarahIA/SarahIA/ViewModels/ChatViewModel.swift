@@ -216,6 +216,12 @@ public final class ChatViewModel: ObservableObject {
         haptics.memoryDeleted()
         AIProgressiveScheduler.shared.cancelAllTasks()
         conversations.removeAll(where: { $0.id == conv.id })
+        
+        let convUUID = conv.id.uuidString
+        DispatchQueue.global(qos: .background).async {
+            SQLiteChatDatabase.shared.deleteConversationByUUID(uuid: convUUID)
+        }
+        
         if currentConversationId == conv.id {
             if let next = conversations.first {
                 selectConversation(next)
@@ -378,7 +384,8 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
                 
-                let responseContent = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let responseContent = rawText.decodingHTMLEntities()
                 let aiMessage = Message(content: responseContent, isFromUser: false)
                 self.appendMessage(aiMessage)
                 self.isTyping = false
@@ -400,9 +407,10 @@ public final class ChatViewModel: ObservableObject {
                 
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
                     let src = response.handoffSourceAgent ?? .sarah
-                    self.voiceManager.speakHandoff(transitionText: transitionPart, sourceAgent: src, agentGreeting: agentPart, targetAgent: response.agent)
+                    self.voiceManager.speakHandoff(transitionText: transitionPart.decodingHTMLEntities(), sourceAgent: src, agentGreeting: agentPart.decodingHTMLEntities(), targetAgent: response.agent)
                 } else {
-                    self.voiceManager.speak(text: response.spokenText, for: response.agent)
+                    let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText).decodingHTMLEntities()
+                    self.voiceManager.speak(text: spoken, for: response.agent)
                 }
             }
         }

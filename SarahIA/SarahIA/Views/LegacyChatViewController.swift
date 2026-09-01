@@ -837,7 +837,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                     self.messages.remove(at: lastIndex)
                 }
                 
-                let responseText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let responseText = rawText.decodingHTMLEntities()
                 let aiMsg = Message(content: responseText, isFromUser: false)
                 self.messages.append(aiMsg)
                 self.tableView.reloadData()
@@ -855,7 +856,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                 )
                 SQLiteChatDatabase.shared.insertMessage(aiPersisted)
                 
-                let spoken = response.spokenText.isEmpty ? responseText : response.spokenText
+                let rawSpoken = response.spokenText.isEmpty ? responseText : response.spokenText
+                let spoken = rawSpoken.decodingHTMLEntities()
                 MultiAgentVoiceManager.shared.speak(text: spoken, for: response.agent)
             }
         }
@@ -1192,15 +1194,42 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     public func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if tableView == self.drawerTableView && editingStyle == .delete {
-            let conv = conversations.remove(at: indexPath.row)
-            if currentConversationId == conv.id {
-                currentConversationId = conversations.first?.id ?? UUID()
-                messages = conversations.first?.messages ?? []
-                tableView.reloadData()
-            }
-            saveCurrentState()
-            drawerTableView.deleteRows(at: [indexPath], with: .fade)
+            deleteConversation(at: indexPath)
         }
+    }
+    
+    public func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
+        guard tableView == self.drawerTableView else { return nil }
+        let deleteAction = UITableViewRowAction(style: .destructive, title: "Supprimer") { [weak self] _, path in
+            self?.deleteConversation(at: path)
+        }
+        deleteAction.backgroundColor = UIColor(red: 0.95, green: 0.25, blue: 0.30, alpha: 1.0)
+        return [deleteAction]
+    }
+    
+    private func deleteConversation(at indexPath: IndexPath) {
+        guard indexPath.row < conversations.count else { return }
+        HapticService.shared.memoryDeleted()
+        let conv = conversations.remove(at: indexPath.row)
+        
+        let convUUID = conv.id.uuidString
+        DispatchQueue.global(qos: .background).async {
+            SQLiteChatDatabase.shared.deleteConversationByUUID(uuid: convUUID)
+        }
+        
+        if currentConversationId == conv.id {
+            if let first = conversations.first {
+                currentConversationId = first.id
+                messages = first.messages
+            } else {
+                currentConversationId = UUID()
+                messages = []
+                loadInitialWelcomeMessage()
+            }
+            self.tableView.reloadData()
+        }
+        saveCurrentState()
+        drawerTableView.deleteRows(at: [indexPath], with: .fade)
     }
 }
 
