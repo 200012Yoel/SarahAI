@@ -1,7 +1,8 @@
 # 👑 Sarah IA — Moteur IA Local Souverain & Multi-Agents iOS
 
 <div align="center">
-  <img src="assets/app_preview.png" alt="Sarah IA Preview" width="360" style="border-radius: 32px; box-shadow: 0 15px 40px rgba(0,0,0,0.7);" />
+  <img src="assets/app_icon.png" alt="Sarah IA Icon" width="160" style="border-radius: 36px; box-shadow: 0 12px 35px rgba(0,0,0,0.6);" />
+  <h3>Sarah IA — L'Intelligence Artificielle Locale & Souveraine pour iOS</h3>
   <p><em>Interface Universelle 100% Identique — De l'iPhone 5s (iOS 12.0) à l'iPhone 17+ (iOS 18.0+)</em></p>
 </div>
 
