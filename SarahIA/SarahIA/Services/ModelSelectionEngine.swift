@@ -72,14 +72,14 @@ public final class ModelSelectionEngine {
         // Tier 5 : iPhone 14 / 14 Plus / 14 Pro (Cible Principale — Modèle le plus puissant du marché pour iPhone 14)
         let tier5 = ModelProfile(
             profileId: "profile_tier5_flagship_i14",
-            internalEngineId: "Sarah Neural Engine Flagship v4 (iPhone 14 — Neural Core A15/A16 6GB)",
+            internalEngineId: "Sarah Neural Flagship Qwen 2.5 Coder (iPhone 14 — Neural Core A15/A16 6GB)",
             targetTier: .tier5_flagship,
             maxContextLength: 4096,
             maxGenerationTokens: 2048,
             estimatedMemoryFootprintBytes: 1200 * 1024 * 1024,
             defaultBatchIntervalMs: 4,
             allowsConcurrentAgents: true,
-            modelFileName: "sarah_fr_model.json",
+            modelFileName: "sarah_vai_coder_model.json",
             fallbackProfileId: "profile_tier4_pro"
         )
         
