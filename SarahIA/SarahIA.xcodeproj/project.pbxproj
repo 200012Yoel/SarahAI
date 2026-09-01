@@ -98,6 +98,8 @@
 		A1B2C3D40001000100000098 /* WhatsAppVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */; };
 		A1B2C3D40001000100000099 /* LegacyWhatsAppVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */; };
 		A1B2C3D4000100010000009A /* whatsapp_baileys_bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009A /* whatsapp_baileys_bridge.js */; };
+		A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009B /* SarahDesignSystem.swift */; };
+		A1B2C3D4000100010000009C /* SarahActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -194,6 +196,8 @@
 		A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppVoiceCallView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyWhatsAppVoiceCallViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009A /* whatsapp_baileys_bridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = whatsapp_baileys_bridge.js; path = Resources/whatsapp_baileys_bridge.js; sourceTree = "<group>"; };
+		A1B2C3D4000200010000009B /* SarahDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahDesignSystem.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahActionCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,6 +308,7 @@
 				A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */,
 				A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */,
 				A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */,
+				A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -334,6 +339,7 @@
 				A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */,
 				A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */,
 				A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */,
+				A1B2C3D4000200010000009B /* SarahDesignSystem.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -514,6 +520,8 @@
 				A1B2C3D40001000100000097 /* OpenWAVoiceWalkieTalkieManager.swift in Sources */,
 				A1B2C3D40001000100000098 /* WhatsAppVoiceCallView.swift in Sources */,
 				A1B2C3D40001000100000099 /* LegacyWhatsAppVoiceCallViewController.swift in Sources */,
+				A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */,
+				A1B2C3D4000100010000009C /* SarahActionCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
