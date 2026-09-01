@@ -83,4 +83,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         
         return true
     }
+    
+    // MARK: - Cycle de Vie & Session Timeout (Inactivité > 1h)
+    
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        SessionTimeoutManager.shared.recordAppBackgroundTime()
+    }
+    
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
+    }
+    
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
+    }
+    
+    // MARK: - Finalisation du Téléchargement Background (URLSession GGUF)
+    
+    public static var backgroundSessionCompletionHandler: (() -> Void)?
+    
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        AppDelegate.backgroundSessionCompletionHandler = completionHandler
+        print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
+    }
 }

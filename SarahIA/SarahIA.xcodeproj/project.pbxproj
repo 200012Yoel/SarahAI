@@ -103,6 +103,7 @@
 		A1B2C3D4000100010000009D /* VirtualPhoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */; };
 		A1B2C3D4000100010000009E /* VirtualPhoneViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009E /* VirtualPhoneViewController.swift */; };
 		A1B2C3D4000100010000009F /* DevCodeInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009F /* DevCodeInjector.swift */; };
+		A1B2C3D400010001000000A0 /* SessionTimeoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -204,6 +205,7 @@
 		A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualPhoneManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009E /* VirtualPhoneViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualPhoneViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009F /* DevCodeInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevCodeInjector.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimeoutManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -317,6 +319,7 @@
 				A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */,
 				A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */,
 				A1B2C3D4000200010000009F /* DevCodeInjector.swift */,
+				A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -534,6 +537,7 @@
 				A1B2C3D4000100010000009D /* VirtualPhoneManager.swift in Sources */,
 				A1B2C3D4000100010000009E /* VirtualPhoneViewController.swift in Sources */,
 				A1B2C3D4000100010000009F /* DevCodeInjector.swift in Sources */,
+				A1B2C3D400010001000000A0 /* SessionTimeoutManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
