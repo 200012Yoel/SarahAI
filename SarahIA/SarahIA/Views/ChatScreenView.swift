@@ -24,8 +24,9 @@ public struct ChatScreenView: View {
             let window = UIApplication.shared.connectedScenes
                 .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
                 .first
-            let top = window?.safeAreaInsets.top ?? 0
-            return top > 0 ? top : 47
+            if let top = window?.safeAreaInsets.top, top > 0 {
+                return top
+            }
         }
         return 20
     }
@@ -35,18 +36,19 @@ public struct ChatScreenView: View {
             let window = UIApplication.shared.connectedScenes
                 .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
                 .first
-            let bottom = window?.safeAreaInsets.bottom ?? 0
-            return bottom > 0 ? bottom : 34
+            if let insets = window?.safeAreaInsets {
+                return insets.bottom
+            }
         }
         return 0
     }
     
     private var currentBottomPadding: CGFloat {
         if keyboard.keyboardHeight > 0 {
-            // Le clavier iOS couvre déjà le Home Indicator (bottomSafeArea), on le soustrait pour coller la barre au clavier
-            return max(0, keyboard.keyboardHeight - bottomSafeArea + 4)
+            let diff = keyboard.keyboardHeight - bottomSafeArea
+            return max(0, diff)
         }
-        return bottomSafeArea
+        return bottomSafeArea > 0 ? bottomSafeArea : 6
     }
     
     public var body: some View {
@@ -105,7 +107,6 @@ public struct ChatScreenView: View {
                         isShowingVideoShare = true
                     }
                 )
-                .padding(.bottom, 4)
             }
             .padding(.bottom, currentBottomPadding)
         }

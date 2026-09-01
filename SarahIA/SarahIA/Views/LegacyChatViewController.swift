@@ -20,11 +20,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let clearChatButton = UIButton(type: .system)
     private let settingsButton = UIButton(type: .system)
     
-    private let quickActionsScrollView = UIScrollView()
-    private let quickActionsStack = UIStackView()
-    
     private let tableView = UITableView()
     private let composerContainer = UIView()
+    private var composerBottomConstraint: NSLayoutConstraint?
     private let inputTextField = UITextField()
     private let micButton = UIButton(type: .system)
     private let waveformButton = UIButton(type: .system)
@@ -64,6 +62,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         setupDrawer()
         setupPanGesture()
         setupSpeechPipeline()
+        setupKeyboardObservers()
         
         if messages.isEmpty {
             loadInitialWelcomeMessage()
@@ -184,19 +183,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.estimatedRowHeight = 60
         view.addSubview(tableView)
         
-        // 3. Actions Rapides (Chips)
-        quickActionsScrollView.translatesAutoresizingMaskIntoConstraints = false
-        quickActionsScrollView.showsHorizontalScrollIndicator = false
-        view.addSubview(quickActionsScrollView)
-        
-        quickActionsStack.translatesAutoresizingMaskIntoConstraints = false
-        quickActionsStack.axis = .horizontal
-        quickActionsStack.spacing = 8
-        quickActionsScrollView.addSubview(quickActionsStack)
-        
-        setupQuickActionChips()
-        
-        // 4. Barre de Saisie Capsule
+        // 3. Barre de Saisie Capsule
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
         composerContainer.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
         composerContainer.layer.cornerRadius = 22
@@ -239,6 +226,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         composerContainer.addSubview(sendButton)
         
+        let bottomConstraint = composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
+        self.composerBottomConstraint = bottomConstraint
+        
         NSLayoutConstraint.activate([
             topBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -267,22 +257,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             tableView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: quickActionsScrollView.topAnchor, constant: -6),
-            
-            quickActionsScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-            quickActionsScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            quickActionsScrollView.bottomAnchor.constraint(equalTo: composerContainer.topAnchor, constant: -8),
-            quickActionsScrollView.heightAnchor.constraint(equalToConstant: 36),
-            
-            quickActionsStack.topAnchor.constraint(equalTo: quickActionsScrollView.topAnchor),
-            quickActionsStack.leadingAnchor.constraint(equalTo: quickActionsScrollView.leadingAnchor),
-            quickActionsStack.trailingAnchor.constraint(equalTo: quickActionsScrollView.trailingAnchor),
-            quickActionsStack.bottomAnchor.constraint(equalTo: quickActionsScrollView.bottomAnchor),
-            quickActionsStack.heightAnchor.constraint(equalTo: quickActionsScrollView.heightAnchor),
+            tableView.bottomAnchor.constraint(equalTo: composerContainer.topAnchor, constant: -8),
             
             composerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             composerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
+            bottomConstraint,
             composerContainer.heightAnchor.constraint(equalToConstant: 46),
             
             inputTextField.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 14),
@@ -306,36 +285,50 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         ])
     }
     
-    private func setupQuickActionChips() {
-        quickActionsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    // MARK: - Gestion du Clavier & Défilement
+    
+    private func setupKeyboardObservers() {
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
         
-        let chip1 = createChip(title: "🔦 Allume la torche", color: UIColor(white: 0.18, alpha: 1.0)) { [weak self] in
-            _ = DeviceController.shared.toggleTorch(enable: nil)
-        }
-        let chip2 = createChip(title: "🛡️ Pikoud HaOref", color: UIColor(red: 0.40, green: 0.10, blue: 0.12, alpha: 1.0)) { [weak self] in
-            self?.sendMessage("Alertes Pikoud HaOref")
-        }
-        let chip3 = createChip(title: "📰 i24news", color: UIColor(red: 0.10, green: 0.25, blue: 0.50, alpha: 1.0)) { [weak self] in
-            self?.sendMessage("Actualités i24news")
-        }
-        
-        quickActionsStack.addArrangedSubview(chip1)
-        quickActionsStack.addArrangedSubview(chip2)
-        quickActionsStack.addArrangedSubview(chip3)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tap.cancelsTouchesInView = false
+        tableView.addGestureRecognizer(tap)
     }
     
-    private func createChip(title: String, color: UIColor, action: @escaping () -> Void) -> UIButton {
-        let btn = UIButton(type: .system)
-        btn.setTitle(title, for: .normal)
-        btn.setTitleColor(.white, for: .normal)
-        btn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
-        btn.backgroundColor = color
-        btn.layer.cornerRadius = 14
-        btn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
+    }
+    
+    @objc private func keyboardWillShow(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+              let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
+              let curveValue = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt else { return }
         
-        let actionHandler = UIActionHandler(action: action)
-        btn.addTarget(actionHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
-        return btn
+        let bottomSafe = view.safeAreaInsets.bottom
+        let keyboardHeight = keyboardFrame.height
+        let offset = -(keyboardHeight - bottomSafe + 6)
+        
+        composerBottomConstraint?.constant = offset
+        let options = UIView.AnimationOptions(rawValue: curveValue << 16)
+        UIView.animate(withDuration: duration, delay: 0, options: options, animations: {
+            self.view.layoutIfNeeded()
+        }, completion: { _ in
+            self.scrollToBottom()
+        })
+    }
+    
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
+              let curveValue = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt else { return }
+        
+        composerBottomConstraint?.constant = -8
+        let options = UIView.AnimationOptions(rawValue: curveValue << 16)
+        UIView.animate(withDuration: duration, delay: 0, options: options, animations: {
+            self.view.layoutIfNeeded()
+        }, completion: nil)
     }
     
     private func updateAgentCapsuleTitle() {
