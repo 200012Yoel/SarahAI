@@ -106,8 +106,14 @@ public final class AIService {
     
     // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM & Cloud Fallback Mock)
     
-    /// Traite la requête utilisateur de manière asynchrone avec bascule automatique Cloud Fallback sur les appareils <= 2 Go de RAM
+    /// Traite la requête utilisateur de manière asynchrone avec do/catch global et fallback de débogage garanti
     public func processQuery(_ question: String, completion: @escaping (String) -> Void) {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            completion("[DEBUG] Le bouton fonctionne, mais le texte envoyé est vide.")
+            return
+        }
+        
         let physicalMem = ProcessInfo.processInfo.physicalMemory
         let memoryGB = Double(physicalMem) / (1024.0 * 1024.0 * 1024.0)
         
@@ -116,20 +122,28 @@ public final class AIService {
         // Bascule directe vers le Cloud Fallback avec Mock de validation réseau.
         if memoryGB <= 2.5 {
             DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { [weak self] in
-                guard let self = self else { return }
-                let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-                let norm = self.normalizeText(trimmed)
-                
-                // Si la question est un message test / salutation / ping ou question libre en fallback
-                let finalReply: String
-                if norm.contains("test") || norm.contains("ping") || norm.contains("reseau") || norm.contains("connexion") || norm == "bonjour" || norm == "hello" || norm == "salut" {
-                    finalReply = "Test réussi : Le réseau est connecté, je t'entends 5 sur 5."
-                } else {
-                    finalReply = self.generateSyncResponse(for: question)
+                guard let self = self else {
+                    DispatchQueue.main.async {
+                        completion("[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré.")
+                    }
+                    return
                 }
                 
-                DispatchQueue.main.async {
-                    completion(finalReply)
+                do {
+                    let norm = self.normalizeText(trimmed)
+                    let finalReply: String
+                    if norm.contains("test") || norm.contains("ping") || norm.contains("reseau") || norm.contains("connexion") || norm == "bonjour" || norm == "hello" || norm == "salut" {
+                        finalReply = "Test réussi : Le réseau est connecté, je t'entends 5 sur 5."
+                    } else {
+                        finalReply = self.generateSyncResponse(for: question)
+                    }
+                    DispatchQueue.main.async {
+                        completion(finalReply)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        completion("Erreur Système : \(error.localizedDescription)")
+                    }
                 }
             }
             return
@@ -137,10 +151,22 @@ public final class AIService {
         
         // 2. Appareils >= 3 Go (iPhone 11, 12, 13, 14, 15, 16, 17) :
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self = self else { return }
-            let reply = self.generateSyncResponse(for: question)
-            DispatchQueue.main.async {
-                completion(reply)
+            guard let self = self else {
+                DispatchQueue.main.async {
+                    completion("[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré.")
+                }
+                return
+            }
+            
+            do {
+                let reply = self.generateSyncResponse(for: question)
+                DispatchQueue.main.async {
+                    completion(reply)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion("Erreur Système : \(error.localizedDescription)")
+                }
             }
         }
     }

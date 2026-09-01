@@ -372,34 +372,38 @@ public final class ChatViewModel: ObservableObject {
         multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
             guard let self = self else { return }
             
-            // Basculer l'agent actif selon la décision de routage / passation de main
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                self.activeAgent = response.agent
-            }
-            
-            let aiMessage = Message(content: response.text, isFromUser: false)
-            self.appendMessage(aiMessage)
-            self.isTyping = false
-            
-            // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
-            self.aiService.recordExchange(userText: text, assistantResponse: response.text)
-            SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: response.text, topicType: response.agent.rawValue)
-            
-            // Si Raphaël a généré du code -> préparer pour le studio
-            if let code = response.generatedCode {
-                self.vaiCurrentCode = code
-                if response.openStudio {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        self.isShowingVAICodingStudio = true
+            DispatchQueue.main.async {
+                // Basculer l'agent actif selon la décision de routage / passation de main
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    self.activeAgent = response.agent
+                }
+                
+                let responseContent = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let aiMessage = Message(content: responseContent, isFromUser: false)
+                self.appendMessage(aiMessage)
+                self.isTyping = false
+                self.voiceStatus = .idle
+                
+                // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
+                self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
+                SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: responseContent, topicType: response.agent.rawValue)
+                
+                // Si Raphaël a généré du code -> préparer pour le studio
+                if let code = response.generatedCode {
+                    self.vaiCurrentCode = code
+                    if response.openStudio {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            self.isShowingVAICodingStudio = true
+                        }
                     }
                 }
-            }
-            
-            if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
-                let src = response.handoffSourceAgent ?? .sarah
-                self.voiceManager.speakHandoff(transitionText: transitionPart, sourceAgent: src, agentGreeting: agentPart, targetAgent: response.agent)
-            } else {
-                self.voiceManager.speak(text: response.spokenText, for: response.agent)
+                
+                if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
+                    let src = response.handoffSourceAgent ?? .sarah
+                    self.voiceManager.speakHandoff(transitionText: transitionPart, sourceAgent: src, agentGreeting: agentPart, targetAgent: response.agent)
+                } else {
+                    self.voiceManager.speak(text: response.spokenText, for: response.agent)
+                }
             }
         }
     }

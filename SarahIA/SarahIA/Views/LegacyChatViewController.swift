@@ -827,32 +827,37 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         MultiAgentCoordinator.shared.routeAndProcess(query: text, currentAgent: activeAgent) { [weak self] response in
             guard let self = self else { return }
-            self.activeAgent = response.agent
-            self.updateAgentCapsuleTitle()
             
-            // Remplacer le placeholder par la réponse finale de l'IA
-            if let lastIndex = self.messages.indices.last, self.messages[lastIndex].id == placeholderMsg.id {
-                self.messages.remove(at: lastIndex)
+            DispatchQueue.main.async {
+                self.activeAgent = response.agent
+                self.updateAgentCapsuleTitle()
+                
+                // Remplacer le placeholder par la réponse finale de l'IA
+                if let lastIndex = self.messages.indices.last, self.messages[lastIndex].id == placeholderMsg.id {
+                    self.messages.remove(at: lastIndex)
+                }
+                
+                let responseText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let aiMsg = Message(content: responseText, isFromUser: false)
+                self.messages.append(aiMsg)
+                self.tableView.reloadData()
+                self.scrollToBottom()
+                self.saveCurrentState()
+                
+                let aiPersisted = SQLiteChatDatabase.PersistedMessage(
+                    id: aiMsg.id.uuidString,
+                    conversationId: convId,
+                    agentId: response.agent.rawValue,
+                    sender: "assistant",
+                    content: responseText,
+                    timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                    isAudio: false
+                )
+                SQLiteChatDatabase.shared.insertMessage(aiPersisted)
+                
+                let spoken = response.spokenText.isEmpty ? responseText : response.spokenText
+                MultiAgentVoiceManager.shared.speak(text: spoken, for: response.agent)
             }
-            
-            let aiMsg = Message(content: response.text, isFromUser: false)
-            self.messages.append(aiMsg)
-            self.tableView.reloadData()
-            self.scrollToBottom()
-            self.saveCurrentState()
-            
-            let aiPersisted = SQLiteChatDatabase.PersistedMessage(
-                id: aiMsg.id.uuidString,
-                conversationId: convId,
-                agentId: response.agent.rawValue,
-                sender: "assistant",
-                content: response.text,
-                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
-                isAudio: false
-            )
-            SQLiteChatDatabase.shared.insertMessage(aiPersisted)
-            
-            MultiAgentVoiceManager.shared.speak(text: response.spokenText, for: response.agent)
         }
     }
     
