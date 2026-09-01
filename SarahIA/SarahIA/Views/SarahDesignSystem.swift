@@ -39,6 +39,7 @@ public struct SarahDesignSystem {
         public static let textMuted = UIColor(white: 0.45, alpha: 1.0)
         
         #if canImport(SwiftUI)
+        @available(iOS 13.0, *)
         public struct SwiftColors {
             public static let background = Color(SarahDesignSystem.Colors.background)
             public static let surface = Color(SarahDesignSystem.Colors.surface)

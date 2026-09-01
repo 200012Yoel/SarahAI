@@ -43,12 +43,28 @@ final class NotificationService: NSObject {
                     )
 
                     UNUserNotificationCenter.current().add(request) { error in
-                                                                                 if let error = error {
-                                                                                                     print("Notification send error: \(error.localizedDescription)")
-                                                                                 } else {
-                                                                                                     print("Notification sent: \(message.prefix(50))...")
-                                                                                 }
-                                                                    }
+                        if let error = error {
+                            print("Notification send error: \(error.localizedDescription)")
+                        } else {
+                            print("Notification sent: \(message.prefix(50))...")
+                        }
+                    }
+        }
+        
+        // Show in-app / local alert notification
+        func showInAppNotification(title: String, message: String) {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = message
+            content.sound = .default
+            
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: trigger
+            )
+            UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
         }
 
         // Reset app badge
