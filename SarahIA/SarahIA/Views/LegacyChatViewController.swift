@@ -1296,7 +1296,6 @@ public final class LegacySettingsViewController: UIViewController {
     private func buildAllSections() {
         buildModeSection()
         buildSocialConnectionsSection()
-        buildAdaptiveAISection()
         buildEcosystemSection()
         buildAudioVADSection()
         buildHistoryResetSection()
@@ -1604,64 +1603,6 @@ public final class LegacySettingsViewController: UIViewController {
             btn.layer.borderWidth = 1.0
         }
         return btn
-    }
-    
-    // MARK: - Section 3 : Intelligence Artificielle Adaptative
-    private func buildAdaptiveAISection() {
-        let section = createSection(title: "🤖 INTELLIGENCE ARTIFICIELLE ADAPTATIVE", titleColor: UIColor(red: 0.20, green: 0.85, blue: 0.45, alpha: 1.0))
-        let card = createCardView()
-        
-        let rows: [(label: String, val: String, isGreen: Bool)] = [
-            ("Statut Moteur", "● On-Device 100% Hors-Ligne", true),
-            ("Puce & Mémoire", "Apple A-Series (Tier 1 Optimisé)", false),
-            ("Modèle Actif", "Sarah Neural Flagship v4 (Qwen 2.5)", false),
-            ("Budget Mémoire", "~80 Mo (Garanti sans plantage)", false)
-        ]
-        
-        let stack = UIStackView()
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.axis = .vertical
-        stack.spacing = 10
-        
-        for item in rows {
-            let r = UIView()
-            r.translatesAutoresizingMaskIntoConstraints = false
-            
-            let lLbl = UILabel()
-            lLbl.translatesAutoresizingMaskIntoConstraints = false
-            lLbl.text = item.label
-            lLbl.font = UIFont.systemFont(ofSize: 13)
-            lLbl.textColor = UIColor.gray
-            r.addSubview(lLbl)
-            
-            let vLbl = UILabel()
-            vLbl.translatesAutoresizingMaskIntoConstraints = false
-            vLbl.text = item.val
-            vLbl.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
-            vLbl.textColor = item.isGreen ? UIColor(red: 0.20, green: 0.95, blue: 0.45, alpha: 1.0) : .white
-            r.addSubview(vLbl)
-            
-            NSLayoutConstraint.activate([
-                lLbl.leadingAnchor.constraint(equalTo: r.leadingAnchor),
-                lLbl.centerYAnchor.constraint(equalTo: r.centerYAnchor),
-                
-                vLbl.trailingAnchor.constraint(equalTo: r.trailingAnchor),
-                vLbl.centerYAnchor.constraint(equalTo: r.centerYAnchor),
-                r.heightAnchor.constraint(equalToConstant: 24)
-            ])
-            stack.addArrangedSubview(r)
-        }
-        
-        card.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
-        ])
-        
-        section.addArrangedSubview(card)
-        contentStack.addArrangedSubview(section)
     }
     
     // MARK: - Section 4 : Écosystème des 6 Agents Autonomes

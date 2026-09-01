@@ -20,17 +20,18 @@ public final class AudioSessionManager {
     
     // MARK: - Configuration des Sessions Audio
     
-    /// Active la session audio en mode lecture seule (contourne le mode silencieux).
-    /// IMPORTANT : Appeler UNIQUEMENT avant de déclencher la synthèse vocale.
+    /// Active la session audio en mode lecture haut-parleur (contourne le mode silencieux).
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            // Ne pas activer si déjà en mode playAndRecord (micro actif)
-            if session.category != .playAndRecord {
-                try session.setCategory(.playback, mode: .default, options: [])
-                try session.setActive(true)
-                print("🔊 [AudioSessionManager] Mode .playback activé (mode silencieux contourné).")
-            }
+            try session.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth]
+            )
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.overrideOutputAudioPort(.speaker)
+            print("🔊 [AudioSessionManager] Mode .playAndRecord (Haut-parleur forcé & Bluetooth actif).")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }

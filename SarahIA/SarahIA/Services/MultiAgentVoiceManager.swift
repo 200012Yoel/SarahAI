@@ -92,11 +92,18 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         
-        AudioSessionManager.shared.configurePlaybackSession()
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
+        }
         
         let utterance = AVSpeechUtterance(string: cleaned)
-        let voice = getSiriVoice(for: agent)
-        utterance.voice = voice
+        let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        utterance.voice = resolvedVoice
         utterance.rate = rate
         
         // Timbres et hauteurs de tonalité uniques pour chaque personnalité
@@ -109,7 +116,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         case .ethel:  utterance.pitchMultiplier = 1.03
         }
         
-        print("🔊 Lecture [\(agent.rawValue)] via Voix: \(voice?.name ?? "Inconnue") | ID: \(voice?.identifier ?? "")")
+        if resolvedVoice == nil {
+            print("⚠️ [AgentVoiceManager] Échec d'initialisation de la voix AVSpeechSynthesisVoice(fr-FR)")
+        } else {
+            print("🔊 [AgentVoiceManager] Synthèse vocale [\(agent.rawValue)] via \(resolvedVoice?.name ?? "fr-FR") | ID: \(resolvedVoice?.identifier ?? "")")
+        }
         
         synthesizer.speak(utterance)
     }

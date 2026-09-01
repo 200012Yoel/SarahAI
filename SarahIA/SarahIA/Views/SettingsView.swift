@@ -211,60 +211,7 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 2. Section Modèle IA Adaptatif
-                    Section(header: Text("🤖 Intelligence Artificielle Adaptative").foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))) {
-                        let profile = AIResourceManager.shared.activeProfile
-                        let capability = DeviceCapabilityDetector.shared.detectProfile()
-                        
-                        HStack {
-                            Label("Statut du Moteur", systemImage: "bolt.fill")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("Actif (100% Local)")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.green)
-                        }
-                        
-                        HStack {
-                            Label("Appareil Détecté", systemImage: "iphone")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(capability.hardwareTier.tierName)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))
-                        }
-                        
-                        HStack {
-                            Label("Modèle Embarqué", systemImage: "cpu")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(profile?.internalEngineId ?? "Sarah Adaptive Core v2")
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        HStack {
-                            Label("Mémoire Allouée", systemImage: "memorychip")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("\(capability.safeMemoryBudgetBytes / (1024 * 1024)) Mo")
-                                .font(.system(size: 13))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        HStack {
-                            Label("Meilleur Modèle Dispo", systemImage: "star.fill")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text(bestModelForDevice())
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
-                                .multilineTextAlignment(.trailing)
-                        }
-                    }
-                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
-                    
-                    // 3. Écosystème des 6 Agents & Voix Siri
+                    // 2. Écosystème des 6 Agents & Voix Siri
                     Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
                         agentRow(
                             agent: .nathan,
