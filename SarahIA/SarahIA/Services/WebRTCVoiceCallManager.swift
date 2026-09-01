@@ -8,21 +8,46 @@ import UIKit
 #endif
 
 /// Gestionnaire d'Appels Vocaux WebRTC P2P avec Traduction Vocale Temps Réel
-public final class WebRTCVoiceCallManager: NSObject, ObservableObject {
+public final class WebRTCVoiceCallManager: NSObject {
     
     public static let shared = WebRTCVoiceCallManager()
     
-    // MARK: - États Observables
-    #if canImport(Combine)
-    @Published public private(set) var callState: VoiceCallState = .idle
-    @Published public var languagePair: CallLanguagePair = CallLanguagePair(localLanguage: "fr", remoteLanguage: "en", isVoiceTranslationEnabled: true)
-    @Published public private(set) var transcriptItems: [CallTranscriptItem] = []
-    @Published public private(set) var isMuted: Bool = false
-    @Published public private(set) var isSpeakerOn: Bool = true
-    @Published public private(set) var callDuration: TimeInterval = 0
-    @Published public private(set) var micEnergy: Float = 0.0
-    @Published public private(set) var currentContact: VoiceCallContact? = nil
-    #endif
+    // MARK: - États Universels (iOS 12.0+ à iOS 18.0+)
+    public private(set) var callState: VoiceCallState = .idle {
+        didSet { notifyStateChanged() }
+    }
+    public var languagePair: CallLanguagePair = CallLanguagePair(localLanguage: "fr", remoteLanguage: "en", isVoiceTranslationEnabled: true) {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var transcriptItems: [CallTranscriptItem] = [] {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var isMuted: Bool = false {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var isSpeakerOn: Bool = true {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var callDuration: TimeInterval = 0 {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var micEnergy: Float = 0.0 {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var currentContact: VoiceCallContact? = nil {
+        didSet { notifyStateChanged() }
+    }
+    
+    private func notifyStateChanged() {
+        #if canImport(Combine)
+        if #available(iOS 13.0, *) {
+            DispatchQueue.main.async {
+                (self as? any ObservableObject)?.objectWillChange.send()
+            }
+        }
+        #endif
+        NotificationCenter.default.post(name: NSNotification.Name("SarahWebRTCStateChanged"), object: nil)
+    }
     
     // MARK: - Moteur Audio Basse Latence (AVAudioEngine)
     private let audioEngine = AVAudioEngine()
@@ -273,3 +298,9 @@ public final class WebRTCVoiceCallManager: NSObject, ObservableObject {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 }
+
+#if canImport(Combine)
+@available(iOS 13.0, *)
+extension WebRTCVoiceCallManager: ObservableObject {}
+#endif
+

@@ -101,7 +101,7 @@ public final class LegacyVoiceCallViewController: UIViewController {
         
         durationLabel.translatesAutoresizingMaskIntoConstraints = false
         durationLabel.text = "00:00"
-        durationLabel.font = UIFont.monospacedSystemFont(ofSize: 13, weight: .bold)
+        durationLabel.font = UIFont(name: "Menlo-Bold", size: 13) ?? UIFont.systemFont(ofSize: 13, weight: .bold)
         durationLabel.textColor = .white
         durationLabel.textAlignment = .center
         view.addSubview(durationLabel)

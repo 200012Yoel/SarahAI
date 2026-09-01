@@ -11,20 +11,43 @@ import UIKit
 /// - Coordination Multi-Agents Spécialisée :
 ///   * **Nathan** : Pilote l'infrastructure WhatsApp, les garde-fous anti-ban (jitter 1.5s-3.5s, présence 'recording') et l'envoi des vocaux PTT.
 ///   * **Yoann** : Moteur vocal hébreu & linguistique (prononciation authentique et synthèse vocale).
-public final class OpenWAVoiceWalkieTalkieManager: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
+public final class OpenWAVoiceWalkieTalkieManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public static let shared = OpenWAVoiceWalkieTalkieManager()
     
-    // MARK: - Propriétés Observables
-    #if canImport(Combine)
-    @Published public private(set) var isRecording: Bool = false
-    @Published public private(set) var isSendingVoiceNote: Bool = false
-    @Published public private(set) var micEnergy: Float = 0.0
-    @Published public var languagePair: CallLanguagePair = CallLanguagePair(localLanguage: "fr", remoteLanguage: "he", isVoiceTranslationEnabled: true)
-    @Published public private(set) var transcriptFeed: [CallTranscriptItem] = []
-    @Published public private(set) var activeContact: VoiceCallContact? = nil
-    @Published public private(set) var lastStatusMessage: String = "Prêt pour communication WhatsApp"
-    #endif
+    // MARK: - Propriétés d'État Universelles (iOS 12.0+ à iOS 18.0+)
+    public private(set) var isRecording: Bool = false {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var isSendingVoiceNote: Bool = false {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var micEnergy: Float = 0.0 {
+        didSet { notifyStateChanged() }
+    }
+    public var languagePair: CallLanguagePair = CallLanguagePair(localLanguage: "fr", remoteLanguage: "he", isVoiceTranslationEnabled: true) {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var transcriptFeed: [CallTranscriptItem] = [] {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var activeContact: VoiceCallContact? = nil {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var lastStatusMessage: String = "Prêt pour communication WhatsApp" {
+        didSet { notifyStateChanged() }
+    }
+    
+    private func notifyStateChanged() {
+        #if canImport(Combine)
+        if #available(iOS 13.0, *) {
+            DispatchQueue.main.async {
+                (self as? any ObservableObject)?.objectWillChange.send()
+            }
+        }
+        #endif
+        NotificationCenter.default.post(name: NSNotification.Name("SarahWalkieTalkieStateChanged"), object: nil)
+    }
     
     // Moteurs audio & synthèse
     private let audioEngine = AVAudioEngine()
@@ -260,3 +283,9 @@ public final class OpenWAVoiceWalkieTalkieManager: NSObject, ObservableObject, A
         }
     }
 }
+
+#if canImport(Combine)
+@available(iOS 13.0, *)
+extension OpenWAVoiceWalkieTalkieManager: ObservableObject {}
+#endif
+

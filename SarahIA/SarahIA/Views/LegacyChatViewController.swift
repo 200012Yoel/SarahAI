@@ -2045,7 +2045,7 @@ public final class LegacyVirtualIPhoneViewController: UIViewController {
         let lockLbl = UILabel()
         lockLbl.translatesAutoresizingMaskIntoConstraints = false
         lockLbl.text = "🔒 sarah.local / app.html"
-        lockLbl.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .medium)
+        lockLbl.font = UIFont(name: "Menlo-Bold", size: 10) ?? UIFont.systemFont(ofSize: 10, weight: .medium)
         lockLbl.textColor = UIColor(white: 0.85, alpha: 1.0)
         safariBar.addSubview(lockLbl)
         iphoneScreen.addSubview(safariBar)

@@ -28,20 +28,43 @@ public enum WhatsAppGatewayStatus: Equatable {
 /// - Pilote le runtime local sans aucun serveur cloud tiers
 /// - Gère la génération de QR Code multi-device, la persistance des clés de session,
 ///   l'écoute des WebSockets et le routage direct vers le pipeline d'inférence de Sarah.
-public final class WhatsAppGatewayManager: NSObject, ObservableObject, WKScriptMessageHandler {
+public final class WhatsAppGatewayManager: NSObject {
     
     public static let shared = WhatsAppGatewayManager()
     
-    // MARK: - Propriétés Observables
-    #if canImport(Combine)
-    @Published public private(set) var status: WhatsAppGatewayStatus = .disconnected
-    @Published public var isAutoReplyEnabled: Bool = true
-    @Published public private(set) var qrImage: UIImage? = nil
-    @Published public private(set) var connectedPhone: String? = nil
-    @Published public private(set) var connectedName: String? = nil
-    @Published public private(set) var processedMessagesCount: Int = 0
-    @Published public private(set) var lastMessageReceivedText: String? = nil
-    #endif
+    // MARK: - Propriétés d'État Universelles (iOS 12.0+ à iOS 18.0+)
+    public private(set) var status: WhatsAppGatewayStatus = .disconnected {
+        didSet { notifyStateChanged() }
+    }
+    public var isAutoReplyEnabled: Bool = true {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var qrImage: UIImage? = nil {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var connectedPhone: String? = nil {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var connectedName: String? = nil {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var processedMessagesCount: Int = 0 {
+        didSet { notifyStateChanged() }
+    }
+    public private(set) var lastMessageReceivedText: String? = nil {
+        didSet { notifyStateChanged() }
+    }
+    
+    private func notifyStateChanged() {
+        #if canImport(Combine)
+        if #available(iOS 13.0, *) {
+            DispatchQueue.main.async {
+                (self as? any ObservableObject)?.objectWillChange.send()
+            }
+        }
+        #endif
+        NotificationCenter.default.post(name: NSNotification.Name("SarahWhatsAppStateChanged"), object: nil)
+    }
     
     // MARK: - Infrastructure d'Exécution Locale
     private var hiddenWebView: WKWebView?
@@ -353,3 +376,11 @@ public final class WhatsAppGatewayManager: NSObject, ObservableObject, WKScriptM
         """
     }
 }
+
+extension WhatsAppGatewayManager: WKScriptMessageHandler {}
+
+#if canImport(Combine)
+@available(iOS 13.0, *)
+extension WhatsAppGatewayManager: ObservableObject {}
+#endif
+
