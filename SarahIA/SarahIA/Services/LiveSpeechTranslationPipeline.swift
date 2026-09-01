@@ -155,7 +155,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             }
         }()
         
-        TranslationEngine.shared.translate(text: text, from: sourceLang, to: targetEnum) { [weak self] (translatedText) in
+        TranslationEngine.shared.translate(text: text, sourceLang: sourceLang, targetLang: targetEnum) { [weak self] (translatedText) in
             guard let self = self else { return }
             
             let item = CallTranscriptItem(
@@ -221,7 +221,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             }
         }()
         
-        TranslationEngine.shared.translate(text: remoteText, from: sourceLang, to: targetEnum) { [weak self] (translatedText) in
+        TranslationEngine.shared.translate(text: remoteText, sourceLang: sourceLang, targetLang: targetEnum) { [weak self] (translatedText) in
             guard let self = self else { return }
             
             let item = CallTranscriptItem(

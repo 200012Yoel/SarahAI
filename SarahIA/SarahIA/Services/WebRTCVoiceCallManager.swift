@@ -39,13 +39,6 @@ public final class WebRTCVoiceCallManager: NSObject {
     }
     
     private func notifyStateChanged() {
-        #if canImport(Combine)
-        if #available(iOS 13.0, *) {
-            DispatchQueue.main.async {
-                (self as? any ObservableObject)?.objectWillChange.send()
-            }
-        }
-        #endif
         NotificationCenter.default.post(name: NSNotification.Name("SarahWebRTCStateChanged"), object: nil)
     }
     

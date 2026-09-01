@@ -56,13 +56,6 @@ public final class WhatsAppGatewayManager: NSObject {
     }
     
     private func notifyStateChanged() {
-        #if canImport(Combine)
-        if #available(iOS 13.0, *) {
-            DispatchQueue.main.async {
-                (self as? any ObservableObject)?.objectWillChange.send()
-            }
-        }
-        #endif
         NotificationCenter.default.post(name: NSNotification.Name("SarahWhatsAppStateChanged"), object: nil)
     }
     
@@ -324,9 +317,9 @@ public final class WhatsAppGatewayManager: NSObject {
             }
         }
         
-        // Génération native CoreImage de secours
+        // Génération native CoreImage de secours (iOS 8.0+)
         guard !rawString.isEmpty else { return nil }
-        let filter = CIFilter.qrCodeGenerator()
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
         filter.setValue(Data(rawString.utf8), forKey: "inputMessage")
         filter.setValue("M", forKey: "inputCorrectionLevel")
         
