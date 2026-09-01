@@ -90,6 +90,29 @@ public final class ChatViewModel: ObservableObject {
                 self?.micInputLevel = level
             }
             .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: .sarahStartNewChat)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.startNewChat()
+            }
+            .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: .sarahClearCurrentChat)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.startNewChat()
+            }
+            .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: .sarahAgentSelected)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                if let agent = notif.object as? AgentType {
+                    self?.activeAgent = agent
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -121,17 +144,10 @@ public final class ChatViewModel: ObservableObject {
             conversations[index].updatedAt = Date()
         }
         
-        let existing = storageService.loadState()
-        let state = AppPersistedState(
-            activeMode: appMode.rawValue,
-            conversations: conversations,
-            currentConversationId: currentConversationId,
-            messages: messages,
-            lastActiveTimestamp: Date(),
-            voiceSettings: existing.voiceSettings,
-            learnedMemories: self.learnedMemories,
-            pendingLearningTrigger: existing.pendingLearningTrigger
-        )
+        var state = storageService.loadState()
+        state.conversations = self.conversations
+        state.currentConversationId = self.currentConversationId
+        state.learnedMemories = self.learnedMemories
         storageService.saveState(state)
     }
     
@@ -153,7 +169,8 @@ public final class ChatViewModel: ObservableObject {
         haptics.buttonTap()
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
-        currentConversationId = nil
+        let newSessionId = UUID()
+        currentConversationId = newSessionId
         messages = []
         inputText = ""
         appMode = .text
@@ -161,6 +178,7 @@ public final class ChatViewModel: ObservableObject {
         drawerProgress = 0.0
         activeAgent = .sarah
         aiService.syncHistoryFromMessages([])
+        SessionTimeoutManager.shared.recordAppBackgroundTime()
     }
     
     public func selectConversation(_ conv: Conversation) {
@@ -390,6 +408,18 @@ public final class ChatViewModel: ObservableObject {
         ensureConversation(withFirstMessage: msg.content)
         messages.append(msg)
         persistCurrentState()
+        
+        let convId = currentConversationId?.uuidString ?? UUID().uuidString
+        let persisted = SQLiteChatDatabase.PersistedMessage(
+            id: msg.id.uuidString,
+            conversationId: convId,
+            agentId: activeAgent.rawValue,
+            sender: msg.isFromUser ? "user" : "assistant",
+            content: msg.content,
+            timestamp: Int64(msg.timestamp.timeIntervalSince1970 * 1000),
+            isAudio: false
+        )
+        SQLiteChatDatabase.shared.insertMessage(persisted)
     }
     
     private func ensureConversation(withFirstMessage text: String) {

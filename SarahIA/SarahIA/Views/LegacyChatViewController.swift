@@ -604,6 +604,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         self.messages = []
         loadInitialWelcomeMessage()
         closeDrawerAnimated()
+        SessionTimeoutManager.shared.recordAppBackgroundTime()
     }
     
     @objc private func confirmClearCurrentChat() {
@@ -818,6 +819,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         scrollToBottom()
         saveCurrentState()
         
+        let convId = currentConversationId?.uuidString ?? UUID().uuidString
+        let userPersisted = SQLiteChatDatabase.PersistedMessage(
+            id: userMsg.id.uuidString,
+            conversationId: convId,
+            agentId: activeAgent.rawValue,
+            sender: "user",
+            content: text,
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            isAudio: false
+        )
+        SQLiteChatDatabase.shared.insertMessage(userPersisted)
+        
         MultiAgentCoordinator.shared.routeAndProcess(query: text, currentAgent: activeAgent) { [weak self] response in
             guard let self = self else { return }
             self.activeAgent = response.agent
@@ -828,6 +841,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self.tableView.reloadData()
             self.scrollToBottom()
             self.saveCurrentState()
+            
+            let aiPersisted = SQLiteChatDatabase.PersistedMessage(
+                id: aiMsg.id.uuidString,
+                conversationId: convId,
+                agentId: response.agent.rawValue,
+                sender: "assistant",
+                content: response.text,
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                isAudio: false
+            )
+            SQLiteChatDatabase.shared.insertMessage(aiPersisted)
             
             MultiAgentVoiceManager.shared.speak(text: response.spokenText, for: response.agent)
         }
