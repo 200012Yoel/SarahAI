@@ -39,7 +39,7 @@ public final class OpenWAVoiceWalkieTalkieManager: NSObject, AVSpeechSynthesizer
     }
     
     private func notifyStateChanged() {
-        NotificationCenter.default.post(name: NSNotification.Name("SarahWalkieTalkieStateChanged"), object: nil)
+        NotificationCenter.default.post(name: .sarahWalkieTalkieStateChanged, object: nil)
     }
     
     // Moteurs audio & synthèse

@@ -2,13 +2,27 @@ import Foundation
 import UIKit
 
 // ============================================================================
-// SARAH ACTION COORDINATOR — GESTIONNAIRE D'ÉTAT & D'ACTIONS CENTRALISÉ
+// EXTENSIONS NOTIFICATION.NAME TYPÉES (Zéro Chaînes Magiques)
 // ============================================================================
-// Fait converger 100% des actions utilisateur vers un pipeline logique unique :
-// - Changement d'agent actif
-// - Nouvelle discussion & Purge d'historique
-// - Appels vocaux WebRTC & Talkie-Walkie WhatsApp
-// - Envoi et streaming de messages
+
+public extension Notification.Name {
+    static let sarahToggleSidebar            = Notification.Name("SarahToggleSidebar")
+    static let sarahOpenSettings             = Notification.Name("SarahOpenSettings")
+    static let sarahClearCurrentChat         = Notification.Name("SarahClearCurrentChat")
+    static let sarahStartNewChat             = Notification.Name("SarahStartNewChat")
+    static let sarahAgentSelected            = Notification.Name("SarahAgentSelected")
+    static let sarahPresentWhatsAppCall      = Notification.Name("SarahPresentWhatsAppVoiceModal")
+    static let sarahPresentVoiceCall         = Notification.Name("SarahPresentVoiceCallModal")
+    static let sarahSendTextMessage          = Notification.Name("SarahSendTextMessage")
+    static let sarahToggleVoiceRecording     = Notification.Name("SarahToggleVoiceRecording")
+    static let sarahWhatsAppStateChanged     = Notification.Name("SarahWhatsAppStateChanged")
+    static let sarahWhatsAppQRReceived       = Notification.Name("SarahWhatsAppQRReceived")
+    static let sarahWebRTCStateChanged       = Notification.Name("SarahWebRTCStateChanged")
+    static let sarahWalkieTalkieStateChanged = Notification.Name("SarahWalkieTalkieStateChanged")
+}
+
+// ============================================================================
+// SARAH ACTION COORDINATOR — GESTIONNAIRE D'ÉTAT & D'ACTIONS THREAD-SAFE
 // ============================================================================
 
 public enum SarahAppAction {
@@ -30,45 +44,55 @@ public final class SarahActionCoordinator {
     
     private init() {}
     
-    // MARK: - Point d'Entrée Unique de Dispatch
+    // MARK: - Point d'Entrée Unique de Dispatch (100% Thread-Safe sur Main Thread)
     
     public func dispatch(_ action: SarahAppAction) {
+        if Thread.isMainThread {
+            self.handleAction(action)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.handleAction(action)
+            }
+        }
+    }
+    
+    private func handleAction(_ action: SarahAppAction) {
         switch action {
         case .toggleSidebar:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahToggleSidebar"), object: nil)
+            NotificationCenter.default.post(name: .sarahToggleSidebar, object: nil)
             
         case .openSettings:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahOpenSettings"), object: nil)
+            NotificationCenter.default.post(name: .sarahOpenSettings, object: nil)
             
         case .selectAgent(let agent):
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahAgentSelected"), object: agent)
+            NotificationCenter.default.post(name: .sarahAgentSelected, object: agent)
             
         case .startNewChat:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahStartNewChat"), object: nil)
+            NotificationCenter.default.post(name: .sarahStartNewChat, object: nil)
             
         case .clearCurrentChat:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahClearCurrentChat"), object: nil)
+            NotificationCenter.default.post(name: .sarahClearCurrentChat, object: nil)
             
         case .sendTextMessage(let text):
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-            NotificationCenter.default.post(name: NSNotification.Name("SarahSendTextMessage"), object: text)
+            NotificationCenter.default.post(name: .sarahSendTextMessage, object: text)
             
         case .toggleVoiceRecording:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahToggleVoiceRecording"), object: nil)
+            NotificationCenter.default.post(name: .sarahToggleVoiceRecording, object: nil)
             
         case .openVoiceCall(let contact):
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahPresentVoiceCallModal"), object: contact)
+            NotificationCenter.default.post(name: .sarahPresentVoiceCall, object: contact)
             
         case .openWhatsAppVoiceCall(let contact):
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: NSNotification.Name("SarahPresentWhatsAppVoiceModal"), object: contact)
+            NotificationCenter.default.post(name: .sarahPresentWhatsAppCall, object: contact)
             
         case .showNotification(let title, let message):
             NotificationService.shared.showInAppNotification(title: title, message: message)

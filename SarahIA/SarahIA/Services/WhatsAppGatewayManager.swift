@@ -56,7 +56,7 @@ public final class WhatsAppGatewayManager: NSObject {
     }
     
     private func notifyStateChanged() {
-        NotificationCenter.default.post(name: NSNotification.Name("SarahWhatsAppStateChanged"), object: nil)
+        NotificationCenter.default.post(name: .sarahWhatsAppStateChanged, object: nil)
     }
     
     // MARK: - Infrastructure d'Exécution Locale

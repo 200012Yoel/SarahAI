@@ -39,7 +39,7 @@ public final class WebRTCVoiceCallManager: NSObject {
     }
     
     private func notifyStateChanged() {
-        NotificationCenter.default.post(name: NSNotification.Name("SarahWebRTCStateChanged"), object: nil)
+        NotificationCenter.default.post(name: .sarahWebRTCStateChanged, object: nil)
     }
     
     // MARK: - Moteur Audio Basse Latence (AVAudioEngine)

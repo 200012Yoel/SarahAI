@@ -168,8 +168,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         topBar.addSubview(settingsButton)
         
-        NotificationCenter.default.addObserver(self, selector: #selector(presentVoiceCallModal), name: NSNotification.Name("SarahPresentVoiceCallModal"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(presentWhatsAppVoiceModal), name: NSNotification.Name("SarahPresentWhatsAppVoiceModal"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(presentVoiceCallModal), name: .sarahPresentVoiceCall, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(presentWhatsAppVoiceModal), name: .sarahPresentWhatsAppCall, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(toggleDrawer), name: .sarahToggleSidebar, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .sarahOpenSettings, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(startNewChat), name: .sarahStartNewChat, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(confirmClearCurrentChat), name: .sarahClearCurrentChat, object: nil)
         
         // 2. TableView Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false

@@ -162,7 +162,7 @@ public final class AIService {
             if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
                 DispatchQueue.main.async {
                     WebRTCVoiceCallManager.shared.startOutboundCall(to: match.contact, targetLanguage: match.targetLanguage)
-                    NotificationCenter.default.post(name: NSNotification.Name("SarahPresentVoiceCallModal"), object: nil)
+                    SarahActionCoordinator.shared.dispatch(.openVoiceCall(contact: match.contact))
                 }
                 let targetLangName = match.targetLanguage == "en" ? "Anglais 🇬🇧" : (match.targetLanguage == "he" ? "Hébreu 🇮🇱" : "Français 🇫🇷")
                 let reply = "📞 J'établis l'appel WebRTC sécurisé avec **\(match.contact.name)** (\(match.contact.role)).\nTraduction vocale en direct activée vers : **\(targetLangName)**."
@@ -178,7 +178,7 @@ public final class AIService {
             if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
                 DispatchQueue.main.async {
                     OpenWAVoiceWalkieTalkieManager.shared.startSession(with: match.contact, targetLanguage: match.targetLanguage)
-                    NotificationCenter.default.post(name: NSNotification.Name("SarahPresentWhatsAppVoiceModal"), object: nil)
+                    SarahActionCoordinator.shared.dispatch(.openWhatsAppVoiceCall(contact: match.contact))
                 }
                 let targetLangName = match.targetLanguage == "he" ? "Hébreu 🇮🇱" : (match.targetLanguage == "en" ? "Anglais 🇬🇧" : "Français 🇫🇷")
                 let reply = "💬 **Passerelle WhatsApp Talkie-Walkie Active**\n• **Nathan** gère l'envoi sécurisé PTT sur WhatsApp.\n• **Yoann** assure la traduction vocale vers : **\(targetLangName)**.\n\nPrêt pour la communication vocale avec **\(match.contact.name)** !"
