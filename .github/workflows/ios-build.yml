@@ -155,8 +155,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:
-          tag_name: build-error
-          name: "Build Error Log"
+          tag_name: build-error-${{ github.run_number }}
+          name: "Build Error Log #${{ github.run_number }}"
           body_path: ${{ github.workspace }}/xcode_errors.txt
           files: |
             ${{ github.workspace }}/xcode_errors.txt

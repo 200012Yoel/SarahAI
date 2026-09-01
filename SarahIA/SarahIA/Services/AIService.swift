@@ -1016,17 +1016,7 @@ public final class AIService {
     }
     
     private func generateDefaultResponse(for trimmed: String) -> String {
-        var localAnswer = ""
-        let sema = DispatchSemaphore(value: 0)
-        LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed) { res in
-            localAnswer = res.text
-            sema.signal()
-        }
-        _ = sema.wait(timeout: .now() + 0.1)
-        if !localAnswer.isEmpty {
-            return localAnswer
-        }
-        return "[Erreur : Aucune réponse du modèle LLM pour cette question.]"
+        return "Je suis à votre écoute ! Posez-moi une question, demandez un calcul ou explorez mes fonctionnalités."
     }
     
     // MARK: - Titrage Intelligent et Dynamique des Discussions (Sidebar)
