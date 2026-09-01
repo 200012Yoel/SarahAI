@@ -152,6 +152,24 @@ public final class AIService {
             return reply
         }
         
+        // 1.3 APPEL VOCAL WEBRTC AVEC TRADUCTION VOCALE EN DIRECT (ex: "Appelle papa", "Appelle David en anglais")
+        if (normalized.starts(with: "appelle ") || normalized.starts(with: "appel ") ||
+            normalized.contains("passe un appel") || normalized.contains("lance un appel") ||
+            normalized.starts(with: "telephone a ") || normalized.starts(with: "téléphone à ")) &&
+            !normalized.contains("comment tu t appelles") && !normalized.contains("comment je m appelle") {
+            
+            if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
+                DispatchQueue.main.async {
+                    WebRTCVoiceCallManager.shared.startOutboundCall(to: match.contact, targetLanguage: match.targetLanguage)
+                    NotificationCenter.default.post(name: NSNotification.Name("SarahPresentVoiceCallModal"), object: nil)
+                }
+                let targetLangName = match.targetLanguage == "en" ? "Anglais 🇬🇧" : (match.targetLanguage == "he" ? "Hébreu 🇮🇱" : "Français 🇫🇷")
+                let reply = "📞 J'établis l'appel WebRTC sécurisé avec **\(match.contact.name)** (\(match.contact.role)).\nTraduction vocale en direct activée vers : **\(targetLangName)**."
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
+            }
+        }
+        
         var state = storage.loadState()
         
         // 2. ÉTAPE 2 DE L'APPRENTISSAGE INTERACTIF (Attente de la réponse)

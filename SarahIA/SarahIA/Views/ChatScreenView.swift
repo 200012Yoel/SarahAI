@@ -11,6 +11,7 @@ public struct ChatScreenView: View {
     
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingVideoShare: Bool = false
+    @State private var isShowingVoiceCallScreen: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -116,13 +117,25 @@ public struct ChatScreenView: View {
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
             VAICodingStudioView(viewModel: viewModel)
         }
+        .fullScreenCover(isPresented: $isShowingVoiceCallScreen) {
+            VoiceCallScreenView()
+        }
         .sheet(isPresented: $isShowingVideoShare) {
             VideoShareView(viewModel: viewModel)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentVoiceCallModal"))) { _ in
+            isShowingVoiceCallScreen = true
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
+                    .default(Text("📞 Appel Vocal WebRTC & Traduction IA")) {
+                        if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
+                            WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
+                        }
+                        isShowingVoiceCallScreen = true
+                    },
                     .default(Text("🎨 Générer une Image HD (Flux.1 Open Source)")) {
                         viewModel.inputText = "Génère une photo de "
                     },

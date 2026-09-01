@@ -153,6 +153,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         topBar.addSubview(settingsButton)
         
+        NotificationCenter.default.addObserver(self, selector: #selector(presentVoiceCallModal), name: NSNotification.Name("SarahPresentVoiceCallModal"), object: nil)
+        
         // 2. TableView Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.backgroundColor = .black
@@ -616,10 +618,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(nav, animated: true, completion: nil)
     }
     
+    @objc private func presentVoiceCallModal() {
+        let callVC = LegacyVoiceCallViewController()
+        present(callVC, animated: true, completion: nil)
+    }
+    
     @objc private func plusTapped() {
         HapticService.shared.buttonTap()
         let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
         
+        alert.addAction(UIAlertAction(title: "📞 Appel Vocal WebRTC & Traduction IA", style: .default, handler: { [weak self] _ in
+            if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
+                WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
+            }
+            self?.presentVoiceCallModal()
+        }))
         alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Flux.1 Open Source)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Génère une photo de "
             self?.inputTextField.becomeFirstResponder()

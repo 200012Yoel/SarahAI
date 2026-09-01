@@ -87,6 +87,12 @@
 		A1B2C3D4000100010000008D /* MultimodalMediaCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */; };
 		A1B2C3D4000100010000008E /* WhatsAppGatewayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */; };
 		A1B2C3D4000100010000008F /* WhatsAppGatewayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */; };
+		A1B2C3D40001000100000090 /* VoiceCallModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000090 /* VoiceCallModels.swift */; };
+		A1B2C3D40001000100000091 /* VoiceCallContactManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */; };
+		A1B2C3D40001000100000092 /* LiveSpeechTranslationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */; };
+		A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */; };
+		A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */; };
+		A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -172,6 +178,12 @@
 		A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultimodalMediaCardViews.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppGatewayManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppGatewayView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000090 /* VoiceCallModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallModels.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallContactManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSpeechTranslationPipeline.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCVoiceCallManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallScreenView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyVoiceCallViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -216,6 +228,7 @@
 				A1B2C3D40002000100000003 /* Message.swift */,
 				A1B2C3D40002000100000032 /* Conversation.swift */,
 				A1B2C3D40002000100000069 /* IsraelCityDatabase.swift */,
+				A1B2C3D40002000100000090 /* VoiceCallModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -275,6 +288,9 @@
 				A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */,
 				A1B2C3D40002000100000088 /* HardwareDetector.swift */,
 				A1B2C3D4000200010000008E /* WhatsAppGatewayManager.swift */,
+				A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */,
+				A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */,
+				A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -301,6 +317,8 @@
 				A1B2C3D40002000100000089 /* VideoShareView.swift */,
 				A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */,
 				A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */,
+				A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */,
+				A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -470,6 +488,12 @@
 				A1B2C3D4000100010000008D /* MultimodalMediaCardViews.swift in Sources */,
 				A1B2C3D4000100010000008E /* WhatsAppGatewayManager.swift in Sources */,
 				A1B2C3D4000100010000008F /* WhatsAppGatewayView.swift in Sources */,
+				A1B2C3D40001000100000090 /* VoiceCallModels.swift in Sources */,
+				A1B2C3D40001000100000091 /* VoiceCallContactManager.swift in Sources */,
+				A1B2C3D40001000100000092 /* LiveSpeechTranslationPipeline.swift in Sources */,
+				A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */,
+				A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */,
+				A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
