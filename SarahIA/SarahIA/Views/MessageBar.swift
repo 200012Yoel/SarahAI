@@ -11,7 +11,6 @@ public struct MessageBar: View {
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
-    var onPlusTapped: (() -> Void)? = nil
     var onShareVideo: (() -> Void)? = nil
     
     @ObservedObject private var flashlight: ObservableFlashlight
@@ -24,7 +23,6 @@ public struct MessageBar: View {
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
         onOpenVAICoding: @escaping () -> Void,
-        onPlusTapped: (() -> Void)? = nil,
         onShareVideo: (() -> Void)? = nil
     ) {
         self._text = text
@@ -34,7 +32,6 @@ public struct MessageBar: View {
         self.onToggleMic = onToggleMic
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
-        self.onPlusTapped = onPlusTapped
         self.onShareVideo = onShareVideo
         self._flashlight = ObservedObject(wrappedValue: ObservableFlashlight.shared)
     }
@@ -87,23 +84,9 @@ public struct MessageBar: View {
                 .padding(.horizontal, 16)
             }
             
-            // 2. Barre de Saisie
+            // 2. Barre de Saisie Élargie Naturellement
             HStack(spacing: 12) {
-                // Bouton Plus ＋
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    onPlusTapped?()
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 44, height: 44)
-                .background(Color(white: 0.15))
-                .clipShape(Circle())
-                .buttonStyle(ScaleBounceButtonStyle())
-                
-                // Champ texte avec Micro intégré
+                // Champ texte étendu avec Micro intégré
                 HStack(spacing: 8) {
                     TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
                         submitMessage()

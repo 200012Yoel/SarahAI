@@ -101,9 +101,6 @@ public struct ChatScreenView: View {
                     onOpenVAICoding: {
                         viewModel.isShowingVAICodingStudio = true
                     },
-                    onPlusTapped: {
-                        isShowingActionSheet = true
-                    },
                     onShareVideo: {
                         isShowingVideoShare = true
                     }

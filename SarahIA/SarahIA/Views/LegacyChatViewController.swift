@@ -25,7 +25,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     private let tableView = UITableView()
     private let composerContainer = UIView()
-    private let plusButton = UIButton(type: .system)
     private let inputTextField = UITextField()
     private let micButton = UIButton(type: .system)
     private let waveformButton = UIButton(type: .system)
@@ -203,17 +202,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         composerContainer.layer.cornerRadius = 22
         view.addSubview(composerContainer)
         
-        // Bouton ＋
-        plusButton.translatesAutoresizingMaskIntoConstraints = false
-        plusButton.setTitle("＋", for: .normal)
-        plusButton.setTitleColor(.white, for: .normal)
-        plusButton.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .bold)
-        plusButton.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
-        plusButton.layer.cornerRadius = 16
-        plusButton.addTarget(self, action: #selector(plusTapped), for: .touchUpInside)
-        composerContainer.addSubview(plusButton)
-        
-        // Champ texte
+        // Champ texte étendu naturellement
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
         inputTextField.attributedPlaceholder = NSAttributedString(
             string: "Demander à \(activeAgent.rawValue)...",
@@ -296,12 +285,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8),
             composerContainer.heightAnchor.constraint(equalToConstant: 46),
             
-            plusButton.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 6),
-            plusButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            plusButton.widthAnchor.constraint(equalToConstant: 32),
-            plusButton.heightAnchor.constraint(equalToConstant: 32),
-            
-            inputTextField.leadingAnchor.constraint(equalTo: plusButton.trailingAnchor, constant: 10),
+            inputTextField.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 14),
             inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -6),
             inputTextField.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
             
