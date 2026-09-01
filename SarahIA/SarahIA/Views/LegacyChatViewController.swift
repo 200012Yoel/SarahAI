@@ -607,12 +607,29 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     @objc private func openSettings() {
         HapticService.shared.buttonTap()
         let alert = UIAlertController(
-            title: "⚙️ Réglages & Modes",
-            message: "Agent Actif: \(activeAgent.rawValue)\nModèle: Sarah Neural Core Flagship v4\nVoix: Siri Apple Natif",
-            preferredStyle: .alert
+            title: "⚙️ Réglages Sarah IA",
+            message: "Agent actif : \(activeAgent.rawValue)\nModèle : Sarah Neural Flagship v4 (100% Hors-ligne)\nMatériel : A-Series Neural Engine",
+            preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: "Nouvelle discussion", style: .default, handler: { [weak self] _ in
+        
+        alert.addAction(UIAlertAction(title: "🧹 Nouvelle discussion & Vider le cache", style: .destructive, handler: { [weak self] _ in
             self?.startNewChat()
+        }))
+        alert.addAction(UIAlertAction(title: "🎙️ Voix Siri & Synthèse Vocale", style: .default, handler: { [weak self] _ in
+            guard let self = self else { return }
+            MultiAgentVoiceManager.shared.speak(text: "La synthèse vocale Siri est active sur tous vos agents.", for: self.activeAgent)
+        }))
+        alert.addAction(UIAlertAction(title: "🔒 Confidentialité & Stockage Local", style: .default, handler: { [weak self] _ in
+            let info = UIAlertController(title: "🔒 Confidentialité 100% Locale", message: "Toutes vos conversations, requêtes et codes sont traités directement sur la puce de votre iPhone sans aucun serveur distant.", preferredStyle: .alert)
+            info.addAction(UIAlertAction(title: "Compris", style: .cancel, handler: nil))
+            self?.present(info, animated: true, completion: nil)
+        }))
+        alert.addAction(UIAlertAction(title: "🔋 État Batterie & Optimisation", style: .default, handler: { [weak self] _ in
+            let batteryLevel = Int(UIDevice.current.batteryLevel * 100)
+            let msg = batteryLevel >= 0 ? "Niveau de batterie : \(batteryLevel)%\nMode économie : \(ProcessInfo.processInfo.isLowPowerModeEnabled ? "Actif" : "Inactif")" : "Surveillance batterie active."
+            let info = UIAlertController(title: "🔋 Énergie & Performance", message: msg, preferredStyle: .alert)
+            info.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
+            self?.present(info, animated: true, completion: nil)
         }))
         alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
@@ -620,33 +637,77 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func plusTapped() {
         HapticService.shared.buttonTap()
-        let alert = UIAlertController(title: "Actions Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
         
-        alert.addAction(UIAlertAction(title: "💬 Nathan — Vidéo & Statut WhatsApp", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Flux.1 Open Source)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Génère une photo de "
+            self?.inputTextField.becomeFirstResponder()
+        }))
+        alert.addAction(UIAlertAction(title: "🎵 Composer une Musique 100% Locale (DSP)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Génère une musique lo-fi"
+            self?.inputTextField.becomeFirstResponder()
+        }))
+        alert.addAction(UIAlertAction(title: "👁️ Vision & Analyse Multimodale (OCR)", style: .default, handler: { [weak self] _ in
+            self?.inputTextField.text = "Analyse cette photo et décris ce que tu vois"
+            self?.inputTextField.becomeFirstResponder()
+        }))
+        alert.addAction(UIAlertAction(title: "💬 Nathan — Statut & Vidéo WhatsApp", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .nathan
             self?.updateAgentCapsuleTitle()
             self?.sendMessage("Nathan, je veux mettre une vidéo sur mon statut WhatsApp")
         }))
-        alert.addAction(UIAlertAction(title: "💻 Esther — Studio VAI Coding & Build", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "📱 Nathan — Publier sur les Réseaux Sociaux", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .nathan
+            self?.updateAgentCapsuleTitle()
+            self?.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
+        }))
+        alert.addAction(UIAlertAction(title: "🎨 Ethel — Créativité & Studio Graphique", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .ethel
+            self?.updateAgentCapsuleTitle()
+            self?.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
+        }))
+        alert.addAction(UIAlertAction(title: "🎵 Nathan — Générer une Musique Rapide", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .nathan
+            self?.inputTextField.text = "Compose une musique "
+            self?.inputTextField.becomeFirstResponder()
+        }))
+        alert.addAction(UIAlertAction(title: "🤖 Nathan — Meilleurs modèles d'IA", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .nathan
+            self?.updateAgentCapsuleTitle()
+            self?.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
+        }))
+        alert.addAction(UIAlertAction(title: "💻 Studio VAI Coding & Build (Esther)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .esther
             self?.updateAgentCapsuleTitle()
             self?.sendMessage("Esther, crée une interface interactive")
         }))
-        alert.addAction(UIAlertAction(title: "🌍 Tom — Histoire & Géopolitique", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .tom
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Tom, analyse la situation géopolitique")
+        alert.addAction(UIAlertAction(title: "🐙 Se Connecter à GitHub", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .esther
+            self?.sendMessage("Connecte-toi à GitHub")
         }))
-        alert.addAction(UIAlertAction(title: "🇮🇱 Yohan — Traduction Hébreu ⇄ Français", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "📧 Boîte Google Gmail", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .esther
+            self?.sendMessage("Ouvre mes mails Gmail")
+        }))
+        alert.addAction(UIAlertAction(title: "🔮 Ouvrir l'Orbe Vocal Immersif", style: .default, handler: { [weak self] _ in
+            self?.waveformTapped()
+        }))
+        alert.addAction(UIAlertAction(title: "🇮🇱 Traduction Hébreu ⇄ Français (Yohan)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .yohan
             self?.updateAgentCapsuleTitle()
             self?.inputTextField.text = "Comment on dit en hébreu : "
             self?.inputTextField.becomeFirstResponder()
         }))
-        alert.addAction(UIAlertAction(title: "✨ Ethel — Créativité & Modules", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .ethel
+        alert.addAction(UIAlertAction(title: "🌍 Débat Géopolitique & Histoire (Tom)", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .tom
             self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
+            self?.inputTextField.text = "Raconte-moi l'histoire de "
+            self?.inputTextField.becomeFirstResponder()
+        }))
+        alert.addAction(UIAlertAction(title: "👑 Parler à Sarah (Pilote)", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .sarah
+            self?.updateAgentCapsuleTitle()
+            self?.loadInitialWelcomeMessage()
         }))
         alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
         present(alert, animated: true, completion: nil)
