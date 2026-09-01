@@ -173,6 +173,22 @@ async function startSarahWhatsAppBridge() {
                     msg.message.videoMessage?.caption ||
                     '';
 
+                // Gestion des Messages Vocaux / Audio Entrants (PTT)
+                if (msg.message.audioMessage) {
+                    const senderName = msg.pushName || 'Contact WhatsApp';
+                    console.log(`[Sarah-WhatsApp] Message vocal entrant de ${senderName} (${remoteJid})`);
+                    try { await sock.readMessages([msg.key]); } catch (e) {}
+                    
+                    sendToNativeHost('incoming_audio_message', {
+                        jid: remoteJid,
+                        senderName: senderName,
+                        duration: msg.message.audioMessage.seconds || 0,
+                        isPtt: msg.message.audioMessage.ptt || false,
+                        messageId: msg.key.id
+                    });
+                    continue;
+                }
+
                 if (!text || text.trim().length === 0) continue;
 
                 const senderName = msg.pushName || 'Contact WhatsApp';
@@ -245,6 +261,65 @@ async function sendTyping(jid) {
 }
 
 /**
+ * Envoie l'indicateur d'enregistrement vocal "recording..." sur le chat
+ */
+async function sendRecordingPresence(jid) {
+    if (!sock) return;
+    try {
+        await sock.sendPresenceUpdate('recording', jid);
+    } catch (e) {
+        console.error('[Sarah-WhatsApp] Erreur sendRecordingPresence:', e);
+    }
+}
+
+/**
+ * Envoie un message vocal PTT (Opus / AAC) avec garde-fous anti-ban (jitter 1.5s - 3.5s + présence 'recording')
+ * Piloté par Nathan (dispatching WhatsApp) et vocalement généré par Yoann / Sarah
+ */
+async function sendVoiceNote(jid, base64AudioData, durationSeconds = 3) {
+    if (!sock) {
+        throw new Error('Socket WhatsApp non initialisé');
+    }
+    try {
+        console.log(`[Sarah-WhatsApp/Nathan] Préparation d'envoi du vocal PTT vers ${jid}...`);
+        
+        // 1. Présence réaliste "En train d'enregistrer un audio..."
+        await sock.sendPresenceUpdate('recording', jid);
+        
+        // 2. Garde-fou Anti-Ban : Jitter humain réaliste aléatoire entre 1.5s et 3.5s
+        const jitterMs = Math.floor(Math.random() * (3500 - 1500 + 1)) + 1500;
+        await delay(jitterMs);
+        
+        // 3. Conversion du buffer audio
+        const audioBuffer = Buffer.from(base64AudioData, 'base64');
+        
+        // 4. Envoi du Push-To-Talk (PTT)
+        const result = await sock.sendMessage(jid, {
+            audio: audioBuffer,
+            mimetype: 'audio/mp4',
+            ptt: true,
+            seconds: durationSeconds
+        });
+        
+        // 5. Réinitialisation de l'état de présence
+        await sock.sendPresenceUpdate('paused', jid);
+        
+        sendToNativeHost('voice_note_sent', {
+            jid: jid,
+            duration: durationSeconds,
+            messageId: result?.key?.id
+        });
+        
+        console.log(`[Sarah-WhatsApp/Nathan] Vocal PTT transmis avec succès à ${jid} !`);
+        return result;
+    } catch (err) {
+        console.error(`[Sarah-WhatsApp/Nathan] Échec envoi vocal vers ${jid}:`, err);
+        sendToNativeHost('error', { error: `Échec d'envoi du vocal: ${err.message}` });
+        throw err;
+    }
+}
+
+/**
  * Envoie la réponse textuelle générée par Sarah directement sur le socket WhatsApp
  */
 async function sendMessage(jid, text) {
@@ -291,6 +366,8 @@ async function logout() {
 module.exports = {
     startSarahWhatsAppBridge,
     sendTyping,
+    sendRecordingPresence,
+    sendVoiceNote,
     sendMessage,
     logout
 };

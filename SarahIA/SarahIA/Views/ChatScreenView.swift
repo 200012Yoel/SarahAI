@@ -12,6 +12,7 @@ public struct ChatScreenView: View {
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingVideoShare: Bool = false
     @State private var isShowingVoiceCallScreen: Bool = false
+    @State private var isShowingWhatsAppVoiceScreen: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -120,16 +121,28 @@ public struct ChatScreenView: View {
         .fullScreenCover(isPresented: $isShowingVoiceCallScreen) {
             VoiceCallScreenView()
         }
+        .fullScreenCover(isPresented: $isShowingWhatsAppVoiceScreen) {
+            WhatsAppVoiceCallView()
+        }
         .sheet(isPresented: $isShowingVideoShare) {
             VideoShareView(viewModel: viewModel)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentVoiceCallModal"))) { _ in
             isShowingVoiceCallScreen = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentWhatsAppVoiceModal"))) { _ in
+            isShowingWhatsAppVoiceScreen = true
+        }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
+                    .default(Text("💬 Talkie-Walkie WhatsApp (Nathan & Yoann)")) {
+                        if let c = VoiceCallContactManager.shared.contacts.first {
+                            OpenWAVoiceWalkieTalkieManager.shared.startSession(with: c)
+                        }
+                        isShowingWhatsAppVoiceScreen = true
+                    },
                     .default(Text("📞 Appel Vocal WebRTC & Traduction IA")) {
                         if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
                             WebRTCVoiceCallManager.shared.startOutboundCall(to: c)

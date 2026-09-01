@@ -156,6 +156,7 @@ public final class AIService {
         if (normalized.starts(with: "appelle ") || normalized.starts(with: "appel ") ||
             normalized.contains("passe un appel") || normalized.contains("lance un appel") ||
             normalized.starts(with: "telephone a ") || normalized.starts(with: "téléphone à ")) &&
+            !normalized.contains("whatsapp") &&
             !normalized.contains("comment tu t appelles") && !normalized.contains("comment je m appelle") {
             
             if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
@@ -165,6 +166,22 @@ public final class AIService {
                 }
                 let targetLangName = match.targetLanguage == "en" ? "Anglais 🇬🇧" : (match.targetLanguage == "he" ? "Hébreu 🇮🇱" : "Français 🇫🇷")
                 let reply = "📞 J'établis l'appel WebRTC sécurisé avec **\(match.contact.name)** (\(match.contact.role)).\nTraduction vocale en direct activée vers : **\(targetLangName)**."
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
+            }
+        }
+        
+        // 1.4 TALKIE-WALKIE & VOCAL WHATSAPP AVEC NATHAN & YOANN (ex: "Envoie un vocal à papa", "Appelle papa sur WhatsApp")
+        if (normalized.contains("whatsapp") || normalized.contains("vocal") || normalized.contains("talkie")) &&
+           (normalized.contains("appelle") || normalized.contains("parle") || normalized.contains("envoie") || normalized.contains("contacte") || normalized.contains("vocal a")) {
+            
+            if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
+                DispatchQueue.main.async {
+                    OpenWAVoiceWalkieTalkieManager.shared.startSession(with: match.contact, targetLanguage: match.targetLanguage)
+                    NotificationCenter.default.post(name: NSNotification.Name("SarahPresentWhatsAppVoiceModal"), object: nil)
+                }
+                let targetLangName = match.targetLanguage == "he" ? "Hébreu 🇮🇱" : (match.targetLanguage == "en" ? "Anglais 🇬🇧" : "Français 🇫🇷")
+                let reply = "💬 **Passerelle WhatsApp Talkie-Walkie Active**\n• **Nathan** gère l'envoi sécurisé PTT sur WhatsApp.\n• **Yoann** assure la traduction vocale vers : **\(targetLangName)**.\n\nPrêt pour la communication vocale avec **\(match.contact.name)** !"
                 recordExchange(userText: trimmed, assistantResponse: reply)
                 return reply
             }

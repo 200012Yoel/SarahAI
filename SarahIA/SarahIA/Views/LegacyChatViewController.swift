@@ -154,6 +154,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         topBar.addSubview(settingsButton)
         
         NotificationCenter.default.addObserver(self, selector: #selector(presentVoiceCallModal), name: NSNotification.Name("SarahPresentVoiceCallModal"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(presentWhatsAppVoiceModal), name: NSNotification.Name("SarahPresentWhatsAppVoiceModal"), object: nil)
         
         // 2. TableView Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -623,10 +624,21 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(callVC, animated: true, completion: nil)
     }
     
+    @objc private func presentWhatsAppVoiceModal() {
+        let walkieVC = LegacyWhatsAppVoiceCallViewController()
+        present(walkieVC, animated: true, completion: nil)
+    }
+    
     @objc private func plusTapped() {
         HapticService.shared.buttonTap()
         let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
         
+        alert.addAction(UIAlertAction(title: "💬 Talkie-Walkie WhatsApp (Nathan & Yoann)", style: .default, handler: { [weak self] _ in
+            if let c = VoiceCallContactManager.shared.contacts.first {
+                OpenWAVoiceWalkieTalkieManager.shared.startSession(with: c)
+            }
+            self?.presentWhatsAppVoiceModal()
+        }))
         alert.addAction(UIAlertAction(title: "📞 Appel Vocal WebRTC & Traduction IA", style: .default, handler: { [weak self] _ in
             if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
                 WebRTCVoiceCallManager.shared.startOutboundCall(to: c)

@@ -93,6 +93,10 @@
 		A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */; };
 		A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */; };
 		A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */; };
+		A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */; };
+		A1B2C3D40001000100000097 /* OpenWAVoiceWalkieTalkieManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */; };
+		A1B2C3D40001000100000098 /* WhatsAppVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */; };
+		A1B2C3D40001000100000099 /* LegacyWhatsAppVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -184,6 +188,10 @@
 		A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCVoiceCallManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallScreenView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyVoiceCallViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslationAssetLoader.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenWAVoiceWalkieTalkieManager.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppVoiceCallView.swift; sourceTree = "<group>"; };
+		A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyWhatsAppVoiceCallViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -291,6 +299,8 @@
 				A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */,
 				A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */,
 				A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */,
+				A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */,
+				A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -319,6 +329,8 @@
 				A1B2C3D4000200010000008F /* WhatsAppGatewayView.swift */,
 				A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */,
 				A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */,
+				A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */,
+				A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -494,6 +506,10 @@
 				A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */,
 				A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */,
 				A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */,
+				A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */,
+				A1B2C3D40001000100000097 /* OpenWAVoiceWalkieTalkieManager.swift in Sources */,
+				A1B2C3D40001000100000098 /* WhatsAppVoiceCallView.swift in Sources */,
+				A1B2C3D40001000100000099 /* LegacyWhatsAppVoiceCallViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

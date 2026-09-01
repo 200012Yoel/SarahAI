@@ -175,6 +175,13 @@ public final class WhatsAppGatewayManager: NSObject, ObservableObject, WKScriptM
             let senderName = data["senderName"] as? String ?? "Contact"
             handleIncomingWhatsAppMessage(jid: jid, text: text, senderName: senderName)
             
+        case "incoming_audio_message":
+            guard let jid = data["jid"] as? String else { return }
+            let senderName = data["senderName"] as? String ?? "Contact"
+            let duration = data["duration"] as? Int ?? 0
+            onIncomingAudioMessageReceived?(jid, senderName, duration)
+            NotificationCenter.default.post(name: NSNotification.Name("SarahWhatsAppAudioReceived"), object: nil, userInfo: data)
+            
         case "status_update":
             if let st = data["status"] as? String, st == "reconnecting" {
                 let attempt = data["attempt"] as? Int ?? 1
@@ -221,10 +228,22 @@ public final class WhatsAppGatewayManager: NSObject, ObservableObject, WKScriptM
     }
     
     // MARK: - Envoi de Messages & Présence
+    public var onIncomingAudioMessageReceived: ((String, String, Int) -> Void)?
     
     public func sendTyping(to jid: String) {
         let escapedJid = sanitizeForJS(jid)
         executeJavaScript("if (typeof sendTyping === 'function') { sendTyping('\(escapedJid)'); }")
+    }
+    
+    public func sendRecordingPresence(to jid: String) {
+        let escapedJid = sanitizeForJS(jid)
+        executeJavaScript("if (typeof sendRecordingPresence === 'function') { sendRecordingPresence('\(escapedJid)'); }")
+    }
+    
+    public func sendVoiceNote(to jid: String, base64Audio: String, duration: Int = 3) {
+        let escapedJid = sanitizeForJS(jid)
+        let escapedAudio = sanitizeForJS(base64Audio)
+        executeJavaScript("if (typeof sendVoiceNote === 'function') { sendVoiceNote('\(escapedJid)', '\(escapedAudio)', \(duration)); }")
     }
     
     public func sendMessage(to jid: String, text: String) {
