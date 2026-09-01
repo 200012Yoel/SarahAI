@@ -17,6 +17,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     private let topBar = UIView()
     private let menuButton = UIButton(type: .system)
     private let agentCapsuleButton = UIButton(type: .system)
+    private let clearChatButton = UIButton(type: .system)
     private let settingsButton = UIButton(type: .system)
     
     private let quickActionsScrollView = UIScrollView()
@@ -138,6 +139,20 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         updateAgentCapsuleTitle()
         
+        // Bouton Effacer / Supprimer la discussion 🗑️
+        clearChatButton.translatesAutoresizingMaskIntoConstraints = false
+        if #available(iOS 13.0, *), let img = UIImage(systemName: "trash") {
+            clearChatButton.setImage(img, for: .normal)
+        } else {
+            clearChatButton.setTitle("🗑️", for: .normal)
+        }
+        clearChatButton.tintColor = UIColor(red: 1.0, green: 0.35, blue: 0.35, alpha: 1.0)
+        clearChatButton.setTitleColor(UIColor(red: 1.0, green: 0.35, blue: 0.35, alpha: 1.0), for: .normal)
+        clearChatButton.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
+        clearChatButton.layer.cornerRadius = 18
+        clearChatButton.addTarget(self, action: #selector(confirmClearCurrentChat), for: .touchUpInside)
+        topBar.addSubview(clearChatButton)
+        
         // Bouton Paramètres ⚙️
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         if #available(iOS 13.0, *), let img = UIImage(systemName: "gearshape.fill") {
@@ -149,7 +164,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         settingsButton.setTitleColor(.white, for: .normal)
         settingsButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
         settingsButton.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
-        settingsButton.layer.cornerRadius = 20
+        settingsButton.layer.cornerRadius = 18
         settingsButton.addTarget(self, action: #selector(openSettings), for: .touchUpInside)
         topBar.addSubview(settingsButton)
         
@@ -246,10 +261,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             agentCapsuleButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
             agentCapsuleButton.heightAnchor.constraint(equalToConstant: 34),
             
-            settingsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -14),
+            clearChatButton.trailingAnchor.constraint(equalTo: settingsButton.leadingAnchor, constant: -8),
+            clearChatButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            clearChatButton.widthAnchor.constraint(equalToConstant: 36),
+            clearChatButton.heightAnchor.constraint(equalToConstant: 36),
+            
+            settingsButton.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
             settingsButton.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
-            settingsButton.widthAnchor.constraint(equalToConstant: 40),
-            settingsButton.heightAnchor.constraint(equalToConstant: 40),
+            settingsButton.widthAnchor.constraint(equalToConstant: 36),
+            settingsButton.heightAnchor.constraint(equalToConstant: 36),
             
             tableView.topAnchor.constraint(equalTo: topBar.bottomAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -405,8 +425,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         drawerTableView.translatesAutoresizingMaskIntoConstraints = false
         drawerTableView.backgroundColor = .clear
-        drawerTableView.separatorStyle = .singleLine
-        drawerTableView.separatorColor = UIColor(white: 0.15, alpha: 1.0)
+        drawerTableView.separatorStyle = .none
+        drawerTableView.tableHeaderView = UIView(frame: CGRect(x: 0, y: 0, width: 0, height: CGFloat.leastNonzeroMagnitude))
+        drawerTableView.sectionHeaderHeight = 0
         drawerTableView.dataSource = self
         drawerTableView.delegate = self
         drawerView.addSubview(drawerTableView)
@@ -579,6 +600,28 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         self.messages = []
         loadInitialWelcomeMessage()
         closeDrawerAnimated()
+    }
+    
+    @objc private func confirmClearCurrentChat() {
+        HapticService.shared.buttonTap()
+        let alert = UIAlertController(
+            title: "Effacer la discussion ?",
+            message: "Cette action supprimera tous les messages de la conversation active.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
+        alert.addAction(UIAlertAction(title: "Effacer", style: .destructive, handler: { [weak self] _ in
+            guard let self = self else { return }
+            self.messages.removeAll()
+            if let cid = self.currentConversationId, let idx = self.conversations.firstIndex(where: { $0.id == cid }) {
+                self.conversations[idx].messages.removeAll()
+            }
+            self.loadInitialWelcomeMessage()
+            self.tableView.reloadData()
+            self.saveCurrentState()
+            HapticService.shared.notificationSuccess()
+        }))
+        present(alert, animated: true, completion: nil)
     }
     
     @objc private func openSettingsFromDrawer() {
@@ -803,20 +846,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             return messages.count
         } else {
             return conversations.count
-        }
-    }
-    
-    public func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        if tableView == self.drawerTableView {
-            return "DISCUSSIONS"
-        }
-        return nil
-    }
-    
-    public func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-        if let header = view as? UITableViewHeaderFooterView {
-            header.textLabel?.textColor = UIColor(white: 0.55, alpha: 1.0)
-            header.textLabel?.font = UIFont.boldSystemFont(ofSize: 11)
         }
     }
     

@@ -97,6 +97,7 @@
 		A1B2C3D40001000100000097 /* OpenWAVoiceWalkieTalkieManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */; };
 		A1B2C3D40001000100000098 /* WhatsAppVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */; };
 		A1B2C3D40001000100000099 /* LegacyWhatsAppVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */; };
+		A1B2C3D4000100010000009A /* whatsapp_baileys_bridge.js in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009A /* whatsapp_baileys_bridge.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -192,6 +193,7 @@
 		A1B2C3D40002000100000097 /* OpenWAVoiceWalkieTalkieManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenWAVoiceWalkieTalkieManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000098 /* WhatsAppVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppVoiceCallView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000099 /* LegacyWhatsAppVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyWhatsAppVoiceCallViewController.swift; sourceTree = "<group>"; };
+		A1B2C3D4000200010000009A /* whatsapp_baileys_bridge.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = whatsapp_baileys_bridge.js; path = Resources/whatsapp_baileys_bridge.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -225,6 +227,7 @@
 				A1B2C3D4000200010000000B /* Assets.xcassets */,
 				A1B2C3D4000200010000000D /* LaunchScreen.storyboard */,
 				A1B2C3D4000200010000000A /* Info.plist */,
+				A1B2C3D4000200010000009A /* whatsapp_baileys_bridge.js */,
 			);
 			path = SarahIA;
 			sourceTree = "<group>";
@@ -412,6 +415,7 @@
 			files = (
 				A1B2C3D4000100010000000B /* Assets.xcassets in Resources */,
 				A1B2C3D4000100010000000D /* LaunchScreen.storyboard in Resources */,
+				A1B2C3D4000100010000009A /* whatsapp_baileys_bridge.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
