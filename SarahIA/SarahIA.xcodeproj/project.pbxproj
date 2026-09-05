@@ -107,6 +107,7 @@
 		A1B2C3D400010001000000A1 /* RealtimeAudioWaveformExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */; };
 		A1B2C3D400010001000000A2 /* BackgroundModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */; };
 		A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */; };
+		A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -212,6 +213,7 @@
 		A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeAudioWaveformExtractor.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundModelDownloader.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -329,6 +331,7 @@
 				A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */,
 				A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */,
 				A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */,
+				A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -550,6 +553,7 @@
 				A1B2C3D400010001000000A1 /* RealtimeAudioWaveformExtractor.swift in Sources */,
 				A1B2C3D400010001000000A2 /* BackgroundModelDownloader.swift in Sources */,
 				A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */,
+				A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -236,6 +236,18 @@ public final class SarahBrainEngine {
     
     private init() {}
     
+    // MARK: - Inférence & Streaming Local (Qwen 2.5 Coder / Sarah Engine)
+    
+    public func generateStreamingResponse(
+        prompt: String,
+        onToken: ((String) -> Void)? = nil,
+        completion: @escaping (String) -> Void
+    ) {
+        processQuery(prompt) { report in
+            completion(report.finalNaturalResponse)
+        }
+    }
+    
     // MARK: - Traitement Principal d'une Requête
     
     public func processQuery(

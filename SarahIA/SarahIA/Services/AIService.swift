@@ -158,7 +158,7 @@ public final class AIService {
                 let formattedChatML = ModelSelectionEngine.shared.formatChatMLPrompt(system: systemPrompt, user: trimmed)
                 
                 // Exécution via SarahBrainEngine / llama.cpp natif
-                SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML) { [weak self] localText in
+                SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML) { [weak self] (localText: String) in
                     guard let self = self else { return }
                     let cleaned = localText.decodingHTMLEntities()
                     self.recordExchange(userText: trimmed, assistantResponse: cleaned)
