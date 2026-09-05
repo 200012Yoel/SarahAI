@@ -375,8 +375,10 @@ public final class AIService {
         // 1.2 GÉNÉRATION D'IMAGES & PHOTOS OPEN SOURCE (Flux / SDXL Turbo)
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
-            OpenSourceImageGenerationService.shared.generateImage(prompt: imageCheck.cleanedPrompt) { _ in }
-            let reply = "🎨 Je génère votre image de « **\(imageCheck.cleanedPrompt)** » avec le modèle open source Flux. Elle s'affiche dans un instant !"
+            let prompt = imageCheck.cleanedPrompt
+            let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+            let reply = "🎨 **Génération d'Image HD**\n\nCréation de : « **\(prompt)** » avec le modèle **Flux.1 HD**.\n\n\(imageURL)"
             recordExchange(userText: trimmed, assistantResponse: reply)
             return reply
         }

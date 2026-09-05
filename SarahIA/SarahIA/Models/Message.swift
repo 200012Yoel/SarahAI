@@ -11,6 +11,8 @@ public struct Message: Identifiable, Equatable, Codable {
     public var alertEvent: AlertEvent?
     public var generatedImageURL: String?
     public var generatedMusicStyle: String?
+    public var isGeneratingImage: Bool?
+    public var imageGenerationPrompt: String?
     
     public init(
         id: UUID = UUID(),
@@ -21,7 +23,9 @@ public struct Message: Identifiable, Equatable, Codable {
         imageData: Data? = nil,
         alertEvent: AlertEvent? = nil,
         generatedImageURL: String? = nil,
-        generatedMusicStyle: String? = nil
+        generatedMusicStyle: String? = nil,
+        isGeneratingImage: Bool? = nil,
+        imageGenerationPrompt: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -32,6 +36,8 @@ public struct Message: Identifiable, Equatable, Codable {
         self.alertEvent = alertEvent
         self.generatedImageURL = generatedImageURL
         self.generatedMusicStyle = generatedMusicStyle
+        self.isGeneratingImage = isGeneratingImage
+        self.imageGenerationPrompt = imageGenerationPrompt
     }
     
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
@@ -42,6 +48,11 @@ public struct Message: Identifiable, Equatable, Codable {
             if parts.count > 1 {
                 let urlPart = parts[1].components(separatedBy: .whitespacesAndNewlines).first ?? ""
                 return "https://image.pollinations.ai/prompt/\(urlPart)"
+            }
+        }
+        if let prompt = imageGenerationPrompt, !prompt.isEmpty {
+            if let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
+                return "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=flux&nologo=true&enhance=true"
             }
         }
         return nil

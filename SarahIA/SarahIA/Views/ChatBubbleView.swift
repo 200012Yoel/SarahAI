@@ -121,10 +121,10 @@ public struct ChatBubbleView: View {
                         .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
                 }
                 
-                // Carte Interactive d'Image Générée (Flux / SDXL)
+                // Carte Interactive d'Image Générée (Flux / SDXL / CoreML)
                 if let imageURL = message.detectedImageURL {
-                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.content)
-                        .frame(maxWidth: 280)
+                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.imageGenerationPrompt ?? message.content)
+                        .frame(maxWidth: 290)
                 }
                 
                 // Carte Interactive Musicale Générative (DSP Synth)

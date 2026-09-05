@@ -1024,22 +1024,45 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             label.text = msg.content
             stackView.addArrangedSubview(label)
             
-            // 1. Support Image Générée (Flux / SDXL)
+            // 1. Support Image Générée (Flux / SDXL / CoreML) avec Carré d'Animation
             if let imageURLStr = msg.detectedImageURL, let imgURL = URL(string: imageURLStr) {
                 let imgContainer = UIView()
                 imgContainer.translatesAutoresizingMaskIntoConstraints = false
-                imgContainer.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
-                imgContainer.layer.cornerRadius = 10
+                imgContainer.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 1.0)
+                imgContainer.layer.cornerRadius = 14
+                imgContainer.layer.borderColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.4).cgColor
+                imgContainer.layer.borderWidth = 1.5
                 imgContainer.clipsToBounds = true
+                
+                let spinner = UIActivityIndicatorView(style: .white)
+                spinner.translatesAutoresizingMaskIntoConstraints = false
+                spinner.startAnimating()
+                imgContainer.addSubview(spinner)
+                
+                let loadingLabel = UILabel()
+                loadingLabel.translatesAutoresizingMaskIntoConstraints = false
+                loadingLabel.text = "🎨 Génération IA en cours..."
+                loadingLabel.font = UIFont.systemFont(ofSize: 12, weight: .medium)
+                loadingLabel.textColor = UIColor(white: 0.8, alpha: 1.0)
+                imgContainer.addSubview(loadingLabel)
                 
                 let imageView = UIImageView()
                 imageView.translatesAutoresizingMaskIntoConstraints = false
                 imageView.contentMode = .scaleAspectFill
                 imageView.clipsToBounds = true
+                imageView.alpha = 0
                 imgContainer.addSubview(imageView)
                 
                 NSLayoutConstraint.activate([
-                    imgContainer.heightAnchor.constraint(equalToConstant: 180),
+                    imgContainer.heightAnchor.constraint(equalToConstant: 240),
+                    imgContainer.widthAnchor.constraint(equalToConstant: 240),
+                    
+                    spinner.centerXAnchor.constraint(equalTo: imgContainer.centerXAnchor),
+                    spinner.centerYAnchor.constraint(equalTo: imgContainer.centerYAnchor, constant: -12),
+                    
+                    loadingLabel.centerXAnchor.constraint(equalTo: imgContainer.centerXAnchor),
+                    loadingLabel.topAnchor.constraint(equalTo: spinner.bottomAnchor, constant: 8),
+                    
                     imageView.topAnchor.constraint(equalTo: imgContainer.topAnchor),
                     imageView.bottomAnchor.constraint(equalTo: imgContainer.bottomAnchor),
                     imageView.leadingAnchor.constraint(equalTo: imgContainer.leadingAnchor),
@@ -1050,6 +1073,11 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
                     if let data = try? Data(contentsOf: imgURL), let image = UIImage(data: data) {
                         DispatchQueue.main.async {
                             imageView.image = image
+                            UIView.animate(withDuration: 0.35) {
+                                imageView.alpha = 1.0
+                                spinner.stopAnimating()
+                                loadingLabel.alpha = 0
+                            }
                         }
                     }
                 }

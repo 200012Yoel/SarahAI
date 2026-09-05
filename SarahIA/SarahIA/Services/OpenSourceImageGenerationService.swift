@@ -94,6 +94,17 @@ public final class OpenSourceImageGenerationService {
         return (false, "")
     }
     
+    // MARK: - Construction URL d'Image
+    
+    /// Génère l'URL publique de génération pour le modèle Flux / Pollinations
+    public func buildImageURL(for prompt: String, width: Int = 768, height: Int = 768, model: String = "flux") -> String {
+        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let encoded = cleanPrompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            return "https://image.pollinations.ai/prompt/\(cleanPrompt)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
+        }
+        return "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
+    }
+    
     // MARK: - Génération d'Image Haute Définition (CoreML LCM On-Device / Cloud)
     
     /// Génère une image via le modèle local CoreML LCM (Sarah_ImageGen_Local) ou Cloud HD
@@ -145,7 +156,19 @@ public final class OpenSourceImageGenerationService {
             return
         }
         
-        // 2. Vérifier le cache mémoire d'abord
+        // 2. Exécution directe via le pipeline distant Flux / SDXL
+        fetchDirectImage(prompt: cleanPrompt, width: width, height: height, model: model, completion: completion)
+    }
+    
+    /// Télécharge et traite directement l'image sans récursion locale
+    public func fetchDirectImage(
+        prompt: String,
+        width: Int = 768,
+        height: Int = 768,
+        model: String = "flux",
+        completion: @escaping (GeneratedImageResult) -> Void
+    ) {
+        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let cacheKey = "\(model)_\(cleanPrompt)_\(width)x\(height)" as NSString
         if let cachedImage = cache.object(forKey: cacheKey) {
             completion(GeneratedImageResult(
@@ -171,20 +194,7 @@ public final class OpenSourceImageGenerationService {
             return
         }
         
-        // Construction de l'URL sécurisée pour le modèle open source Flux / Pollinations
-        guard let encodedPrompt = cleanPrompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-            completion(GeneratedImageResult(
-                prompt: cleanPrompt,
-                image: nil,
-                imageURL: nil,
-                modelName: model,
-                isSuccess: false,
-                errorMessage: "Erreur d'encodage du prompt."
-            ))
-            return
-        }
-        
-        let urlString = "https://image.pollinations.ai/prompt/\(encodedPrompt)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
+        let urlString = buildImageURL(for: cleanPrompt, width: width, height: height, model: model)
         guard let requestURL = URL(string: urlString) else {
             completion(GeneratedImageResult(
                 prompt: cleanPrompt,

@@ -116,7 +116,7 @@ public final class SarahLocalImageGenEngine {
                 self.runCoreMLLCMPipeline(prompt: enhancedPrompt, config: config, progressHandler: progressHandler, completion: completion)
             } else {
                 print("⚡ [SarahLocalImageGenEngine] Modèle CoreML en téléchargement -> Bascule sur le pipeline Cloud Flux/SDXL HD")
-                OpenSourceImageGenerationService.shared.generateImage(prompt: enhancedPrompt, width: config.width, height: config.height, model: "flux") { result in
+                OpenSourceImageGenerationService.shared.fetchDirectImage(prompt: enhancedPrompt, width: config.width, height: config.height, model: "flux") { result in
                     if let image = result.image {
                         completion(.success(image))
                     } else {
@@ -169,7 +169,7 @@ public final class SarahLocalImageGenEngine {
         print("✅ [Realistic_Vision_V5.1_LCM] Rendu photoréaliste terminé en \(String(format: "%.2f", elapsed))s")
         
         // Décodage VAE & Rendu
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt, width: config.width, height: config.height) { result in
+        OpenSourceImageGenerationService.shared.fetchDirectImage(prompt: prompt, width: config.width, height: config.height) { result in
             DispatchQueue.main.async {
                 self.onStatusChanged?(.ready)
                 if let img = result.image {

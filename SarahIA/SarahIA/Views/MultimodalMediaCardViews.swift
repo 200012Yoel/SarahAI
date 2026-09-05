@@ -4,6 +4,8 @@ import WebKit
 
 // MARK: - 1. Carte Interactive d'Image Générée (Flux / SDXL Open Source)
 
+// MARK: - 1. Carte Interactive d'Image Générée & Carré d'Animation Futuriste
+
 @available(iOS 14.0, *)
 public struct GeneratedImageCardView: View {
     public let imageURLString: String
@@ -13,6 +15,7 @@ public struct GeneratedImageCardView: View {
     @State private var isLoading: Bool = true
     @State private var isShowingFullScreen: Bool = false
     @State private var isShowingShareSheet: Bool = false
+    @State private var hasFailed: Bool = false
     
     public init(imageURLString: String, promptDescription: String? = nil) {
         self.imageURLString = imageURLString
@@ -23,59 +26,88 @@ public struct GeneratedImageCardView: View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 if let img = loadedImage {
-                    Image(uiImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: 220)
-                        .clipped()
-                        .cornerRadius(12)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            isShowingFullScreen = true
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .aspectRatio(1.0, contentMode: .fill)
+                            .frame(maxWidth: .infinity, minHeight: 250, maxHeight: 270)
+                            .clipped()
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color.sarahCyan.opacity(0.6), Color.purple.opacity(0.4)]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.5
+                                    )
+                            )
+                            .shadow(color: Color.sarahCyan.opacity(0.25), radius: 10, x: 0, y: 4)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                isShowingFullScreen = true
+                            }
+                        
+                        // Badge HD Photoréaliste
+                        HStack(spacing: 4) {
+                            Text("✨ HD")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.65))
+                        .cornerRadius(6)
+                        .padding(8)
+                    }
                 } else if isLoading {
+                    // Carré d'animation haute technologie en temps réel
+                    ImageGeneratingSquareAnimationView(prompt: promptDescription)
+                        .frame(maxWidth: .infinity, minHeight: 250, maxHeight: 270)
+                        .cornerRadius(16)
+                } else {
                     ZStack {
                         Color(white: 0.12)
                             .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 220)
-                            .cornerRadius(12)
+                            .cornerRadius(16)
                         
                         VStack(spacing: 8) {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(1.2)
-                            
-                            Text("Génération du visuel HD...")
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                    }
-                } else {
-                    ZStack {
-                        Color(white: 0.15)
-                            .frame(maxWidth: .infinity, minHeight: 140)
-                            .cornerRadius(12)
-                        
-                        VStack(spacing: 6) {
                             Image(systemName: "photo.badge.exclamationmark")
-                                .font(.system(size: 24))
+                                .font(.system(size: 28))
                                 .foregroundColor(.orange)
-                            Text("Image non disponible")
-                                .font(.system(size: 12))
-                                .foregroundColor(.white.opacity(0.6))
+                            Text("Image en cours de rendu...")
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.7))
+                            
+                            Button(action: {
+                                isLoading = true
+                                hasFailed = false
+                                loadImageAsync()
+                            }) {
+                                Text("🔄 Réessayer")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.sarahCyan)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.sarahCyan.opacity(0.15))
+                                    .cornerRadius(8)
+                            }
                         }
                     }
                 }
             }
             
-            // Barre d'outils de l'image
+            // Barre d'outils inférieure de l'image
             HStack {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.sarahCyan)
-                    Text("Flux.1 HD Open Source")
+                    Text(loadedImage != nil ? "Généré par Sarah • Flux.1 HD" : "Génération IA en cours...")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 
                 Spacer()
@@ -91,9 +123,9 @@ public struct GeneratedImageCardView: View {
                                 .font(.system(size: 11, weight: .medium))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.12))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.14))
                         .cornerRadius(8)
                     }
                     .buttonStyle(BorderlessButtonStyle())
@@ -101,11 +133,11 @@ public struct GeneratedImageCardView: View {
             }
         }
         .padding(10)
-        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-        .cornerRadius(14)
+        .background(Color(red: 0.10, green: 0.10, blue: 0.12))
+        .cornerRadius(18)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
         .onAppear {
             loadImageAsync()
@@ -120,22 +152,216 @@ public struct GeneratedImageCardView: View {
     private func loadImageAsync() {
         guard let url = URL(string: imageURLString) else {
             isLoading = false
+            hasFailed = true
             return
         }
         
         // Décoder sur un thread d'arrière-plan sans bloquer l'UI
         DispatchQueue.global(qos: .userInitiated).async {
-            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
-                DispatchQueue.main.async {
-                    self.loadedImage = image
-                    self.isLoading = false
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 25
+            
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let data = data, let image = UIImage(data: data) {
+                    DispatchQueue.main.async {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                            self.loadedImage = image
+                            self.isLoading = false
+                            self.hasFailed = false
+                        }
+                    }
+                } else {
+                    // Deuxième tentative automatique après 1.5s
+                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.5) {
+                        if let retryData = try? Data(contentsOf: url), let retryImg = UIImage(data: retryData) {
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                    self.loadedImage = retryImg
+                                    self.isLoading = false
+                                    self.hasFailed = false
+                                }
+                            }
+                        } else {
+                            DispatchQueue.main.async {
+                                self.isLoading = false
+                                self.hasFailed = true
+                            }
+                        }
+                    }
                 }
-            } else {
-                DispatchQueue.main.async {
-                    self.isLoading = false
+            }.resume()
+        }
+    }
+}
+
+// MARK: - Carré d'Animation Visuelle Photoréaliste (Scan Laser & Lueur Néon)
+
+@available(iOS 14.0, *)
+public struct ImageGeneratingSquareAnimationView: View {
+    public let prompt: String?
+    
+    @State private var scanOffset: CGFloat = -120
+    @State private var rotationAngle: Double = 0
+    @State private var pulseScale: CGFloat = 1.0
+    @State private var stepIndex: Int = 0
+    
+    private let steps = [
+        "🎨 Initialisation du concept visuel...",
+        "⚡ Inférence Neural Engine / Flux HD...",
+        "✨ Rendu des détails & photoréalisme...",
+        "📸 Ajustement des textures & lumière..."
+    ]
+    
+    private let timer = Timer.publish(every: 1.6, on: .main, in: .common).autoconnect()
+    
+    public var body: some View {
+        ZStack {
+            // Fond sombre avec gradient subtil
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.08, green: 0.08, blue: 0.12),
+                    Color(red: 0.04, green: 0.04, blue: 0.07)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            
+            // Grille de repères optiques (Style appareil photo professionnel / VAI)
+            VStack {
+                HStack {
+                    cornerCrosshair
+                    Spacer()
+                    cornerCrosshair
+                }
+                Spacer()
+                HStack {
+                    cornerCrosshair
+                    Spacer()
+                    cornerCrosshair
+                }
+            }
+            .padding(14)
+            .opacity(0.4)
+            
+            // Barre de scan laser animée qui balaie le carré de haut en bas
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.clear,
+                            Color.sarahCyan.opacity(0.8),
+                            Color.purple.opacity(0.9),
+                            Color.clear
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 3)
+                .shadow(color: Color.sarahCyan, radius: 8, x: 0, y: 0)
+                .offset(y: scanOffset)
+            
+            // Contenu central : Orbe pulsant et statut de génération
+            VStack(spacing: 14) {
+                ZStack {
+                    // Anneau d'énergie extérieur
+                    Circle()
+                        .stroke(
+                            AngularGradient(
+                                gradient: Gradient(colors: [
+                                    Color.sarahCyan,
+                                    Color.purple,
+                                    Color(red: 0.15, green: 0.72, blue: 1.0),
+                                    Color.pink,
+                                    Color.sarahCyan
+                                ]),
+                                center: .center
+                            ),
+                            lineWidth: 2.5
+                        )
+                        .frame(width: 64, height: 64)
+                        .rotationEffect(.degrees(rotationAngle))
+                    
+                    // Cœur lumineux
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [
+                                    Color.sarahCyan.opacity(0.7),
+                                    Color.purple.opacity(0.3),
+                                    Color.clear
+                                ]),
+                                center: .center,
+                                startRadius: 4,
+                                endRadius: 30
+                            )
+                        )
+                        .frame(width: 54, height: 54)
+                        .scaleEffect(pulseScale)
+                    
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                        .scaleEffect(pulseScale)
+                }
+                
+                VStack(spacing: 5) {
+                    Text(steps[stepIndex % steps.count])
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .animation(.easeInOut(duration: 0.3), value: stepIndex)
+                    
+                    if let p = prompt, !p.isEmpty {
+                        Text("« \(p) »")
+                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .foregroundColor(Color.sarahCyan.opacity(0.85))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
                 }
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.sarahCyan.opacity(0.8),
+                            Color.purple.opacity(0.6),
+                            Color.sarahCyan.opacity(0.3)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+        )
+        .shadow(color: Color.sarahCyan.opacity(0.20), radius: 12, x: 0, y: 0)
+        .onAppear {
+            withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: true)) {
+                scanOffset = 120
+            }
+            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
+                rotationAngle = 360
+            }
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                pulseScale = 1.15
+            }
+        }
+        .onReceive(timer) { _ in
+            withAnimation {
+                stepIndex += 1
+            }
+        }
+    }
+    
+    private var cornerCrosshair: some View {
+        Text("＋")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(.white.opacity(0.5))
     }
 }
 

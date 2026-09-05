@@ -953,12 +953,14 @@ public final class MultiAgentCoordinator {
         }
         
         // 9.5 Génération d'Images Directe (Moteur Open Source Flux / SDXL)
-        if lower.contains("génère une image") || lower.contains("génère une photo") || lower.contains("dessine") || lower.contains("crée une image") {
+        if lower.contains("génère une image") || lower.contains("génère une photo") || lower.contains("dessine") || lower.contains("crée une image") || lower.contains("crée une photo") || lower.contains("fais une image") || lower.contains("fais une photo") || lower.contains("genere une image") || lower.contains("genere une photo") {
             let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
             if imageCheck.isIntent {
-                OpenSourceImageGenerationService.shared.generateImage(prompt: imageCheck.cleanedPrompt) { _ in }
-                let responseText = "🎨 **Sarah & Nathan [Génération Visuelle Open Source]**\n\nImage en cours de création pour : « **\(imageCheck.cleanedPrompt)** » via le modèle **Flux / SDXL Turbo**.\n\n*Le visuel apparaîtra instantanément à l'écran.*"
-                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère ton image de \(imageCheck.cleanedPrompt) avec le modèle Flux."))
+                let prompt = imageCheck.cleanedPrompt
+                let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+                let responseText = "🎨 **Sarah & Nathan [Génération Visuelle HD]**\n\nImage en cours de rendu pour : « **\(prompt)** » via le modèle **Flux.1 HD**.\n\n\(imageURL)"
+                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère votre image de \(prompt)."))
                 return
             }
         }
