@@ -1,10 +1,25 @@
 import Foundation
 
-/// Moteur de Sélection Intelligent de Modèles
-/// Sélectionne automatiquement le modèle le plus puissant et stable adapté au budget mémoire réel
+/// Moteur de Sélection Intelligent de Modèles (Sarah Engine Architecture)
+/// Gère la séparation stricte On-Device vs Cloud selon la mémoire physique réelle (ProcessInfo) :
+/// - RAM >= 6 Go (iPhone 14 Pro, 15 Pro, 16, 17+) -> Qwen 2.5 Coder 7B Instruct Q4_K_M (Metal MPS, Context 4096 tokens)
+/// - RAM 4-5.5 Go (iPhone 13, 14 standard) -> Qwen 2.5 Coder 3B Instruct Q4_K_M (Auto-downgrade de sécurité)
+/// - RAM < 4 Go / Legacy (iPhone 5s à 12, SE) -> 🚫 Zéro modèle local (Protection Jetsam OOM) -> Cloud Fallback Puissance Absolue (Claude 3.5 Sonnet / GPT-4o)
 public final class ModelSelectionEngine {
     
     public static let shared = ModelSelectionEngine()
+    
+    // Modèle Local Ultime (RAM >= 6 Go)
+    public static let qwen7BDownloadURL = "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf"
+    public static let qwen7BFileName = "qwen2.5-coder-7b-instruct-q4_k_m.gguf"
+    
+    // Modèle Local Sécurisé (RAM 4-5.5 Go ou Fallback mémoire)
+    public static let qwen3BDownloadURL = "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+    public static let qwen3BFileName = "qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+    
+    // Modèles Cloud de Puissance Absolue
+    public static let defaultCloudOpenAIModel = "gpt-4o"
+    public static let defaultCloudAnthropicModel = "claude-3-5-sonnet-20240620"
     
     private var registeredProfiles: [ModelProfile] = []
     
@@ -13,151 +28,118 @@ public final class ModelSelectionEngine {
     }
     
     private func setupDefaultCatalog() {
-        // Tier 1 : iPhone 5s, 6, SE 1 (~100 Mo max)
-        let tier1 = ModelProfile(
-            profileId: "profile_tier1_nano",
-            internalEngineId: "Sarah Core Nano v4 (A7/A8/A9)",
+        // 1. Profil Cloud Puissance Absolue (iPhone 5s à iPhone 12 / SE - RAM < 4 Go)
+        let cloudAbsoluteProfile = ModelProfile(
+            profileId: "profile_cloud_absolute_power",
+            internalEngineId: "Sarah Cloud Absolute (Claude 3.5 Sonnet / GPT-4o)",
             targetTier: .tier1_legacyCompact,
-            maxContextLength: 512,
-            maxGenerationTokens: 256,
-            estimatedMemoryFootprintBytes: 80 * 1024 * 1024,
-            defaultBatchIntervalMs: 25,
-            allowsConcurrentAgents: false,
-            modelFileName: "sarah_fr_model.json",
+            maxContextLength: 128000,
+            maxGenerationTokens: 4096,
+            estimatedMemoryFootprintBytes: 0, // Zéro RAM modèle local
+            defaultBatchIntervalMs: 0,
+            allowsConcurrentAgents: true,
+            modelFileName: "cloud_proxy",
             fallbackProfileId: nil
         )
         
-        // Tier 2 : iPhone 7, 8 (~250 Mo max)
-        let tier2 = ModelProfile(
-            profileId: "profile_tier2_micro",
-            internalEngineId: "Sarah Core Micro v4 (A10/A11)",
-            targetTier: .tier2_legacyStandard,
-            maxContextLength: 1024,
-            maxGenerationTokens: 512,
-            estimatedMemoryFootprintBytes: 200 * 1024 * 1024,
-            defaultBatchIntervalMs: 18,
-            allowsConcurrentAgents: false,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: "profile_tier1_nano"
-        )
-        
-        // Tier 3 : iPhone X, 11 (~450 Mo max)
-        let tier3 = ModelProfile(
-            profileId: "profile_tier3_core",
-            internalEngineId: "Sarah Core Intermediate v4 (A12/A13)",
-            targetTier: .tier3_intermediate,
-            maxContextLength: 2048,
-            maxGenerationTokens: 1024,
-            estimatedMemoryFootprintBytes: 400 * 1024 * 1024,
-            defaultBatchIntervalMs: 12,
-            allowsConcurrentAgents: false,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: "profile_tier2_micro"
-        )
-        
-        // Tier 4 : iPhone 12, 13 (~800 Mo max)
-        let tier4 = ModelProfile(
-            profileId: "profile_tier4_pro",
-            internalEngineId: "Sarah Neural Core Pro v4 (A14 Bionic)",
+        // 2. Profil Local 3B Sécurité (iPhone 13/14 Standard - RAM 4 Go - 5.5 Go)
+        let qwen3BProfile = ModelProfile(
+            profileId: "profile_qwen_2_5_coder_3b",
+            internalEngineId: "Qwen 2.5 Coder 3B Instruct (Q4_K_M Metal MPS)",
             targetTier: .tier4_advanced,
-            maxContextLength: 3072,
-            maxGenerationTokens: 1536,
-            estimatedMemoryFootprintBytes: 750 * 1024 * 1024,
-            defaultBatchIntervalMs: 8,
-            allowsConcurrentAgents: true,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: "profile_tier3_core"
-        )
-        
-        // Tier 5 : iPhone 14 / 14 Plus / 14 Pro (Cible Principale — Modèle le plus puissant du marché pour iPhone 14)
-        let tier5 = ModelProfile(
-            profileId: "profile_tier5_flagship_i14",
-            internalEngineId: "Sarah Neural Flagship Qwen 2.5 Coder (iPhone 14 — Neural Core A15/A16 6GB)",
-            targetTier: .tier5_flagship,
             maxContextLength: 4096,
             maxGenerationTokens: 2048,
-            estimatedMemoryFootprintBytes: 1200 * 1024 * 1024,
+            estimatedMemoryFootprintBytes: 2200 * 1024 * 1024, // ~2.2 Go
             defaultBatchIntervalMs: 4,
             allowsConcurrentAgents: true,
-            modelFileName: "sarah_vai_coder_model.json",
-            fallbackProfileId: "profile_tier4_pro"
+            modelFileName: ModelSelectionEngine.qwen3BFileName,
+            fallbackProfileId: "profile_cloud_absolute_power"
         )
         
-        // Tier 6 : iPhone 15, 16 (~1.8 Go max)
-        let tier6 = ModelProfile(
-            profileId: "profile_tier6_ultra",
-            internalEngineId: "Sarah Neural Engine Ultra v4 (A17 Pro / A18 8GB)",
+        // 3. Profil Local 7B Haute Performance (iPhone 14 Pro / 15 Pro / 16 / 17+ - RAM >= 6 Go)
+        let qwen7BProfile = ModelProfile(
+            profileId: "profile_qwen_2_5_coder_7b",
+            internalEngineId: "Qwen 2.5 Coder 7B Instruct (Q4_K_M Metal MPS GPU)",
             targetTier: .tier6_ultra,
-            maxContextLength: 6144,
-            maxGenerationTokens: 3072,
-            estimatedMemoryFootprintBytes: 1600 * 1024 * 1024,
+            maxContextLength: 4096,
+            maxGenerationTokens: 2048,
+            estimatedMemoryFootprintBytes: 4500 * 1024 * 1024, // ~4.5 Go
             defaultBatchIntervalMs: 2,
             allowsConcurrentAgents: true,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: "profile_tier5_flagship_i14"
+            modelFileName: ModelSelectionEngine.qwen7BFileName,
+            fallbackProfileId: "profile_qwen_2_5_coder_3b"
         )
         
-        // Tier 7 : iPhone 17+ / M-Series (~2.5 Go+ max)
-        let tier7 = ModelProfile(
-            profileId: "profile_tier7_max_titan",
-            internalEngineId: "Sarah Neural Titan Max v4 (Apple Silicon 16GB)",
-            targetTier: .tier7_max,
-            maxContextLength: 8192,
-            maxGenerationTokens: 4096,
-            estimatedMemoryFootprintBytes: 2200 * 1024 * 1024,
-            defaultBatchIntervalMs: 1,
-            allowsConcurrentAgents: true,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: "profile_tier6_ultra"
-        )
-        
-        registeredProfiles = [tier7, tier6, tier5, tier4, tier3, tier2, tier1]
+        registeredProfiles = [qwen7BProfile, qwen3BProfile, cloudAbsoluteProfile]
     }
     
-    /// Sélectionne le meilleur profil compatible avec le budget mémoire disponible réel
-    public func selectOptimalProfile(for capability: DeviceCapabilityProfile) -> ModelProfile {
-        let budget = capability.safeMemoryBudgetBytes
-        let tier = capability.hardwareTier
-        
-        // Recherche du modèle le plus puissant appartenant au Tier ou inférieur entrant dans le budget
-        let candidates = registeredProfiles.filter { $0.targetTier <= tier }
-        
-        for candidate in candidates {
-            if candidate.estimatedMemoryFootprintBytes <= budget {
-                return candidate
-            }
+    /// Mémoire physique totale en Gigaoctets (Go)
+    public var physicalMemoryGB: Double {
+        return Double(ProcessInfo.processInfo.physicalMemory) / (1024.0 * 1024.0 * 1024.0)
+    }
+    
+    /// Détermine si l'appareil a au moins 6 Go de RAM (capable d'exécuter Qwen 7B)
+    public func canRun7BModel() -> Bool {
+        return physicalMemoryGB >= 5.5
+    }
+    
+    /// Détermine si l'appareil a au moins 4 Go de RAM (capable d'exécuter Qwen 3B)
+    public func isLocalGGUFAllowed() -> Bool {
+        return physicalMemoryGB >= 3.5
+    }
+    
+    /// Indique si l'inférence doit obligatoirement être routée vers le Cloud Fallback
+    public func shouldForceCloudFallback() -> Bool {
+        return !isLocalGGUFAllowed()
+    }
+    
+    /// Nom du fichier de modèle recommandé pour cet appareil
+    public var recommendedLocalModelFileName: String {
+        if canRun7BModel() {
+            return ModelSelectionEngine.qwen7BFileName
+        } else if isLocalGGUFAllowed() {
+            return ModelSelectionEngine.qwen3BFileName
+        } else {
+            return "cloud_proxy"
         }
+    }
+    
+    /// URL de téléchargement recommandée
+    public var recommendedDownloadURL: String {
+        if canRun7BModel() {
+            return ModelSelectionEngine.qwen7BDownloadURL
+        } else {
+            return ModelSelectionEngine.qwen3BDownloadURL
+        }
+    }
+    
+    /// Sélectionne le profil adapté à la capacité matérielle
+    public func selectOptimalProfile(for capability: DeviceCapabilityProfile) -> ModelProfile {
+        if canRun7BModel() {
+            return registeredProfiles.first(where: { $0.profileId == "profile_qwen_2_5_coder_7b" }) ?? registeredProfiles[0]
+        } else if isLocalGGUFAllowed() {
+            return registeredProfiles.first(where: { $0.profileId == "profile_qwen_2_5_coder_3b" }) ?? registeredProfiles[1]
+        } else {
+            return registeredProfiles.first(where: { $0.profileId == "profile_cloud_absolute_power" }) ?? registeredProfiles[2]
+        }
+    }
+    
+    /// Génère le prompt formaté selon le standard ChatML strict (<|im_start|>, <|im_end|>)
+    public func formatChatMLPrompt(system: String, user: String) -> String {
+        return """
+        <|im_start|>system
+        \(system)<|im_end|>
+        <|im_start|>user
+        \(user)<|im_end|>
+        <|im_start|>assistant
         
-        // Fallback minimal absolu garanti (Tier 1)
-        return registeredProfiles.last ?? ModelProfile(
-            profileId: "profile_tier1_nano",
-            internalEngineId: "sarah_core_nano",
-            targetTier: .tier1_legacyCompact,
-            maxContextLength: 512,
-            maxGenerationTokens: 256,
-            estimatedMemoryFootprintBytes: 80 * 1024 * 1024,
-            defaultBatchIntervalMs: 25,
-            allowsConcurrentAgents: false,
-            modelFileName: "sarah_fr_model.json",
-            fallbackProfileId: nil
-        )
+        """
     }
     
     /// Récupère un profil par son identifiant
     public func getProfile(byId id: String) -> ModelProfile? {
         return registeredProfiles.first { $0.profileId == id }
     }
-    
-    /// Détermine si le chargement de poids locaux GGUF / llama.cpp est autorisé.
-    /// INTERDICTION STRICTE sur les appareils à 2 Go de RAM ou moins (iPhone 5s, 6, 7, 8, SE) pour éliminer tout crash Jetsam OOM.
-    public func isLocalGGUFAllowed() -> Bool {
-        let physicalMem = ProcessInfo.processInfo.physicalMemory
-        let memoryGB = Double(physicalMem) / (1024.0 * 1024.0 * 1024.0)
-        return memoryGB > 2.5
-    }
-    
-    /// Indique si l'inférence doit être obligatoirement routée vers le Cloud Fallback
-    public func shouldForceCloudFallback() -> Bool {
-        return !isLocalGGUFAllowed()
-    }
 }
+
+

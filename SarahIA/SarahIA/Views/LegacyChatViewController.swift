@@ -172,6 +172,8 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .sarahOpenSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startNewChat), name: .sarahStartNewChat, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(confirmClearCurrentChat), name: .sarahClearCurrentChat, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleModelDownloadStateChanged), name: NSNotification.Name("SarahModelDownloadStarted"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleModelDownloadStateChanged), name: NSNotification.Name("SarahModelDownloadCompleted"), object: nil)
         
         // 2. TableView Messages
         tableView.translatesAutoresizingMaskIntoConstraints = false
@@ -179,15 +181,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.separatorStyle = .none
         tableView.dataSource = self
         tableView.delegate = self
+        tableView.keyboardDismissMode = .interactive
         tableView.rowHeight = UITableView.automaticDimension
         tableView.estimatedRowHeight = 60
         view.addSubview(tableView)
         
-        // 3. Barre de Saisie Capsule
+        // 3. Barre de Saisie Moderne & Universelle (Capsule + Bouton Action Dynamique)
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
-        composerContainer.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
-        composerContainer.layer.cornerRadius = 22
+        composerContainer.backgroundColor = .clear
         view.addSubview(composerContainer)
+        
+        // Capsule de saisie
+        let textInputCapsule = UIView()
+        textInputCapsule.translatesAutoresizingMaskIntoConstraints = false
+        textInputCapsule.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        textInputCapsule.layer.cornerRadius = 24
+        textInputCapsule.layer.masksToBounds = true
+        composerContainer.addSubview(textInputCapsule)
         
         // Champ texte étendu naturellement
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
@@ -199,32 +209,33 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         inputTextField.font = UIFont.systemFont(ofSize: 15)
         inputTextField.delegate = self
         inputTextField.returnKeyType = .send
-        composerContainer.addSubview(inputTextField)
+        inputTextField.autocorrectionType = .default
+        inputTextField.addTarget(self, action: #selector(textFieldDidChange), for: .editingChanged)
+        textInputCapsule.addSubview(inputTextField)
         
-        // Micro 🎤
+        // Micro 🎤 intégré à l'intérieur droit de la capsule
         micButton.translatesAutoresizingMaskIntoConstraints = false
-        micButton.setTitle("🎤", for: .normal)
-        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 18)
+        if #available(iOS 13.0, *), let img = UIImage(systemName: "mic.fill") {
+            micButton.setImage(img, for: .normal)
+        } else {
+            micButton.setTitle("🎤", for: .normal)
+        }
+        micButton.tintColor = UIColor(white: 0.85, alpha: 1.0)
+        micButton.setTitleColor(.white, for: .normal)
+        micButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
+        micButton.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
+        micButton.layer.cornerRadius = 16
         micButton.addTarget(self, action: #selector(micTapped), for: .touchUpInside)
-        composerContainer.addSubview(micButton)
+        textInputCapsule.addSubview(micButton)
         
-        // Waveform 〰️
-        waveformButton.translatesAutoresizingMaskIntoConstraints = false
-        waveformButton.setTitle("〰️", for: .normal)
-        waveformButton.titleLabel?.font = UIFont.systemFont(ofSize: 16)
-        waveformButton.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
-        waveformButton.layer.cornerRadius = 16
-        waveformButton.addTarget(self, action: #selector(waveformTapped), for: .touchUpInside)
-        composerContainer.addSubview(waveformButton)
-        
-        // Envoi ⬆️
+        // Bouton Action Circulaire Externe (Morphing fluide Waveform 〰️ <-> Envoi ⬆️)
         sendButton.translatesAutoresizingMaskIntoConstraints = false
-        sendButton.setTitle("⬆️", for: .normal)
-        sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .bold)
-        sendButton.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
-        sendButton.layer.cornerRadius = 16
-        sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
+        sendButton.layer.cornerRadius = 23
+        sendButton.clipsToBounds = true
+        sendButton.addTarget(self, action: #selector(actionButtonTapped), for: .touchUpInside)
         composerContainer.addSubview(sendButton)
+        
+        updateActionButtonState(animated: false)
         
         let bottomConstraint = composerContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         self.composerBottomConstraint = bottomConstraint
@@ -259,29 +270,35 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: composerContainer.topAnchor, constant: -8),
             
+            // Conteneur de barre de saisie
             composerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             composerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             bottomConstraint,
-            composerContainer.heightAnchor.constraint(equalToConstant: 46),
+            composerContainer.heightAnchor.constraint(equalToConstant: 48),
             
-            inputTextField.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor, constant: 14),
-            inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -6),
-            inputTextField.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            // Capsule de texte
+            textInputCapsule.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor),
+            textInputCapsule.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -10),
+            textInputCapsule.topAnchor.constraint(equalTo: composerContainer.topAnchor),
+            textInputCapsule.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor),
             
-            micButton.trailingAnchor.constraint(equalTo: waveformButton.leadingAnchor, constant: -6),
-            micButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            // Champ texte dans la capsule
+            inputTextField.leadingAnchor.constraint(equalTo: textInputCapsule.leadingAnchor, constant: 16),
+            inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -8),
+            inputTextField.centerYAnchor.constraint(equalTo: textInputCapsule.centerYAnchor),
+            inputTextField.heightAnchor.constraint(equalToConstant: 36),
+            
+            // Micro dans la capsule
+            micButton.trailingAnchor.constraint(equalTo: textInputCapsule.trailingAnchor, constant: -8),
+            micButton.centerYAnchor.constraint(equalTo: textInputCapsule.centerYAnchor),
             micButton.widthAnchor.constraint(equalToConstant: 32),
             micButton.heightAnchor.constraint(equalToConstant: 32),
             
-            waveformButton.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -6),
-            waveformButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            waveformButton.widthAnchor.constraint(equalToConstant: 32),
-            waveformButton.heightAnchor.constraint(equalToConstant: 32),
-            
-            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -6),
+            // Bouton Action (Waveform / Envoi)
+            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor),
             sendButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
-            sendButton.widthAnchor.constraint(equalToConstant: 32),
-            sendButton.heightAnchor.constraint(equalToConstant: 32)
+            sendButton.widthAnchor.constraint(equalToConstant: 46),
+            sendButton.heightAnchor.constraint(equalToConstant: 46)
         ])
     }
     
@@ -655,6 +672,31 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(walkieVC, animated: true, completion: nil)
     }
     
+    @objc private func handleModelDownloadStateChanged() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if BackgroundModelDownloader.shared.isDownloading {
+                self.inputTextField.isEnabled = false
+                self.inputTextField.attributedPlaceholder = NSAttributedString(
+                    string: "Chargement du modèle...",
+                    attributes: [NSAttributedString.Key.foregroundColor: UIColor.systemOrange]
+                )
+                self.sendButton.isEnabled = false
+                self.sendButton.alpha = 0.5
+                self.micButton.isEnabled = false
+            } else {
+                self.inputTextField.isEnabled = true
+                self.inputTextField.attributedPlaceholder = NSAttributedString(
+                    string: "Demander à \(self.activeAgent.rawValue)...",
+                    attributes: [NSAttributedString.Key.foregroundColor: UIColor.gray]
+                )
+                self.sendButton.isEnabled = true
+                self.sendButton.alpha = 1.0
+                self.micButton.isEnabled = true
+            }
+        }
+    }
+    
     @objc private func plusTapped() {
         HapticService.shared.buttonTap()
         let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
@@ -673,14 +715,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         }))
         alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Flux.1 Open Source)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Génère une photo de "
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
         alert.addAction(UIAlertAction(title: "🎵 Composer une Musique 100% Locale (DSP)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Génère une musique lo-fi"
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
         alert.addAction(UIAlertAction(title: "👁️ Vision & Analyse Multimodale (OCR)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Analyse cette photo et décris ce que tu vois"
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
         alert.addAction(UIAlertAction(title: "💬 Nathan — Statut & Vidéo WhatsApp", style: .default, handler: { [weak self] _ in
@@ -701,6 +746,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         alert.addAction(UIAlertAction(title: "🎵 Nathan — Générer une Musique Rapide", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .nathan
             self?.inputTextField.text = "Compose une musique "
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
         alert.addAction(UIAlertAction(title: "🤖 Nathan — Meilleurs modèles d'IA", style: .default, handler: { [weak self] _ in
@@ -722,20 +768,23 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.sendMessage("Ouvre mes mails Gmail")
         }))
         alert.addAction(UIAlertAction(title: "🔮 Ouvrir l'Orbe Vocal Immersif", style: .default, handler: { [weak self] _ in
-            self?.waveformTapped()
+            self?.presentVoiceCallModal()
         }))
         alert.addAction(UIAlertAction(title: "🇮🇱 Traduction Hébreu ⇄ Français (Yohan)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .yohan
             self?.updateAgentCapsuleTitle()
             self?.inputTextField.text = "Comment on dit en hébreu : "
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
         alert.addAction(UIAlertAction(title: "🌍 Débat Géopolitique & Histoire (Tom)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .tom
             self?.updateAgentCapsuleTitle()
             self?.inputTextField.text = "Raconte-moi l'histoire de "
+            self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
+
         alert.addAction(UIAlertAction(title: "👑 Parler à Sarah (Pilote)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .sarah
             self?.updateAgentCapsuleTitle()
@@ -776,23 +825,89 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         tableView.reloadData()
     }
     
+    // MARK: - Gestion Dynamique de la Barre de Saisie
+    
+    @objc private func textFieldDidChange() {
+        updateActionButtonState(animated: true)
+    }
+    
+    private func updateActionButtonState(animated: Bool) {
+        let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        
+        let updates = {
+            if hasText {
+                if #available(iOS 13.0, *), let img = UIImage(systemName: "arrow.up") {
+                    self.sendButton.setImage(img, for: .normal)
+                } else {
+                    self.sendButton.setTitle("⬆️", for: .normal)
+                }
+                self.sendButton.tintColor = .white
+                self.sendButton.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
+                self.sendButton.transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
+            } else {
+                if #available(iOS 13.0, *), let img = UIImage(systemName: "waveform") {
+                    self.sendButton.setImage(img, for: .normal)
+                } else {
+                    self.sendButton.setTitle("〰️", for: .normal)
+                }
+                self.sendButton.tintColor = .white
+                self.sendButton.backgroundColor = UIColor(white: 0.20, alpha: 1.0)
+                self.sendButton.transform = .identity
+            }
+        }
+        
+        if animated {
+            UIView.animate(withDuration: 0.20, delay: 0, options: [.curveEaseOut, .beginFromCurrentState], animations: updates, completion: { _ in
+                UIView.animate(withDuration: 0.10) {
+                    self.sendButton.transform = .identity
+                }
+            })
+        } else {
+            updates()
+            self.sendButton.transform = .identity
+        }
+    }
+    
+    @objc private func actionButtonTapped() {
+        HapticService.shared.buttonTap()
+        let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        if hasText {
+            sendTapped()
+        } else {
+            presentVoiceCallModal()
+        }
+    }
+    
     @objc private func micTapped() {
         HapticService.shared.buttonTap()
         if isRecording {
             AppleSpeechRecognizer.shared.stopListening()
             isRecording = false
-            micButton.setTitle("🎤", for: .normal)
+            if #available(iOS 13.0, *), let img = UIImage(systemName: "mic.fill") {
+                micButton.setImage(img, for: .normal)
+            } else {
+                micButton.setTitle("🎤", for: .normal)
+            }
+            micButton.tintColor = UIColor(white: 0.85, alpha: 1.0)
+            micButton.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
         } else {
             AppleSpeechRecognizer.shared.startListening()
             isRecording = true
-            micButton.setTitle("🔴", for: .normal)
+            if #available(iOS 13.0, *), let img = UIImage(systemName: "mic.fill") {
+                micButton.setImage(img, for: .normal)
+            } else {
+                micButton.setTitle("🔴", for: .normal)
+            }
+            micButton.tintColor = .white
+            micButton.backgroundColor = UIColor.systemRed
         }
     }
     
     @objc private func sendTapped() {
         guard let text = inputTextField.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        sendMessage(text)
         inputTextField.text = ""
+        updateActionButtonState(animated: true)
+        sendMessage(text)
     }
     
     public func textFieldShouldReturn(_ textField: UITextField) -> Bool {
@@ -1324,10 +1439,154 @@ public final class LegacySettingsViewController: UIViewController {
     
     private func buildAllSections() {
         buildModeSection()
+        buildPuissanceAbsolueSection()
         buildSocialConnectionsSection()
         buildEcosystemSection()
         buildAudioVADSection()
         buildHistoryResetSection()
+    }
+    
+    // MARK: - Section 0.5 : Moteur IA & Mode Puissance Absolue
+    private func buildPuissanceAbsolueSection() {
+        let section = createSection(title: "⚡ MOTEUR IA & PUISSANCE ABSOLUE", titleColor: UIColor(red: 1.0, green: 0.85, blue: 0.20, alpha: 1.0))
+        let card = createCardView()
+        
+        let stack = UIStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.spacing = 10
+        card.addSubview(stack)
+        
+        // Statut RAM
+        let ramRow = UIStackView()
+        ramRow.axis = .horizontal
+        ramRow.distribution = .equalSpacing
+        
+        let ramTitle = UILabel()
+        ramTitle.text = "RAM Physique Détectée :"
+        ramTitle.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        ramTitle.textColor = .white
+        
+        let ramVal = UILabel()
+        ramVal.text = String(format: "%.1f Go", ModelSelectionEngine.shared.physicalMemoryGB)
+        ramVal.font = UIFont.systemFont(ofSize: 13, weight: .black)
+        ramVal.textColor = ModelSelectionEngine.shared.isLocalGGUFAllowed() ? UIColor.systemGreen : UIColor.systemOrange
+        
+        ramRow.addArrangedSubview(ramTitle)
+        ramRow.addArrangedSubview(ramVal)
+        stack.addArrangedSubview(ramRow)
+        
+        let statusSub = UILabel()
+        statusSub.text = ModelSelectionEngine.shared.canRun7BModel() ?
+            "🔥 Mode On-Device 7B Activé (Qwen 2.5 Coder 7B — Metal MPS 4096 tokens)" :
+            (ModelSelectionEngine.shared.isLocalGGUFAllowed() ?
+             "⚡ Mode On-Device 3B Activé (Qwen 2.5 Coder 3B — Metal MPS 4096 tokens)" :
+             "☁️ Mode Cloud Puissance Absolue Recommandé (Claude 3.5 Sonnet / GPT-4o)")
+        statusSub.font = UIFont.systemFont(ofSize: 11)
+        statusSub.textColor = UIColor.gray
+        statusSub.numberOfLines = 2
+        stack.addArrangedSubview(statusSub)
+        
+        // Sélecteur Fournisseur Cloud
+        let segmented = UISegmentedControl(items: ["OpenAI (GPT-4o)", "Anthropic (Claude 3.5)", "Ollama"])
+        segmented.translatesAutoresizingMaskIntoConstraints = false
+        let curProv = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
+        if curProv == "anthropic" { segmented.selectedSegmentIndex = 1 }
+        else if curProv == "custom" { segmented.selectedSegmentIndex = 2 }
+        else { segmented.selectedSegmentIndex = 0 }
+        
+        segmented.addTarget(self, action: #selector(cloudProviderChanged(_:)), for: .valueChanged)
+        stack.addArrangedSubview(segmented)
+        
+        // Champ Clé API
+        let keyLabel = UILabel()
+        keyLabel.text = "Clé API Distante (Bearer / x-api-key) :"
+        keyLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        keyLabel.textColor = UIColor.gray
+        stack.addArrangedSubview(keyLabel)
+        
+        let keyField = UITextField()
+        keyField.translatesAutoresizingMaskIntoConstraints = false
+        keyField.isSecureTextEntry = true
+        keyField.placeholder = "Ex: sk-ant-... ou sk-proj-..."
+        keyField.text = UserDefaults.standard.string(forKey: "sarah_cloud_api_key")
+        keyField.textColor = .white
+        keyField.font = UIFont.systemFont(ofSize: 13)
+        keyField.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
+        keyField.layer.cornerRadius = 8
+        keyField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 34))
+        keyField.leftViewMode = .always
+        keyField.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        
+        let keyHandler = UIActionHandler {
+            UserDefaults.standard.set(keyField.text ?? "", forKey: "sarah_cloud_api_key")
+        }
+        objc_setAssociatedObject(keyField, "kh", keyHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        keyField.addTarget(keyHandler, action: #selector(UIActionHandler.invoke), for: .editingChanged)
+        stack.addArrangedSubview(keyField)
+        
+        // Bouton Test de Connexion
+        let testBtn = UIButton(type: .system)
+        testBtn.translatesAutoresizingMaskIntoConstraints = false
+        testBtn.setTitle("⚡ Tester la connexion API", for: .normal)
+        testBtn.setTitleColor(.white, for: .normal)
+        testBtn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        testBtn.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.25)
+        testBtn.layer.cornerRadius = 8
+        testBtn.heightAnchor.constraint(equalToConstant: 34).isActive = true
+        
+        let resultLabel = UILabel()
+        resultLabel.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
+        resultLabel.textAlignment = .center
+        resultLabel.isHidden = true
+        
+        let testHandler = UIActionHandler {
+            UserDefaults.standard.set(keyField.text ?? "", forKey: "sarah_cloud_api_key")
+            testBtn.setTitle("⏳ Test en cours...", for: .normal)
+            testBtn.isEnabled = false
+            resultLabel.isHidden = true
+            
+            AIService.shared.callCloudLLM(prompt: "Réponds uniquement par 'CONNEXION_OK'.") { result in
+                DispatchQueue.main.async {
+                    testBtn.isEnabled = true
+                    testBtn.setTitle("⚡ Tester la connexion API", for: .normal)
+                    resultLabel.isHidden = false
+                    switch result {
+                    case .success:
+                        resultLabel.text = "✅ Connecté avec succès à pleine puissance !"
+                        resultLabel.textColor = UIColor.systemGreen
+                    case .failure(let err):
+                        resultLabel.text = "❌ Erreur : \(err.localizedDescription)"
+                        resultLabel.textColor = UIColor.systemRed
+                    }
+                }
+            }
+        }
+        objc_setAssociatedObject(testBtn, "th", testHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        testBtn.addTarget(testHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
+        
+        stack.addArrangedSubview(testBtn)
+        stack.addArrangedSubview(resultLabel)
+        
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12)
+        ])
+        
+        section.addArrangedSubview(card)
+        contentStack.addArrangedSubview(section)
+    }
+    
+    @objc private func cloudProviderChanged(_ sender: UISegmentedControl) {
+        if sender.selectedSegmentIndex == 1 {
+            UserDefaults.standard.set("anthropic", forKey: "sarah_cloud_provider")
+        } else if sender.selectedSegmentIndex == 2 {
+            UserDefaults.standard.set("custom", forKey: "sarah_cloud_provider")
+        } else {
+            UserDefaults.standard.set("openai", forKey: "sarah_cloud_provider")
+        }
     }
     
     // MARK: - Section 1 : Mode de Fonctionnement

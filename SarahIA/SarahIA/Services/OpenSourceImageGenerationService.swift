@@ -94,9 +94,9 @@ public final class OpenSourceImageGenerationService {
         return (false, "")
     }
     
-    // MARK: - Génération d'Image Haute Définition
+    // MARK: - Génération d'Image Haute Définition (CoreML LCM On-Device / Cloud)
     
-    /// Génère une image open source via les modèles Flux / SDXL Turbo sans clé requise
+    /// Génère une image via le modèle local CoreML LCM (Sarah_ImageGen_Local) ou Cloud HD
     public func generateImage(
         prompt: String,
         width: Int = 768,
@@ -117,7 +117,35 @@ public final class OpenSourceImageGenerationService {
             return
         }
         
-        // Vérifier le cache mémoire d'abord
+        // 1. Vérifier si le modèle CoreML Sarah_ImageGen_Local est actif (A15 Bionic / Neural Engine)
+        if SarahLocalImageGenEngine.shared.isLocalLCMModelAvailable {
+            let config = SarahLocalImageGenEngine.LCMConfiguration(steps: 4, guidanceScale: 1.8, width: width, height: height)
+            SarahLocalImageGenEngine.shared.generateImage(prompt: cleanPrompt, config: config) { result in
+                switch result {
+                case .success(let image):
+                    completion(GeneratedImageResult(
+                        prompt: cleanPrompt,
+                        image: image,
+                        imageURL: nil,
+                        modelName: SarahLocalImageGenEngine.modelIdentifier,
+                        isSuccess: true,
+                        errorMessage: nil
+                    ))
+                case .failure(let error):
+                    completion(GeneratedImageResult(
+                        prompt: cleanPrompt,
+                        image: nil,
+                        imageURL: nil,
+                        modelName: SarahLocalImageGenEngine.modelIdentifier,
+                        isSuccess: false,
+                        errorMessage: error.localizedDescription
+                    ))
+                }
+            }
+            return
+        }
+        
+        // 2. Vérifier le cache mémoire d'abord
         let cacheKey = "\(model)_\(cleanPrompt)_\(width)x\(height)" as NSString
         if let cachedImage = cache.object(forKey: cacheKey) {
             completion(GeneratedImageResult(

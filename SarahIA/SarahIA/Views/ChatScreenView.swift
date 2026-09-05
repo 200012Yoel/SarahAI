@@ -44,11 +44,10 @@ public struct ChatScreenView: View {
     }
     
     private var currentBottomPadding: CGFloat {
-        if keyboard.keyboardHeight > 0 {
-            let diff = keyboard.keyboardHeight - bottomSafeArea
-            return max(0, diff)
+        if keyboard.isVisible && keyboard.keyboardHeight > 0 {
+            return keyboard.keyboardHeight + 6
         }
-        return bottomSafeArea > 0 ? bottomSafeArea : 6
+        return bottomSafeArea > 0 ? bottomSafeArea : 8
     }
     
     public var body: some View {
@@ -110,6 +109,7 @@ public struct ChatScreenView: View {
             }
             .padding(.bottom, currentBottomPadding)
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(viewModel: viewModel)
         }

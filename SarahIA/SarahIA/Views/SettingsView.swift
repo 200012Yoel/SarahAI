@@ -15,6 +15,13 @@ public struct SettingsView: View {
     @State private var vadSensitivity: Double = 0.65
     @State private var isShowingWhatsAppGateway: Bool = false
     
+    // Moteur LLM & Puissance Absolue
+    @State private var cloudProvider: String = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
+    @State private var cloudApiKey: String = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
+    @State private var customEndpoint: String = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? ""
+    @State private var isTestingAPI: Bool = false
+    @State private var testResultStatus: String? = nil
+    
     // Connexions
     @State private var isWhatsAppConnected: Bool = true
     @State private var isInstagramConnected: Bool = false
@@ -113,6 +120,115 @@ public struct SettingsView: View {
                             }
                         }
                         .padding(.vertical, 6)
+                    }
+                    // 0.5. Section Moteur IA & Mode Puissance Absolue (Claude 3.5 Sonnet / GPT-4o / Qwen 2.5 Coder)
+                    Section(header: Text("⚡ Moteur IA & Puissance Absolue").foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.20))) {
+                        
+                        // Badge d'état matériel
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("RAM Physique Détectée :")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Text(String(format: "%.1f Go", ModelSelectionEngine.shared.physicalMemoryGB))
+                                    .font(.system(size: 13, weight: .black, design: .monospaced))
+                                    .foregroundColor(ModelSelectionEngine.shared.isLocalGGUFAllowed() ? .green : .orange)
+                            }
+                            
+                            Text(ModelSelectionEngine.shared.canRun7BModel() ? 
+                                 "🔥 Mode On-Device 7B Activé (Qwen 2.5 Coder 7B — Metal MPS GPU 4096 tokens)" :
+                                 (ModelSelectionEngine.shared.isLocalGGUFAllowed() ?
+                                  "⚡ Mode On-Device 3B Activé (Qwen 2.5 Coder 3B — Metal MPS GPU 4096 tokens)" :
+                                  "☁️ Mode Cloud Puissance Absolue Recommandé (Claude 3.5 Sonnet / GPT-4o)"))
+                                .font(.system(size: 11))
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.vertical, 4)
+                        
+                        // Sélecteur Fournisseur Cloud
+                        Picker("Fournisseur Cloud", selection: $cloudProvider) {
+                            Text("OpenAI (GPT-4o)").tag("openai")
+                            Text("Anthropic (Claude 3.5)").tag("anthropic")
+                            Text("Serveur Ollama").tag("custom")
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                        .padding(.vertical, 2)
+                        
+                        // Saisie de la Clé API
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Clé API Distante (Bearer / x-api-key) :")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.gray)
+                            
+                            SecureField("Ex: sk-ant-... ou sk-proj-...", text: $cloudApiKey)
+                                .font(.system(size: 13, design: .monospaced))
+                                .padding(8)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(8)
+                                .foregroundColor(.white)
+                        }
+                        .padding(.vertical, 2)
+                        
+                        // Endpoint personnalisé
+                        if cloudProvider == "custom" {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("URL Endpoint Personnalisé :")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.gray)
+                                
+                                TextField("http://192.168.1.50:11434/v1/chat/completions", text: $customEndpoint)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .padding(8)
+                                    .background(Color.white.opacity(0.08))
+                                    .cornerRadius(8)
+                                    .foregroundColor(.white)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        
+                        // Bouton Test de Connexion
+                        Button(action: {
+                            HapticService.shared.buttonTap()
+                            isTestingAPI = true
+                            testResultStatus = "Test en cours..."
+                            
+                            UserDefaults.standard.set(cloudProvider, forKey: "sarah_cloud_provider")
+                            UserDefaults.standard.set(cloudApiKey, forKey: "sarah_cloud_api_key")
+                            UserDefaults.standard.set(customEndpoint, forKey: "sarah_custom_llm_endpoint")
+                            
+                            AIService.shared.callCloudLLM(prompt: "Réponds uniquement par 'CONNEXION_OK'.") { result in
+                                DispatchQueue.main.async {
+                                    isTestingAPI = false
+                                    switch result {
+                                    case .success:
+                                        testResultStatus = "✅ Connecté avec succès !"
+                                    case .failure(let error):
+                                        testResultStatus = "❌ Échec : \(error.localizedDescription)"
+                                    }
+                                }
+                            }
+                        }) {
+                            HStack {
+                                if isTestingAPI {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "antenna.radiowaves.left.and.right")
+                                }
+                                Text("Tester la connexion API")
+                                    .font(.system(size: 13, weight: .bold))
+                                Spacer()
+                                if let status = testResultStatus {
+                                    Text(status)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(status.contains("✅") ? .green : .red)
+                                }
+                            }
+                        }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
@@ -305,6 +421,9 @@ public struct SettingsView: View {
                             pitch: Float(speechPitch),
                             vadSensitivity: Float(vadSensitivity)
                         )
+                        UserDefaults.standard.set(cloudProvider, forKey: "sarah_cloud_provider")
+                        UserDefaults.standard.set(cloudApiKey, forKey: "sarah_cloud_api_key")
+                        UserDefaults.standard.set(customEndpoint, forKey: "sarah_custom_llm_endpoint")
                         presentationMode.wrappedValue.dismiss()
                     }
                     .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
@@ -315,6 +434,9 @@ public struct SettingsView: View {
                 self.speechRate = Double(s.speechRate)
                 self.speechPitch = Double(s.speechPitch)
                 self.vadSensitivity = Double(s.vadSensitivity)
+                self.cloudProvider = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
+                self.cloudApiKey = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
+                self.customEndpoint = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? ""
             }
         }
     }

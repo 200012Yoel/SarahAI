@@ -1,12 +1,10 @@
 import Foundation
 
 // ============================================================================
-// BACKGROUND MODEL DOWNLOADER — TÉLÉCHARGEMENT PROGRESSIF DES MODÈLES GGUF
+// BACKGROUND MODEL DOWNLOADER — TÉLÉCHARGEMENT PROGRESSIF DU MODÈLE QWEN 2.5 CODER GGUF
 // ============================================================================
-// Utilise URLSessionConfiguration.background avec support de la reprise (resumeData)
-// et gestion des octets partiels (Range: bytes=...).
-// Permet le téléchargement complet même si l'application est en arrière-plan
-// ou si l'iPhone est verrouillé.
+// Télécharge le modèle Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf (~2.2 Go) depuis Hugging Face
+// Supporte la reprise de téléchargement en arrière-plan (URLSessionConfiguration.background)
 // ============================================================================
 
 public final class BackgroundModelDownloader: NSObject {
@@ -20,46 +18,78 @@ public final class BackgroundModelDownloader: NSObject {
     public var onProgress: ((Double, Int64, Int64) -> Void)?
     public var onCompletion: ((Result<URL, Error>) -> Void)?
     
-    private let resumeDataKey = "sarah_model_download_resume_data"
+    public private(set) var isDownloading: Bool = false
+    private let resumeDataKey = "sarah_qwen_model_download_resume_data"
     
     private override init() {
         super.init()
-        let config = URLSessionConfiguration.background(withIdentifier: "com.sarahia.modeldownload")
+        let config = URLSessionConfiguration.background(withIdentifier: "com.sarahia.qwenmodeldownload")
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
         self.session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
-        
-        // Restauration des données de reprise en cas de crash ou redémarrage
         self.resumeData = UserDefaults.standard.data(forKey: resumeDataKey)
     }
     
-    /// Lance ou reprend le téléchargement du fichier de modèle
-    public func startDownload(from url: URL) {
+    /// Chemin vers le fichier GGUF local dans Application Support
+    public static var localModelURL: URL? {
+        let fileManager = FileManager.default
+        guard let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let modelsDir = appSupportDir.appendingPathComponent("SarahAI/models", isDirectory: true)
+        return modelsDir.appendingPathComponent(ModelSelectionEngine.qwen3BFileName)
+    }
+    
+    /// Vérifie si le modèle local Qwen 2.5 Coder est déjà téléchargé
+    public static var isModelDownloaded: Bool {
+        guard let url = localModelURL else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+    
+    /// Lance le téléchargement du modèle Qwen 2.5 Coder 3B Instruct (Q4_K_M) depuis Hugging Face
+    public func startQwenModelDownload() {
+        guard ModelSelectionEngine.shared.isLocalGGUFAllowed() else {
+            let error = NSError(domain: "com.sarahia.downloader", code: 403, userInfo: [NSLocalizedDescriptionKey: "Téléchargement interdit : RAM insuffisante (<= 2 Go). Utilisation du Cloud Fallback requise."])
+            onCompletion?(.failure(error))
+            return
+        }
+        
+        guard let url = URL(string: ModelSelectionEngine.qwen3BDownloadURL) else {
+            let error = NSError(domain: "com.sarahia.downloader", code: 400, userInfo: [NSLocalizedDescriptionKey: "URL HuggingFace invalide."])
+            onCompletion?(.failure(error))
+            return
+        }
+        
+        isDownloading = true
+        NotificationCenter.default.post(name: NSNotification.Name("SarahModelDownloadStarted"), object: nil)
+        
         if let resumeData = resumeData {
-            print("🔄 [BackgroundModelDownloader] Reprise du téléchargement partiel...")
+            print("🔄 [BackgroundModelDownloader] Reprise du téléchargement Qwen 2.5 Coder...")
             downloadTask = session.downloadTask(withResumeData: resumeData)
         } else {
-            print("🚀 [BackgroundModelDownloader] Démarrage du téléchargement depuis : \(url.absoluteString)")
+            print("🚀 [BackgroundModelDownloader] Démarrage du téléchargement HuggingFace : \(url.absoluteString)")
             downloadTask = session.downloadTask(with: url)
         }
         downloadTask?.resume()
     }
     
-    /// Met en pause et sauvegarde les octets déjà reçus
+    /// Met en pause le téléchargement
     public func pauseDownload() {
         downloadTask?.cancel(byProducingResumeData: { [weak self] data in
             guard let self = self, let data = data else { return }
             self.resumeData = data
+            self.isDownloading = false
             UserDefaults.standard.set(data, forKey: self.resumeDataKey)
             print("⏸️ [BackgroundModelDownloader] Téléchargement mis en pause avec \(data.count) octets sauvegardés.")
         })
     }
     
-    /// Annule et supprime la session de téléchargement
+    /// Annule le téléchargement
     public func cancelDownload() {
         downloadTask?.cancel()
         downloadTask = nil
         resumeData = nil
+        isDownloading = false
         UserDefaults.standard.removeObject(forKey: resumeDataKey)
     }
 }
@@ -88,37 +118,36 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        // Nettoyage des données de reprise
         resumeData = nil
+        isDownloading = false
         UserDefaults.standard.removeObject(forKey: resumeDataKey)
         
         let fileManager = FileManager.default
-        guard let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+        guard let destinationURL = BackgroundModelDownloader.localModelURL else {
             DispatchQueue.main.async { [weak self] in
-                self?.onCompletion?(.failure(NSError(domain: "com.sarahia.downloader", code: 500, userInfo: [NSLocalizedDescriptionKey: "Dossier Application Support introuvable"])))
+                self?.onCompletion?(.failure(NSError(domain: "com.sarahia.downloader", code: 500, userInfo: [NSLocalizedDescriptionKey: "Emplacement de stockage introuvable"])))
             }
             return
         }
         
-        let modelsDir = appSupportDir.appendingPathComponent("SarahAI/models", isDirectory: true)
-        if !fileManager.fileExists(atPath: modelsDir.path) {
-            try? fileManager.createDirectory(at: modelsDir, withIntermediateDirectories: true, attributes: nil)
+        let parentDir = destinationURL.deletingLastPathComponent()
+        if !fileManager.fileExists(atPath: parentDir.path) {
+            try? fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true, attributes: nil)
         }
-        
-        let destinationURL = modelsDir.appendingPathComponent("model_ondevice.gguf")
         
         do {
             if fileManager.fileExists(atPath: destinationURL.path) {
                 try fileManager.removeItem(at: destinationURL)
             }
             try fileManager.moveItem(at: location, to: destinationURL)
-            print("✅ [BackgroundModelDownloader] Modèle déplacé vers : \(destinationURL.path)")
+            print("✅ [BackgroundModelDownloader] Modèle Qwen 2.5 Coder installé : \(destinationURL.path)")
             
             DispatchQueue.main.async { [weak self] in
+                NotificationCenter.default.post(name: NSNotification.Name("SarahModelDownloadCompleted"), object: nil)
                 self?.onCompletion?(.success(destinationURL))
             }
         } catch {
-            print("❌ [BackgroundModelDownloader] Erreur lors du déplacement : \(error.localizedDescription)")
+            print("❌ [BackgroundModelDownloader] Erreur déplacement modèle : \(error.localizedDescription)")
             DispatchQueue.main.async { [weak self] in
                 self?.onCompletion?(.failure(error))
             }
@@ -127,22 +156,13 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
     
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let error = error {
+            isDownloading = false
             print("⚠️ [BackgroundModelDownloader] Téléchargement interrompu : \(error.localizedDescription)")
-            // Si des données de reprise sont disponibles dans l'erreur
             if let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
                 self.resumeData = resumeData
                 UserDefaults.standard.set(resumeData, forKey: resumeDataKey)
             }
         }
     }
-    
-    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        DispatchQueue.main.async {
-            if let completionHandler = AppDelegate.backgroundSessionCompletionHandler {
-                AppDelegate.backgroundSessionCompletionHandler = nil
-                completionHandler()
-                print("⚡ [BackgroundModelDownloader] Callback système d'arrière-plan notifié avec succès.")
-            }
-        }
-    }
 }
+
