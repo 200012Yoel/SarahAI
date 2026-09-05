@@ -66,7 +66,9 @@ public final class SarahLocalImageGenEngine {
         // Configuration CoreML haute performance pour A15 Bionic (iPhone 14)
         self.mlConfiguration = MLModelConfiguration()
         self.mlConfiguration.computeUnits = .all // Force Neural Engine + Metal GPU + CPU
-        self.mlConfiguration.allowLowPrecisionAccumulationOnGPU = true
+        if #available(iOS 16.0, *) {
+            self.mlConfiguration.allowLowPrecisionAccumulationOnGPU = true
+        }
         
         checkLocalModelAvailability()
     }
