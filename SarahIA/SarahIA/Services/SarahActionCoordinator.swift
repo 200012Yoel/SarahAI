@@ -11,14 +11,10 @@ public extension Notification.Name {
     static let sarahClearCurrentChat         = Notification.Name("SarahClearCurrentChat")
     static let sarahStartNewChat             = Notification.Name("SarahStartNewChat")
     static let sarahAgentSelected            = Notification.Name("SarahAgentSelected")
-    static let sarahPresentWhatsAppCall      = Notification.Name("SarahPresentWhatsAppVoiceModal")
     static let sarahPresentVoiceCall         = Notification.Name("SarahPresentVoiceCallModal")
     static let sarahSendTextMessage          = Notification.Name("SarahSendTextMessage")
     static let sarahToggleVoiceRecording     = Notification.Name("SarahToggleVoiceRecording")
-    static let sarahWhatsAppStateChanged     = Notification.Name("SarahWhatsAppStateChanged")
-    static let sarahWhatsAppQRReceived       = Notification.Name("SarahWhatsAppQRReceived")
     static let sarahWebRTCStateChanged       = Notification.Name("SarahWebRTCStateChanged")
-    static let sarahWalkieTalkieStateChanged = Notification.Name("SarahWalkieTalkieStateChanged")
 }
 
 // ============================================================================
@@ -34,7 +30,6 @@ public enum SarahAppAction {
     case sendTextMessage(String)
     case toggleVoiceRecording
     case openVoiceCall(contact: VoiceCallContact?)
-    case openWhatsAppVoiceCall(contact: VoiceCallContact?)
     case showNotification(title: String, message: String)
 }
 
@@ -89,10 +84,6 @@ public final class SarahActionCoordinator {
         case .openVoiceCall(let contact):
             HapticService.shared.buttonTap()
             NotificationCenter.default.post(name: .sarahPresentVoiceCall, object: contact)
-            
-        case .openWhatsAppVoiceCall(let contact):
-            HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: .sarahPresentWhatsAppCall, object: contact)
             
         case .showNotification(let title, let message):
             NotificationService.shared.showInAppNotification(title: title, message: message)
