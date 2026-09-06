@@ -130,6 +130,15 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    // 5.5. Déconnexion / Verrouillage
+    if (pathname === '/api/unpair' && req.method === 'POST') {
+        connectedDevices = [];
+        console.log(`🔒 [Sarah PC] Appareils déconnectés -> Écran de verrouillage QR Code réactivé.`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'unpaired' }));
+        return;
+    }
+
     // 6. Génération Vidéo IA Déportée (16:9 PC, 9:16, 1:1)
     if (pathname === '/api/generate-video' && req.method === 'POST') {
         let body = '';
