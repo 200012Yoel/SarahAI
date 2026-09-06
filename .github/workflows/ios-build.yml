@@ -150,23 +150,6 @@ jobs:
           fi
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Publish Error Release If Failed
-        if: failure()
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: build-error-${{ github.run_number }}
-          name: "Build Error Log #${{ github.run_number }}"
-          body_path: ${{ github.workspace }}/xcode_errors.txt
-          files: |
-            ${{ github.workspace }}/xcode_errors.txt
-            ${{ github.workspace }}/xcodebuild.log
-          draft: false
-          prerelease: false
-          make_latest: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload Build Log Artifact
         if: always()
         uses: actions/upload-artifact@v4

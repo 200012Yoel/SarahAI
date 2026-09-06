@@ -1,7 +1,7 @@
 # 👑 Sarah IA — Moteur IA Local Souverain & Multi-Agents iOS
 
 <div align="center">
-  <img src="assets/app_icon.png" alt="Sarah IA Icon" width="160" style="border-radius: 36px; box-shadow: 0 12px 35px rgba(0,0,0,0.6);" />
+  <img src="SarahIA/SarahIA/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" alt="Sarah IA Icon" width="160" style="border-radius: 36px; box-shadow: 0 12px 35px rgba(0,0,0,0.6);" />
   <h3>Sarah IA — L'Intelligence Artificielle Locale & Souveraine pour iOS</h3>
   <p><em>Interface Universelle 100% Identique — De l'iPhone 5s (iOS 12.0) à l'iPhone 17+ (iOS 18.0+)</em></p>
 </div>
@@ -25,7 +25,7 @@ L'orchestration est pilotée par **Sarah**. L'utilisateur bascule instantanémen
 | 💻 **Esther** *(ou Tom)* | **Synthèse Build & Live Preview** | Vert Cyber / Matrix | Génération de composants Web (HTML/CSS/JS), code Swift, Apple Shortcuts et Live Preview dans l'écran virtuel. |
 | 🌍 **Tom** | **Géopolitique & Histoire Contemporaine** | Bleu Stratégique | Histoire politique mondiale depuis 1948, conflits internationaux, Ve République, débats structurés. |
 | 🇮🇱 **Yoann** | **Traducteur Hébreu ⇄ Français** | Or & Ambre | Dictionnaire expert bilingue, phonétique, racines sémitiques, grammaire et expressions idiomatiques. |
-| 🤖 **Nathan** | **Réseaux Sociaux & WhatsApp** | Cyan Tech | Publication de statuts & vidéos WhatsApp, gestion des réseaux sociaux (Instagram, TikTok, YouTube). |
+| 🤖 **Nathan** | **Réseaux Sociaux & Média** | Cyan Tech | Gestion et publication sur les réseaux sociaux (Instagram, TikTok, YouTube, X). |
 | ✨ **Ethel** | **Intelligence Créative & Spécialisée** | Bleu & Rouge | Agent féminin polyvalent pour les modules créatifs et graphiques. |
 
 ---

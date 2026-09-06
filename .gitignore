@@ -51,3 +51,5 @@ __pycache__/
 test.txt
 *.tmp
 *.log
+*.ps1
+xcode_errors.txt
