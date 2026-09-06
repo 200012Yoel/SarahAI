@@ -11,7 +11,6 @@ public struct MessageBar: View {
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
-    var onShareVideo: (() -> Void)? = nil
     
     public init(
         text: Binding<String>,
@@ -20,8 +19,7 @@ public struct MessageBar: View {
         onSend: @escaping (String) -> Void,
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
-        onOpenVAICoding: @escaping () -> Void,
-        onShareVideo: (() -> Void)? = nil
+        onOpenVAICoding: @escaping () -> Void
     ) {
         self._text = text
         self._activeAgent = activeAgent
@@ -30,7 +28,6 @@ public struct MessageBar: View {
         self.onToggleMic = onToggleMic
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
-        self.onShareVideo = onShareVideo
     }
     
     public var body: some View {
