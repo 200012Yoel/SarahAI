@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sarah IA — Workstation PC & Studio Vidéo Déporté</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #07090e;
+            --bg-secondary: #0d111a;
+            --bg-card: rgba(18, 24, 38, 0.75);
+            --border-glow: rgba(0, 240, 255, 0.25);
+            --neon-cyan: #00f0ff;
+            --neon-pink: #ff007f;
+            --neon-purple: #a855f7;
+            --neon-green: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+        }
+
+        /* En-tête */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 32px;
+            background: rgba(13, 17, 26, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-orb {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--neon-cyan), var(--neon-purple));
+            box-shadow: 0 0 16px var(--neon-cyan);
+            animation: pulseGlow 3s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            100% { transform: scale(1.05); opacity: 1; filter: hue-rotate(45deg); }
+        }
+
+        .logo-text h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-badge {
+            font-size: 0.65rem;
+            font-weight: 900;
+            padding: 2px 8px;
+            background: var(--neon-cyan);
+            color: #000;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .stat-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--neon-green);
+            box-shadow: 0 0 8px var(--neon-green);
+        }
+
+        /* Layout Principal */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr 340px;
+            flex: 1;
+            height: calc(100vh - 72px);
+        }
+
+        /* Volet Gauche : Agents & Jumelage */
+        .sidebar {
+            background: rgba(10, 14, 22, 0.9);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .agent-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .agent-card:hover, .agent-card.active {
+            background: rgba(0, 240, 255, 0.12);
+            border-color: var(--neon-cyan);
+            transform: translateX(4px);
+        }
+
+        .agent-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .agent-info h4 {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .agent-info p {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        /* Carte d'appairage QR Code */
+        .qr-card {
+            background: linear-gradient(145deg, rgba(18, 24, 38, 0.9), rgba(10, 14, 22, 0.9));
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .qr-canvas-container {
+            background: #fff;
+            padding: 10px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 10px 0;
+        }
+
+        #qrCodeCanvas {
+            display: block;
+        }
+
+        .pin-code-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: rgba(0, 240, 255, 0.15);
+            color: var(--neon-cyan);
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px dashed var(--neon-cyan);
+            margin: 8px 0;
+            display: inline-block;
+        }
+
+        /* Centre : Studio Vidéo IA 16:9 */
+        .studio-area {
+            padding: 28px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .banner-architecture {
+            background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(0, 240, 255, 0.15));
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 16px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .banner-text h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+
+        .banner-text p {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .video-generator-box {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .prompt-input-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .prompt-textarea {
+            width: 100%;
+            height: 90px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 14px;
+            color: #fff;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .prompt-textarea:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+        }
+
+        .ratio-selector {
+            display: flex;
+            gap: 12px;
+        }
+
+        .ratio-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .ratio-btn span {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .ratio-btn.active {
+            background: var(--neon-cyan);
+            color: #000;
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
+        }
+
+        .ratio-btn.active span {
+            color: #111;
+            font-weight: 600;
+        }
+
+        .generate-btn {
+            background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(255, 0, 127, 0.35);
+            transition: all 0.2s;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(255, 0, 127, 0.5);
+        }
+
+        /* Zone Rendu & Lecteur Vidéo 16:9 */
+        .video-player-box {
+            background: #000;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16 / 9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay-rendering {
+            position: absolute;
+            inset: 0;
+            background: rgba(7, 9, 14, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .laser-scanner {
+            width: 80%;
+            height: 4px;
+            background: var(--neon-cyan);
+            box-shadow: 0 0 16px var(--neon-cyan);
+            animation: scanLine 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes scanLine {
+            0% { transform: translateY(-40px); opacity: 0.4; }
+            100% { transform: translateY(40px); opacity: 1; }
+        }
+
+        /* Volet Droit : Galerie Médias & Chat Synchro */
+        .right-panel {
+            background: rgba(10, 14, 22, 0.9);
+            border-left: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .media-card {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .media-thumb {
+            width: 60px;
+            height: 40px;
+            background: #111;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .media-desc h5 {
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .media-desc p {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- En-tête -->
+    <header>
+        <div class="logo-area">
+            <div class="logo-orb"></div>
+            <div class="logo-text">
+                <h1>Sarah IA <span class="logo-badge">PC WORKSTATION</span></h1>
+            </div>
+        </div>
+
+        <div class="header-stats">
+            <div class="stat-badge">
+                <div class="stat-dot"></div>
+                <span id="connectionStatus">En attente de scan iPhone...</span>
+            </div>
+            <div class="stat-badge">
+                <span>⚡ GPU : RTX / Rendu 16:9 Prêt</span>
+            </div>
+            <div class="stat-badge">
+                <span id="ipDisplay">IP : Détection...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Layout Principal -->
+    <div class="main-layout">
+        
+        <!-- Volet Gauche -->
+        <div class="sidebar">
+            <div>
+                <div class="section-title">📱 Jumelage Sarah iPhone</div>
+                <div class="qr-card">
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Scannez avec l'application iPhone</p>
+                    <div class="qr-canvas-container">
+                        <canvas id="qrCodeCanvas"></canvas>
+                    </div>
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">Code PIN 6 chiffres :</div>
+                    <div class="pin-code-badge" id="pinCodeBadge">SARAH1</div>
+                    <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Réglages ➔ Version PC ➔ Scanner</p>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">✨ Personnalités Multi-Agents</div>
+                <div class="agent-list">
+                    <div class="agent-card active" onclick="selectAgent('Sarah')">
+                        <div class="agent-avatar">🟣</div>
+                        <div class="agent-info">
+                            <h4>Sarah</h4>
+                            <p>Générale & Empathique</p>
+                        </div>
+                    </div>
+                    <div class="agent-card" onclick="selectAgent('Nathan')">
+                        <div class="agent-avatar">🔵</div>
+                        <div class="agent-info">
+                            <h4>Nathan</h4>
+                            <p>Codeur & Architecte</p>
+                        </div>
+                    </div>
+                    <div class="agent-card" onclick="selectAgent('Esther')">
+                        <div class="agent-avatar">🟢</div>
+                        <div class="agent-info">
+                            <h4>Esther</h4>
+                            <p>Science & Médical</p>
+                        </div>
+                    </div>
+                    <div class="agent-card" onclick="selectAgent('Tom')">
+                        <div class="agent-avatar">🟠</div>
+                        <div class="agent-info">
+                            <h4>Tom</h4>
+                            <p>Histoire & Philosophie</p>
+                        </div>
+                    </div>
+                    <div class="agent-card" onclick="selectAgent('Yohan')">
+                        <div class="agent-avatar">🟡</div>
+                        <div class="agent-info">
+                            <h4>Yohan</h4>
+                            <p>Bilingue CA / HE</p>
+                        </div>
+                    </div>
+                    <div class="agent-card" onclick="selectAgent('Ethel')">
+                        <div class="agent-avatar">🔴</div>
+                        <div class="agent-info">
+                            <h4>Ethel</h4>
+                            <p>Création & Stratégie</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zone Centrale : Studio Vidéo IA 16:9 PC -->
+        <div class="studio-area">
+            
+            <!-- Bannière Répartition des Tâches -->
+            <div class="banner-architecture">
+                <div class="banner-text">
+                    <h3>⚡ Architecture Hybride Activée</h3>
+                    <p>📸 Photos : Traitées en Local sur l'iPhone | 🎬 Vidéos : Déportées en Haute Puissance sur votre PC (Ratio 16:9)</p>
+                </div>
+                <span class="logo-badge" style="background: var(--neon-green);">SYNCHRO ACTIVE</span>
+            </div>
+
+            <!-- Boîte de Génération Vidéo -->
+            <div class="video-generator-box">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="font-size: 1.2rem; font-weight: 800;">🎬 Studio Vidéo IA Haute Définition</h2>
+                    <span style="font-size: 0.8rem; color: var(--neon-cyan); font-weight: 700;">Modèle : Wan2.1 / SVD Pro</span>
+                </div>
+
+                <div class="prompt-input-area">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">Prompt Cinématique de la Vidéo :</label>
+                    <textarea class="prompt-textarea" id="videoPrompt" placeholder="Décrivez votre vidéo en détail...">Un coucher de soleil cinématique sur une plage futuriste néon, vagues luminescentes, réfractions d'eau en mouvement, 4K 60fps, éclairage studio</textarea>
+                </div>
+
+                <div>
+                    <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 8px;">Ratio d'Affichage Cible :</label>
+                    <div class="ratio-selector">
+                        <button class="ratio-btn active" id="btn169" onclick="setRatio('16:9')">
+                            🖥️ 16:9 PC
+                            <span>Desktop / YouTube (1920x1080)</span>
+                        </button>
+                        <button class="ratio-btn" id="btn916" onclick="setRatio('9:16')">
+                            📱 9:16 Vertical
+                            <span>TikTok / Reels (1080x1920)</span>
+                        </button>
+                        <button class="ratio-btn" id="btn11" onclick="setRatio('1:1')">
+                            ⬛ 1:1 Carré
+                            <span>Instagram / Post (1080x1080)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="generate-btn" id="renderButton" onclick="triggerVideoRender()">
+                    <span>✨ Lancer le Rendu Vidéo Déporté sur le PC</span>
+                </button>
+            </div>
+
+            <!-- Lecteur Vidéo & Écran de Rendu -->
+            <div class="video-player-box" id="playerBox">
+                <div class="video-overlay-rendering" id="renderOverlay" style="display: none;">
+                    <div class="laser-scanner"></div>
+                    <h3 style="font-size: 1.1rem; font-weight: 800; color: var(--neon-cyan);" id="renderStatusText">Rendu de la vidéo en cours sur le GPU du PC...</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted);" id="renderPercent">Progression : 25%</p>
+                </div>
+
+                <video id="outputVideo" controls autoplay loop muted style="display: none;">
+                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" type="video/mp4">
+                    Votre navigateur ne prend pas en charge la vidéo HTML5.
+                </video>
+                
+                <div id="placeholderText" style="color: var(--text-muted); font-size: 0.9rem;">
+                    Appuyez sur "Lancer le Rendu" pour générer la vidéo 16:9
+                </div>
+            </div>
+        </div>
+
+        <!-- Volet Droit : Galerie Médias -->
+        <div class="right-panel">
+            <div class="section-title">📁 Médias & Rendu Récents</div>
+            <div class="media-grid" id="mediaGrid">
+                <div class="media-card">
+                    <div class="media-thumb">🎬 16:9</div>
+                    <div class="media-desc">
+                        <h5>Coucher de soleil néon</h5>
+                        <p>Vidéo PC · Rendu Terminé</p>
+                    </div>
+                </div>
+                <div class="media-card">
+                    <div class="media-thumb">📸 Local</div>
+                    <div class="media-desc">
+                        <h5>Portrait Photoréaliste</h5>
+                        <p>Photo iPhone · Neural Engine</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentRatio = '16:9';
+        let serverInfo = {};
+
+        // Récupération du statut du serveur
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                serverInfo = data;
+                
+                document.getElementById('ipDisplay').innerText = `IP : ${data.ip}:${data.port}`;
+                document.getElementById('pinCodeBadge').innerText = data.token;
+                
+                if (data.connectedClients > 0) {
+                    document.getElementById('connectionStatus').innerText = `iPhone Connecté (${data.connectedClients})`;
+                }
+
+                // Génération du QR Code
+                if (window.QRCode && document.getElementById('qrCodeCanvas')) {
+                    QRCode.toCanvas(document.getElementById('qrCodeCanvas'), data.qrString, {
+                        width: 140,
+                        margin: 1,
+                        color: {
+                            dark: '#000000',
+                            light: '#ffffff'
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Erreur de récupération du statut:', e);
+            }
+        }
+
+        function setRatio(ratio) {
+            currentRatio = ratio;
+            document.querySelectorAll('.ratio-btn').forEach(btn => btn.classList.remove('active'));
+            if (ratio === '16:9') document.getElementById('btn169').classList.add('active');
+            if (ratio === '9:16') document.getElementById('btn916').classList.add('active');
+            if (ratio === '1:1') document.getElementById('btn11').classList.add('active');
+        }
+
+        function selectAgent(name) {
+            document.querySelectorAll('.agent-card').forEach(card => card.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+        }
+
+        async function triggerVideoRender() {
+            const prompt = document.getElementById('videoPrompt').value;
+            const overlay = document.getElementById('renderOverlay');
+            const placeholder = document.getElementById('placeholderText');
+            const video = document.getElementById('outputVideo');
+            const renderBtn = document.getElementById('renderButton');
+            const percentText = document.getElementById('renderPercent');
+
+            placeholder.style.display = 'none';
+            video.style.display = 'none';
+            overlay.style.display = 'flex';
+            renderBtn.disabled = true;
+
+            let progress = 10;
+            const interval = setInterval(() => {
+                progress += 18;
+                percentText.innerText = `Progression GPU : ${Math.min(100, progress)}%`;
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    overlay.style.display = 'none';
+                    video.style.display = 'block';
+                    video.play();
+                    renderBtn.disabled = false;
+
+                    // Ajouter à la galerie
+                    const grid = document.getElementById('mediaGrid');
+                    const card = document.createElement('div');
+                    card.className = 'media-card';
+                    card.innerHTML = `
+                        <div class="media-thumb">🎬 ${currentRatio}</div>
+                        <div class="media-desc">
+                            <h5>${prompt.substring(0, 24)}...</h5>
+                            <p>Vidéo Déportée PC (${currentRatio})</p>
+                        </div>
+                    `;
+                    grid.prepend(card);
+                }
+            }, 600);
+
+            try {
+                await fetch('/api/generate-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, ratio: currentRatio })
+                });
+            } catch (err) {
+                console.warn('Requête API:', err);
+            }
+        }
+
+        window.onload = () => {
+            fetchStatus();
+            setInterval(fetchStatus, 4000);
+        };
+    </script>
+</body>
+</html>

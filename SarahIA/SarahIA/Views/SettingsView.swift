@@ -14,6 +14,7 @@ public struct SettingsView: View {
     @State private var speechPitch: Double = 1.05
     @State private var vadSensitivity: Double = 0.65
     @State private var isShowingWhatsAppGateway: Bool = false
+    @State private var isShowingSarahPCCompanion: Bool = false
     
     // Moteur LLM & Puissance Absolue
     @State private var cloudProvider: String = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
@@ -228,6 +229,29 @@ public struct SettingsView: View {
                                         .foregroundColor(status.contains("✅") ? .green : .red)
                                 }
                             }
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+                    
+                    // 0.8. Section Version PC & Compagnon Ordinateur (Sarah PC)
+                    Section(header: Text("💻 Version PC & Compagnon Ordinateur").foregroundColor(Color.sarahCyan)) {
+                        connectionRow(
+                            title: "Sarah PC (Compagnon Ordinateur)",
+                            icon: "desktopcomputer",
+                            iconColor: Color.sarahCyan,
+                            isConnected: Binding(
+                                get: { SarahPCCompanionManager.shared.isConnected },
+                                set: { _ in }
+                            ),
+                            description: SarahPCCompanionManager.shared.isConnected ?
+                                "Connecté à \(SarahPCCompanionManager.shared.connectedPCName) · Rendu Vidéo 16:9 Déporté" :
+                                "Appuyez pour jumeler · Rendu Vidéo Haute Puissance sur PC",
+                            onConnect: {
+                                isShowingSarahPCCompanion = true
+                            }
+                        )
+                        .sheet(isPresented: $isShowingSarahPCCompanion) {
+                            SarahPCCompanionView()
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))

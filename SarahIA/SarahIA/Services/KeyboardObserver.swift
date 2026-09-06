@@ -13,27 +13,30 @@ public final class KeyboardObserver: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     public init() {
-        // 1. Détection universelle de l'apparition du clavier
-        NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
+        // 1. Détection universelle du changement de taille / apparition du clavier
+        NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)
             .compactMap { notification -> (CGFloat, Double, UInt)? in
                 guard let userInfo = notification.userInfo,
                       let endFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
                     return nil
                 }
+                let screenHeight = UIScreen.main.bounds.height
+                let height = max(0, screenHeight - endFrame.minY)
                 let duration = (userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
                 let curve = (userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt) ?? 7
-                return (endFrame.height, duration, curve)
+                return (height, duration, curve)
             }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] height, duration, _ in
-                withAnimation(.easeOut(duration: duration > 0 ? duration : 0.25)) {
+                let animDuration = duration > 0 ? duration : 0.25
+                withAnimation(.easeOut(duration: animDuration)) {
                     self?.keyboardHeight = height
-                    self?.isVisible = true
+                    self?.isVisible = height > 20
                 }
             }
             .store(in: &cancellables)
         
-        // 2. Détection universelle de la disparition du clavier
+        // 2. Détection explicite de disparition
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
             .compactMap { notification -> Double in
                 (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25

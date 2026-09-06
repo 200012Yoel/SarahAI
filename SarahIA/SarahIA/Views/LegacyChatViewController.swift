@@ -326,7 +326,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let convertedFrame = view.convert(keyboardFrameVal, from: nil)
         let keyboardHeight = max(0, view.bounds.height - convertedFrame.minY)
         let bottomSafe = view.safeAreaInsets.bottom
-        let offset = -(max(keyboardHeight, 216) - bottomSafe + 6)
+        let offset = -(max(keyboardHeight, 216) - bottomSafe)
         
         composerBottomConstraint?.constant = offset
         let options = UIView.AnimationOptions(rawValue: curveValue << 16)

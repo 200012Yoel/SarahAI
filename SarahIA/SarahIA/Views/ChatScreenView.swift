@@ -45,7 +45,8 @@ public struct ChatScreenView: View {
     
     private var currentBottomPadding: CGFloat {
         if keyboard.isVisible && keyboard.keyboardHeight > 0 {
-            return keyboard.keyboardHeight + 6
+            // Collé au millimètre près sur le dessus du clavier
+            return keyboard.keyboardHeight
         }
         return bottomSafeArea > 0 ? bottomSafeArea : 8
     }
