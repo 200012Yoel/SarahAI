@@ -129,9 +129,9 @@ public final class OpenSourceImageGenerationService {
     /// Génère l'URL publique de génération pour le modèle Flux / Pollinations avec photoréalisme maximal
     public func buildImageURL(for prompt: String, width: Int = 768, height: Int = 768, model: String = "flux") -> String {
         let enhanced = enhancePromptForHyperrealism(prompt)
-        guard let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-            return "https://image.pollinations.ai/prompt/\(prompt)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
-        }
+        var allowedSet = CharacterSet.urlPathAllowed
+        allowedSet.remove(charactersIn: "/?#&=+[]@!$'*,;")
+        let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: allowedSet) ?? prompt.replacingOccurrences(of: "/", with: "-")
         return "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
     }
     
@@ -225,7 +225,9 @@ public final class OpenSourceImageGenerationService {
         }
         
         let enhanced = enhancePromptForHyperrealism(cleanPrompt)
-        let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? cleanPrompt
+        var allowedSet = CharacterSet.urlPathAllowed
+        allowedSet.remove(charactersIn: "/?#&=+[]@!$'*,;")
+        let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: allowedSet) ?? cleanPrompt.replacingOccurrences(of: "/", with: "-")
         
         let candidateURLs = [
             "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=flux&nologo=true&enhance=true",

@@ -73,7 +73,10 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
     
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
-        return getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR")!
+        if let v = getSiriVoice(for: agent) { return v }
+        if let v = AVSpeechSynthesisVoice(language: agent.localeCode) { return v }
+        if let v = AVSpeechSynthesisVoice(language: "fr-FR") { return v }
+        return AVSpeechSynthesisVoice(language: "en-US") ?? AVSpeechSynthesisVoice.speechVoices().first ?? AVSpeechSynthesisVoice()
     }
     
     /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
