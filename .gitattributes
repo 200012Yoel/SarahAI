@@ -1,0 +1,10 @@
+# GitHub Linguist Language Configuration
+*.html linguist-vendored=true
+*.storyboard linguist-vendored=true
+*.xib linguist-vendored=true
+*.plist linguist-vendored=true
+*.json linguist-vendored=true
+*.md linguist-documentation=true
+*.xcscheme linguist-vendored=true
+*.xcworkspacedata linguist-vendored=true
+*.pbxproj linguist-vendored=true
