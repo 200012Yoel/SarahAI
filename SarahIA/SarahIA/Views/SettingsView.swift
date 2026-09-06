@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents :
-/// - Section Mode : Bouton et sélecteur interactif des Modes (Nathan, Sarah, Raphaël, Tom, Yohan)
-/// - Section Connexions : WhatsApp (Statuts & Vidéos), Instagram, TikTok, YouTube, Twitter/X, GitHub, Google
-/// - Section Modèle IA adaptatif : détection automatique selon l'appareil
+/// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents (100% Moteur Local On-Device) :
+/// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
+/// - Section Connexions : Instagram, TikTok, YouTube, Twitter/X, GitHub, Google
+/// - Écosystème des 6 Agents & Voix Siri dédiées
 /// - Contrôles de vitesse, tonalité et détection vocale VAD
 @available(iOS 15.0, *)
 public struct SettingsView: View {
@@ -13,17 +13,8 @@ public struct SettingsView: View {
     @State private var speechRate: Double = 0.52
     @State private var speechPitch: Double = 1.05
     @State private var vadSensitivity: Double = 0.65
-    @State private var isShowingWhatsAppGateway: Bool = false
     
-    // Moteur LLM & Puissance Absolue
-    @State private var cloudProvider: String = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
-    @State private var cloudApiKey: String = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
-    @State private var customEndpoint: String = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? ""
-    @State private var isTestingAPI: Bool = false
-    @State private var testResultStatus: String? = nil
-    
-    // Connexions
-    @State private var isWhatsAppConnected: Bool = true
+    // Connexions Réseaux Sociaux
     @State private var isInstagramConnected: Bool = false
     @State private var isTikTokConnected: Bool = false
     @State private var isYouTubeConnected: Bool = false
@@ -121,137 +112,41 @@ public struct SettingsView: View {
                         }
                         .padding(.vertical, 6)
                     }
-                    // 0.5. Section Moteur IA & Mode Puissance Absolue (Claude 3.5 Sonnet / GPT-4o / Qwen 2.5 Coder)
-                    Section(header: Text("⚡ Moteur IA & Puissance Absolue").foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.20))) {
-                        
-                        // Badge d'état matériel
+                    
+                    // 1. Section Moteur IA Local On-Device (Sarah Neural Engine)
+                    Section(header: Text("🧠 Moteur 100% Local On-Device").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("RAM Physique Détectée :")
+                                Text("Moteur Actif :")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(.white)
                                 Spacer()
-                                Text(String(format: "%.1f Go", ModelSelectionEngine.shared.physicalMemoryGB))
-                                    .font(.system(size: 13, weight: .black, design: .monospaced))
-                                    .foregroundColor(ModelSelectionEngine.shared.isLocalGGUFAllowed() ? .green : .orange)
+                                Text("Sarah Neural Engine")
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
                             }
                             
-                            Text(ModelSelectionEngine.shared.canRun7BModel() ? 
-                                 "🔥 Mode On-Device 7B Activé (Qwen 2.5 Coder 7B — Metal MPS GPU 4096 tokens)" :
-                                 (ModelSelectionEngine.shared.isLocalGGUFAllowed() ?
-                                  "⚡ Mode On-Device 3B Activé (Qwen 2.5 Coder 3B — Metal MPS GPU 4096 tokens)" :
-                                  "☁️ Mode Cloud Puissance Absolue Recommandé (Claude 3.5 Sonnet / GPT-4o)"))
+                            HStack {
+                                Text("Mode d'Inférence :")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                                Spacer()
+                                Text("100% Local (Apple Neural Engine / GPU)")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.green)
+                            }
+                            
+                            Text("Toutes les réponses textuelles et traitements neuronaux sont exécutés localement sur la puce de votre iPhone, sans aucun recours à des serveurs distants.")
                                 .font(.system(size: 11))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.gray.opacity(0.85))
+                                .padding(.top, 2)
                         }
                         .padding(.vertical, 4)
-                        
-                        // Sélecteur Fournisseur Cloud
-                        Picker("Fournisseur Cloud", selection: $cloudProvider) {
-                            Text("OpenAI (GPT-4o)").tag("openai")
-                            Text("Anthropic (Claude 3.5)").tag("anthropic")
-                            Text("Serveur Ollama").tag("custom")
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                        .padding(.vertical, 2)
-                        
-                        // Saisie de la Clé API
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Clé API Distante (Bearer / x-api-key) :")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.gray)
-                            
-                            SecureField("Ex: sk-ant-... ou sk-proj-...", text: $cloudApiKey)
-                                .font(.system(size: 13, design: .monospaced))
-                                .padding(8)
-                                .background(Color.white.opacity(0.08))
-                                .cornerRadius(8)
-                                .foregroundColor(.white)
-                        }
-                        .padding(.vertical, 2)
-                        
-                        // Endpoint personnalisé
-                        if cloudProvider == "custom" {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("URL Endpoint Personnalisé :")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(.gray)
-                                
-                                TextField("http://192.168.1.50:11434/v1/chat/completions", text: $customEndpoint)
-                                    .font(.system(size: 12, design: .monospaced))
-                                    .padding(8)
-                                    .background(Color.white.opacity(0.08))
-                                    .cornerRadius(8)
-                                    .foregroundColor(.white)
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                        
-                        // Bouton Test de Connexion
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            isTestingAPI = true
-                            testResultStatus = "Test en cours..."
-                            
-                            UserDefaults.standard.set(cloudProvider, forKey: "sarah_cloud_provider")
-                            UserDefaults.standard.set(cloudApiKey, forKey: "sarah_cloud_api_key")
-                            UserDefaults.standard.set(customEndpoint, forKey: "sarah_custom_llm_endpoint")
-                            
-                            AIService.shared.callCloudLLM(prompt: "Réponds uniquement par 'CONNEXION_OK'.") { result in
-                                DispatchQueue.main.async {
-                                    isTestingAPI = false
-                                    switch result {
-                                    case .success:
-                                        testResultStatus = "✅ Connecté avec succès !"
-                                    case .failure(let error):
-                                        testResultStatus = "❌ Échec : \(error.localizedDescription)"
-                                    }
-                                }
-                            }
-                        }) {
-                            HStack {
-                                if isTestingAPI {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "antenna.radiowaves.left.and.right")
-                                }
-                                Text("Tester la connexion API")
-                                    .font(.system(size: 13, weight: .bold))
-                                Spacer()
-                                if let status = testResultStatus {
-                                    Text(status)
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(status.contains("✅") ? .green : .red)
-                                }
-                            }
-                        }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 1. Section Connexions & Réseaux Sociaux (WhatsApp en premier)
-                    Section(header: Text("🔗 Réseaux Sociaux & Connexions").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
-                        
-                        // WhatsApp (Passerelle Locale Baileys & QR Code)
-                        connectionRow(
-                            title: "WhatsApp (Passerelle Locale)",
-                            icon: "bubble.left.and.bubble.right.fill",
-                            iconColor: Color(red: 0.15, green: 0.85, blue: 0.40),
-                            isConnected: Binding(
-                                get: { WhatsAppGatewayManager.shared.status.isConnected },
-                                set: { _ in }
-                            ),
-                            description: "Baileys pur WebSocket local · Réponse IA autonome",
-                            onConnect: {
-                                isShowingWhatsAppGateway = true
-                            }
-                        )
-                        .sheet(isPresented: $isShowingWhatsAppGateway) {
-                            WhatsAppGatewayView()
-                        }
+                    // 2. Section Connexions & Réseaux Sociaux
+                    Section(header: Text("🔗 Réseaux Sociaux & Connexions").foregroundColor(Color(red: 0.85, green: 0.55, blue: 1.0))) {
                         
                         // Instagram
                         connectionRow(
@@ -259,7 +154,7 @@ public struct SettingsView: View {
                             icon: "camera.fill",
                             iconColor: Color(red: 0.85, green: 0.15, blue: 0.55),
                             isConnected: $isInstagramConnected,
-                            description: "Partage de photos & reels vidéo",
+                            description: "Partage de photos & publications",
                             onConnect: {
                                 openURL("https://www.instagram.com/accounts/login/")
                             }
@@ -271,7 +166,7 @@ public struct SettingsView: View {
                             icon: "music.note",
                             iconColor: Color(red: 0.95, green: 0.15, blue: 0.35),
                             isConnected: $isTikTokConnected,
-                            description: "Partage de vidéos courtes",
+                            description: "Partage & publications",
                             onConnect: {
                                 openURL("https://www.tiktok.com/login")
                             }
@@ -283,7 +178,7 @@ public struct SettingsView: View {
                             icon: "play.rectangle.fill",
                             iconColor: Color.red,
                             isConnected: $isYouTubeConnected,
-                            description: "Upload & gestion chaîne",
+                            description: "Gestion de chaîne & vidéos",
                             onConnect: {
                                 openURL("https://youtube.com")
                             }
@@ -295,7 +190,7 @@ public struct SettingsView: View {
                             icon: "xmark.circle.fill",
                             iconColor: Color.white,
                             isConnected: $isTwitterConnected,
-                            description: "Tweets & threads",
+                            description: "Publications & interactions",
                             onConnect: {
                                 openURL("https://twitter.com/login")
                             }
@@ -319,7 +214,7 @@ public struct SettingsView: View {
                             icon: "g.circle.fill",
                             iconColor: Color(red: 0.98, green: 0.45, blue: 0.15),
                             isConnected: $isGoogleConnected,
-                            description: "Google Stitch & Play Console",
+                            description: "Services & synchronisation",
                             onConnect: {
                                 openURL("https://accounts.google.com")
                             }
@@ -327,14 +222,8 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 2. Écosystème des 6 Agents & Voix Siri
+                    // 3. Écosystème des 6 Agents & Voix Siri Dédiées
                     Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
-                        agentRow(
-                            agent: .nathan,
-                            subtitle: "Expert Réseaux Sociaux & WhatsApp (Violet Néon)",
-                            testPhrase: "Salut ! C'est Nathan. J'ai accès à tous tes réseaux sociaux et à WhatsApp pour poster tes vidéos !"
-                        )
-                        
                         agentRow(
                             agent: .sarah,
                             subtitle: "Voix système principale (Rose néon)",
@@ -342,15 +231,9 @@ public struct SettingsView: View {
                         )
                         
                         agentRow(
-                            agent: .ethel,
-                            subtitle: "Voix féminine dédiée (Thème Bleu & Rouge)",
-                            testPhrase: "Bonjour ! Je suis Ethel. Mon espace est prêt et attend vos prochaines instructions !"
-                        )
-                        
-                        agentRow(
-                            agent: .tom,
-                            subtitle: "Voix conversationnelle dédiée (Vert émeraude)",
-                            testPhrase: "Salut ! C'est Tom. Je suis prêt pour analyser l'histoire et la géopolitique mondiale."
+                            agent: .nathan,
+                            subtitle: "Expert Réseaux Sociaux & Automatisation (Violet Néon)",
+                            testPhrase: "Salut ! C'est Nathan. Je suis prêt pour la gestion de tes réseaux sociaux et automatisations."
                         )
                         
                         agentRow(
@@ -360,9 +243,21 @@ public struct SettingsView: View {
                         )
                         
                         agentRow(
+                            agent: .tom,
+                            subtitle: "Voix conversationnelle dédiée (Vert émeraude)",
+                            testPhrase: "Salut ! C'est Tom. Je suis prêt pour analyser l'histoire et la géopolitique mondiale."
+                        )
+                        
+                        agentRow(
                             agent: .yohan,
                             subtitle: "Voix masculine bilingue FR ⇄ HE (Siri Canadien)",
                             testPhrase: "Shalom ! C'est Yoann à votre service pour toutes vos traductions en hébreu."
+                        )
+                        
+                        agentRow(
+                            agent: .ethel,
+                            subtitle: "Voix féminine dédiée (Thème Bleu & Rouge)",
+                            testPhrase: "Bonjour ! Je suis Ethel. Mon espace est prêt et attend vos prochaines instructions !"
                         )
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
@@ -421,9 +316,6 @@ public struct SettingsView: View {
                             pitch: Float(speechPitch),
                             vadSensitivity: Float(vadSensitivity)
                         )
-                        UserDefaults.standard.set(cloudProvider, forKey: "sarah_cloud_provider")
-                        UserDefaults.standard.set(cloudApiKey, forKey: "sarah_cloud_api_key")
-                        UserDefaults.standard.set(customEndpoint, forKey: "sarah_custom_llm_endpoint")
                         presentationMode.wrappedValue.dismiss()
                     }
                     .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
@@ -434,30 +326,7 @@ public struct SettingsView: View {
                 self.speechRate = Double(s.speechRate)
                 self.speechPitch = Double(s.speechPitch)
                 self.vadSensitivity = Double(s.vadSensitivity)
-                self.cloudProvider = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
-                self.cloudApiKey = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
-                self.customEndpoint = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? ""
             }
-        }
-    }
-    
-    // MARK: - Meilleur modèle selon l'appareil
-    
-    private func bestModelForDevice() -> String {
-        let capability = DeviceCapabilityDetector.shared.detectProfile()
-        switch capability.hardwareTier {
-        case .tier7_max, .tier6_ultra, .tier5_flagship:
-            // iPhone 14, 14 Pro, 15, 16, 17
-            return "Sarah Neural Engine Flagship v4 (Le plus puissant du marché)"
-        case .tier4_advanced:
-            // iPhone 12, 13
-            return "Sarah Neural Core Pro v4 (Neural Engine A14)"
-        case .tier3_intermediate:
-            // iPhone 11, XR
-            return "Sarah Core Intermediate v4 (100% Local)"
-        default:
-            // iPhone 5s, 6, 7, 8
-            return "Sarah Core Nano v4 (100% Local)"
         }
     }
     

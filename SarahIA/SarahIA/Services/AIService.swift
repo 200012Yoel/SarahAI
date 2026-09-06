@@ -186,26 +186,17 @@ public final class AIService {
                 return
             }
         } else {
-            // Appareils Legacy (iPhone 5s, 6, 7, 8, SE - RAM <= 2 Go) :
-            // INTERDICTION STRICTE DE CHARGER LE GGUF (Protection Jetsam OOM) -> Cloud Fallback Silencieux
-            let apiKey = UserDefaults.standard.string(forKey: "sarah_cloud_api_key") ?? ""
-            let customEndpoint = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint") ?? ""
+            // Appareils avec mémoire restreinte : Moteur Neuronal Léger 100% Local On-Device
+            let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
+            var history: [String] = []
+            if let ctx = pastContext { history.append(ctx) }
             
-            callCloudLLM(prompt: trimmed) { [weak self] result in
+            LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
                 guard let self = self else { return }
-                switch result {
-                case .success(let llmResponse):
-                    let cleaned = llmResponse.decodingHTMLEntities()
-                    self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                    DispatchQueue.main.async {
-                        completion(cleaned)
-                    }
-                case .failure:
-                    // Si l'API distante n'est pas configurée ou inaccessible
-                    let errorMessage = "[Erreur : Appareil non compatible avec l'IA locale. Veuillez configurer la clé API Cloud dans les réglages.]"
-                    DispatchQueue.main.async {
-                        completion(errorMessage)
-                    }
+                let cleaned = result.text.decodingHTMLEntities()
+                self.recordExchange(userText: trimmed, assistantResponse: cleaned)
+                DispatchQueue.main.async {
+                    completion(cleaned)
                 }
             }
         }

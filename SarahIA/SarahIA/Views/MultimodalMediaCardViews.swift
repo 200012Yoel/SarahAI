@@ -194,174 +194,40 @@ public struct GeneratedImageCardView: View {
     }
 }
 
-// MARK: - Carré d'Animation Visuelle Photoréaliste (Scan Laser & Lueur Néon)
+// MARK: - Indicateur Standard & Épuré de Génération d'Image
 
 @available(iOS 14.0, *)
 public struct ImageGeneratingSquareAnimationView: View {
     public let prompt: String?
     
-    @State private var scanOffset: CGFloat = -120
-    @State private var rotationAngle: Double = 0
-    @State private var pulseScale: CGFloat = 1.0
-    @State private var stepIndex: Int = 0
-    
-    private let steps = [
-        "🎨 Initialisation du concept visuel...",
-        "⚡ Inférence Neural Engine / Flux HD...",
-        "✨ Rendu des détails & photoréalisme...",
-        "📸 Ajustement des textures & lumière..."
-    ]
-    
-    private let timer = Timer.publish(every: 1.6, on: .main, in: .common).autoconnect()
+    public init(prompt: String? = nil) {
+        self.prompt = prompt
+    }
     
     public var body: some View {
         ZStack {
-            // Fond sombre avec gradient subtil
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.08, green: 0.08, blue: 0.12),
-                    Color(red: 0.04, green: 0.04, blue: 0.07)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color(red: 0.10, green: 0.10, blue: 0.12)
             
-            // Grille de repères optiques (Style appareil photo professionnel / VAI)
-            VStack {
-                HStack {
-                    cornerCrosshair
-                    Spacer()
-                    cornerCrosshair
-                }
-                Spacer()
-                HStack {
-                    cornerCrosshair
-                    Spacer()
-                    cornerCrosshair
-                }
-            }
-            .padding(14)
-            .opacity(0.4)
-            
-            // Barre de scan laser animée qui balaie le carré de haut en bas
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.clear,
-                            Color.sarahCyan.opacity(0.8),
-                            Color.purple.opacity(0.9),
-                            Color.clear
-                        ]),
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 3)
-                .shadow(color: Color.sarahCyan, radius: 8, x: 0, y: 0)
-                .offset(y: scanOffset)
-            
-            // Contenu central : Orbe pulsant et statut de génération
-            VStack(spacing: 14) {
-                ZStack {
-                    // Anneau d'énergie extérieur
-                    Circle()
-                        .stroke(
-                            AngularGradient(
-                                gradient: Gradient(colors: [
-                                    Color.sarahCyan,
-                                    Color.purple,
-                                    Color(red: 0.15, green: 0.72, blue: 1.0),
-                                    Color.pink,
-                                    Color.sarahCyan
-                                ]),
-                                center: .center
-                            ),
-                            lineWidth: 2.5
-                        )
-                        .frame(width: 64, height: 64)
-                        .rotationEffect(.degrees(rotationAngle))
-                    
-                    // Cœur lumineux
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                gradient: Gradient(colors: [
-                                    Color.sarahCyan.opacity(0.7),
-                                    Color.purple.opacity(0.3),
-                                    Color.clear
-                                ]),
-                                center: .center,
-                                startRadius: 4,
-                                endRadius: 30
-                            )
-                        )
-                        .frame(width: 54, height: 54)
-                        .scaleEffect(pulseScale)
-                    
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                        .scaleEffect(pulseScale)
-                }
+            VStack(spacing: 12) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.2)
                 
-                VStack(spacing: 5) {
-                    Text(steps[stepIndex % steps.count])
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                Text("Génération de l'image en cours...")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.85))
+                
+                if let p = prompt, !p.isEmpty {
+                    Text("« \(p) »")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundColor(.gray)
+                        .lineLimit(2)
                         .multilineTextAlignment(.center)
-                        .animation(.easeInOut(duration: 0.3), value: stepIndex)
-                    
-                    if let p = prompt, !p.isEmpty {
-                        Text("« \(p) »")
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
-                            .foregroundColor(Color.sarahCyan.opacity(0.85))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 16)
-                    }
+                        .padding(.horizontal, 20)
                 }
             }
+            .padding(16)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.sarahCyan.opacity(0.8),
-                            Color.purple.opacity(0.6),
-                            Color.sarahCyan.opacity(0.3)
-                        ]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.5
-                )
-        )
-        .shadow(color: Color.sarahCyan.opacity(0.20), radius: 12, x: 0, y: 0)
-        .onAppear {
-            withAnimation(.linear(duration: 2.2).repeatForever(autoreverses: true)) {
-                scanOffset = 120
-            }
-            withAnimation(.linear(duration: 4.0).repeatForever(autoreverses: false)) {
-                rotationAngle = 360
-            }
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                pulseScale = 1.15
-            }
-        }
-        .onReceive(timer) { _ in
-            withAnimation {
-                stepIndex += 1
-            }
-        }
-    }
-    
-    private var cornerCrosshair: some View {
-        Text("＋")
-            .font(.system(size: 10, weight: .bold))
-            .foregroundColor(.white.opacity(0.5))
     }
 }
 
