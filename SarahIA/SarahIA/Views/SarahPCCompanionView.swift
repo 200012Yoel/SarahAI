@@ -144,8 +144,8 @@ public struct SarahPCCompanionView: View {
                             .frame(width: 8, height: 8)
                     }
                     
-                    Text(manager.isConnected ? "Connecté via Wi-Fi · \(manager.gpuStatus)" : "Ouvrez Sarah sur votre PC pour scanner le QR Code")
-                        .font(.system(size: 12))
+                    Text(manager.isConnected ? "Connecté via Wi-Fi · \(manager.detectedHardwareInfo) · \(manager.activeVideoModel)" : "Ouvrez Sarah sur votre PC pour scanner le QR Code")
+                        .font(.system(size: 11))
                         .foregroundColor(.gray)
                 }
                 

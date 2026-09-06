@@ -1,7 +1,5 @@
 /**
- * Sarah PC Companion Server
- * Serveur autonome Node.js (sans dépendance externe requise)
- * Fournit l'interface Web PC, le jumelage QR Code / PIN et le moteur de rendu vidéo déporté.
+ * Sarah PC Companion Server — Dédié Exclusivement à la Génération Vidéo IA
  */
 
 const http = require('http');
@@ -9,14 +7,15 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { detectHardware } = require('./hardware');
+const { getModelStatus, installRecommendedModel } = require('./model-manager');
+const { processVideoJob, getActiveJobs, getVideoHistory } = require('./video-engine');
 
 const PORT = process.env.PORT || 8080;
-const PAIRING_TOKEN = crypto.randomBytes(3).toString('hex').toUpperCase(); // PIN à 6 caractères
+const PAIRING_TOKEN = crypto.randomBytes(3).toString('hex').toUpperCase(); // PIN 6 caractères
 let connectedDevices = [];
-let videoJobs = [];
-let syncedMessages = [];
 
-// Détection de l'IP Locale LAN (Wi-Fi / Ethernet)
+// Détection de l'IP LAN
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
@@ -30,7 +29,7 @@ function getLocalIP() {
 }
 
 const localIP = getLocalIP();
-const PC_NAME = `${os.hostname()} (Sarah PC)`;
+const PC_NAME = `${os.hostname()} (Sarah PC Workstation)`;
 
 // Types MIME
 const MIME_TYPES = {
@@ -60,9 +59,35 @@ const server = http.createServer((req, res) => {
     const pathname = parsedUrl.pathname;
 
     // --- API REST ---
-    
-    // 1. Statut & Infos Matérielles
+
+    // 1. Diagnostic Matériel Complet
+    if (pathname === '/api/hardware' && req.method === 'GET') {
+        const hw = detectHardware();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(hw));
+        return;
+    }
+
+    // 2. Statut du Modèle Unique Détecté
+    if (pathname === '/api/model/status' && req.method === 'GET') {
+        const status = getModelStatus();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status));
+        return;
+    }
+
+    // 3. Téléchargement & Installation en 1 Clic du Modèle Unique
+    if (pathname === '/api/model/install' && req.method === 'POST') {
+        installRecommendedModel();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'installing' }));
+        return;
+    }
+
+    // 4. Statut Général pour le Jumelage iPhone
     if (pathname === '/api/status' && req.method === 'GET') {
+        const hw = detectHardware();
+        const modelInfo = getModelStatus();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: 'ok',
@@ -71,16 +96,17 @@ const server = http.createServer((req, res) => {
             port: PORT,
             token: PAIRING_TOKEN,
             qrString: `sarahpc://${localIP}:${PORT}?token=${PAIRING_TOKEN}&name=${encodeURIComponent(PC_NAME)}`,
-            gpu: 'GPU Dédié Rendu Vidéo 16:9 Prêt',
-            os: `${os.type()} ${os.release()}`,
-            memoryTotalGB: (os.totalmem() / (1024 ** 3)).toFixed(1),
+            hardware: hw,
+            model: modelInfo.currentModel,
+            modelInstalled: modelInfo.installed,
+            gpu: `${hw.gpu} (Rendu Vidéo 16:9 Prêt)`,
             connectedClients: connectedDevices.length,
-            supportedRatios: ['16:9', '9:16', '1:1']
+            purpose: 'Génération Vidéo Déportée Exclusivement (Photos en local sur iPhone)'
         }));
         return;
     }
 
-    // 2. Jumelage depuis l'iPhone
+    // 5. Jumelage depuis l'iPhone
     if (pathname === '/api/pair' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -93,7 +119,7 @@ const server = http.createServer((req, res) => {
                     pairedAt: new Date().toISOString(),
                     ip: req.socket.remoteAddress
                 });
-                console.log(`📱 [Pairing] iPhone appairé avec succès : ${clientDevice}`);
+                console.log(`📱 [Sarah PC] iPhone appairé avec succès pour le rendu vidéo : ${clientDevice}`);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'paired', pcName: PC_NAME }));
             } catch (err) {
@@ -104,33 +130,22 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 3. Génération Vidéo IA Déportée sur PC
+    // 6. Génération Vidéo IA Déportée (16:9 PC, 9:16, 1:1)
     if (pathname === '/api/generate-video' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
             try {
                 const data = JSON.parse(body || '{}');
-                const prompt = data.prompt || 'Cinematic video 4k';
+                const prompt = data.prompt || 'Cinematic video 16:9';
                 const ratio = data.ratio || '16:9';
-                const jobId = data.jobId || crypto.randomUUID();
 
-                console.log(`🎬 [VideoGen PC] Nouvelle tâche vidéo déportée : "${prompt}" (Ratio: ${ratio})`);
+                console.log(`🎬 [Video Engine PC] Lancement du rendu vidéo : "${prompt}" (${ratio})`);
 
-                const newJob = {
-                    id: jobId,
-                    prompt: prompt,
-                    ratio: ratio,
-                    status: 'rendering',
-                    progress: 0.1,
-                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                    createdAt: new Date().toISOString()
-                };
-
-                videoJobs.unshift(newJob);
+                const job = processVideoJob(prompt, ratio);
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(newJob));
+                res.end(JSON.stringify(job));
             } catch (err) {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: err.message }));
@@ -139,34 +154,23 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // 4. Synchronisation des Messages
-    if (pathname === '/api/sync' && req.method === 'POST') {
-        let body = '';
-        req.on('data', chunk => body += chunk);
-        req.on('end', () => {
-            try {
-                const data = JSON.parse(body || '{}');
-                if (data.messages && Array.isArray(data.messages)) {
-                    syncedMessages = data.messages;
-                }
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'synced', count: syncedMessages.length }));
-            } catch (err) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: err.message }));
-            }
-        });
+    // 7. Liste des Vidéos Récentes
+    if (pathname === '/api/videos' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            active: getActiveJobs(),
+            history: getVideoHistory()
+        }));
         return;
     }
 
-    // --- Fichiers Statiques UI ---
+    // --- Fichiers Statiques Desktop Web UI ---
     let filePath = path.join(__dirname, 'public', pathname === '/' ? 'index.html' : pathname);
     const ext = path.extname(filePath).toLowerCase();
 
     fs.readFile(filePath, (err, content) => {
         if (err) {
             if (err.code === 'ENOENT') {
-                // Fallback sur index.html pour SPA
                 fs.readFile(path.join(__dirname, 'public', 'index.html'), (err2, fallback) => {
                     if (err2) {
                         res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -187,14 +191,20 @@ const server = http.createServer((req, res) => {
     });
 });
 
+const hw = detectHardware();
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n======================================================`);
-    console.log(`   ✨ SARAH IA — COMPAGNON PC & SERVEUR VIDÉO DÉPORTÉ`);
+    console.log(`   ✨ SARAH IA — LOGICIEL PC & STUDIO VIDÉO DÉPORTÉ`);
     console.log(`======================================================`);
-    console.log(`🌐 Accès Web PC Local : http://localhost:${PORT}`);
-    console.log(`📱 Accès depuis iPhone : http://${localIP}:${PORT}`);
-    console.log(`🔑 Code PIN de Jumelage : ${PAIRING_TOKEN}`);
-    console.log(`🎬 Rendu Vidéo Déporté : Ratio 16:9 PC, 9:16 & 1:1 Prêt`);
-    console.log(`📸 Photos : Rendu en Local sur l'iPhone`);
+    console.log(`💻 Composants Détectés :`);
+    console.log(`   - Processeur : ${hw.cpu} (${hw.cores} cœurs)`);
+    console.log(`   - Mémoire RAM : ${hw.totalRAMGB} Go (${hw.freeRAMGB} Go libres)`);
+    console.log(`   - Graphique : ${hw.gpu}`);
+    console.log(`🔥 Modèle Vidéo Optimal Détecté : ${hw.recommendedModel.name}`);
+    console.log(`------------------------------------------------------`);
+    console.log(`🌐 Interface Logiciel PC : http://localhost:${PORT}`);
+    console.log(`📱 Connexion iPhone (QR Code) : http://${localIP}:${PORT}`);
+    console.log(`🔑 Code PIN Jumelage : ${PAIRING_TOKEN}`);
+    console.log(`🎯 Usage Exclusif : Génération Vidéo 16:9 PC (Photos en local sur iPhone)`);
     console.log(`======================================================\n`);
 });

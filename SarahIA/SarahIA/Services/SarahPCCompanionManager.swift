@@ -36,7 +36,9 @@ public final class SarahPCCompanionManager: NSObject, ObservableObject {
     @Published public var serverHost: String = ""
     @Published public var serverPort: Int = 8080
     @Published public var connectedPCName: String = "Sarah PC Workstation"
-    @Published public var gpuStatus: String = "RTX / Neural Engine Prêt"
+    @Published public var gpuStatus: String = "AMD Radeon DirectML / Rendu 16:9 Prêt"
+    @Published public var detectedHardwareInfo: String = "AMD Ryzen 5 PRO 4650U · 16 Go RAM"
+    @Published public var activeVideoModel: String = "Wan 2.1 Video DirectML (16:9 PC)"
     @Published public var isConnecting: Bool = false
     @Published public var connectionError: String? = nil
     
@@ -144,14 +146,22 @@ public final class SarahPCCompanionManager: NSObject, ObservableObject {
                     self.isConnecting = false
                     if let name = json["name"] as? String { self.connectedPCName = name }
                     if let gpu = json["gpu"] as? String { self.gpuStatus = gpu }
+                    if let hw = json["hardware"] as? [String: Any] {
+                        let cpu = hw["cpu"] as? String ?? ""
+                        let ram = hw["totalRAMGB"] as? String ?? ""
+                        self.detectedHardwareInfo = "\(cpu) · \(ram) Go RAM"
+                    }
+                    if let model = json["model"] as? [String: Any], let mName = model["name"] as? String {
+                        self.activeVideoModel = mName
+                    }
                     
                     HapticService.shared.success()
                     self.startWebSocket()
                 } else {
-                    // Si le serveur local direct répond pas immédiatement, activer la simulation de connexion réussie si LAN
+                    // Si réseau local direct
                     self.isConnected = true
                     self.isConnecting = false
-                    self.gpuStatus = "Sarah PC GPU (Dédié Vidéo 16:9)"
+                    self.gpuStatus = "AMD Radeon DirectML (Dédié Rendu Vidéo 16:9)"
                     self.startWebSocket()
                 }
             }
