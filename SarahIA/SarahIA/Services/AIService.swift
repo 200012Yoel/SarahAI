@@ -168,25 +168,24 @@ public final class AIService {
                 }
                 return
             } else {
-                // Modèle pas encore téléchargé -> Déclenchement automatique du téléchargement
+                // Modèle GGUF en cours d'initialisation -> Exécution sur le Moteur Neuronal 100% Local On-Device
                 BackgroundModelDownloader.shared.startQwenModelDownload()
-                let downloadingNotice = "⏳ Téléchargement du modèle haute précision (Qwen 2.5 Coder 3B GGUF) en cours... Bascule temporaire sur le mode Cloud."
-                // On tente le cloud en attendant le téléchargement local
-                callCloudLLM(prompt: trimmed) { [weak self] result in
+                let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
+                var history: [String] = []
+                if let ctx = pastContext { history.append(ctx) }
+                
+                LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
                     guard let self = self else { return }
-                    switch result {
-                    case .success(let response):
-                        let cleaned = response.decodingHTMLEntities()
-                        self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                        DispatchQueue.main.async { completion(cleaned) }
-                    case .failure:
-                        DispatchQueue.main.async { completion(downloadingNotice) }
+                    let cleaned = result.text.decodingHTMLEntities()
+                    self.recordExchange(userText: trimmed, assistantResponse: cleaned)
+                    DispatchQueue.main.async {
+                        completion(cleaned)
                     }
                 }
                 return
             }
         } else {
-            // Appareils avec mémoire restreinte : Moteur Neuronal Léger 100% Local On-Device
+            // Appareils avec mémoire restreinte : Moteur Neuronal 100% Local On-Device
             let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
             var history: [String] = []
             if let ctx = pastContext { history.append(ctx) }
@@ -199,128 +198,6 @@ public final class AIService {
                     completion(cleaned)
                 }
             }
-        }
-    }
-    
-    // MARK: - Inférence Cloud LLM Puissance Absolue (OpenAI GPT-4o / Anthropic Claude 3.5 Sonnet / Ollama Distant)
-    
-    public func callCloudLLM(prompt: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let provider = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
-        let apiKey = UserDefaults.standard.string(forKey: "sarah_cloud_api_key")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let customEndpoint = UserDefaults.standard.string(forKey: "sarah_custom_llm_endpoint")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        
-        let systemPrompt = "Tu es Sarah, une intelligence artificielle d'élite française : ultra-rapide, experte, chaleureuse, logique et précise. Réponds directement en français de manière élégante et concise."
-        
-        if provider == "anthropic" || customEndpoint.contains("anthropic.com") {
-            // --- API Anthropic (Claude 3.5 Sonnet) ---
-            let endpointURL = URL(string: customEndpoint.isEmpty ? "https://api.anthropic.com/v1/messages" : customEndpoint)!
-            var request = URLRequest(url: endpointURL)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-            request.timeoutInterval = 15.0
-            
-            let modelName = UserDefaults.standard.string(forKey: "sarah_cloud_model_name") ?? ModelSelectionEngine.defaultCloudAnthropicModel
-            let payload: [String: Any] = [
-                "model": modelName,
-                "max_tokens": 4096,
-                "system": systemPrompt,
-                "messages": [
-                    ["role": "user", "content": prompt]
-                ]
-            ]
-            
-            do {
-                request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
-            } catch {
-                completion(.failure(error))
-                return
-            }
-            
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    completion(.failure(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Réponse serveur Anthropic invalide"])))
-                    return
-                }
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    let errorDetails = data != nil ? (String(data: data!, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)") : "HTTP \(httpResponse.statusCode)"
-                    completion(.failure(NSError(domain: "AIService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Erreur API Anthropic (\(httpResponse.statusCode)) : \(errorDetails)"])))
-                    return
-                }
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                      let contentArray = json["content"] as? [[String: Any]],
-                      let firstItem = contentArray.first,
-                      let text = firstItem["text"] as? String else {
-                    completion(.failure(NSError(domain: "AIService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Structure JSON Anthropic inattendue"])))
-                    return
-                }
-                completion(.success(text.trimmingCharacters(in: .whitespacesAndNewlines)))
-            }.resume()
-            
-        } else {
-            // --- API OpenAI (GPT-4o) / Serveur Ollama Distant / OpenAI Compatible ---
-            let defaultEndpoint = "https://api.openai.com/v1/chat/completions"
-            let endpointURL = URL(string: customEndpoint.isEmpty ? defaultEndpoint : customEndpoint) ?? URL(string: defaultEndpoint)!
-            var request = URLRequest(url: endpointURL)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            
-            if !apiKey.isEmpty {
-                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            }
-            request.timeoutInterval = 15.0
-            
-            let modelName = UserDefaults.standard.string(forKey: "sarah_cloud_model_name") ?? ModelSelectionEngine.defaultCloudOpenAIModel
-            let messages: [[String: String]] = [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": prompt]
-            ]
-            
-            let payload: [String: Any] = [
-                "model": modelName,
-                "messages": messages,
-                "temperature": 0.7,
-                "max_tokens": 4096
-            ]
-            
-            do {
-                request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
-            } catch {
-                completion(.failure(error))
-                return
-            }
-            
-            URLSession.shared.dataTask(with: request) { data, response, error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    completion(.failure(NSError(domain: "AIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Réponse serveur OpenAI invalide"])))
-                    return
-                }
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    let errorDetails = data != nil ? (String(data: data!, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)") : "HTTP \(httpResponse.statusCode)"
-                    completion(.failure(NSError(domain: "AIService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Erreur API OpenAI (\(httpResponse.statusCode)) : \(errorDetails)"])))
-                    return
-                }
-                guard let data = data,
-                      let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                      let choices = json["choices"] as? [[String: Any]],
-                      let firstChoice = choices.first,
-                      let message = firstChoice["message"] as? [String: Any],
-                      let content = message["content"] as? String else {
-                    completion(.failure(NSError(domain: "AIService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Structure JSON OpenAI inattendue"])))
-                    return
-                }
-                completion(.success(content.trimmingCharacters(in: .whitespacesAndNewlines)))
-            }.resume()
         }
     }
     

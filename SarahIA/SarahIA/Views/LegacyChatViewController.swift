@@ -1481,127 +1481,42 @@ public final class LegacySettingsViewController: UIViewController {
         buildHistoryResetSection()
     }
     
-    // MARK: - Section 0.5 : Moteur IA & Mode Puissance Absolue
+    // MARK: - Section 0.5 : Moteur 100% Local On-Device
     private func buildPuissanceAbsolueSection() {
-        let section = createSection(title: "⚡ MOTEUR IA & PUISSANCE ABSOLUE", titleColor: UIColor(red: 1.0, green: 0.85, blue: 0.20, alpha: 1.0))
+        let section = createSection(title: "🧠 MOTEUR 100% LOCAL ON-DEVICE", titleColor: UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0))
         let card = createCardView()
         
         let stack = UIStackView()
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical
-        stack.spacing = 10
+        stack.spacing = 8
         card.addSubview(stack)
         
-        // Statut RAM
-        let ramRow = UIStackView()
-        ramRow.axis = .horizontal
-        ramRow.distribution = .equalSpacing
+        // Statut Moteur
+        let engineRow = UIStackView()
+        engineRow.axis = .horizontal
+        engineRow.distribution = .equalSpacing
         
-        let ramTitle = UILabel()
-        ramTitle.text = "RAM Physique Détectée :"
-        ramTitle.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-        ramTitle.textColor = .white
+        let engineTitle = UILabel()
+        engineTitle.text = "Moteur IA Actif :"
+        engineTitle.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        engineTitle.textColor = .white
         
-        let ramVal = UILabel()
-        ramVal.text = String(format: "%.1f Go", ModelSelectionEngine.shared.physicalMemoryGB)
-        ramVal.font = UIFont.systemFont(ofSize: 13, weight: .black)
-        ramVal.textColor = ModelSelectionEngine.shared.isLocalGGUFAllowed() ? UIColor.systemGreen : UIColor.systemOrange
+        let engineVal = UILabel()
+        engineVal.text = "Sarah Neural Engine"
+        engineVal.font = UIFont.systemFont(ofSize: 13, weight: .bold)
+        engineVal.textColor = UIColor(red: 0.0, green: 0.78, blue: 1.0, alpha: 1.0)
         
-        ramRow.addArrangedSubview(ramTitle)
-        ramRow.addArrangedSubview(ramVal)
-        stack.addArrangedSubview(ramRow)
+        engineRow.addArrangedSubview(engineTitle)
+        engineRow.addArrangedSubview(engineVal)
+        stack.addArrangedSubview(engineRow)
         
         let statusSub = UILabel()
-        statusSub.text = ModelSelectionEngine.shared.canRun7BModel() ?
-            "🔥 Mode On-Device 7B Activé (Qwen 2.5 Coder 7B — Metal MPS 4096 tokens)" :
-            (ModelSelectionEngine.shared.isLocalGGUFAllowed() ?
-             "⚡ Mode On-Device 3B Activé (Qwen 2.5 Coder 3B — Metal MPS 4096 tokens)" :
-             "☁️ Mode Cloud Puissance Absolue Recommandé (Claude 3.5 Sonnet / GPT-4o)")
+        statusSub.text = "⚡ Inférence 100% Locale sur l'iPhone (Apple Neural Engine / GPU Metal). Aucun serveur distant requis."
         statusSub.font = UIFont.systemFont(ofSize: 11)
         statusSub.textColor = UIColor.gray
         statusSub.numberOfLines = 2
         stack.addArrangedSubview(statusSub)
-        
-        // Sélecteur Fournisseur Cloud
-        let segmented = UISegmentedControl(items: ["OpenAI (GPT-4o)", "Anthropic (Claude 3.5)", "Ollama"])
-        segmented.translatesAutoresizingMaskIntoConstraints = false
-        let curProv = UserDefaults.standard.string(forKey: "sarah_cloud_provider") ?? "openai"
-        if curProv == "anthropic" { segmented.selectedSegmentIndex = 1 }
-        else if curProv == "custom" { segmented.selectedSegmentIndex = 2 }
-        else { segmented.selectedSegmentIndex = 0 }
-        
-        segmented.addTarget(self, action: #selector(cloudProviderChanged(_:)), for: .valueChanged)
-        stack.addArrangedSubview(segmented)
-        
-        // Champ Clé API
-        let keyLabel = UILabel()
-        keyLabel.text = "Clé API Distante (Bearer / x-api-key) :"
-        keyLabel.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        keyLabel.textColor = UIColor.gray
-        stack.addArrangedSubview(keyLabel)
-        
-        let keyField = UITextField()
-        keyField.translatesAutoresizingMaskIntoConstraints = false
-        keyField.isSecureTextEntry = true
-        keyField.placeholder = "Ex: sk-ant-... ou sk-proj-..."
-        keyField.text = UserDefaults.standard.string(forKey: "sarah_cloud_api_key")
-        keyField.textColor = .white
-        keyField.font = UIFont.systemFont(ofSize: 13)
-        keyField.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
-        keyField.layer.cornerRadius = 8
-        keyField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 8, height: 34))
-        keyField.leftViewMode = .always
-        keyField.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        
-        let keyHandler = UIActionHandler {
-            UserDefaults.standard.set(keyField.text ?? "", forKey: "sarah_cloud_api_key")
-        }
-        objc_setAssociatedObject(keyField, "kh", keyHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        keyField.addTarget(keyHandler, action: #selector(UIActionHandler.invoke), for: .editingChanged)
-        stack.addArrangedSubview(keyField)
-        
-        // Bouton Test de Connexion
-        let testBtn = UIButton(type: .system)
-        testBtn.translatesAutoresizingMaskIntoConstraints = false
-        testBtn.setTitle("⚡ Tester la connexion API", for: .normal)
-        testBtn.setTitleColor(.white, for: .normal)
-        testBtn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .bold)
-        testBtn.backgroundColor = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.25)
-        testBtn.layer.cornerRadius = 8
-        testBtn.heightAnchor.constraint(equalToConstant: 34).isActive = true
-        
-        let resultLabel = UILabel()
-        resultLabel.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
-        resultLabel.textAlignment = .center
-        resultLabel.isHidden = true
-        
-        let testHandler = UIActionHandler {
-            UserDefaults.standard.set(keyField.text ?? "", forKey: "sarah_cloud_api_key")
-            testBtn.setTitle("⏳ Test en cours...", for: .normal)
-            testBtn.isEnabled = false
-            resultLabel.isHidden = true
-            
-            AIService.shared.callCloudLLM(prompt: "Réponds uniquement par 'CONNEXION_OK'.") { result in
-                DispatchQueue.main.async {
-                    testBtn.isEnabled = true
-                    testBtn.setTitle("⚡ Tester la connexion API", for: .normal)
-                    resultLabel.isHidden = false
-                    switch result {
-                    case .success:
-                        resultLabel.text = "✅ Connecté avec succès à pleine puissance !"
-                        resultLabel.textColor = UIColor.systemGreen
-                    case .failure(let err):
-                        resultLabel.text = "❌ Erreur : \(err.localizedDescription)"
-                        resultLabel.textColor = UIColor.systemRed
-                    }
-                }
-            }
-        }
-        objc_setAssociatedObject(testBtn, "th", testHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        testBtn.addTarget(testHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
-        
-        stack.addArrangedSubview(testBtn)
-        stack.addArrangedSubview(resultLabel)
         
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
@@ -1612,16 +1527,6 @@ public final class LegacySettingsViewController: UIViewController {
         
         section.addArrangedSubview(card)
         contentStack.addArrangedSubview(section)
-    }
-    
-    @objc private func cloudProviderChanged(_ sender: UISegmentedControl) {
-        if sender.selectedSegmentIndex == 1 {
-            UserDefaults.standard.set("anthropic", forKey: "sarah_cloud_provider")
-        } else if sender.selectedSegmentIndex == 2 {
-            UserDefaults.standard.set("custom", forKey: "sarah_cloud_provider")
-        } else {
-            UserDefaults.standard.set("openai", forKey: "sarah_cloud_provider")
-        }
     }
     
     // MARK: - Section 1 : Mode de Fonctionnement
