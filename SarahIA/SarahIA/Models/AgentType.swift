@@ -83,12 +83,12 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     // Identifiants Siri exacts Apple TTS Bundle
     public var speechIdentifier: String {
         switch self {
-        case .sarah:  return "com.apple.ttsbundle.siri_fr-FR_compact_1"
-        case .nathan: return "com.apple.ttsbundle.siri_fr-FR_compact_2"
-        case .esther: return "com.apple.ttsbundle.siri_fr-FR_compact_3"
-        case .tom:    return "com.apple.ttsbundle.siri_fr-FR_compact_4"
-        case .yohan:  return "com.apple.ttsbundle.siri_fr-CA_compact_1"
-        case .ethel:  return "com.apple.ttsbundle.siri_fr-CA_compact_2"
+        case .sarah:  return "com.apple.voice.compact.fr-FR.Amelie"
+        case .nathan: return "com.apple.voice.compact.fr-FR.Thomas"
+        case .esther: return "com.apple.voice.compact.fr-FR.Audrey"
+        case .tom:    return "com.apple.voice.compact.fr-FR.Remi"
+        case .yohan:  return "com.apple.voice.compact.fr-CA.Jean"
+        case .ethel:  return "com.apple.voice.compact.fr-CA.Chantal"
         }
     }
     

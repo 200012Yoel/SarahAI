@@ -20,25 +20,31 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         
-        // 1. Filtrer les voix de la bonne langue (fr-FR ou fr-CA)
-        let localeVoices = allVoices.filter { 
-            $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix(agent.localeCode) 
-        }
-        
-        // 2. Recherche prioritaire par identifiant Siri exact (Apple TTS bundle)
+        // 1. Recherche prioritaire par identifiant Siri exact Apple TTS
         if let directIdVoice = AVSpeechSynthesisVoice(identifier: agent.speechIdentifier) {
             return directIdVoice
         }
         
-        // 3. Recherche directe par timbre nominatif emblématique Apple Siri
+        // 2. Recherche par variantes enhanced / premium
+        let enhancedId = agent.speechIdentifier.replacingOccurrences(of: "compact", with: "enhanced")
+        if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId) {
+            return enhancedVoice
+        }
+        
+        // 3. Filtrer les voix de la région cible (fr-FR ou fr-CA)
+        let localeVoices = allVoices.filter { 
+            $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix(agent.localeCode) 
+        }
+        
+        // 4. Recherche ciblée par nom de timbre Apple Siri
         let targetNames: [String]
         switch agent {
-        case .sarah:  targetNames = ["marie", "audrey", "amélie", "amelie", "celine"]
+        case .sarah:  targetNames = ["amélie", "amelie", "marie", "audrey", "celine", "hortense"]
         case .nathan: targetNames = ["thomas", "nicolas", "lucas", "paul"]
-        case .esther: targetNames = ["aurélien", "aurelien", "claire", "audrey"]
-        case .tom:    targetNames = ["rémi", "remi", "pierre", "alain"]
-        case .yohan:  targetNames = ["antoine", "alain", "nicolas"]
-        case .ethel:  targetNames = ["chantal", "amelie", "amélie"]
+        case .esther: targetNames = ["audrey", "celine", "céline", "aurelie", "aurélie", "claire"]
+        case .tom:    targetNames = ["rémi", "remi", "alain", "pierre", "antoine"]
+        case .yohan:  targetNames = ["jean", "felix", "félix", "nicolas", "carmit"]
+        case .ethel:  targetNames = ["chantal", "juliette", "amelie", "marie"]
         }
         
         for name in targetNames {
@@ -50,34 +56,20 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             }
         }
         
-        // 4. Recherche Siri générique avec numéro de voix
-        if let siriByNum = localeVoices.first(where: { v in
-            let id = v.identifier.lowercased()
-            let name = v.name.lowercased()
-            let num = agent.siriVoiceNumber
-            return (id.contains("siri") || name.contains("siri")) && (id.contains(num) || name.contains(num))
-        }) {
-            return siriByNum
+        // 5. Recherche par genre et qualité
+        let isFemale = (agent == .sarah || agent == .esther || agent == .ethel)
+        let filteredByGender = localeVoices.filter { voice in
+            let lower = voice.name.lowercased()
+            let maleList = ["thomas", "nicolas", "paul", "antoine", "remi", "alain", "jean", "felix"]
+            let isNameMale = maleList.contains(where: { lower.contains($0) })
+            return isFemale ? !isNameMale : isNameMale
         }
         
-        // 5. Voix haute qualité par index
-        let highQualityVoices: [AVSpeechSynthesisVoice]
-        if #available(iOS 16.0, *) {
-            highQualityVoices = localeVoices.filter { $0.quality == .premium || $0.quality == .enhanced }
-        } else {
-            highQualityVoices = localeVoices.filter { $0.quality == .enhanced }
-        }
-        let targetIdx = (Int(agent.siriVoiceNumber) ?? 1) - 1
-        if !highQualityVoices.isEmpty && highQualityVoices.indices.contains(targetIdx) {
-            return highQualityVoices[targetIdx]
+        if let genderMatch = filteredByGender.first {
+            return genderMatch
         }
         
-        // 6. Index direct dans les voix de la région
-        if localeVoices.indices.contains(targetIdx) {
-            return localeVoices[targetIdx]
-        }
-        
-        return AVSpeechSynthesisVoice(language: agent.localeCode)
+        return AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }
     
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
@@ -104,16 +96,27 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         let utterance = AVSpeechUtterance(string: cleaned)
         let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
         utterance.voice = resolvedVoice
-        utterance.rate = rate
         
-        // Timbres et hauteurs de tonalité uniques pour chaque personnalité
+        // Timbres, vitesses et hauteurs de tonalité authentiques pour chaque personnalité
         switch agent {
-        case .sarah:  utterance.pitchMultiplier = 1.08
-        case .nathan: utterance.pitchMultiplier = 0.96
-        case .esther: utterance.pitchMultiplier = 1.05
-        case .tom:    utterance.pitchMultiplier = 0.92
-        case .yohan:  utterance.pitchMultiplier = 0.90
-        case .ethel:  utterance.pitchMultiplier = 1.03
+        case .sarah:
+            utterance.pitchMultiplier = 1.05
+            utterance.rate = 0.51
+        case .nathan:
+            utterance.pitchMultiplier = 0.95
+            utterance.rate = 0.53
+        case .esther:
+            utterance.pitchMultiplier = 1.12
+            utterance.rate = 0.49
+        case .tom:
+            utterance.pitchMultiplier = 0.84
+            utterance.rate = 0.46
+        case .yohan:
+            utterance.pitchMultiplier = 0.91
+            utterance.rate = 0.50
+        case .ethel:
+            utterance.pitchMultiplier = 1.18
+            utterance.rate = 0.48
         }
         
         if resolvedVoice == nil {

@@ -190,7 +190,7 @@ public final class OpenSourceImageGenerationService {
         fetchDirectImage(prompt: cleanPrompt, width: width, height: height, model: model, completion: completion)
     }
     
-    /// Télécharge et traite directement l'image sans récursion locale
+    /// Télécharge et traite directement l'image avec système de secours multi-serveurs
     public func fetchDirectImage(
         prompt: String,
         width: Int = 768,
@@ -224,74 +224,74 @@ public final class OpenSourceImageGenerationService {
             return
         }
         
-        let urlString = buildImageURL(for: cleanPrompt, width: width, height: height, model: model)
-        guard let requestURL = URL(string: urlString) else {
-            completion(GeneratedImageResult(
-                prompt: cleanPrompt,
-                image: nil,
-                imageURL: nil,
-                modelName: model,
-                isSuccess: false,
-                errorMessage: "URL de génération invalide."
-            ))
+        let enhanced = enhancePromptForHyperrealism(cleanPrompt)
+        let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? cleanPrompt
+        
+        let candidateURLs = [
+            "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=flux&nologo=true&enhance=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=turbo&nologo=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=512&height=512&nologo=true"
+        ]
+        
+        tryFetchCandidates(urls: candidateURLs, index: 0, prompt: cleanPrompt, cacheKey: cacheKey, model: model, completion: completion)
+    }
+    
+    private func tryFetchCandidates(
+        urls: [String],
+        index: Int,
+        prompt: String,
+        cacheKey: NSString,
+        model: String,
+        completion: @escaping (GeneratedImageResult) -> Void
+    ) {
+        guard index < urls.count, let requestURL = URL(string: urls[index]) else {
+            DispatchQueue.main.async {
+                completion(GeneratedImageResult(
+                    prompt: prompt,
+                    image: nil,
+                    imageURL: nil,
+                    modelName: model,
+                    isSuccess: false,
+                    errorMessage: "Échec de génération sur tous les serveurs d'images."
+                ))
+            }
             return
         }
         
         var request = URLRequest(url: requestURL)
         request.httpMethod = "GET"
-        request.cachePolicy = .returnCacheDataElseLoad
+        request.timeoutInterval = 25
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
         
         session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
             
-            if let error = error {
-                DispatchQueue.main.async {
-                    completion(GeneratedImageResult(
-                        prompt: cleanPrompt,
-                        image: nil,
-                        imageURL: requestURL,
-                        modelName: model,
-                        isSuccess: false,
-                        errorMessage: error.localizedDescription
-                    ))
-                }
-                return
-            }
-            
-            guard let data = data, let image = UIImage(data: data) else {
-                DispatchQueue.main.async {
-                    completion(GeneratedImageResult(
-                        prompt: cleanPrompt,
-                        image: nil,
-                        imageURL: requestURL,
-                        modelName: model,
-                        isSuccess: false,
-                        errorMessage: "Format d'image non reconnu ou flux corrompu."
-                    ))
-                }
-                return
-            }
-            
-            // Mise en cache et enregistrement local sur le disque
-            self.cache.setObject(image, forKey: cacheKey)
-            let localFileURL = self.saveImageLocally(data: data, prompt: cleanPrompt)
-            
-            DispatchQueue.main.async {
-                // Émettre une notification globale pour l'interface UI
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("SarahGeneratedImageReady"),
-                    object: nil,
-                    userInfo: ["image": image, "prompt": cleanPrompt, "fileURL": localFileURL as Any]
-                )
+            if let data = data, let image = UIImage(data: data) {
+                // Succès de décodage de l'image
+                self.cache.setObject(image, forKey: cacheKey)
+                let localFileURL = self.saveImageLocally(data: data, prompt: prompt)
                 
-                completion(GeneratedImageResult(
-                    prompt: cleanPrompt,
-                    image: image,
-                    imageURL: localFileURL ?? requestURL,
-                    modelName: "Flux / SDXL Open Source",
-                    isSuccess: true,
-                    errorMessage: nil
-                ))
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahGeneratedImageReady"),
+                        object: nil,
+                        userInfo: ["image": image, "prompt": prompt, "fileURL": localFileURL as Any]
+                    )
+                    
+                    completion(GeneratedImageResult(
+                        prompt: prompt,
+                        image: image,
+                        imageURL: localFileURL ?? requestURL,
+                        modelName: model,
+                        isSuccess: true,
+                        errorMessage: nil
+                    ))
+                }
+            } else {
+                // Tentative avec le serveur/modèle de secours suivant
+                print("⚠️ [ImageGenService] Tentative sur URL candidate \(index + 1) échouée -> Bascule sur secours...")
+                self.tryFetchCandidates(urls: urls, index: index + 1, prompt: prompt, cacheKey: cacheKey, model: model, completion: completion)
             }
         }.resume()
     }
