@@ -94,13 +94,43 @@ public final class OpenSourceImageGenerationService {
         return (false, "")
     }
     
+    // MARK: - Optimisation du Photoréalisme & Descripteurs Optiques
+    
+    /// Enrichit automatiquement le prompt pour obtenir un rendu photographique ultra-réaliste
+    public func enhancePromptForHyperrealism(_ original: String) -> String {
+        let clean = original.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return original }
+        
+        let lower = clean.lowercased()
+        var base = clean
+        
+        // Traductions et adaptations conceptuelles pour les requêtes françaises fréquentes
+        if lower.contains("dauphin") && lower.contains("voiture") {
+            base = "a cinematic RAW photo of a real dolphin resting on top of a luxury vintage car, natural daylight, wet skin reflections"
+        } else if lower.contains("chat") && (lower.contains("astronaute") || lower.contains("espace")) {
+            base = "a detailed RAW photo of an astronaut cat wearing a high-tech NASA spacesuit in orbit, helmet glass reflection, Earth background"
+        } else if lower.contains("coucher de soleil") || lower.contains("soleil couchant") {
+            base = "a breathtaking golden hour photograph of \(clean), dramatic cloud lighting, lens flare, coastal atmosphere"
+        } else if lower.contains("portrait") || lower.contains("femme") || lower.contains("homme") || lower.contains("visage") {
+            base = "a realistic studio portrait of \(clean), soft rim lighting, natural skin pores, 85mm portrait lens, shallow depth of field"
+        }
+        
+        // Descripteurs de caméra reflex professionnelle
+        let realismTags = "RAW photo, 8k uhd, dslr, high quality, photorealistic, 35mm lens, f/1.8, natural lighting, sharp focus, hyperdetailed, film grain, Fujifilm XT3"
+        
+        if !base.lowercased().contains("raw photo") {
+            return "\(base), \(realismTags)"
+        }
+        return base
+    }
+    
     // MARK: - Construction URL d'Image
     
-    /// Génère l'URL publique de génération pour le modèle Flux / Pollinations
+    /// Génère l'URL publique de génération pour le modèle Flux / Pollinations avec photoréalisme maximal
     public func buildImageURL(for prompt: String, width: Int = 768, height: Int = 768, model: String = "flux") -> String {
-        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let encoded = cleanPrompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-            return "https://image.pollinations.ai/prompt/\(cleanPrompt)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
+        let enhanced = enhancePromptForHyperrealism(prompt)
+        guard let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            return "https://image.pollinations.ai/prompt/\(prompt)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
         }
         return "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=\(model)&nologo=true&enhance=true"
     }

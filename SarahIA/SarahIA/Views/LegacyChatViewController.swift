@@ -1021,7 +1021,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             label.numberOfLines = 0
             label.font = UIFont.systemFont(ofSize: 15)
             label.textColor = .white
-            label.text = msg.content
+            
+            let rawText = msg.content
+            if let imgURL = msg.detectedImageURL, rawText.contains(imgURL) {
+                let cleaned = rawText.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                label.text = cleaned.isEmpty ? "🎨 Photo Photoréaliste HD en cours de création..." : cleaned
+            } else {
+                label.text = rawText
+            }
             stackView.addArrangedSubview(label)
             
             // 1. Support Image Générée (Flux / SDXL / CoreML) avec Carré d'Animation

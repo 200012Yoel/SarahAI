@@ -101,24 +101,35 @@ public struct ChatBubbleView: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Contenu du message
                 if !message.isVisionReport {
-                    Text(message.content)
-                        .font(.system(size: 16, weight: .regular, design: .rounded))
-                        .foregroundColor(.white)
-                        .lineSpacing(3)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            Color(red: 0.16, green: 0.16, blue: 0.18) // Apple Dark Bubble Gray
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 19, style: .continuous)
-                                .stroke(
-                                    isSpeaking ? Color.sarahCyan.opacity(0.6) : Color.white.opacity(0.08),
-                                    lineWidth: isSpeaking ? 1.5 : 0.5
-                                )
-                        )
-                        .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
+                    let rawContent = message.content
+                    let displayContent: String = {
+                        if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
+                            let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                            return cleaned.isEmpty ? "🎨 Photo Photoréaliste HD en cours de création..." : cleaned
+                        }
+                        return rawContent
+                    }()
+                    
+                    if !displayContent.isEmpty {
+                        Text(displayContent)
+                            .font(.system(size: 16, weight: .regular, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineSpacing(3)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                Color(red: 0.16, green: 0.16, blue: 0.18) // Apple Dark Bubble Gray
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                                    .stroke(
+                                        isSpeaking ? Color.sarahCyan.opacity(0.6) : Color.white.opacity(0.08),
+                                        lineWidth: isSpeaking ? 1.5 : 0.5
+                                    )
+                            )
+                            .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
+                    }
                 }
                 
                 // Carte Interactive d'Image Générée (Flux / SDXL / CoreML)
