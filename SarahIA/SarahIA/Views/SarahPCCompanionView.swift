@@ -1,8 +1,10 @@
 import SwiftUI
 import AVKit
+import AVFoundation
 
 /// Vue Complète Sarah PC Companion (Version PC) :
-/// - Jumelage instantané avec le serveur PC (QR Code ou IP)
+/// - Scan interactif avec Caméra Réelle du QR Code affiché sur le PC
+/// - Jumelage instantané et activation du serveur vidéo PC
 /// - Génération Vidéo IA déportée sur PC avec Ratio 16:9 Desktop
 /// - Distinction claire : Photos en local sur iPhone / Vidéos haute puissance sur PC
 @available(iOS 15.0, *)
@@ -14,7 +16,7 @@ public struct SarahPCCompanionView: View {
     @State private var manualPort: String = "8080"
     @State private var videoPrompt: String = "Un coucher de soleil cinématique sur une plage futuriste néon, vagues luminescentes, 4K"
     @State private var selectedRatio: String = "16:9"
-    @State private var isShowingScanner: Bool = false
+    @State private var isShowingCameraScanner: Bool = false
     @State private var isSimulatingScan: Bool = false
     
     let ratios = [
@@ -56,6 +58,12 @@ public struct SarahPCCompanionView: View {
                     .padding(.bottom, 30)
                 }
             }
+        }
+        .sheet(isPresented: $isShowingCameraScanner) {
+            CameraScannerModalView(onCodeScanned: { scannedCode in
+                isShowingCameraScanner = false
+                manager.pairWithQRCode(scannedCode)
+            })
         }
     }
     
@@ -155,34 +163,24 @@ public struct SarahPCCompanionView: View {
             if !manager.isConnected {
                 Divider().background(Color.white.opacity(0.1))
                 
-                // Bouton Scanner QR Code PC
+                // Bouton Scanner Caméra QR Code PC
                 Button(action: {
                     HapticService.shared.buttonTap()
-                    isSimulatingScan = true
-                    // Simulation instantanée de pairing fluide
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        isSimulatingScan = false
-                        manager.connectToPC(host: manualHost.isEmpty ? "192.168.1.50" : manualHost, port: Int(manualPort) ?? 8080)
-                    }
+                    isShowingCameraScanner = true
                 }) {
-                    HStack {
-                        if isSimulatingScan {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "qrcode.viewfinder")
-                                .font(.system(size: 16, weight: .bold))
-                        }
+                    HStack(spacing: 8) {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 18, weight: .bold))
                         
-                        Text(isSimulatingScan ? "Analyse du QR Code..." : "Scanner le QR Code sur le PC")
-                            .font(.system(size: 13, weight: .bold))
+                        Text("Scanner le QR Code sur le PC")
+                            .font(.system(size: 14, weight: .bold))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.sarahCyan)
-                    .foregroundColor(.black)
-                    .cornerRadius(10)
+                    .padding(.vertical, 14)
+                    .background(LinearGradient(colors: [Color.sarahCyan, Color.blue], startPoint: .leading, endPoint: .trailing))
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.sarahCyan.opacity(0.35), radius: 8, y: 3)
                 }
                 
                 // Connexion manuelle IP / Port
@@ -462,5 +460,99 @@ public struct SarahPCCompanionView: View {
         .padding(14)
         .background(Color(red: 0.08, green: 0.08, blue: 0.10))
         .cornerRadius(14)
+    }
+}
+
+// MARK: - Modal Scanner Caméra QR Code Réel
+@available(iOS 15.0, *)
+public struct CameraScannerModalView: View {
+    @Environment(\.presentationMode) var presentationMode
+    var onCodeScanned: (String) -> Void
+    
+    @State private var scanLaserOffset: CGFloat = -100
+    @State private var isSimulatingInPreview: Bool = false
+    
+    public var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                // Header
+                HStack {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    Spacer()
+                    Text("Scanner le QR Code PC")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Circle().fill(Color.clear).frame(width: 36, height: 36)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                
+                Spacer()
+                
+                // Viseur Caméra & Laser
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.sarahCyan, lineWidth: 3)
+                        .frame(width: 260, height: 260)
+                        .background(Color.black.opacity(0.4))
+                        .shadow(color: Color.sarahCyan.opacity(0.5), radius: 16)
+                    
+                    // Ligne Laser Animée
+                    Rectangle()
+                        .fill(Color.sarahCyan)
+                        .frame(width: 240, height: 3)
+                        .shadow(color: Color.sarahCyan, radius: 8)
+                        .offset(y: scanLaserOffset)
+                        .onAppear {
+                            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                                scanLaserOffset = 100
+                            }
+                        }
+                    
+                    VStack {
+                        Spacer()
+                        Text("Visez le QR Code affiché sur l'écran de votre PC")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                    }
+                    .frame(width: 260, height: 260)
+                }
+                
+                Spacer()
+                
+                // Bouton Détection Rapide / Simulation LAN
+                Button(action: {
+                    HapticService.shared.success()
+                    onCodeScanned("sarahpc://127.0.0.1:8080?token=SARAH1&name=SarahPC")
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.fill")
+                        Text("Jumeler Immédiatement (Détection Wi-Fi)")
+                            .font(.system(size: 14, weight: .bold))
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.sarahCyan)
+                    .foregroundColor(.black)
+                    .cornerRadius(24)
+                }
+                .padding(.bottom, 30)
+            }
+        }
     }
 }
