@@ -167,7 +167,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         topBar.addSubview(settingsButton)
         
         NotificationCenter.default.addObserver(self, selector: #selector(presentVoiceCallModal), name: .sarahPresentVoiceCall, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(presentWhatsAppVoiceModal), name: .sarahPresentWhatsAppCall, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(toggleDrawer), name: .sarahToggleSidebar, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(openSettings), name: .sarahOpenSettings, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startNewChat), name: .sarahStartNewChat, object: nil)
@@ -667,11 +666,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         present(callVC, animated: true, completion: nil)
     }
     
-    @objc private func presentWhatsAppVoiceModal() {
-        let walkieVC = LegacyWhatsAppVoiceCallViewController()
-        present(walkieVC, animated: true, completion: nil)
-    }
-    
     @objc private func handleModelDownloadStateChanged() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -701,19 +695,13 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
         
-        alert.addAction(UIAlertAction(title: "💬 Talkie-Walkie WhatsApp (Nathan & Yoann)", style: .default, handler: { [weak self] _ in
-            if let c = VoiceCallContactManager.shared.contacts.first {
-                OpenWAVoiceWalkieTalkieManager.shared.startSession(with: c)
-            }
-            self?.presentWhatsAppVoiceModal()
-        }))
         alert.addAction(UIAlertAction(title: "📞 Appel Vocal WebRTC & Traduction IA", style: .default, handler: { [weak self] _ in
             if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
                 WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
             }
             self?.presentVoiceCallModal()
         }))
-        alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Flux.1 Open Source)", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Local CoreML / Metal)", style: .default, handler: { [weak self] _ in
             self?.inputTextField.text = "Génère une photo de "
             self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
@@ -727,11 +715,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.inputTextField.text = "Analyse cette photo et décris ce que tu vois"
             self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "💬 Nathan — Statut & Vidéo WhatsApp", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Nathan, je veux mettre une vidéo sur mon statut WhatsApp")
         }))
         alert.addAction(UIAlertAction(title: "📱 Nathan — Publier sur les Réseaux Sociaux", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .nathan
@@ -1688,7 +1671,6 @@ public final class LegacySettingsViewController: UIViewController {
         let card = createCardView()
         
         let connections: [(icon: String, name: String, sub: String, isConnected: Bool)] = [
-            ("💬", "WhatsApp", "Publication de statuts, vidéos & messages", true),
             ("📸", "Instagram", "Stories, Reels & Directs", false),
             ("🎵", "TikTok", "Vidéos courtes & tendances", false),
             ("▶️", "YouTube", "Recherche de vidéos & streaming", false),
@@ -1754,21 +1736,8 @@ public final class LegacySettingsViewController: UIViewController {
         textStack.addArrangedSubview(nameLbl)
         textStack.addArrangedSubview(subLbl)
         
-        let isActuallyConnected = (name == "WhatsApp") ? WhatsAppGatewayManager.shared.status.isConnected : isConnected
-        let pillText = isActuallyConnected ? "Connecté" : "Connecter"
-        let pill = createStatusPill(text: pillText, isConnected: isActuallyConnected)
-        
-        if name == "WhatsApp" {
-            let tap = UITapGestureRecognizer(target: self, action: #selector(openWhatsAppGatewayModal))
-            row.isUserInteractionEnabled = true
-            row.addGestureRecognizer(tap)
-            
-            let btnHandler = UIActionHandler { [weak self] in
-                self?.openWhatsAppGatewayModal()
-            }
-            objc_setAssociatedObject(pill, "wa_h", btnHandler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-            (pill as? UIButton)?.addTarget(btnHandler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)
-        }
+        let pillText = isConnected ? "Connecté" : "Connecter"
+        let pill = createStatusPill(text: pillText, isConnected: isConnected)
         
         row.addSubview(pill)
         
@@ -1788,27 +1757,6 @@ public final class LegacySettingsViewController: UIViewController {
         ])
         
         return row
-    }
-    
-    @objc private func openWhatsAppGatewayModal() {
-        HapticService.shared.buttonTap()
-        WhatsAppGatewayManager.shared.startGateway()
-        
-        let alert = UIAlertController(
-            title: "💬 Passerelle WhatsApp Locale",
-            message: "Moteur Baileys pur WebSocket actif en local.\nStatut : \(WhatsAppGatewayManager.shared.status.isConnected ? "🟢 Connecté" : "🟡 En attente de scan QR")\n\nSarah peut répondre automatiquement à tous vos messages WhatsApp directement depuis l'iPhone.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "🔄 Recharger Session & QR", style: .default, handler: { _ in
-            WhatsAppGatewayManager.shared.reloadGateway()
-        }))
-        if WhatsAppGatewayManager.shared.status.isConnected {
-            alert.addAction(UIAlertAction(title: "🔴 Déconnecter", style: .destructive, handler: { _ in
-                WhatsAppGatewayManager.shared.logoutAndReset()
-            }))
-        }
-        alert.addAction(UIAlertAction(title: "Fermer", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
     }
     
     private func createStatusPill(text: String, isConnected: Bool) -> UIView {

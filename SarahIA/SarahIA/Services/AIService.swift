@@ -270,22 +270,7 @@ public final class AIService {
             }
         }
         
-        // 1.4 TALKIE-WALKIE & VOCAL WHATSAPP AVEC NATHAN & YOANN (ex: "Envoie un vocal à papa", "Appelle papa sur WhatsApp")
-        if (normalized.contains("whatsapp") || normalized.contains("vocal") || normalized.contains("talkie")) &&
-           (normalized.contains("appelle") || normalized.contains("parle") || normalized.contains("envoie") || normalized.contains("contacte") || normalized.contains("vocal a")) {
-            
-            if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
-                DispatchQueue.main.async {
-                    OpenWAVoiceWalkieTalkieManager.shared.startSession(with: match.contact, targetLanguage: match.targetLanguage)
-                    SarahActionCoordinator.shared.dispatch(.openWhatsAppVoiceCall(contact: match.contact))
-                }
-                let targetLangName = match.targetLanguage == "he" ? "Hébreu 🇮🇱" : (match.targetLanguage == "en" ? "Anglais 🇬🇧" : "Français 🇫🇷")
-                let reply = "💬 **Passerelle WhatsApp Talkie-Walkie Active**\n• **Nathan** gère l'envoi sécurisé PTT sur WhatsApp.\n• **Yoann** assure la traduction vocale vers : **\(targetLangName)**.\n\nPrêt pour la communication vocale avec **\(match.contact.name)** !"
-                recordExchange(userText: trimmed, assistantResponse: reply)
-                return reply
-            }
-        }
-        
+
         var state = storage.loadState()
         
         // 2. ÉTAPE 2 DE L'APPRENTISSAGE INTERACTIF (Attente de la réponse)
