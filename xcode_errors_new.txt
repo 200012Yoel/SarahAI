@@ -1,2 +1,0 @@
-/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/LiveCameraViewController.swift:445:21: error: 'SpeechManager' is only available in iOS 13.0 or newer
-/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/LiveCameraViewController.swift:451:29: error: 'SpeechManager' is only available in iOS 13.0 or newer
