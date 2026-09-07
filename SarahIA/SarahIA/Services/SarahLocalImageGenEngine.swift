@@ -93,6 +93,11 @@ public final class SarahLocalImageGenEngine {
     
     // MARK: - Pipeline de Génération Photoréaliste LCM (4 Étapes / ~2.5s)
     
+    /// Génère une image photoréaliste (surcharge simplifiée)
+    public func generateImage(prompt: String, completion: @escaping (Result<UIImage, Error>) -> Void) {
+        generateImage(prompt: prompt, config: LCMConfiguration(), progressHandler: nil, completion: completion)
+    }
+    
     /// Génère une image photoréaliste via Realistic Vision V5.1 LCM sur Neural Engine
     public func generateImage(
         prompt: String,

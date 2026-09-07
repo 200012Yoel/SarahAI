@@ -381,16 +381,24 @@ public final class MultiAgentCoordinator {
             return .tom
         }
         
-        // Nathan (Réseaux Sociaux, WhatsApp, Vidéos, Statuts, Musique Suno, Voo, IA)
+        // Nathan (Réseaux Sociaux, Instagram, TikTok, YouTube, Partage)
         if normalized.contains("nathan") ||
            normalized.contains("reseaux sociaux") || normalized.contains("reseau social") ||
-           normalized.contains("whatsapp") || normalized.contains("instagram") ||
-           normalized.contains("tiktok") || normalized.contains("youtube") ||
-           normalized.contains("statut") || normalized.contains("story") ||
-           normalized.contains("publie") || normalized.contains("poster") ||
-           normalized.contains("video ia") || normalized.contains("suno") ||
-           normalized.contains("voo") || normalized.contains("veo") {
+           normalized.contains("instagram") || normalized.contains("tiktok") ||
+           normalized.contains("youtube") || normalized.contains("twitter") ||
+           normalized.contains("story") || normalized.contains("publie") ||
+           normalized.contains("poster") {
             return .nathan
+        }
+        
+        // Ethel (Créativité, Studio Graphique, Génération d'Images & Photoréalisme)
+        if normalized.contains("ethel") ||
+           normalized.contains("genere une image") || normalized.contains("génère une image") ||
+           normalized.contains("genere une photo") || normalized.contains("génère une photo") ||
+           normalized.contains("dessine") || normalized.contains("illustration") ||
+           normalized.contains("cree une image") || normalized.contains("crée une image") ||
+           normalized.contains("photorealisme") || normalized.contains("photoréalisme") {
+            return .ethel
         }
         
         // Par défaut : Sarah
