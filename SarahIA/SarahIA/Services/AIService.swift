@@ -116,6 +116,18 @@ public final class AIService {
         
         let normalized = normalizeText(trimmed)
         
+        // 0.5 GÉNÉRATION D'IMAGES & PHOTOS HYPER-RÉALISTES ON-DEVICE
+        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        if imageCheck.isIntent {
+            let prompt = imageCheck.cleanedPrompt
+            let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+            SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
+            let reply = "🎨 **Génération d'Image HD**\n\nCréation de : « **\(prompt)** » avec le modèle d'IA générative photoréaliste.\n\n\(imageURL)"
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            completion(reply.decodingHTMLEntities())
+            return
+        }
+        
         // 1. Actions contextuelles immédiates (Torche, Flashlight, Batterie, Stop, etc.)
         if let contextual = evaluateContextualAction(normalized: normalized, trimmed: trimmed) {
             recordExchange(userText: trimmed, assistantResponse: contextual)

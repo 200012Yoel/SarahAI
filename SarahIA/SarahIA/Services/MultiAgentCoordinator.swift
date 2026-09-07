@@ -982,24 +982,37 @@ public final class MultiAgentCoordinator {
         
         // Réponse générale Nathan
         let responseText = """
-        🤖 **Nathan [Expert Réseaux Sociaux, WhatsApp & IA]**
+        🤖 **Nathan [Expert Réseaux Sociaux & IA]**
 
         Salut ! Je suis **Nathan**, ton agent dédié aux réseaux sociaux et à l'IA :
-        • 💬 **WhatsApp** : Publication de statuts, envoi de vidéos et messages
-        • 📸 **Instagram / TikTok / YouTube / Twitter** : Partage multi-plateformes
-        • 🎬 **Création Vidéo & Musique** : Voo AI et Suno AI
-        • 🧠 **Veille IA** : Meilleurs modèles du moment
+        • 📸 **Instagram / TikTok / YouTube / X** : Partage multi-plateformes
+        • 🎵 **Création Musicale Polyphonique** : Synthèse locale
+        • 🧠 **Veille IA** : Meilleurs modèles embarqués et on-device
 
-        *Dis-moi : « Nathan, je veux poster une vidéo sur WhatsApp » ou donne-moi ton ordre !*
+        *Dis-moi : « Nathan, quels sont mes réseaux sociaux ? » ou donne-moi ton ordre !*
         """
-        let spoken = "Salut ! Je suis Nathan, ton expert en réseaux sociaux et WhatsApp. Dis-moi quelle vidéo tu veux poster ou sur quel réseau tu veux publier !"
+        let spoken = "Salut ! Je suis Nathan, ton expert en réseaux sociaux et intelligence artificielle. Dis-moi sur quel réseau tu veux créer du contenu !"
         completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
     }
     
+    // MARK: - Ethel (Intelligence Créative & Génération d'Images HD Photoréaliste)
+    
+    private func processWithEthel(text: String, completion: @escaping (AgentResponse) -> Void) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        
+        let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
+        let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+        
+        SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
+        
+        let responseText = "✨ **Ethel [Studio Créatif & Photoréalisme HD]**\n\n🎨 Création photoréaliste en cours pour : « **\(prompt)** » avec le moteur de diffusion local.\n\n\(imageURL)"
+        let spoken = "Je génère votre image photoréaliste de \(prompt)."
+        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+    }
+    
     private func detectDestination(lower: String) -> String {
-        if lower.contains("whatsapp") || lower.contains("statut") {
-            return "WhatsApp (Statut & Messages)"
-        } else if lower.contains("instagram") || lower.contains("insta") {
+        if lower.contains("instagram") || lower.contains("insta") {
             return "Instagram (Reels)"
         } else if lower.contains("tiktok") {
             return "TikTok"
@@ -1008,23 +1021,15 @@ public final class MultiAgentCoordinator {
         } else if lower.contains("twitter") || lower.contains(" x") {
             return "Twitter / X"
         } else {
-            return "WhatsApp & Réseaux Sociaux"
+            return "Réseaux Sociaux"
         }
     }
     
     private func triggerSocialShare(destination: String, title: String, hashtags: String) {
         DispatchQueue.main.async {
             let fullCaption = hashtags.isEmpty ? title : "\(title) \(hashtags)"
-            let encoded = fullCaption.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
             
-            if destination.lowercased().contains("whatsapp") {
-                if let url = URL(string: "whatsapp://send?text=\(encoded)"), UIApplication.shared.canOpenURL(url) {
-                    UIApplication.shared.open(url)
-                    return
-                }
-            }
-            
-            // Fallback partage système
+            // Partage système natif
             var rootVC: UIViewController? = nil
             if #available(iOS 13.0, *) {
                 if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
