@@ -545,7 +545,7 @@ public final class MultiAgentCoordinator {
         }
     }
     
-    // MARK: - Traitements Spécialisés
+    // MARK: - Ethel (Intelligence Créative & Génération d'Images HD Photoréaliste)
     
     private func processWithEthel(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
@@ -554,8 +554,16 @@ public final class MultiAgentCoordinator {
             .replacingOccurrences(of: "ethel", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         
-        let responseText = "✨ **Ethel [Intelligence Créative & Spécialisée]** :\n\nBonjour Yoël ! C'est **Ethel**. Mon socle Bleu & Rouge est parfaitement opérationnel. Je suis à ton écoute et prête pour recevoir le nouveau code et les prochaines spécialités que tu souhaites me confier !"
-        let spoken = "Bonjour Yoël ! C'est Ethel. Mon socle est opérationnel et je suis à ton écoute pour la suite."
+        let trimmed = clean.isEmpty ? text.trimmingCharacters(in: .whitespacesAndNewlines) : clean
+        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        
+        let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
+        let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+        
+        SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
+        
+        let responseText = "✨ **Ethel [Studio Créatif & Photoréalisme HD]**\n\n🎨 Création photoréaliste en cours pour : « **\(prompt)** » avec le moteur de diffusion local.\n\n\(imageURL)"
+        let spoken = "Je génère votre image photoréaliste de \(prompt)."
         completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
     }
     
@@ -1001,22 +1009,6 @@ public final class MultiAgentCoordinator {
         """
         let spoken = "Salut ! Je suis Nathan, ton expert en réseaux sociaux et intelligence artificielle. Dis-moi sur quel réseau tu veux créer du contenu !"
         completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
-    }
-    
-    // MARK: - Ethel (Intelligence Créative & Génération d'Images HD Photoréaliste)
-    
-    private func processWithEthel(text: String, completion: @escaping (AgentResponse) -> Void) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
-        
-        let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
-        let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
-        
-        SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
-        
-        let responseText = "✨ **Ethel [Studio Créatif & Photoréalisme HD]**\n\n🎨 Création photoréaliste en cours pour : « **\(prompt)** » avec le moteur de diffusion local.\n\n\(imageURL)"
-        let spoken = "Je génère votre image photoréaliste de \(prompt)."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
     }
     
     private func detectDestination(lower: String) -> String {
