@@ -225,6 +225,7 @@ public final class AdvancedVisionEngine {
         return Array(NSOrderedSet(array: result)) as? [String] ?? result
     }
 
+    @available(iOS 13.0, *)
     private static func configureSupportedLanguages(for request: VNRecognizeTextRequest) {
         let preferred = ["fr-FR", "en-US", "he-IL"]
         let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(

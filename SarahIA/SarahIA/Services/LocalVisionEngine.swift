@@ -353,6 +353,7 @@ public final class LocalVisionEngine {
 
     /// Vision varie selon la révision d'iOS. Ne demandons une langue que si
     /// l'iPhone confirme qu'elle est installée, notamment pour l'hébreu.
+    @available(iOS 13.0, *)
     private static func configureSupportedLanguages(for request: VNRecognizeTextRequest) {
         let preferred = ["fr-FR", "en-US", "he-IL"]
         let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(
