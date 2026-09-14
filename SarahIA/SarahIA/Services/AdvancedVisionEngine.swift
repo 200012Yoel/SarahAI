@@ -4,7 +4,7 @@ import Vision
 
 /// Moteur de Vision Multimodale 100% On-Device pour Sarah IA (Apple Vision Framework)
 /// - Multi-Pass Vision Pipeline 100% Hors-Ligne :
-///   1. Reconnaissance d'objets et d'animaux (VNClassifyImageRequest)
+///   1. Reconnaissance généraliste d'objets et de scènes (VNClassifyImageRequest)
 ///   2. Reconnaissance optique de caractères OCR haute précision (VNRecognizeTextRequest)
 ///   3. Détection faciale, expressions et orientation (VNDetectFaceRectanglesRequest / Landmarks)
 ///   4. Détection de codes-barres et QR codes (VNDetectBarcodesRequest)
@@ -35,6 +35,18 @@ public final class AdvancedVisionEngine {
     ) {
         visionQueue.async { [weak self] in
             guard let self = self else { return }
+            guard AIResourceManager.shared.acquireHeavyWorkload(.vision) else {
+                DispatchQueue.main.async {
+                    completion(ComprehensiveVisionReport(
+                        summaryText: "Sarah prépare encore une autre analyse locale. Réessayez dans un instant.",
+                        spokenDescription: "Je termine une autre analyse avant de regarder cette image.",
+                        primaryObjects: [], extractedText: nil, faceCount: 0,
+                        detectedBarcodes: [], detailedLLMAnalysis: nil
+                    ))
+                }
+                return
+            }
+            defer { AIResourceManager.shared.releaseHeavyWorkload(.vision) }
             
             // 1. Optimisation et préparation de l'image (max 1024px pour économiser la RAM)
             guard let (preparedImage, cgImage) = self.prepareCGImage(from: image) else {
@@ -65,7 +77,9 @@ public final class AdvancedVisionEngine {
                 let classifyRequest = VNClassifyImageRequest { request, error in
                     defer { group.leave() }
                     guard let results = request.results as? [VNClassificationObservation] else { return }
-                    let top = results.filter { $0.confidence > 0.15 }.prefix(5)
+                    // Conserver davantage d'hypothèses : une scène peut contenir à la fois
+                    // une chaise, un tabouret et un piano. Le filtre final élimine les doublons.
+                    let top = results.filter { $0.confidence > 0.12 }.prefix(12)
                     detectedObjects = top.map { ($0.identifier, $0.confidence) }
                 }
                 let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
@@ -86,8 +100,9 @@ public final class AdvancedVisionEngine {
                 }
                 textRequest.recognitionLevel = .accurate
                 textRequest.usesLanguageCorrection = true
+                Self.configureSupportedLanguages(for: textRequest)
                 if #available(iOS 16.0, *) {
-                    textRequest.recognitionLanguages = ["fr-FR", "en-US", "he-IL"]
+                    textRequest.automaticallyDetectsLanguage = true
                 }
                 let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                 try? handler.perform([textRequest])
@@ -189,9 +204,11 @@ public final class AdvancedVisionEngine {
         let translations: [String: String] = [
             "bottle": "bouteille", "cup": "tasse", "cat": "chat", "dog": "chien",
             "car": "voiture", "phone": "téléphone", "laptop": "ordinateur portable",
-            "book": "livre", "chair": "chaise", "table": "table", "person": "personne",
+            "book": "livre", "chair": "chaise", "stool": "tabouret", "bar stool": "tabouret de bar",
+            "bench": "banc", "table": "table", "person": "personne",
             "plant": "plante", "tree": "arbre", "clock": "horloge", "glasses": "lunettes",
-            "keyboard": "clavier", "screen": "écran", "guitar": "guitare", "food": "nourriture",
+            "keyboard": "clavier", "piano": "piano", "grand piano": "piano à queue",
+            "screen": "écran", "guitar": "guitare", "food": "nourriture",
             "apple": "pomme", "banana": "banane", "door": "porte", "window": "fenêtre",
             "street": "rue", "building": "bâtiment", "water": "eau", "flower": "fleur"
         ]
@@ -205,6 +222,21 @@ public final class AdvancedVisionEngine {
                 result.append(cleanId)
             }
         }
-        return Array(Set(result))
+        return Array(NSOrderedSet(array: result)) as? [String] ?? result
+    }
+
+    private static func configureSupportedLanguages(for request: VNRecognizeTextRequest) {
+        let preferred = ["fr-FR", "en-US", "he-IL"]
+        let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(
+            for: request.recognitionLevel,
+            revision: VNRecognizeTextRequest.currentRevision
+        )) ?? []
+        let compatible = preferred.filter { candidate in
+            let language = Locale(identifier: candidate).languageCode
+            return supported.contains { Locale(identifier: $0).languageCode == language }
+        }
+        if !compatible.isEmpty {
+            request.recognitionLanguages = compatible
+        }
     }
 }

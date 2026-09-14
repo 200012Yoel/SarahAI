@@ -10,7 +10,7 @@ public final class VoiceCallContactManager {
         VoiceCallContact(name: "Maman", role: "Famille", phoneNumber: "+33687654321", sipUri: "sip:maman@sarah.webrtc.local", defaultLanguage: "fr", avatarEmoji: "👩"),
         VoiceCallContact(name: "David", role: "Partenaire US", phoneNumber: "+14155552671", sipUri: "sip:david@us.webrtc.local", defaultLanguage: "en", avatarEmoji: "💼"),
         VoiceCallContact(name: "Yohan", role: "Équipe Israël", phoneNumber: "+972541234567", sipUri: "sip:yohan@israel.webrtc.local", defaultLanguage: "he", avatarEmoji: "🇮🇱"),
-        VoiceCallContact(name: "Nathan", role: "Expert Médias & WhatsApp", phoneNumber: "+33699887766", sipUri: "sip:nathan@sarah.webrtc.local", defaultLanguage: "en", avatarEmoji: "⚡"),
+        VoiceCallContact(name: "Nathan", role: "Expert Médias & IA", phoneNumber: "+33699887766", sipUri: "sip:nathan@sarah.webrtc.local", defaultLanguage: "en", avatarEmoji: "⚡"),
         VoiceCallContact(name: "Bureau", role: "Travail", phoneNumber: "+33140506070", sipUri: "sip:office@corp.webrtc.local", defaultLanguage: "fr", avatarEmoji: "🏢"),
         VoiceCallContact(name: "Esther", role: "Lead Architecte & Code", phoneNumber: "+33611223344", sipUri: "sip:esther@dev.webrtc.local", defaultLanguage: "fr", avatarEmoji: "💻")
     ]

@@ -164,7 +164,7 @@ public final class AIService {
         
         // 4. Inférence Réelle : Routage selon la RAM et compatibilité matérielle
         if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
-            // Appareils Récents (RAM >= 4 Go) : Inférence 100% locale Qwen 2.5 Coder 3B (GGUF / llama.cpp)
+            // Le détecteur choisit le Qwen3 le plus puissant que ce téléphone peut charger durablement.
             if BackgroundModelDownloader.isModelDownloaded, let modelURL = BackgroundModelDownloader.localModelURL {
                 let systemPrompt = SystemPromptBuilder.build(identityName: "Sarah")
                 let formattedChatML = ModelSelectionEngine.shared.formatChatMLPrompt(system: systemPrompt, user: trimmed)
@@ -267,7 +267,6 @@ public final class AIService {
         if (normalized.starts(with: "appelle ") || normalized.starts(with: "appel ") ||
             normalized.contains("passe un appel") || normalized.contains("lance un appel") ||
             normalized.starts(with: "telephone a ") || normalized.starts(with: "téléphone à ")) &&
-            !normalized.contains("whatsapp") &&
             !normalized.contains("comment tu t appelles") && !normalized.contains("comment je m appelle") {
             
             if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
@@ -860,9 +859,9 @@ public final class AIService {
            normalized.contains("combien de parametres") || normalized.contains("quelle quantification") ||
            normalized.contains("tu fonctionnes avec quoi") || normalized.contains("quel est ton moteur") {
             let privacyReplies = [
-                "Je suis Sarah, votre assistante IA locale et autonome conçue sur mesure pour votre appareil. Mes composants internes et mes algorithmes sont intégrés au cœur de l'application afin de vous garantir une confidentialité totale et une réactivité maximale.",
-                "Je suis Sarah, l'assistante IA de cette application. Mon moteur de traitement s'exécute directement sur votre iPhone pour protéger vos données personnelles, sans dépendre de services externes.",
-                "Je suis Sarah ! Mon architecture neuronale et mon orchestrateur sont spécialement développés pour vous offrir une expérience fluide, instantanée et 100% hors-ligne."
+                "Je suis Sarah. Sarah Engine est mon moteur local, conçu pour votre appareil et votre confidentialité.",
+                "Je suis Sarah, l'assistante de cette application. Sarah Engine traite vos demandes directement sur votre iPhone.",
+                "Je suis Sarah ! Sarah Engine a été conçu pour vous offrir une expérience fluide, réactive et respectueuse de vos données."
             ]
             return pickRandom(from: privacyReplies)
         }

@@ -38,7 +38,7 @@ public final class VirtualPhoneManager: NSObject {
                 ],
                 "appId": [
                     "type": "string",
-                    "description": "L'identifiant de l'app virtuelle (ex: 'whatsapp', 'photos', 'settings', 'notes', 'weather')"
+                    "description": "L'identifiant de l'app virtuelle (ex: 'photos', 'settings', 'notes', 'weather')"
                 ],
                 "text": [
                     "type": "string",

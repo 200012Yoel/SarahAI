@@ -8,7 +8,7 @@ import WebKit
 /// - Header avec bouton Hamburger ☰, Capsule d'agent actif (Sarah, Nathan, Esther, Tom, Yohan, Ethel) et Roue crantée ⚙️
 /// - Menu latéral (Sidebar) coulissant fluide avec historique des discussions, bouton "＋ Nouveau", sélecteur des 6 agents et bouton Réglages
 /// - Geste universel de glissement gauche -> droite pour ouvrir le menu
-/// - Raccourcis d'actions rapides (Allume la torche, Pikoud HaOref, i24News, WhatsApp)
+/// - Raccourcis d'actions rapides (Allume la torche, Pikoud HaOref, i24News)
 /// - Barre de saisie Capsule moderne avec +, Champ, Micro, Waveform et Envoi
 public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate {
     

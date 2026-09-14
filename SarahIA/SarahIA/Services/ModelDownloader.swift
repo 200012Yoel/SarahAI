@@ -11,13 +11,13 @@ public final class ModelDownloader {
     public enum ModelType: String, CaseIterable {
         case frenchNLP = "fr_lite"
         case hebrewNLP = "he_lite"
-        case vaiCoderFlagship = "vai_coder_qwen25"
+        case vaiCoderFlagship = "sarah_engine_qwen3"
         
         public var displayName: String {
             switch self {
             case .frenchNLP: return "Modèle IA Français Hors-Ligne"
             case .hebrewNLP: return "Modèle IA Hébreu Hors-Ligne"
-            case .vaiCoderFlagship: return "Modèle IA Flagship Code & Texte (Qwen 2.5 Coder On-Device)"
+            case .vaiCoderFlagship: return "Sarah Engine local multilingue"
             }
         }
         
@@ -94,7 +94,7 @@ public final class ModelDownloader {
             """
         case .vaiCoderFlagship:
             content = """
-            {"lang":"fr","name":"Qwen 2.5 Coder 1.5B On-Device (iPhone 14 Flagship)","version":"4.5","specialty":"coding_and_reasoning","architecture":"GGUF/NeuralEngine","tokens_per_sec":28,"dictionary":{"bonjour":"Bonjour ! Je suis prêt à coder ou répondre à vos questions.","code":"Expertise HTML5, CSS3 Glassmorphism, JS Vanilla, Swift SwiftUI et Python active.","qui es-tu":"Je suis le modèle neuronal de pointe Qwen 2.5 Coder embarqué sur votre iPhone 14."}}
+            {"lang":"multilingual","name":"Sarah Engine local","version":"5.0","specialty":"reasoning_coding_multilingual","architecture":"GGUF/NeuralEngine","dictionary":{"bonjour":"Bonjour ! Je suis prête à vous aider.","code":"Je peux aider avec le code et les explications techniques.","qui es-tu":"Je suis Sarah Engine, le moteur local de Sarah."}}
             """
         }
         try? content.write(to: destination, atomically: true, encoding: .utf8)

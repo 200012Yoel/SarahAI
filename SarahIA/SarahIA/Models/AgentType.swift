@@ -22,7 +22,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var roleDescription: String {
         switch self {
         case .sarah:  return "Voix système principale (Rose néon)"
-        case .nathan: return "Expert Réseaux Sociaux & WhatsApp (Violet Néon)"
+        case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
         case .esther: return "Voix de synthèse build & code / Voice Coding (Bleu ciel)"
         case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
         case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Siri Canadien)"
@@ -33,7 +33,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var specialtySubtitle: String {
         switch self {
         case .sarah:  return "Patronne & Agent Pilote"
-        case .nathan: return "WhatsApp (Statuts & Vidéos) · Tous Réseaux · Veille IA"
+        case .nathan: return "Réseaux Sociaux · Vidéos · Veille IA"
         case .esther: return "Studio VAI Coding & Automatisation Apple Shortcuts"
         case .tom:    return "Encyclopédie & Débats mondiaux (1948 - Aujourd'hui)"
         case .yohan:  return "Dictionnaires locaux fusionnés (FR ⇄ HE)"

@@ -302,6 +302,23 @@ public struct SettingsView: View {
                         }
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
+
+                    Section(header: Text("À propos").foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))) {
+                        NavigationLink(destination: LegalNoticesView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .foregroundColor(Color(red: 0.0, green: 0.78, blue: 1.0))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Licences et notices")
+                                        .foregroundColor(.white)
+                                    Text("Sarah Engine, modèle IA et composants système")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                    }
+                    .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                 }
                 .hideScrollContentBackground()
             }
@@ -443,6 +460,60 @@ public struct SettingsView: View {
             .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
+    }
+}
+
+/// Notices affichées dans l'app pour les éléments effectivement distribués avec Sarah IA.
+@available(iOS 15.0, *)
+private struct LegalNoticesView: View {
+    var body: some View {
+        ZStack {
+            Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea()
+
+            List {
+                Section("Sarah IA") {
+                    Text("© 2026 Sarah IA. Tous droits réservés pour le code et l'identité visuelle de l'application, sauf indication contraire dans les notices ci-dessous.")
+                        .font(.footnote)
+                }
+
+                Section("Assistances de développement") {
+                    Text("Sarah IA a été conçue et développée avec l'assistance des outils suivants :")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("• ChatGPT Web")
+                        Text("• ChatGPT Cowork")
+                        Text("• ChatGPT Business")
+                        Text("• Google Gemini")
+                        Text("• Google Antigravity")
+                    }
+                    .font(.footnote)
+                    Text("Ces services ont assisté le processus de conception et de développement. Cette mention ne signifie ni partenariat, ni approbation, ni sponsoring de Sarah IA par leurs éditeurs.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+
+                Section("Sarah Engine — modèles locaux Qwen3") {
+                    Text("Les variantes locales Qwen3 0.6B, 1.7B et 4B utilisées par Sarah Engine sont distribuées sous licence Apache License 2.0.")
+                    Text("La licence Apache-2.0 autorise l'utilisation, la modification et la distribution commerciale, sous réserve de conserver la licence et les notices applicables.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
+                    Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
+                }
+
+                Section("Composants Apple") {
+                    Text("Sarah IA utilise les frameworks système Apple, notamment SwiftUI, UIKit, Foundation, AVFoundation, Speech, Vision, WebKit et Core ML. Ces composants sont fournis avec iOS et soumis aux conditions Apple applicables.")
+                        .font(.footnote)
+                }
+
+                Section("Information importante") {
+                    Text("Cette page recense les composants distribués avec la version actuelle de Sarah IA. Toute bibliothèque, police, image, musique ou modèle ajouté avant publication doit être ajouté ici avec sa licence et ses notices.")
+                        .font(.footnote)
+                }
+            }
+            .hideScrollContentBackground()
+        }
+        .navigationTitle("Licences")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

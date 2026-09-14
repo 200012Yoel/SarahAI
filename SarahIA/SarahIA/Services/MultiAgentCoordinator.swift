@@ -119,7 +119,7 @@ public final class MultiAgentCoordinator {
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
             💻 **Esther [Synthèse Build & Voice Coding]** : Voix de synthèse build & code, Apple Shortcuts, intégrations web et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
-            🤖 **Nathan [Réseaux Sociaux, WhatsApp & IA]** : Accès à tous vos réseaux sociaux, publication de statuts & vidéos WhatsApp, veille IA.
+            🤖 **Nathan [Réseaux Sociaux & IA]** : Création de contenus, préparation de publications et veille IA.
             ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
 
             *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Esther », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
@@ -127,7 +127,7 @@ public final class MultiAgentCoordinator {
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Esther pour le code et le build, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et WhatsApp, et Ethel pour la créativité.",
+                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Esther pour le code et le build, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -156,8 +156,8 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
-                let text = "🤖 **Nathan [Réseaux Sociaux, WhatsApp & IA]**\n\nJe suis **Nathan**, l'agent expert réseaux sociaux et intelligence artificielle ! J'ai accès à tous vos réseaux sociaux (WhatsApp, Instagram, TikTok, YouTube, Twitter/X, Facebook) et je peux poster vos statuts WhatsApp, gérer vos vidéos, et vous connecter aux derniers modèles d'IA."
-                let spoken = "Je suis Nathan, expert en réseaux sociaux, WhatsApp et intelligence artificielle ! J'ai accès à tous vos réseaux sociaux pour publier vos vidéos, statuts WhatsApp, et créer du contenu."
+                let text = "🤖 **Nathan [Réseaux Sociaux & IA]**\n\nJe suis **Nathan**, l'agent expert réseaux sociaux et intelligence artificielle. Je vous aide à préparer des contenus pour Instagram, TikTok, YouTube, Twitter/X et Facebook, à organiser vos idées et à suivre les tendances IA."
+                let spoken = "Je suis Nathan, expert en réseaux sociaux et intelligence artificielle. Je vous aide à préparer vos contenus, vos vidéos et vos idées de publication."
                 return AgentResponse(agent: .nathan, text: text, spokenText: spoken)
                 
             case .ethel:
@@ -518,8 +518,8 @@ public final class MultiAgentCoordinator {
             ))
             
         case .nathan:
-            let nathanGreeting = "Yo ! C'est Nathan ! 🤖 Je suis branché sur tous tes réseaux sociaux (WhatsApp, Instagram, TikTok, YouTube...) et sur les derniers modèles d'IA. Tu veux poster une vidéo ou un statut WhatsApp, publier sur tes réseaux, ou créer des vidéos et de la musique ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🤖 **Nathan [Réseaux Sociaux & WhatsApp]** :\n\(nathanGreeting)"
+            let nathanGreeting = "Yo ! C'est Nathan ! Je travaille avec Instagram, TikTok, YouTube et les derniers modèles d'IA. Tu veux préparer une vidéo, une publication ou une idée de contenu ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🤖 **Nathan [Réseaux Sociaux & IA]** :\n\(nathanGreeting)"
             
             completion(AgentResponse(
                 agent: .nathan,
@@ -749,7 +749,7 @@ public final class MultiAgentCoordinator {
         }
     }
     
-    // MARK: - Nathan (Réseaux Sociaux, WhatsApp, Statuts, Vidéos & IA)
+    // MARK: - Nathan (Réseaux Sociaux, Vidéos & IA)
     
     private enum NathanVideoStep {
         case idle
@@ -775,7 +775,7 @@ public final class MultiAgentCoordinator {
             
             if isNoHashtag {
                 let responseText = """
-                🚀 **Nathan [Publication WhatsApp & Réseaux]**
+                🚀 **Nathan [Publication Réseaux]**
 
                 ✅ C'est parti ! Ta vidéo **« \(videoName) »** a été envoyée et mise en ligne sans hashtags directement sur **\(destination)** !
 
@@ -783,7 +783,7 @@ public final class MultiAgentCoordinator {
                 """
                 let spoken = "C'est parti ! Ta vidéo \(videoName) est mise en ligne sans hashtags sur \(destination)."
                 
-                // Déclenchement de l'ouverture WhatsApp / Partage
+                // Ouverture de la feuille de partage système.
                 triggerSocialShare(destination: destination, title: videoName, hashtags: "")
                 
                 completion(AgentResponse(
@@ -797,7 +797,7 @@ public final class MultiAgentCoordinator {
             } else {
                 let hashtags = trimmed
                 let responseText = """
-                🚀 **Nathan [Publication WhatsApp & Réseaux]**
+                🚀 **Nathan [Publication Réseaux]**
 
                 ✅ C'est parti ! Ta vidéo **« \(videoName) »** avec les hashtags `\(hashtags)` a été préparée et mise en ligne avec succès sur **\(destination)** !
 
@@ -831,7 +831,7 @@ public final class MultiAgentCoordinator {
             nathanStep = .waitingForHashtags(destination: destination, videoName: finalTitle)
             
             let responseText = """
-            🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+            🤖 **Nathan [Réseaux Sociaux & IA]**
 
             Parfait, titre enregistré : **« \(finalTitle) »** 🎬
 
@@ -850,13 +850,13 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 3. ÉTAPE 2 : L'utilisateur répond où poster (WhatsApp, statut, insta, etc.)
+        // 3. ÉTAPE 2 : L'utilisateur répond où poster (Instagram, TikTok, YouTube, etc.)
         if case .waitingForDestination = nathanStep {
             let destination = detectDestination(lower: lower)
             nathanStep = .waitingForVideoName(destination: destination)
             
             let responseText = """
-            🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+            🤖 **Nathan [Réseaux Sociaux & IA]**
 
             Super, destination choisie : **\(destination)** ! 📲
 
@@ -874,50 +874,19 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 4. ÉTAPE 1 : Déclenchement d'un flux vidéo ou statut
-        if lower.contains("vidéo") || lower.contains("video") || lower.contains("statut") || lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") {
-            if lower.contains("whatsapp") || lower.contains("statut") {
-                nathanStep = .waitingForVideoName(destination: "WhatsApp (Statut & Messages)")
-                let responseText = """
-                🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
+        // 4. ÉTAPE 1 : Déclenchement d'un flux vidéo ou de publication
+        if lower.contains("vidéo") || lower.contains("video") || lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") {
+            nathanStep = .waitingForDestination
+            let responseText = """
+            🤖 **Nathan [Réseaux Sociaux & IA]**
 
-                Je m'occupe de ton statut & partage **WhatsApp** ! 📲
-
-                Quel est le **nom ou le titre de ta vidéo** ?
-                """
-                let spoken = "Je m'occupe de ton statut WhatsApp ! Quel est le nom de ta vidéo ?"
-                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
-                return
-            } else {
-                nathanStep = .waitingForDestination
-                let responseText = """
-                🤖 **Nathan [Réseaux Sociaux & WhatsApp]**
-
-                Que veux-tu que je fasse avec ta vidéo ?
-                • La mettre en **Statut WhatsApp** ou l'envoyer sur **WhatsApp**
-                • La publier sur **Instagram** (Reels / Post)
-                • La poster sur **TikTok**
-                • La mettre sur **YouTube**
-                • La publier sur **Twitter / X**
-                """
-                let spoken = "Que veux-tu que je fasse avec ta vidéo ? Tu veux que je la mette en statut sur WhatsApp, ou sur Instagram, TikTok, ou YouTube ?"
-                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
-                return
-            }
-        }
-        
-        // 5. WhatsApp direct
-        if lower.contains("whatsapp") || lower.contains("whatsap") {
-            let whatsappURL = URL(string: "whatsapp://")!
-            DispatchQueue.main.async {
-                if UIApplication.shared.canOpenURL(whatsappURL) {
-                    UIApplication.shared.open(whatsappURL)
-                } else if let web = URL(string: "https://web.whatsapp.com") {
-                    UIApplication.shared.open(web)
-                }
-            }
-            let responseText = "🤖 **Nathan [WhatsApp Integration]**\n\nJ'ai accès direct à **WhatsApp** ! Je peux publier tes statuts, envoyer tes vidéos et messages.\n\n📲 [Ouvrir WhatsApp](whatsapp://)\n\n*Dis-moi : « Poste ma vidéo sur WhatsApp » quand tu es prêt !*"
-            let spoken = "J'ai ouvert WhatsApp pour toi. Dis-moi si tu veux poster une vidéo ou un statut !"
+            Que veux-tu faire avec ta vidéo ?
+            • La publier sur **Instagram** (Reels / Post)
+            • La poster sur **TikTok**
+            • La mettre sur **YouTube**
+            • La publier sur **Twitter / X**
+            """
+            let spoken = "Que veux-tu faire avec ta vidéo ? Tu peux choisir Instagram, TikTok, YouTube ou Twitter."
             completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
             return
         }
@@ -1057,4 +1026,3 @@ public final class MultiAgentCoordinator {
         }
     }
 }
-

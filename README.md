@@ -43,9 +43,8 @@ L'orchestration est pilotée par **Sarah**. L'utilisateur bascule instantanémen
 - **Pipeline STT & Traduction** : Whisper.cpp (Tiny Int8) + `SFSpeechRecognizer` avec moteur lexical `YohanLexiconEngine`.
 - **TTS HD** : `AVSpeechSynthesizer` avec voix neuronales haute fidélité.
 
-### 3. 💬 Passerelle WhatsApp Baileys & WebRTC
-- Bridge Baileys JavaScript autonome polyfillé dans une `WKWebView` headless pour la connexion WhatsApp Multi-Device.
-- Talkie-Walkie WhatsApp (PTT Opus/PCM) et appels vocaux WebRTC chiffrés de bout en bout.
+### 3. 💬 Appels vocaux WebRTC
+- Appels vocaux chiffrés de bout en bout et traduction vocale en direct.
 
 ### 4. 🗄️ Persistance SQLite WAL & Timeout d'Inactivité (1h)
 - Base SQLite native en mode **Write-Ahead Logging (`PRAGMA journal_mode = WAL;`)** avec index B-Tree sur `(conversation_id, timestamp DESC)` pour des lectures en $< 2\text{ ms}$.

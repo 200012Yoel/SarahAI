@@ -47,6 +47,9 @@ public final class LocalVisionEngine {
         "pen": ("stylo", "🖊️", "un"),
         "pencil": ("crayon", "✏️", "un"),
         "chair": ("chaise", "🪑", "une"),
+        "stool": ("tabouret", "🪑", "un"),
+        "bar stool": ("tabouret de bar", "🪑", "un"),
+        "bench": ("banc", "🪑", "un"),
         "armchair": ("fauteuil", "🛋️", "un"),
         "table": ("table", "🪵", "une"),
         "desk": ("bureau", "🖥️", "un"),
@@ -123,6 +126,17 @@ public final class LocalVisionEngine {
     public func recognizeObject(in image: UIImage, completion: @escaping (VisionAnalysisResult) -> Void) {
         visionQueue.async { [weak self] in
             guard let self = self else { return }
+            guard AIResourceManager.shared.acquireHeavyWorkload(.vision) else {
+                DispatchQueue.main.async {
+                    completion(VisionAnalysisResult(
+                        objectLabel: "analyse en attente",
+                        naturalSpokenResponse: "Je termine une autre analyse locale avant de regarder cette image.",
+                        detectedText: "", confidence: 0
+                    ))
+                }
+                return
+            }
+            defer { AIResourceManager.shared.releaseHeavyWorkload(.vision) }
             
             autoreleasepool {
                 // Redimensionnement automatique si nécessaire pour préserver la RAM
@@ -274,6 +288,11 @@ public final class LocalVisionEngine {
     /// Extrait tout le texte lisible sur une image ou une capture d'écran
     public func extractText(from image: UIImage, completion: @escaping (String) -> Void) {
         visionQueue.async {
+            guard AIResourceManager.shared.acquireHeavyWorkload(.vision) else {
+                DispatchQueue.main.async { completion("") }
+                return
+            }
+            defer { AIResourceManager.shared.releaseHeavyWorkload(.vision) }
             autoreleasepool {
                 let readyImage = LocalVisionEngine.prepareImageForAnalysis(image, maxDimension: 1200, quality: 0.85)?.image ?? image
                 guard let cgImage = readyImage.cgImage else {
@@ -285,8 +304,9 @@ public final class LocalVisionEngine {
                     let textRequest = VNRecognizeTextRequest()
                     textRequest.recognitionLevel = .accurate
                     textRequest.usesLanguageCorrection = true
-                    if #available(iOS 14.0, *) {
-                        textRequest.recognitionLanguages = ["fr-FR", "en-US", "he-IL"]
+                    Self.configureSupportedLanguages(for: textRequest)
+                    if #available(iOS 16.0, *) {
+                        textRequest.automaticallyDetectsLanguage = true
                     }
                     
                     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
@@ -330,6 +350,21 @@ public final class LocalVisionEngine {
             }
         }
     }
+
+    /// Vision varie selon la révision d'iOS. Ne demandons une langue que si
+    /// l'iPhone confirme qu'elle est installée, notamment pour l'hébreu.
+    private static func configureSupportedLanguages(for request: VNRecognizeTextRequest) {
+        let preferred = ["fr-FR", "en-US", "he-IL"]
+        let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(
+            for: request.recognitionLevel,
+            revision: VNRecognizeTextRequest.currentRevision
+        )) ?? []
+        let compatible = preferred.filter { candidate in
+            let language = Locale(identifier: candidate).languageCode
+            return supported.contains { Locale(identifier: $0).languageCode == language }
+        }
+        if !compatible.isEmpty {
+            request.recognitionLanguages = compatible
+        }
+    }
 }
-
-

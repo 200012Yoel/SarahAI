@@ -14,6 +14,15 @@ public enum SystemPressureLevel: Int, Comparable {
     }
 }
 
+/// Les charges lourdes sont exclusives : on ne lance jamais plusieurs modèles
+/// locaux gourmands simultanément sur un iPhone.
+public enum AIHeavyWorkload: Hashable {
+    case localConversation
+    case vision
+    case translation
+    case imageGeneration
+}
+
 /// Gestionnaire Central des Ressources & Pression Système (RAM, Thermique, Cycle de Vie)
 public final class AIResourceManager {
     
@@ -27,6 +36,8 @@ public final class AIResourceManager {
     
     private var memoryWarningObserver: NSObjectProtocol?
     private var thermalStateObserver: NSObjectProtocol?
+    private let workloadLock = NSLock()
+    private var activeHeavyWorkload: AIHeavyWorkload?
     
     private init() {
         setupObservers()
@@ -132,6 +143,27 @@ public final class AIResourceManager {
             return Int(Double(baseLength) * 0.50)
         case .critical, .emergency:
             return Int(Double(baseLength) * 0.25)
+        }
+    }
+
+    /// Réserve le moteur local pour une seule opération coûteuse.
+    /// Si iOS manque de RAM ou chauffe, la tâche attendra au lieu de risquer un crash.
+    public func acquireHeavyWorkload(_ workload: AIHeavyWorkload) -> Bool {
+        let pressure = evaluateCurrentSystemPressure()
+        guard pressure < .deepSlowdown else { return false }
+
+        workloadLock.lock()
+        defer { workloadLock.unlock() }
+        guard activeHeavyWorkload == nil else { return false }
+        activeHeavyWorkload = workload
+        return true
+    }
+
+    public func releaseHeavyWorkload(_ workload: AIHeavyWorkload) {
+        workloadLock.lock()
+        defer { workloadLock.unlock() }
+        if activeHeavyWorkload == workload {
+            activeHeavyWorkload = nil
         }
     }
 }

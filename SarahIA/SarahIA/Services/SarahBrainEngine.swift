@@ -236,7 +236,7 @@ public final class SarahBrainEngine {
     
     private init() {}
     
-    // MARK: - Inférence & Streaming Local (Qwen 2.5 Coder / Sarah Engine)
+    // MARK: - Inférence & Streaming Local (Sarah Engine / Qwen3)
     
     public func generateStreamingResponse(
         prompt: String,
