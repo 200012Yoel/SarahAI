@@ -202,10 +202,10 @@ public struct SettingsView: View {
                                 Spacer()
                             }
                             
-                            // Barre horizontale des 6 capsules d'agents
+                            // Barre horizontale des agents actifs
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 8) {
-                                    ForEach(AgentType.allCases) { agent in
+                                    ForEach(AgentType.activeAgents) { agent in
                                         Button(action: {
                                             HapticService.shared.buttonTap()
                                             viewModel.activeAgent = agent
@@ -213,7 +213,7 @@ public struct SettingsView: View {
                                             HStack(spacing: 5) {
                                                 Image(systemName: agent.iconName)
                                                     .font(.system(size: 11, weight: .bold))
-                                                Text(agent.rawValue)
+                                                Text(agent.displayName)
                                                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                                             }
                                             .foregroundColor(viewModel.activeAgent == agent ? .white : .gray)
@@ -351,8 +351,8 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 3. Écosystème des 6 Agents & Voix Siri Dédiées
-                    Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
+                    // 3. Écosystème des quatre agents et leurs voix Apple
+                    Section(header: Text("Les 4 agents").foregroundColor(.white)) {
                         agentRow(
                             agent: .sarah,
                             subtitle: "Voix système principale (Rose néon)",
@@ -360,26 +360,14 @@ public struct SettingsView: View {
                         )
                         
                         agentRow(
-                            agent: .nathan,
-                            subtitle: "Expert Réseaux Sociaux & Automatisation (Violet Néon)",
-                            testPhrase: "Salut ! C'est Nathan. Je suis prêt pour la gestion de tes réseaux sociaux et automatisations."
-                        )
-                        
-                        agentRow(
                             agent: .esther,
                             subtitle: "Voix de synthèse build & code (Bleu ciel)",
-                            testPhrase: "Bonjour ! C'est Esther. Prête pour le build et le voice coding !"
-                        )
-                        
-                        agentRow(
-                            agent: .tom,
-                            subtitle: "Voix conversationnelle dédiée (Vert émeraude)",
-                            testPhrase: "Salut ! C'est Tom. Je suis prêt pour analyser l'histoire et la géopolitique mondiale."
+                            testPhrase: "Bonjour ! C'est Raphaël. Je suis prêt pour le développement et le code."
                         )
                         
                         agentRow(
                             agent: .yohan,
-                            subtitle: "Voix masculine bilingue FR ⇄ HE (Siri Canadien)",
+                            subtitle: "Voix masculine bilingue FR ⇄ HE (Apple)",
                             testPhrase: "Shalom ! C'est Yoann à votre service pour toutes vos traductions en hébreu."
                         )
                         
@@ -652,7 +640,7 @@ private struct AgentsSettingsView: View {
             }
 
             Section("Tous les agents") {
-                ForEach(AgentType.allCases) { agent in
+                ForEach(AgentType.activeAgents) { agent in
                     HStack(spacing: 8) {
                         Button {
                             HapticService.shared.buttonTap()
@@ -991,7 +979,7 @@ private struct AboutSettingsView: View {
             }
 
             Section("Voix") {
-                Text("Sarah IA utilise les voix Apple disponibles sur cet iPhone. Pour bénéficier de la voix choisie, ouvrez Réglages iPhone > Siri > Voix, choisissez la variation voulue, puis laissez le téléchargement se terminer avant de revenir dans Sarah IA.")
+                Text("Sarah IA utilise les voix Apple disponibles sur cet iPhone. Les quatre agents reçoivent des timbres distincts quand ils sont installés dans iOS. Une app ne peut pas lire la voix choisie pour Siri : téléchargez des voix françaises supplémentaires dans Réglages iPhone > Accessibilité > Contenu énoncé > Voix, puis revenez dans Sarah IA.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
@@ -1017,7 +1005,7 @@ private func settingsTestPhrase(for agent: AgentType) -> String {
     case .tom:
         return "Bonjour, je suis Tom, votre agent histoire et géopolitique."
     case .yohan:
-        return "Shalom, je suis Yohan, votre agent de traduction."
+        return "Shalom, je suis Yoann, votre agent de traduction."
     case .ethel:
         return "Bonjour, je suis Ethel, votre agent créatif."
     }

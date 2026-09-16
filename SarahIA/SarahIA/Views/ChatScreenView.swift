@@ -143,20 +143,20 @@ public struct ChatScreenView: View {
                     .default(Text("👁️ Vision & Analyse Multimodale (OCR)")) {
                         viewModel.inputText = "Analyse cette photo et décris ce que tu vois"
                     },
-                    .default(Text("📱 Nathan — Publier sur les Réseaux Sociaux")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
+                    .default(Text("📱 Sarah — Réseaux Sociaux")) {
+                        viewModel.activeAgent = .sarah
+                        viewModel.sendMessage("Quels sont mes réseaux sociaux connectés ?")
                     },
                     .default(Text("🎨 Ethel — Créativité & Studio Graphique")) {
                         viewModel.activeAgent = .ethel
                         viewModel.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
                     },
-                    .default(Text("🎵 Nathan — Générer une Musique Rapide")) {
-                        viewModel.activeAgent = .nathan
+                    .default(Text("🎵 Sarah — Générer une Musique Rapide")) {
+                        viewModel.activeAgent = .sarah
                         viewModel.inputText = "Compose une musique "
                     },
-                    .default(Text("🤖 Nathan — Meilleurs modèles d'IA")) {
-                        viewModel.activeAgent = .nathan
+                    .default(Text("🤖 Sarah — Meilleurs modèles d'IA")) {
+                        viewModel.activeAgent = .sarah
                         viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
                     },
                     .default(Text("💻 Studio Raphaël — Code & prototypes")) {
@@ -174,12 +174,12 @@ public struct ChatScreenView: View {
                     .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
                         viewModel.isShowingVoiceOrbModal = true
                     },
-                    .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
+                    .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yoann)")) {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Comment on dit en hébreu : "
                     },
-                    .default(Text("🌍 Débat Géopolitique & Histoire (Tom)")) {
-                        viewModel.activeAgent = .tom
+                    .default(Text("🌍 Sarah — Géopolitique & Histoire")) {
+                        viewModel.activeAgent = .sarah
                         viewModel.inputText = "Raconte-moi l'histoire de "
                     },
                     .default(Text("👑 Parler à Sarah (Pilote)")) {

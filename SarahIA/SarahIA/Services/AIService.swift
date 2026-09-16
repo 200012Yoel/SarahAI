@@ -362,12 +362,12 @@ public final class AIService {
             let capabilities = """
             Voici tout ce que notre équipe à 4 agents peut faire pour vous :
 
-            👑 **Sarah (Patronne & Pilote)** : Coordination générale, mémoire locale, torche, batterie, alertes Pikoud HaOref et actualités.
-            🌍 **Tom (Histoire & Géopolitique)** : Analyse politique mondiale depuis 1948, conflits du Moyen-Orient, Ve République et débats.
+            👑 **Sarah (Pilote)** : Quotidien, réseaux sociaux, recherche, histoire, géopolitique, mémoire locale, alertes et actualités.
             ⚡ **Raphaël (Développeur & VAI Coding)** : Génération de composants Web, code Swift, Apple Shortcuts et intégrations de designs.
-            🇮🇱 **Yohan (Traducteur FR ⇄ HE)** : Dictionnaires spécialisés bilingues, phonétique, racines sémitiques et argot israélien.
+            🇮🇱 **Yoann (Traducteur FR ⇄ HE)** : Dictionnaires spécialisés bilingues, phonétique, racines sémitiques et argot israélien.
+            ✨ **Ethel (Créativité)** : Images, design et idées visuelles.
 
-            *Vous pouvez passer d'un agent à l'autre à tout moment en disant simplement : « Passe-moi Tom », « Donne-moi Raphaël » ou « Donne-moi Yohan ».*
+            *Vous pouvez passer d'un agent à l'autre en disant « Donne-moi Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel ».*
             """
             recordExchange(userText: trimmed, assistantResponse: capabilities)
             return capabilities

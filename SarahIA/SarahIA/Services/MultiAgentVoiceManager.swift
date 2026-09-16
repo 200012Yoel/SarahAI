@@ -1,11 +1,10 @@
 import Foundation
-import Foundation
 import AVFoundation
 #if canImport(UIKit)
 import UIKit
 #endif
 
-// MARK: - Gestionnaire Audio & Synthèse Vocale Apple Siri Multi-Agents
+// MARK: - Gestionnaire Audio & Synthèse Vocale Apple Multi-Agents
 public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public static let shared = AgentVoiceManager()
     
@@ -15,8 +14,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public var onSpeechFinished: (() -> Void)?
     private var pendingSpeechBlock: (() -> Void)? = nil
     
-    // Cache de voix résolues et garanties 100% uniques et distinctes par agent
+    // Cache de voix Apple résolues par agent.
     private var agentVoices: [AgentType: AVSpeechSynthesisVoice] = [:]
+    /// Les agents présents ici partagent temporairement une voix, car aucune
+    /// voix Apple distincte du genre demandé n'est téléchargée sur l'iPhone.
+    public private(set) var agentsNeedingAnotherSystemVoice = Set<AgentType>()
     
     public override init() {
         super.init()
@@ -43,105 +45,60 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     /// Vide le cache afin de relire les voix actuellement disponibles sur l'iPhone.
     @objc public func refreshSystemVoiceSelection() {
         agentVoices.removeAll()
+        agentsNeedingAnotherSystemVoice.removeAll()
         resolveAllDistinctVoices()
     }
     
-    /// Résolution et assignation stricte d'une voix iOS francophone unique pour chaque agent (zéro doublon).
-    /// Les voix désignées par l'utilisateur sont recherchées par identifiant
-    /// disponible sur l'iPhone, jamais par position dans une liste mutable.
+    /// Associe les voix Apple réellement disponibles aux quatre agents actifs.
+    /// Siri ne donne pas accès à ses choix « Voix 1 », « Voix 2 », etc. aux
+    /// apps tierces : on sélectionne donc une voix Apple installée de même
+    /// région et de même genre, sans dépendre de noms internes instables.
     private func resolveAllDistinctVoices() {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         var usedIdentifiers = Set<String>()
         
-        // Liste ordonnée de tous les agents pour l'attribution
-        let orderedAgents: [AgentType] = [.sarah, .nathan, .esther, .tom, .yohan, .ethel]
+        // Liste ordonnée des agents visibles pour l'attribution.
+        let orderedAgents = AgentType.activeAgents
         
-        // Voix francophones disponibles sur le système (France, Canada, Belgique, Suisse)
+        // Voix francophones disponibles sur le système (France, Canada, Belgique, Suisse).
         let frenchVoices = allVoices.filter {
             $0.language.replacingOccurrences(of: "_", with: "-").hasPrefix("fr")
         }
         
         for agent in orderedAgents {
-            var selectedVoice: AVSpeechSynthesisVoice? = nil
-
-            // 1. Voix Apple demandée pour cet agent. Sarah et Nathan ont chacun
-            // leur propre identifiant : ils ne dépendent donc pas du réglage
-            // global actuellement affiché dans Siri.
-            for identifier in agent.preferredSpeechVoiceIdentifiers where selectedVoice == nil {
-                if let directVoice = AVSpeechSynthesisVoice(identifier: identifier),
-                   !usedIdentifiers.contains(directVoice.identifier) {
-                    selectedVoice = directVoice
-                }
-            }
-            
-            // 2. Essai par version enhanced
-            if selectedVoice == nil {
-                for identifier in agent.preferredSpeechVoiceIdentifiers {
-                    let enhancedId = identifier.replacingOccurrences(of: "compact", with: "enhanced")
-                    if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId),
-                       !usedIdentifiers.contains(enhancedVoice.identifier) {
-                        selectedVoice = enhancedVoice
-                        break
-                    }
-                }
+            let matchingVoices = rankedVoices(for: agent, from: frenchVoices)
+            let selectedVoice: AVSpeechSynthesisVoice
+            if let distinctVoice = matchingVoices.first(where: { !usedIdentifiers.contains($0.identifier) }) {
+                selectedVoice = distinctVoice
+            } else if let reusableVoice = matchingVoices.first {
+                // Ne mélange pas les genres à cause d'une voix manquante : on
+                // conserve la voix correcte et on signale qu'il faut en
+                // télécharger une autre dans Réglages iPhone.
+                selectedVoice = reusableVoice
+                agentsNeedingAnotherSystemVoice.insert(agent)
+            } else {
+                selectedVoice = AVSpeechSynthesisVoice(language: agent.localeCode)
+                    ?? AVSpeechSynthesisVoice(language: "fr-FR")
+                    ?? AVSpeechSynthesisVoice()
+                agentsNeedingAnotherSystemVoice.insert(agent)
             }
 
-            // Si la voix demandée n'est pas encore téléchargée, iOS fournit une
-            // voix France par défaut pour que Sarah reste utilisable. L'écran
-            // À propos indique comment télécharger les voix souhaitées.
-            if selectedVoice == nil,
-               (agent == .sarah || agent == .nathan),
-               let systemFrenchVoice = AVSpeechSynthesisVoice(language: agent.localeCode),
-               normalizedLanguageCode(systemFrenchVoice.language) == "fr-fr",
-               !usedIdentifiers.contains(systemFrenchVoice.identifier) {
-                selectedVoice = systemFrenchVoice
-            }
-            
-            // 3. Essai par noms ciblés de timbres vocaux Siri distincts
-            if selectedVoice == nil {
-                let targetNames: [String]
-                switch agent {
-                case .sarah:  targetNames = ["amélie", "amelie", "marie", "audrey"]
-                case .nathan: targetNames = ["thomas", "nicolas", "lucas", "paul"]
-                case .esther: targetNames = ["audrey", "celine", "céline", "aurelie", "aurélie", "claire"]
-                case .tom:    targetNames = ["rémi", "remi", "alain", "pierre", "antoine"]
-                case .yohan:  targetNames = ["jean", "felix", "félix", "nicolas"]
-                case .ethel:  targetNames = ["chantal", "juliette", "hortense", "geneviève", "genevieve"]
-                }
-                
-                for name in targetNames {
-                    if let match = frenchVoices.first(where: {
-                        !usedIdentifiers.contains($0.identifier) &&
-                        ($0.name.localizedCaseInsensitiveContains(name) || $0.identifier.localizedCaseInsensitiveContains(name))
-                    }) {
-                        selectedVoice = match
-                        break
-                    }
-                }
-            }
-            
-            // 4. Attribution d'une voix francophone libre non encore utilisée
-            if selectedVoice == nil {
-                let isFemale = (agent == .sarah || agent == .esther || agent == .ethel)
-                let maleKeywords = ["thomas", "nicolas", "paul", "antoine", "remi", "alain", "jean", "felix"]
-                
-                let freeVoices = frenchVoices.filter { !usedIdentifiers.contains($0.identifier) }
-                if let matchGender = freeVoices.first(where: { voice in
-                    let lower = voice.name.lowercased()
-                    let isMale = maleKeywords.contains(where: { lower.contains($0) })
-                    return isFemale ? !isMale : isMale
-                }) {
-                    selectedVoice = matchGender
-                } else if let anyFree = freeVoices.first {
-                    selectedVoice = anyFree
-                }
-            }
-            
-            // 5. Fallback garanti
-            let finalVoice = selectedVoice ?? AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
+            let finalVoice = selectedVoice
             agentVoices[agent] = finalVoice
             usedIdentifiers.insert(finalVoice.identifier)
         }
+    }
+
+    private func rankedVoices(for agent: AgentType, from voices: [AVSpeechSynthesisVoice]) -> [AVSpeechSynthesisVoice] {
+        let preferredLocale = normalizedLanguageCode(agent.localeCode)
+        return voices
+            .filter { $0.gender == agent.preferredVoiceGender }
+            .sorted { lhs, rhs in
+                let lhsRank = normalizedLanguageCode(lhs.language) == preferredLocale ? 0 : 1
+                let rhsRank = normalizedLanguageCode(rhs.language) == preferredLocale ? 0 : 1
+                if lhsRank != rhsRank { return lhsRank < rhsRank }
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
     }
 
     private func normalizedLanguageCode(_ language: String) -> String {
@@ -154,11 +111,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     /// Le nom historique est conservé pour compatibilité ; une app tierce n'a pas
     /// d'API publique pour lire l'identifiant interne de la voix de l'assistant Siri.
     public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
-        if let cached = agentVoices[agent] {
+        let selectedAgent = agent.activeAgent
+        if let cached = agentVoices[selectedAgent] {
             return cached
         }
         resolveAllDistinctVoices()
-        return agentVoices[agent] ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        return agentVoices[selectedAgent] ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }
     
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
@@ -217,7 +175,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         return AVSpeechUtterance(attributedString: attributedText)
     }
     
-    /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
+    /// Énonciation vocale dédiée pour l'agent ciblé avec une voix système Apple.
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         stop()
         pendingSpeechBlock = nil
@@ -235,11 +193,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
         
         let utterance = makeUtterance(text: cleaned)
-        let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
+        let activeAgent = agent.activeAgent
+        let resolvedVoice = getSiriVoice(for: activeAgent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
         utterance.voice = resolvedVoice
         
-        // Timbres, vitesses et hauteurs de tonalité authentiques et distincts pour chaque agent
-        switch agent {
+        // La hauteur ajuste le rendu sans remplacer un timbre manquant.
+        switch activeAgent {
         case .sarah:
             utterance.pitchMultiplier = 1.05
             utterance.rate = 0.51
@@ -247,7 +206,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             utterance.pitchMultiplier = 0.95
             utterance.rate = 0.53
         case .esther:
-            utterance.pitchMultiplier = 1.12
+            utterance.pitchMultiplier = 0.94
             utterance.rate = 0.49
         case .tom:
             utterance.pitchMultiplier = 0.84

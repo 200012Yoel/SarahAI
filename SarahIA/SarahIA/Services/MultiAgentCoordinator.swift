@@ -57,11 +57,11 @@ public final class MultiAgentCoordinator {
     ) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalize(trimmed)
-        let sourceAgent = currentAgent ?? .sarah
+        let sourceAgent = (currentAgent ?? .sarah).activeAgent
         
         // 1. Détection prioritaire d'un ordre explicite de passage / bascule d'agent
         if let switchMatch = detectSwitchCommand(normalized: normalized, original: trimmed) {
-            handleAgentHandoff(from: sourceAgent, to: switchMatch.targetAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
+            handleAgentHandoff(from: sourceAgent, to: switchMatch.targetAgent.activeAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
             return
         }
         
@@ -69,7 +69,7 @@ public final class MultiAgentCoordinator {
         // par défaut, mais une demande qui cite un spécialiste doit être routée
         // vers celui-ci (ex. « Raphaël, génère un site Internet »).
         let detectedAgent = detectTargetAgent(normalized: normalized)
-        let resolvedAgent = explicitAgent ?? (detectedAgent == .sarah ? sourceAgent : detectedAgent)
+        let resolvedAgent = (explicitAgent ?? (detectedAgent == .sarah ? sourceAgent : detectedAgent)).activeAgent
         
         // 2.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
         if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: resolvedAgent) {
@@ -86,13 +86,13 @@ public final class MultiAgentCoordinator {
             processWithEsther(text: trimmed, completion: completion)
             
         case .tom:
-            processWithTom(text: trimmed, completion: completion)
+            processWithSarah(text: trimmed, completion: completion)
             
         case .sarah:
             processWithSarah(text: trimmed, completion: completion)
             
         case .nathan:
-            processWithNathan(text: trimmed, completion: completion)
+            processWithSarah(text: trimmed, completion: completion)
             
         case .ethel:
             processWithEthel(text: trimmed, completion: completion)
@@ -116,21 +116,19 @@ public final class MultiAgentCoordinator {
         
         if isAskingTeam {
             let teamDescription = """
-            Voici l'équipe complète de vos 6 agents intégrés :
+            Voici les quatre agents de Sarah IA :
 
-            👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
-            🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
+            👑 **Sarah [Pilote]** : Quotidien, réseaux sociaux, veille IA, recherche, histoire et géopolitique.
             💻 **Raphaël [Développeur]** : Sites web, apps iOS, SwiftUI, scripts, raccourcis Apple et studio de code.
-            🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
-            🤖 **Nathan [Réseaux Sociaux & IA]** : Création de contenus, préparation de publications et veille IA.
-            ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
+            🇮🇱 **Yoann [Traducteur Français ⇔ Hébreu]** : Dictionnaire bilingue, grammaire et phonétique.
+            ✨ **Ethel [Créativité]** : Images, design et idées visuelles.
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
+            *Dites par exemple « Je veux parler à Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel ».*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Raphaël pour le développement, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
+                spokenText: "Nous sommes quatre agents : Sarah pour le quotidien, les réseaux sociaux et la recherche, Raphaël pour le développement, Yoann pour la traduction et Ethel pour la créativité.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -154,8 +152,8 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .esther, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Pilote]**\n\nJe suis **Sarah**. Je coordonne Raphaël, Yoann et Ethel. Je m'occupe aussi des réseaux sociaux, de la recherche, de l'histoire, de la géopolitique et de vos demandes du quotidien."
+                let spoken = "Je suis Sarah. Je coordonne Raphaël, Yoann et Ethel, et je m'occupe des réseaux sociaux, de la recherche et de vos demandes du quotidien."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
@@ -460,7 +458,7 @@ public final class MultiAgentCoordinator {
             sourceName = "💻 **Raphaël**"
         case .yohan:
             transitionLine = "Beseder Yoël, je te le passe !"
-            sourceName = "🇮🇱 **Yohan**"
+            sourceName = "🇮🇱 **Yoann**"
         case .nathan:
             transitionLine = "Je te le passe de suite, let's go !"
             sourceName = "🤖 **Nathan**"
@@ -498,7 +496,7 @@ public final class MultiAgentCoordinator {
             
         case .yohan:
             let yohanGreeting = "Shalom Yoël ! 🇮🇱 C'est Yoann. Je suis là pour toute traduction, expression idiomatique ou question linguistique en hébreu ou en français. Que veux-tu traduire ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🇮🇱 **Yohan [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🇮🇱 **Yoann [Traduction Français ⇄ Hébreu]** :\n\(yohanGreeting)"
             
             completion(AgentResponse(
                 agent: .yohan,
@@ -769,6 +767,27 @@ public final class MultiAgentCoordinator {
     }
     
     private func processWithSarah(text: String, completion: @escaping (AgentResponse) -> Void) {
+        let normalized = normalize(text)
+        let socialTerms = ["reseau", "instagram", "tiktok", "youtube", "twitter", "publication", "publier", "poster", "story", "hashtag", "video", "veille ia"]
+        let historyTerms = ["histoire", "geopolitique", "conflit", "guerre", "debat", "1948", "moyen orient", "otan", "onu"]
+        let isSocialFollowUp: Bool
+        switch nathanStep {
+        case .idle: isSocialFollowUp = false
+        default: isSocialFollowUp = true
+        }
+
+        if isSocialFollowUp || socialTerms.contains(where: { normalized.contains($0) }) {
+            processWithNathan(text: text) { response in
+                completion(self.representSarah(response))
+            }
+            return
+        }
+        if historyTerms.contains(where: { normalized.contains($0) }) {
+            processWithTom(text: text) { response in
+                completion(self.representSarah(response))
+            }
+            return
+        }
         AIService.shared.processQuery(text) { response in
             completion(AgentResponse(
                 agent: .sarah,
@@ -778,6 +797,25 @@ public final class MultiAgentCoordinator {
                 generatedCode: nil
             ))
         }
+    }
+
+    /// Préserve les fonctions des anciens spécialistes, désormais présentées
+    /// et prononcées par Sarah, y compris dans les conversations en plusieurs étapes.
+    private func representSarah(_ response: AgentResponse) -> AgentResponse {
+        let displayText = response.text
+            .replacingOccurrences(of: "Sarah & Nathan", with: "Sarah")
+            .replacingOccurrences(of: "Nathan", with: "Sarah")
+            .replacingOccurrences(of: "Tom", with: "Sarah")
+        let spokenText = response.spokenText
+            .replacingOccurrences(of: "Nathan", with: "Sarah")
+            .replacingOccurrences(of: "Tom", with: "Sarah")
+        return AgentResponse(
+            agent: .sarah,
+            text: displayText,
+            spokenText: spokenText,
+            openStudio: response.openStudio,
+            generatedCode: response.generatedCode
+        )
     }
     
     // MARK: - Nathan (Réseaux Sociaux, Vidéos & IA)
@@ -808,11 +846,11 @@ public final class MultiAgentCoordinator {
                 let responseText = """
                 🚀 **Nathan [Publication Réseaux]**
 
-                ✅ C'est parti ! Ta vidéo **« \(videoName) »** a été envoyée et mise en ligne sans hashtags directement sur **\(destination)** !
+                La proposition pour **« \(videoName) »** est prête sans hashtags pour **\(destination)**.
 
-                📲 *Ouverture de l'application en cours pour finaliser...*
+                📲 *La feuille de partage va s'ouvrir. Vérifie le contenu et confirme toi-même la publication dans l'application cible. Aucun fichier vidéo n'a été envoyé automatiquement.*
                 """
-                let spoken = "C'est parti ! Ta vidéo \(videoName) est mise en ligne sans hashtags sur \(destination)."
+                let spoken = "La proposition est prête pour \(destination). Vérifie-la puis confirme la publication dans l'application cible."
                 
                 // Ouverture de la feuille de partage système.
                 triggerSocialShare(destination: destination, title: videoName, hashtags: "")
@@ -830,11 +868,11 @@ public final class MultiAgentCoordinator {
                 let responseText = """
                 🚀 **Nathan [Publication Réseaux]**
 
-                ✅ C'est parti ! Ta vidéo **« \(videoName) »** avec les hashtags `\(hashtags)` a été préparée et mise en ligne avec succès sur **\(destination)** !
+                La proposition pour **« \(videoName) »** avec les hashtags `\(hashtags)` est prête pour **\(destination)**.
 
-                📲 *Ouverture de l'application en cours...*
+                📲 *La feuille de partage va s'ouvrir. Vérifie le contenu et confirme toi-même la publication dans l'application cible. Aucun fichier vidéo n'a été envoyé automatiquement.*
                 """
-                let spoken = "C'est parti ! Ta vidéo \(videoName) avec tes hashtags est mise en ligne sur \(destination)."
+                let spoken = "La proposition avec tes hashtags est prête pour \(destination). Vérifie-la avant de publier."
                 
                 triggerSocialShare(destination: destination, title: videoName, hashtags: hashtags)
                 

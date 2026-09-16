@@ -111,7 +111,7 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
                 if let agent = notif.object as? AgentType {
-                    self?.activeAgent = agent
+                    self?.activeAgent = agent.activeAgent
                 }
             }
             .store(in: &cancellables)
@@ -439,7 +439,7 @@ public final class ChatViewModel: ObservableObject {
                 guard self.currentConversationId == responseConversationID else { return }
                 // Basculer l'agent actif selon la décision de routage / passation de main
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    self.activeAgent = response.agent
+                    self.activeAgent = response.agent.activeAgent
                 }
                 
                 let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
@@ -517,7 +517,7 @@ public final class ChatViewModel: ObservableObject {
     
     public func introduceSarah() {
         haptics.buttonTap()
-        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Raccourcis) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
+        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. Je m'occupe aussi des réseaux sociaux, de la recherche et de l'histoire. Raphaël crée des sites et du code, Yoann traduit entre français et hébreu, et Ethel vous aide à créer. Que pouvons-nous faire pour vous ?"
         let aiMessage = Message(content: introText, isFromUser: false)
         appendMessage(aiMessage)
         voiceManager.speak(text: introText, for: .sarah)

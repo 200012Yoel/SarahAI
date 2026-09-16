@@ -645,7 +645,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         HapticService.shared.buttonTap()
         let alert = UIAlertController(title: "Sélectionner un Agent", message: "Choisissez l'agent actif :", preferredStyle: .actionSheet)
         
-        for agent in AgentType.allCases {
+        for agent in AgentType.activeAgents {
             alert.addAction(UIAlertAction(title: "\(agent.displayName) — \(agent.roleDescription)", style: .default, handler: { [weak self] _ in
                 self?.activeAgent = agent
                 self?.updateAgentCapsuleTitle()
@@ -727,24 +727,24 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
-        alert.addAction(UIAlertAction(title: "📱 Nathan — Publier sur les Réseaux Sociaux", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
+        alert.addAction(UIAlertAction(title: "📱 Sarah — Réseaux Sociaux", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .sarah
             self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
+            self?.sendMessage("Quels sont mes réseaux sociaux connectés ?")
         }))
         alert.addAction(UIAlertAction(title: "🎨 Ethel — Créativité & Studio Graphique", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .ethel
             self?.updateAgentCapsuleTitle()
             self?.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
         }))
-        alert.addAction(UIAlertAction(title: "🎵 Nathan — Générer une Musique Rapide", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
+        alert.addAction(UIAlertAction(title: "🎵 Sarah — Générer une Musique Rapide", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .sarah
             self?.inputTextField.text = "Compose une musique "
             self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
-        alert.addAction(UIAlertAction(title: "🤖 Nathan — Meilleurs modèles d'IA", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
+        alert.addAction(UIAlertAction(title: "🤖 Sarah — Meilleurs modèles d'IA", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .sarah
             self?.updateAgentCapsuleTitle()
             self?.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
         }))
@@ -764,15 +764,15 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         alert.addAction(UIAlertAction(title: "🔮 Ouvrir l'Orbe Vocal Immersif", style: .default, handler: { [weak self] _ in
             self?.presentVoiceCallModal()
         }))
-        alert.addAction(UIAlertAction(title: "🇮🇱 Traduction Hébreu ⇄ Français (Yohan)", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🇮🇱 Traduction Hébreu ⇄ Français (Yoann)", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .yohan
             self?.updateAgentCapsuleTitle()
             self?.inputTextField.text = "Comment on dit en hébreu : "
             self?.updateActionButtonState(animated: true)
             self?.inputTextField.becomeFirstResponder()
         }))
-        alert.addAction(UIAlertAction(title: "🌍 Débat Géopolitique & Histoire (Tom)", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .tom
+        alert.addAction(UIAlertAction(title: "🌍 Sarah — Géopolitique & Histoire", style: .default, handler: { [weak self] _ in
+            self?.activeAgent = .sarah
             self?.updateAgentCapsuleTitle()
             self?.inputTextField.text = "Raconte-moi l'histoire de "
             self?.updateActionButtonState(animated: true)
@@ -812,7 +812,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     private func loadInitialWelcomeMessage() {
         let welcome = Message(
-            content: "Bonjour ! 👋 Je suis **Sarah**, votre patronne et assistante IA. Dites-moi simplement « *Passe-moi Tom* », « *Passe-moi Esther* », « *Donne-moi Yoann* », « *Passe-moi Nathan* » ou « *Passe-moi Ethel* » pour basculer à tout moment !",
+            content: "Bonjour ! 👋 Je suis **Sarah**, votre assistante IA. Je m'occupe aussi des réseaux sociaux et de la recherche. Dites « *Passe-moi Raphaël* », « *Donne-moi Yoann* » ou « *Passe-moi Ethel* » pour changer d'agent !",
             isFromUser: false
         )
         messages.append(welcome)
@@ -1603,7 +1603,7 @@ public final class LegacySettingsViewController: UIViewController {
         scroll.addSubview(pillsStack)
         
         agentPills.removeAll()
-        for agent in AgentType.allCases {
+        for agent in AgentType.activeAgents {
             let btn = UIButton(type: .system)
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.setTitle("\(agentIconEmoji(agent)) \(agent.displayName)", for: .normal)
@@ -1664,7 +1664,7 @@ public final class LegacySettingsViewController: UIViewController {
         heroAvatarCircle.layer.borderColor = agent.uiColor.withAlphaComponent(0.40).cgColor
         heroIconLabel.text = agentIconEmoji(agent)
         
-        for (i, a) in AgentType.allCases.enumerated() {
+        for (i, a) in AgentType.activeAgents.enumerated() {
             guard i < agentPills.count else { continue }
             let btn = agentPills[i]
             let isSel = (a == agent)
@@ -1801,7 +1801,7 @@ public final class LegacySettingsViewController: UIViewController {
         stack.axis = .vertical
         stack.spacing = 12
         
-        for (i, agent) in AgentType.allCases.enumerated() {
+        for (i, agent) in AgentType.activeAgents.enumerated() {
             let row = UIView()
             row.translatesAutoresizingMaskIntoConstraints = false
             
@@ -1863,7 +1863,7 @@ public final class LegacySettingsViewController: UIViewController {
             ])
             
             stack.addArrangedSubview(row)
-            if i < AgentType.allCases.count - 1 {
+            if i < AgentType.activeAgents.count - 1 {
                 let sep = UIView()
                 sep.backgroundColor = UIColor(white: 1.0, alpha: 0.05)
                 sep.heightAnchor.constraint(equalToConstant: 0.5).isActive = true

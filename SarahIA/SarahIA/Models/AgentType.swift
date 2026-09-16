@@ -4,6 +4,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
 
 /// Énumération des 6 agents de l'écosystème Sarah AI (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
 public enum AgentType: String, CaseIterable, Identifiable, Codable {
@@ -16,6 +19,13 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     
     // Rétrocompatibilité / Alias
     public static let raphael = AgentType.esther
+    /// Nathan et Tom restent décodables dans les anciennes conversations.
+    /// L'équipe présentée et sélectionnable compte désormais quatre agents.
+    public static let activeAgents: [AgentType] = [.sarah, .esther, .yohan, .ethel]
+
+    public var activeAgent: AgentType {
+        (self == .nathan || self == .tom) ? .sarah : self
+    }
     
     public var id: String { rawValue }
 
@@ -23,13 +33,22 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     /// ne pas casser les conversations déjà sauvegardées, mais l'agent développeur s'appelle
     /// bien Raphaël côté utilisateur.
     public var displayName: String {
-        self == .esther ? "Raphaël" : rawValue
+        switch self {
+        case .esther:
+            return "Raphaël"
+        case .yohan:
+            // La clé de stockage historique reste `yohan`, mais le nom affiché
+            // et prononcé dans l'application est bien Yoann.
+            return "Yoann"
+        default:
+            return rawValue
+        }
     }
 
     public var capabilitiesSummary: String {
         switch self {
         case .sarah:
-            return "Assistant principal pour organiser, expliquer et vous accompagner."
+            return "Assistant principal, réseaux sociaux, veille IA, recherche et géopolitique."
         case .nathan:
             return "Réseaux sociaux, idées de contenus et veille IA."
         case .esther:
@@ -45,18 +64,31 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     
     public var roleDescription: String {
         switch self {
-        case .sarah:  return "Voix système principale (Rose néon)"
+        case .sarah:  return "Voix Apple principale (Rose néon)"
         case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
         case .esther: return "Développeur : sites, apps iOS & code (Bleu ciel)"
         case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
-        case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Siri Canadien)"
+        case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Apple)"
         case .ethel:  return "Voix féminine dédiée (Thème Bleu & Rouge)"
+        }
+    }
+
+    /// Sarah et Ethel utilisent une voix féminine ; Nathan, Raphaël, Tom et
+    /// Yoann utilisent une voix masculine.
+    /// Cette préférence est appliquée aux voix Apple effectivement installées,
+    /// sans prétendre accéder au réglage privé de Siri.
+    public var preferredVoiceGender: AVSpeechSynthesisVoiceGender {
+        switch self {
+        case .sarah, .ethel:
+            return .female
+        case .nathan, .esther, .tom, .yohan:
+            return .male
         }
     }
     
     public var specialtySubtitle: String {
         switch self {
-        case .sarah:  return "Patronne & Agent Pilote"
+        case .sarah:  return "Pilote · Réseaux sociaux · Recherche · Actualités"
         case .nathan: return "Réseaux Sociaux · Vidéos · Veille IA"
         case .esther: return "Développeur · Web · iOS · SwiftUI · Code"
         case .tom:    return "Encyclopédie & Débats mondiaux (1948 - Aujourd'hui)"

@@ -10,22 +10,22 @@
 
 ## 🌟 Présentation
 
+[Site de téléchargement iPhone](https://200012yoel.github.io/SarahAI/) · [Dernière version publiée](https://github.com/200012Yoel/SarahAI/releases/latest)
+
 **Sarah IA** est une application d'assistance intelligente et autonome pour iOS, conçue pour fonctionner **100% en local et hors-ligne**. 
 Elle intègre une **architecture adaptative multi-matérielle** qui ajuste en temps réel la puissance du modèle, la gestion de la mémoire et la cadence de streaming selon la génération exacte de l'iPhone.
 
 ---
 
-## 👥 L'Équipe des 6 Agents Intégrés
+## 👥 L'équipe des 4 agents visibles
 
-L'orchestration est pilotée par **Sarah**. L'utilisateur bascule instantanément d'un agent à l'autre par commande vocale naturelle (*« Passe-moi Tom »*, *« Donne-moi Esther »*, *« Passe-moi Nathan »*, *« Donne-moi Yoann »*, *« Passe-moi Ethel »*).
+L'orchestration est pilotée par **Sarah**. Les anciens profils Nathan et Tom sont regroupés dans Sarah ; le profil développeur est présenté sous le nom **Raphaël**.
 
 | Agent | Rôle & Spécialité | Couleur & Thème | Fonctionnalités Clés |
 |:---|:---|:---:|:---|
-| 👑 **Sarah** | **Patronne & Orchestratrice Générale** | Rose Néon / Couronne | Orchestration générale, mémoire locale, flash/torche, batterie, vision locale et requêtes du quotidien. |
-| 💻 **Esther** *(ou Tom)* | **Synthèse Build & Live Preview** | Vert Cyber / Matrix | Génération de composants Web (HTML/CSS/JS), code Swift, Apple Shortcuts et Live Preview dans l'écran virtuel. |
-| 🌍 **Tom** | **Géopolitique & Histoire Contemporaine** | Bleu Stratégique | Histoire politique mondiale depuis 1948, conflits internationaux, Ve République, débats structurés. |
+| 👑 **Sarah** | **Pilote et assistante générale** | Rose Néon / Couronne | Orchestration, mémoire locale, réseaux sociaux, médias, histoire et géopolitique. |
+| 💻 **Raphaël** | **Développeur** | Vert Cyber / Matrix | Sites Web, HTML/CSS/JS, code iOS et SwiftUI. |
 | 🇮🇱 **Yoann** | **Traducteur Hébreu ⇄ Français** | Or & Ambre | Dictionnaire expert bilingue, phonétique, racines sémitiques, grammaire et expressions idiomatiques. |
-| 🤖 **Nathan** | **Réseaux Sociaux & Média** | Cyan Tech | Gestion et publication sur les réseaux sociaux (Instagram, TikTok, YouTube, X). |
 | ✨ **Ethel** | **Intelligence Créative & Spécialisée** | Bleu & Rouge | Agent féminin polyvalent pour les modules créatifs et graphiques. |
 
 ---

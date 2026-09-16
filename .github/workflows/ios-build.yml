@@ -15,7 +15,6 @@ on:
 
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
     runs-on: macos-14
     timeout-minutes: 30
     permissions:
@@ -131,7 +130,7 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+        if: inputs.confirm_release == 'yes' && github.ref == 'refs/heads/main'
         with:
           tag_name: latest
           name: "Sarah IA - iOS Universal (iOS 12.0+ / iPhone 5S 6 7 8 X 11 12 13 14 15 16)"
@@ -157,7 +156,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Publish Error Release If Failed
-        if: failure()
+        if: failure() && inputs.confirm_release == 'yes'
         uses: softprops/action-gh-release@v2
         continue-on-error: true
         with:

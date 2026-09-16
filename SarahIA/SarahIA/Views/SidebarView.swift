@@ -19,6 +19,19 @@ public struct SidebarView: View {
         self._isShowingSettings = isShowingSettings
     }
 
+    /// ContentView présente le tiroir en plein écran afin que son fond glisse
+    /// proprement derrière l'encoche. Le contenu, lui, doit commencer sous la
+    /// zone système, comme les panneaux natifs d'iOS.
+    private var topSafeArea: CGFloat {
+        if #available(iOS 13.0, *) {
+            return UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+                .first?
+                .safeAreaInsets.top ?? 0
+        }
+        return UIApplication.shared.keyWindow?.safeAreaInsets.top ?? 0
+    }
+
     public var body: some View {
         VStack(spacing: 0) {
             header
@@ -42,7 +55,7 @@ public struct SidebarView: View {
 
             footer
         }
-        .padding(.top, 12)
+        .padding(.top, topSafeArea + 12)
         .background(Color(.systemBackground).ignoresSafeArea())
         .confirmationDialog(
             "Supprimer cette discussion ?",
