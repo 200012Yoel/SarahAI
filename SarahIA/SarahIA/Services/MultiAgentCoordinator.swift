@@ -65,8 +65,11 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 2. Détermination de l'agent actif
-        let resolvedAgent = explicitAgent ?? currentAgent ?? detectTargetAgent(normalized: normalized)
+        // 2. Détermination de l'agent actif. Le sélecteur visuel reste le contexte
+        // par défaut, mais une demande qui cite un spécialiste doit être routée
+        // vers celui-ci (ex. « Raphaël, génère un site Internet »).
+        let detectedAgent = detectTargetAgent(normalized: normalized)
+        let resolvedAgent = explicitAgent ?? (detectedAgent == .sarah ? sourceAgent : detectedAgent)
         
         // 2.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
         if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: resolvedAgent) {
@@ -196,6 +199,8 @@ public final class MultiAgentCoordinator {
         let switchKeywords = [
             "donne moi ", "donne-moi ", "donnemoi ",
             "donne ", "donnez moi ", "donnez-moi ",
+            "demande a ", "demande au ", "demande a la ",
+            "demandez a ", "demandez au ", "demandez a la ",
             "passe moi ", "passe-moi ", "passemoi ",
             "passe ", "passez moi ", "passez-moi ",
             "peux tu me passer ", "peux-tu me passer ", "peux tu me donner ", "peux-tu me donner ",
