@@ -188,7 +188,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private func synthesizeAndInjectTranslatedVoice(text: String, language: String) {
         guard !text.isEmpty else { return }
         
-        let utterance = AVSpeechUtterance(string: text)
+        let utterance = MultiAgentVoiceManager.shared.makeUtterance(text: text)
         let localeCode = localeIdentifier(for: language)
         utterance.voice = AVSpeechSynthesisVoice(language: localeCode) ?? AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.52

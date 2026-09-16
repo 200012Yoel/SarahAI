@@ -38,7 +38,7 @@ public struct VoiceOrbModalView: View {
                 
                 // 2. Nom et Rôle de l'Agent Actif
                 VStack(spacing: 4) {
-                    Text(viewModel.activeAgent.rawValue.uppercased())
+                    Text(viewModel.activeAgent.displayName.uppercased())
                         .font(.system(size: 26, weight: .black, design: .rounded))
                         .foregroundColor(viewModel.activeAgent.themeColor)
                     

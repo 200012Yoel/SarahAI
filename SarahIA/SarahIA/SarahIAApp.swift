@@ -13,6 +13,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+
+        // Chaque IPA publiée porte un numéro de build différent. Une installation de build
+        // déclenche une remise à zéro des données de test avant que SwiftUI restaure un chat.
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        let didResetUserState = StorageService.shared.resetUserStateForNewBuildIfNeeded(currentBuild: build)
+        SessionTimeoutManager.shared.prepareForProcessLaunch(didResetUserStateForNewBuild: didResetUserState)
         
         let window = UIWindow(frame: UIScreen.main.bounds)
         self.window = window
@@ -88,10 +94,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     
     func applicationDidEnterBackground(_ application: UIApplication) {
         SessionTimeoutManager.shared.recordAppBackgroundTime()
-    }
-    
-    func applicationWillEnterForeground(_ application: UIApplication) {
-        SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
     }
     
     func applicationDidBecomeActive(_ application: UIApplication) {

@@ -28,6 +28,11 @@ public struct VAICodingStudioView: View {
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
+
+    private var isWebPreviewAvailable: Bool {
+        let lowercased = codeText.lowercased()
+        return lowercased.contains("<!doctype html") || lowercased.contains("<html")
+    }
     
     public var body: some View {
         ZStack {
@@ -67,7 +72,7 @@ public struct VAICodingStudioView: View {
                             .cornerRadius(6)
                         }
                         
-                        Text("Documents/VAI_Workspace/index.html")
+                        Text(isWebPreviewAvailable ? "Prévisualisation web locale" : "Code source local")
                             .font(.system(size: 11))
                             .foregroundColor(.gray)
                     }
@@ -108,12 +113,16 @@ public struct VAICodingStudioView: View {
                 
                 // 3. Contenu de l'Onglet Actif
                 if selectedTab == .preview {
-                    // Prévisualisation Live WebKit
-                    VAIWebViewRepresentable(htmlContent: codeText)
-                        .cornerRadius(16)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
-                        .shadow(color: Color.black.opacity(0.5), radius: 10)
+                    if isWebPreviewAvailable {
+                        // Prévisualisation Live WebKit réservée aux projets HTML.
+                        VAIWebViewRepresentable(htmlContent: codeText)
+                            .cornerRadius(16)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 8)
+                            .shadow(color: Color.black.opacity(0.5), radius: 10)
+                    } else {
+                        nonWebPreviewPlaceholder
+                    }
                 } else if selectedTab == .editor {
                     // Éditeur de Code avec Streaming
                     VStack(alignment: .leading, spacing: 8) {
@@ -210,6 +219,9 @@ public struct VAICodingStudioView: View {
         .onAppear {
             if let initial = viewModel.vaiCurrentCode, !initial.isEmpty {
                 self.codeText = initial
+                if !isWebPreviewAvailable {
+                    selectedTab = .editor
+                }
             } else {
                 startSampleStreaming(prompt: "dashboard")
             }
@@ -224,6 +236,36 @@ public struct VAICodingStudioView: View {
         .sheet(isPresented: $isShowingFigmaSheet) {
             figmaSheetView
         }
+    }
+
+    private var nonWebPreviewPlaceholder: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                .font(.system(size: 34, weight: .medium))
+                .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
+            Text("Ce projet est prêt en code source")
+                .font(.headline)
+                .foregroundColor(.white)
+            Text("La prévisualisation intégrée est réservée aux pages web. Pour SwiftUI ou Python, ouvre le code source puis demande à Raphaël les améliorations souhaitées.")
+                .font(.subheadline)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+            Button(action: {
+                selectedTab = .editor
+            }) {
+                Text("Voir le code source")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color(red: 0.15, green: 0.52, blue: 0.96))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
     
     // MARK: - Onglet Raccourcis Apple

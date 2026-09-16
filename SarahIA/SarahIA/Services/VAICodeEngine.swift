@@ -173,6 +173,89 @@ public final class VAICodeEngine {
         return html
     }
 
+    /// Génère une base SwiftUI locale lorsque Raphaël reçoit une demande iOS.
+    /// Ce n'est pas présenté comme une application compilée : c'est un point de départ
+    /// clair, que la personne peut ensuite faire préciser et améliorer dans le chat.
+    public func generateSwiftUIStarter(prompt: String) -> String {
+        let escapedPrompt = prompt
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+
+        return """
+        import SwiftUI
+
+        /// Première base générée par Raphaël pour : \(escapedPrompt)
+        struct RaphaelGeneratedView: View {
+            @State private var input = ""
+            @State private var items: [String] = []
+
+            var body: some View {
+                NavigationView {
+                    List {
+                        Section("Votre idée") {
+                            TextField("Ajouter un élément", text: $input)
+                            Button("Ajouter") {
+                                let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !value.isEmpty else { return }
+                                items.append(value)
+                                input = ""
+                            }
+                        }
+
+                        Section("Contenu") {
+                            if items.isEmpty {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .font(.title2)
+                                        .foregroundColor(.accentColor)
+                                    Text("Prêt à personnaliser")
+                                        .font(.headline)
+                                    Text("Décris à Raphaël les écrans, données et actions à ajouter.")
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                            } else {
+                                ForEach(items, id: \\.self) { item in
+                                    Text(item)
+                                }
+                                .onDelete { items.remove(atOffsets: $0) }
+                            }
+                        }
+                    }
+                    .navigationTitle("Prototype")
+                }
+            }
+        }
+
+        struct RaphaelGeneratedView_Previews: PreviewProvider {
+            static var previews: some View {
+                RaphaelGeneratedView()
+            }
+        }
+        """
+    }
+
+    /// Petite base de script pour les demandes Python ; elle reste éditable et ne prétend
+    /// pas avoir été exécutée sur l'iPhone.
+    public func generatePythonStarter(prompt: String) -> String {
+        let escapedPrompt = prompt.replacingOccurrences(of: "\"", with: "\\\"")
+        return """
+        \"\"\"Base préparée par Raphaël pour : \(escapedPrompt)\"\"\"
+
+        def main() -> None:
+            # TODO: préciser les entrées, le traitement et le résultat attendu.
+            print("Prototype prêt à être développé.")
+
+
+        if __name__ == "__main__":
+            main()
+        """
+    }
+
     /// Génère une première maquette de site à partir du questionnaire de Raphaël.
     /// Le résultat reste un fichier HTML local : aucune publication ou URL publique n'est simulée ici.
     public func generateWebsite(brief: WebsiteBrief) -> String {

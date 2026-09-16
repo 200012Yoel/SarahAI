@@ -39,6 +39,7 @@ public final class ConversationContext {
         detectedPerson = nil
         detectedPlace = nil
         pendingFollowUp = nil
+        lastAlertEvent = nil
     }
 }
 
@@ -235,6 +236,12 @@ public final class SarahBrainEngine {
     private var sessionHistory: [(query: String, response: String, timestamp: Date)] = []
     
     private init() {}
+
+    /// Oublie le fil de raisonnement court terme lorsqu'une nouvelle discussion démarre.
+    /// L'historique affiché reste géré séparément par StorageService.
+    public func clearSessionHistory() {
+        sessionHistory.removeAll()
+    }
     
     // MARK: - Inférence & Streaming Local (Sarah Engine / Qwen3)
     

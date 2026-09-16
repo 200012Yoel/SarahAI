@@ -18,12 +18,36 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public static let raphael = AgentType.esther
     
     public var id: String { rawValue }
+
+    /// Nom présenté dans l'interface. L'identifiant historique `Esther` est conservé pour
+    /// ne pas casser les conversations déjà sauvegardées, mais l'agent développeur s'appelle
+    /// bien Raphaël côté utilisateur.
+    public var displayName: String {
+        self == .esther ? "Raphaël" : rawValue
+    }
+
+    public var capabilitiesSummary: String {
+        switch self {
+        case .sarah:
+            return "Assistant principal pour organiser, expliquer et vous accompagner."
+        case .nathan:
+            return "Réseaux sociaux, idées de contenus et veille IA."
+        case .esther:
+            return "Développeur : sites web, apps iOS, SwiftUI, code et prototypes."
+        case .tom:
+            return "Recherche, actualités, voyages et explications documentées."
+        case .yohan:
+            return "Assistant bilingue français–hébreu et aide à la traduction."
+        case .ethel:
+            return "Création, design et idées visuelles."
+        }
+    }
     
     public var roleDescription: String {
         switch self {
         case .sarah:  return "Voix système principale (Rose néon)"
         case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
-        case .esther: return "Voix de synthèse build & code / Voice Coding (Bleu ciel)"
+        case .esther: return "Développeur : sites, apps iOS & code (Bleu ciel)"
         case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
         case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Siri Canadien)"
         case .ethel:  return "Voix féminine dédiée (Thème Bleu & Rouge)"
@@ -34,7 +58,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .sarah:  return "Patronne & Agent Pilote"
         case .nathan: return "Réseaux Sociaux · Vidéos · Veille IA"
-        case .esther: return "Studio VAI Coding & Automatisation Apple Shortcuts"
+        case .esther: return "Développeur · Web · iOS · SwiftUI · Code"
         case .tom:    return "Encyclopédie & Débats mondiaux (1948 - Aujourd'hui)"
         case .yohan:  return "Dictionnaires locaux fusionnés (FR ⇄ HE)"
         case .ethel:  return "Intelligence Créative Polyvalente · Design Bleu & Rouge"
@@ -51,7 +75,9 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
-    // Numéro de voix Siri correspondant aux réglages iOS
+    // Numéro de voix affiché dans les réglages Siri d'iOS.
+    // Apple ne publie pas d'identifiant stable reliant ce numéro à une voix de
+    // synthèse : il sert donc uniquement de préférence lisible par l'utilisateur.
     public var siriVoiceNumber: String {
         switch self {
         case .sarah:  return "1" // France Voix 1
@@ -67,6 +93,20 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var voiceIndex: String {
         return siriVoiceNumber
     }
+
+    /// Libellé de la préférence de voix choisie dans les réglages Apple.
+    /// Ne jamais déduire cette préférence de l'ordre de `speechVoices()`, car cet
+    /// ordre peut changer selon l'iPhone, la version d'iOS et les voix téléchargées.
+    public var systemVoicePreferenceLabel: String {
+        switch self {
+        case .sarah:  return "France — Voix 1"
+        case .nathan: return "France — Voix 2"
+        case .esther: return "France — Voix 3"
+        case .tom:    return "France — Voix 4"
+        case .yohan:  return "Canada — Voix 1"
+        case .ethel:  return "Canada — Voix 2"
+        }
+    }
     
     // Index dans la liste des voix du système pour cette région (0-based Int)
     public var voiceIndexOrder: Int {
@@ -80,7 +120,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
-    // Identifiants Siri exacts Apple TTS Bundle
+    // Identifiant de repli pour les voix de synthèse Apple classiques.
     public var speechIdentifier: String {
         switch self {
         case .sarah:  return "com.apple.voice.compact.fr-FR.Amelie"
@@ -89,6 +129,53 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .tom:    return "com.apple.voice.compact.fr-FR.Remi"
         case .yohan:  return "com.apple.voice.compact.fr-CA.Jean"
         case .ethel:  return "com.apple.voice.compact.fr-CA.Chantal"
+        }
+    }
+
+    /// Identifiants préférés des voix Apple quand elles sont disponibles sur
+    /// l'iPhone. Les identifiants sont testés au moment de l'exécution : aucun
+    /// n'est utilisé si la voix n'a pas été téléchargée sur l'appareil.
+    public var preferredSpeechVoiceIdentifiers: [String] {
+        switch self {
+        case .sarah:
+            return [
+                "com.apple.ttsbundle.siri_female_fr-FR_compact",
+                speechIdentifier
+            ]
+        case .nathan:
+            return [
+                "com.apple.ttsbundle.siri_male_fr-FR_compact",
+                speechIdentifier
+            ]
+        case .tom:
+            // Tom est fixé à France — Voix 4. On teste d'abord l'identifiant
+            // TTS Apple historique de Rémi, puis le repli compatible du projet.
+            return [
+                "com.apple.ttsbundle.Remi-compact",
+                speechIdentifier
+            ]
+        case .esther:
+            // Esther (affichée comme Raphaël) est fixée à France — Voix 3.
+            return [
+                "com.apple.ttsbundle.Audrey-compact",
+                speechIdentifier
+            ]
+        case .ethel:
+            // Ethel est fixée à Canada — Voix 2.
+            return [
+                "com.apple.ttsbundle.Chantal-compact",
+                speechIdentifier
+            ]
+        case .yohan:
+            // Yoann est fixé à Canada — Voix 1. L'identifiant interne
+            // historique reste `yohan` afin de conserver les données déjà
+            // enregistrées par l'application.
+            return [
+                "com.apple.ttsbundle.Jean-compact",
+                speechIdentifier
+            ]
+        default:
+            return [speechIdentifier]
         }
     }
     

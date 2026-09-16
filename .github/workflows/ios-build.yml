@@ -2,19 +2,20 @@ name: iOS Build Universal
 run-name: iOS Build Universal (Build #${{ github.run_number }})
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
-      build_id:
-        description: 'Identifiant unique du build'
+      confirm_release:
+        description: 'Confirmer la compilation et la publication de cette IPA'
         required: false
-        type: string
-        default: 'SarahIA'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+        default: 'no'
 
 jobs:
   build:
+    if: inputs.confirm_release == 'yes'
     runs-on: macos-14
     timeout-minutes: 30
     permissions:
@@ -35,6 +36,11 @@ jobs:
           echo "=== Normalisation des MinimumOSVersion dans les Plists ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
           find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "14.0" {} \; 2>/dev/null || true
+
+      - name: Assign a unique build number for this IPA
+        run: |
+          echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
       - name: Build Universal App Mach-O
         run: |
@@ -129,7 +135,7 @@ jobs:
         with:
           tag_name: latest
           name: "Sarah IA - iOS Universal (iOS 12.0+ / iPhone 5S 6 7 8 X 11 12 13 14 15 16)"
-          body: "Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus, iPhone 7 et tous les iPhones récents."
+          body: "Build #${{ github.run_number }}. Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus, iPhone 7 et tous les iPhones récents. L'installation de ce nouveau build remet les données de test Sarah IA à zéro."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false

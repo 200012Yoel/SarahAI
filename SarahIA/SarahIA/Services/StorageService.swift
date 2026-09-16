@@ -60,16 +60,25 @@ public final class StorageService {
     private let fileManager = FileManager.default
     private let stateFileName = "sarah_ai_state.json"
     private let backupFileName = "sarah_ai_state.json.bak"
+    private let installedBuildKey = "sarah_installed_build_identifier"
+    private let appGroupSuite = "group.com.sarahia.app"
+    private let appGroupMemoryKey = "sarah_learned_memories_v2"
     private let ioQueue = DispatchQueue(label: "com.sarahai.storage.queue", qos: .userInitiated)
     
-    private var appDirectoryURL: URL {
+    /// Emplacement sans effet de bord : utile pour savoir si une ancienne version a laissé
+    /// des données avant de créer le dossier de travail de la nouvelle version.
+    private var appDirectoryLocationURL: URL {
         let baseDirectory: URL
         if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             baseDirectory = appSupport
         } else {
             baseDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         }
-        let dir = baseDirectory.appendingPathComponent("SarahAI", isDirectory: true)
+        return baseDirectory.appendingPathComponent("SarahAI", isDirectory: true)
+    }
+
+    private var appDirectoryURL: URL {
+        let dir = appDirectoryLocationURL
         if !fileManager.fileExists(atPath: dir.path) {
             do {
                 try fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
@@ -163,6 +172,71 @@ public final class StorageService {
             try? self.fileManager.removeItem(at: self.stateFileURL)
             try? self.fileManager.removeItem(at: self.backupFileURL)
         }
+    }
+
+    /// Réinitialise les données locales lorsqu'une IPA portant un nouveau numéro de build est installée.
+    /// Pendant cette phase de test, Sarah repart exactement avec une discussion, des réglages et des espaces
+    /// de travail vierges. Les ressources livrées dans l'IPA ne sont jamais touchées.
+    @discardableResult
+    public func resetUserStateForNewBuildIfNeeded(currentBuild: String) -> Bool {
+        let build = currentBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !build.isEmpty else { return false }
+
+        let didReset = ioQueue.sync { [weak self] () -> Bool in
+            guard let self = self else { return false }
+            let defaults = UserDefaults.standard
+            let previousBuild = defaults.string(forKey: self.installedBuildKey)
+            let hasExistingState = self.fileManager.fileExists(atPath: self.appDirectoryLocationURL.path)
+
+            // Une absence de marqueur avec un état déjà présent correspond à la migration depuis
+            // une version antérieure de Sarah IA : elle doit également repartir de zéro une fois.
+            let mustReset = (previousBuild != nil && previousBuild != build) || (previousBuild == nil && hasExistingState)
+            guard mustReset else {
+                defaults.set(build, forKey: self.installedBuildKey)
+                return false
+            }
+
+            // Application Support/SarahAI contient l'état JSON, SQLite et les éventuels
+            // téléchargements de test liés à une ancienne version.
+            try? self.fileManager.removeItem(at: self.appDirectoryLocationURL)
+
+            // Espaces générés par l'utilisateur : code, exports de raccourcis et images.
+            if let documents = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let generatedDirectories = [
+                    "VAI_Workspace",
+                    "SandboxScripts",
+                    "Shortcuts",
+                    "SarahGeneratedImages"
+                ]
+                for directory in generatedDirectories {
+                    try? self.fileManager.removeItem(at: documents.appendingPathComponent(directory, isDirectory: true))
+                }
+            }
+
+            // Le cache de modèles déployé est régénéré par Sarah Engine au lancement suivant.
+            if let appSupport = self.fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                try? self.fileManager.removeItem(at: appSupport.appendingPathComponent("ai_models", isDirectory: true))
+            }
+
+            // Tous les réglages applicatifs sont des données de test : les supprimer évite
+            // qu'un ancien mode, une mémoire ou un téléchargement en pause réapparaisse.
+            if let bundleIdentifier = Bundle.main.bundleIdentifier {
+                defaults.removePersistentDomain(forName: bundleIdentifier)
+            }
+            defaults.set(build, forKey: self.installedBuildKey)
+            return true
+        }
+
+        guard didReset else { return false }
+
+        // SQLite détient une seconde copie des messages : la vider de manière synchrone évite
+        // qu'un ancien historique réapparaisse pendant le démarrage de la nouvelle version.
+        SQLiteChatDatabase.shared.clearAllHistorySynchronously()
+        if let groupDefaults = UserDefaults(suiteName: appGroupSuite) {
+            groupDefaults.removePersistentDomain(forName: appGroupSuite)
+            groupDefaults.removeObject(forKey: appGroupMemoryKey)
+        }
+        return true
     }
     
     // MARK: - Gestion de Mémoire Permanente (Learned Memories)

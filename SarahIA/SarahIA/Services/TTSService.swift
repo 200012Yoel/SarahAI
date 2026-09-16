@@ -69,7 +69,7 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         currentUtteranceWords = cleanedText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         currentWordIndex = 0
         
-        let utterance = AVSpeechUtterance(string: cleanedText)
+        let utterance = MultiAgentVoiceManager.shared.makeUtterance(text: cleanedText)
         
         // 🎙️ SÉLECTION D'UNE VOIX FÉMININE JEUNE ET NATURELLE (100% SANS VOIX D'HOMME)
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
@@ -93,12 +93,21 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
                 ?? femaleFrenchVoices.first(where: { $0.quality == .enhanced && $0.gender == .female })
         }
         
-        let bestVoice = selectedVoice
+        let fallbackVoice = selectedVoice
             ?? femaleFrenchVoices.first(where: { $0.name.contains("Amélie") || $0.name.contains("Amelie") || $0.name.contains("Audrey") || $0.name.contains("Hortense") })
             ?? femaleFrenchVoices.first(where: { $0.gender == .female })
             ?? femaleFrenchVoices.first
             ?? AVSpeechSynthesisVoice(language: "fr-FR")
             ?? AVSpeechSynthesisVoice(language: language)
+
+        // Le service est aussi utilisé comme repli historique pour Sarah. Pour le
+        // français de France, il doit donc réutiliser la même voix Apple que le
+        // chat principal, et non une deuxième heuristique locale. Les autres
+        // langues conservent leur voix de traduction adaptée.
+        let normalizedLanguage = language.replacingOccurrences(of: "_", with: "-").lowercased()
+        let bestVoice: AVSpeechSynthesisVoice? = normalizedLanguage == "fr-fr"
+            ? MultiAgentVoiceManager.shared.getVoice(for: .sarah)
+            : fallbackVoice
         
         utterance.voice = bestVoice
         utterance.rate = 0.52

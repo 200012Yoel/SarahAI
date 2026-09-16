@@ -77,6 +77,9 @@ public struct ChatScreenView: View {
                     },
                     onDismissKeyboard: {
                         keyboard.dismiss()
+                    },
+                    onOpenStudio: {
+                        viewModel.isShowingVAICodingStudio = true
                     }
                 )
                 .contentShape(Rectangle())
@@ -156,7 +159,7 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .nathan
                         viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
                     },
-                    .default(Text("💻 Studio VAI Coding & Build (Esther)")) {
+                    .default(Text("💻 Studio Raphaël — Code & prototypes")) {
                         viewModel.activeAgent = .esther
                         viewModel.isShowingVAICodingStudio = true
                     },
@@ -218,7 +221,7 @@ public struct ChatScreenView: View {
                         .fill(viewModel.activeAgent.themeColor)
                         .frame(width: 8, height: 8)
                     
-                    Text(viewModel.activeAgent.rawValue)
+                    Text(viewModel.activeAgent.displayName)
                         .font(.headline)
                         .foregroundColor(.white)
                     

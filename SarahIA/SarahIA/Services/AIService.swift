@@ -229,6 +229,9 @@ public final class AIService {
             DispatchQueue.main.async {
                 TTSManager.shared.stop()
                 SpeechManager.shared.stopSpeaking()
+                if #available(iOS 13.0, *) {
+                    TTSService.shared.stopSpeaking()
+                }
                 AppleSpeechRecognizer.shared.stopListening()
                 NotificationCenter.default.post(name: NSNotification.Name("SarahDismissAllModals"), object: nil)
             }

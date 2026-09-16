@@ -67,6 +67,16 @@ public final class SemanticMemoryIndex {
         
         return bestMatch
     }
+
+    /// Oublie uniquement le contexte en mémoire vive de la discussion courante.
+    public func clearSessionContext() {
+        // Cette opération est appelée au changement de discussion. Elle doit être terminée
+        // avant qu'une nouvelle requête puisse interroger l'index, sinon un ancien contexte
+        // peut brièvement se mélanger au nouveau chat.
+        queue.sync(flags: .barrier) {
+            self.indexedMemories.removeAll()
+        }
+    }
     
     private func extractKeywords(text: String) -> Set<String> {
         let clean = text.lowercased()

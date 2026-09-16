@@ -1,5 +1,9 @@
 import Foundation
+import Foundation
 import AVFoundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Gestionnaire Audio & Synthèse Vocale Apple Siri Multi-Agents
 public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
@@ -18,9 +22,33 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         super.init()
         synthesizer.delegate = self
         resolveAllDistinctVoices()
+
+        #if canImport(UIKit)
+        // La voix peut être modifiée dans Réglages pendant que Sarah est en
+        // arrière-plan. Au retour dans l'app, on relit la sélection système
+        // pour les prochaines réponses.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshSystemVoiceSelection),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
+        #endif
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    /// Vide le cache afin de relire les voix actuellement disponibles sur l'iPhone.
+    @objc public func refreshSystemVoiceSelection() {
+        agentVoices.removeAll()
+        resolveAllDistinctVoices()
     }
     
-    /// Résolution et assignation stricte d'une voix iOS francophone unique pour chaque agent (zéro doublon)
+    /// Résolution et assignation stricte d'une voix iOS francophone unique pour chaque agent (zéro doublon).
+    /// Les voix désignées par l'utilisateur sont recherchées par identifiant
+    /// disponible sur l'iPhone, jamais par position dans une liste mutable.
     private func resolveAllDistinctVoices() {
         let allVoices = AVSpeechSynthesisVoice.speechVoices()
         var usedIdentifiers = Set<String>()
@@ -35,20 +63,38 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         
         for agent in orderedAgents {
             var selectedVoice: AVSpeechSynthesisVoice? = nil
-            
-            // 1. Essai par identifiant exact configuré dans AgentType
-            if let directVoice = AVSpeechSynthesisVoice(identifier: agent.speechIdentifier),
-               !usedIdentifiers.contains(directVoice.identifier) {
-                selectedVoice = directVoice
+
+            // 1. Voix Apple demandée pour cet agent. Sarah et Nathan ont chacun
+            // leur propre identifiant : ils ne dépendent donc pas du réglage
+            // global actuellement affiché dans Siri.
+            for identifier in agent.preferredSpeechVoiceIdentifiers where selectedVoice == nil {
+                if let directVoice = AVSpeechSynthesisVoice(identifier: identifier),
+                   !usedIdentifiers.contains(directVoice.identifier) {
+                    selectedVoice = directVoice
+                }
             }
             
             // 2. Essai par version enhanced
             if selectedVoice == nil {
-                let enhancedId = agent.speechIdentifier.replacingOccurrences(of: "compact", with: "enhanced")
-                if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId),
-                   !usedIdentifiers.contains(enhancedVoice.identifier) {
-                    selectedVoice = enhancedVoice
+                for identifier in agent.preferredSpeechVoiceIdentifiers {
+                    let enhancedId = identifier.replacingOccurrences(of: "compact", with: "enhanced")
+                    if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId),
+                       !usedIdentifiers.contains(enhancedVoice.identifier) {
+                        selectedVoice = enhancedVoice
+                        break
+                    }
                 }
+            }
+
+            // Si la voix demandée n'est pas encore téléchargée, iOS fournit une
+            // voix France par défaut pour que Sarah reste utilisable. L'écran
+            // À propos indique comment télécharger les voix souhaitées.
+            if selectedVoice == nil,
+               (agent == .sarah || agent == .nathan),
+               let systemFrenchVoice = AVSpeechSynthesisVoice(language: agent.localeCode),
+               normalizedLanguageCode(systemFrenchVoice.language) == "fr-fr",
+               !usedIdentifiers.contains(systemFrenchVoice.identifier) {
+                selectedVoice = systemFrenchVoice
             }
             
             // 3. Essai par noms ciblés de timbres vocaux Siri distincts
@@ -97,8 +143,16 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             usedIdentifiers.insert(finalVoice.identifier)
         }
     }
+
+    private func normalizedLanguageCode(_ language: String) -> String {
+        language
+            .replacingOccurrences(of: "_", with: "-")
+            .lowercased()
+    }
     
-    /// Résout la voix Siri exacte et unique pour l'agent
+    /// Résout la voix de synthèse Apple associée à l'agent.
+    /// Le nom historique est conservé pour compatibilité ; une app tierce n'a pas
+    /// d'API publique pour lire l'identifiant interne de la voix de l'assistant Siri.
     public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
         if let cached = agentVoices[agent] {
             return cached
@@ -110,29 +164,57 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public func getVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice {
         return getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
     }
-    
-    /// Nettoyage et correction phonétique stricte pour la synthèse vocale
+
+    /// Nettoyage du texte sans modifier les noms visibles dans l'interface.
     public func cleanTextForSpeech(_ text: String) -> String {
-        var cleaned = text
+        text
             .replacingOccurrences(of: "*", with: "")
             .replacingOccurrences(of: "#", with: "")
             .replacingOccurrences(of: "`", with: "")
             .replacingOccurrences(of: "—", with: "")
             .replacingOccurrences(of: "•", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Règle de remplacement phonétique stricte : "Yoann" / "Yohan" -> "io-An"
-        let yoannVariants = [
-            "Yoann", "yoann", "YOANN",
-            "Yohan", "yohan", "YOHAN",
-            "Yoan", "yoan", "YOAN",
-            "Yohann", "yohann", "YOHANN"
+    }
+
+    /// Crée une énonciation Apple dont le texte reste inchangé, mais dont les
+    /// noms propres portent une notation IPA. Cela évite que le synthétiseur
+    /// écorche les noms sans afficher une orthographe phonétique à l'utilisateur.
+    public func makeUtterance(text: String) -> AVSpeechUtterance {
+        let cleaned = cleanTextForSpeech(text)
+        let attributedText = NSMutableAttributedString(string: cleaned)
+
+        let pronunciations: [(spellings: [String], ipa: String)] = [
+            (["Sarah", "Sara"], "sa.ʁa"),
+            (["Nathan"], "na.tan"),
+            (["Raphaël", "Raphael"], "ʁa.fa.ɛl"),
+            (["Esther"], "ɛs.tɛʁ"),
+            (["Tom"], "tɔm"),
+            (["Yoann", "Yohan", "Yoan", "Yohann"], "jo.an"),
+            (["Ethel"], "e.tɛl")
         ]
-        for variant in yoannVariants {
-            cleaned = cleaned.replacingOccurrences(of: variant, with: "io-An")
+
+        for pronunciation in pronunciations {
+            for spelling in pronunciation.spellings {
+                let pattern = "(?<![\\p{L}\\p{N}])" +
+                    NSRegularExpression.escapedPattern(for: spelling) +
+                    "(?![\\p{L}\\p{N}])"
+                guard let expression = try? NSRegularExpression(
+                    pattern: pattern,
+                    options: [.caseInsensitive]
+                ) else { continue }
+
+                let range = NSRange(cleaned.startIndex..., in: cleaned)
+                for match in expression.matches(in: cleaned, range: range) {
+                    attributedText.addAttribute(
+                        NSAttributedString.Key(AVSpeechSynthesisIPANotationAttribute),
+                        value: pronunciation.ipa,
+                        range: match.range
+                    )
+                }
+            }
         }
-        
-        return cleaned
+
+        return AVSpeechUtterance(attributedString: attributedText)
     }
     
     /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
@@ -152,7 +234,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
         }
         
-        let utterance = AVSpeechUtterance(string: cleaned)
+        let utterance = makeUtterance(text: cleaned)
         let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
         utterance.voice = resolvedVoice
         
@@ -203,7 +285,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         
         self.pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
-            let agentUtterance = AVSpeechUtterance(string: cleanAgent)
+            let agentUtterance = self.makeUtterance(text: cleanAgent)
             agentUtterance.voice = self.getSiriVoice(for: targetAgent)
             agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
             switch targetAgent {
@@ -217,7 +299,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             self.synthesizer.speak(agentUtterance)
         }
         
-        let sourceUtterance = AVSpeechUtterance(string: cleanTransition)
+        let sourceUtterance = makeUtterance(text: cleanTransition)
         sourceUtterance.voice = getSiriVoice(for: sourceAgent)
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
         switch sourceAgent {

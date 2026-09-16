@@ -10,6 +10,7 @@ public struct MessageList: View {
     public var onSelectSuggestion: ((String) -> Void)?
     public var onIntroduceSarah: (() -> Void)?
     public var onDismissKeyboard: (() -> Void)?
+    public var onOpenStudio: (() -> Void)?
     
     public init(
         messages: [Message],
@@ -18,7 +19,8 @@ public struct MessageList: View {
         onToggleSpeech: ((Message) -> Void)? = nil,
         onSelectSuggestion: ((String) -> Void)? = nil,
         onIntroduceSarah: (() -> Void)? = nil,
-        onDismissKeyboard: (() -> Void)? = nil
+        onDismissKeyboard: (() -> Void)? = nil,
+        onOpenStudio: (() -> Void)? = nil
     ) {
         self.messages = messages
         self.isTyping = isTyping
@@ -27,6 +29,7 @@ public struct MessageList: View {
         self.onSelectSuggestion = onSelectSuggestion
         self.onIntroduceSarah = onIntroduceSarah
         self.onDismissKeyboard = onDismissKeyboard
+        self.onOpenStudio = onOpenStudio
     }
     
     public var body: some View {
@@ -44,7 +47,8 @@ public struct MessageList: View {
                                 isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
                                 onPlayTapped: {
                                     onToggleSpeech?(message)
-                                }
+                                },
+                                onOpenStudio: onOpenStudio
                             )
                             .id(message.id)
                         }

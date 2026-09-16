@@ -13,7 +13,7 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth: CGFloat = 280
+            let sidebarWidth = min(CGFloat(344), geo.size.width * 0.88)
             
             ZStack(alignment: .leading) {
                 // Vue Principale (Chat)
@@ -46,7 +46,8 @@ public struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea()
-            // Geste universel de glissement pour ouvrir (gauche -> droite) et fermer (droite -> gauche)
+            // Le geste d'ouverture commence seulement près du bord gauche : il ne doit pas
+            // voler le défilement normal des messages ou les gestes de saisie.
             .highPriorityGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { value in
@@ -55,7 +56,7 @@ public struct ContentView: View {
                         
                         if !viewModel.isDrawerOpen {
                             // Glissement de la gauche vers la droite pour ouvrir
-                            if horizontal > 0 && abs(horizontal) > abs(vertical) * 0.6 {
+                            if value.startLocation.x <= 28 && horizontal > 0 && abs(horizontal) > abs(vertical) * 0.6 {
                                 let progress = min(horizontal / sidebarWidth, 1.0)
                                 viewModel.drawerProgress = CGFloat(progress)
                             }
@@ -72,7 +73,7 @@ public struct ContentView: View {
                         let vertical = value.translation.height
                         
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                            if !viewModel.isDrawerOpen && horizontal > 40 && abs(horizontal) > abs(vertical) * 0.6 {
+                            if !viewModel.isDrawerOpen && value.startLocation.x <= 28 && horizontal > 40 && abs(horizontal) > abs(vertical) * 0.6 {
                                 viewModel.openDrawer()
                             } else if viewModel.isDrawerOpen && horizontal < -40 {
                                 viewModel.closeDrawer()

@@ -136,6 +136,13 @@ public final class ChatViewModel: ObservableObject {
             self.currentConversationId = nil
             self.messages = []
         }
+
+        // Après une relance complète de l'app, on arrive toujours sur une discussion vierge.
+        // Les anciennes discussions restent disponibles dans le tiroir, sauf après une mise à jour.
+        if SessionTimeoutManager.shared.consumeColdLaunchFreshChatRequest() {
+            startNewChat(silently: true)
+            return
+        }
         aiService.syncHistoryFromMessages(self.messages)
     }
     
@@ -159,16 +166,18 @@ public final class ChatViewModel: ObservableObject {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return conversations.filter { $0.isPinned && !$0.isArchived }
             .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
     
     public var filteredRecentConversations: [Conversation] {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return conversations.filter { !$0.isPinned && !$0.isArchived }
             .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
     
-    public func startNewChat() {
-        haptics.buttonTap()
+    public func startNewChat(silently: Bool = false) {
+        if !silently { haptics.buttonTap() }
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
         let newSessionId = UUID()
@@ -180,7 +189,11 @@ public final class ChatViewModel: ObservableObject {
         drawerProgress = 0.0
         activeAgent = .sarah
         aiService.syncHistoryFromMessages([])
+        SemanticMemoryIndex.shared.clearSessionContext()
+        ConversationContext.shared.reset()
+        SarahBrainEngine.shared.clearSessionHistory()
         SessionTimeoutManager.shared.recordAppBackgroundTime()
+        persistCurrentState()
     }
     
     public func selectConversation(_ conv: Conversation) {
@@ -193,6 +206,9 @@ public final class ChatViewModel: ObservableObject {
         isDrawerOpen = false
         drawerProgress = 0.0
         aiService.syncHistoryFromMessages(conv.messages)
+        SemanticMemoryIndex.shared.clearSessionContext()
+        ConversationContext.shared.reset()
+        SarahBrainEngine.shared.clearSessionHistory()
         persistCurrentState()
     }
     
@@ -243,6 +259,10 @@ public final class ChatViewModel: ObservableObject {
         currentConversationId = nil
         inputText = ""
         aiService.syncHistoryFromMessages([])
+        SemanticMemoryIndex.shared.clearSessionContext()
+        ConversationContext.shared.reset()
+        SarahBrainEngine.shared.clearSessionHistory()
+        SQLiteChatDatabase.shared.clearAllHistory()
         persistCurrentState()
     }
     
@@ -255,6 +275,21 @@ public final class ChatViewModel: ObservableObject {
             }
             persistCurrentState()
         }
+    }
+
+    public func unarchiveConversation(_ conv: Conversation) {
+        haptics.buttonTap()
+        if let index = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[index].isArchived = false
+            persistCurrentState()
+        }
+    }
+
+    public var filteredArchivedConversations: [Conversation] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return conversations.filter { $0.isArchived }
+            .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+            .sorted { $0.updatedAt > $1.updatedAt }
     }
     
     public func openDrawer() {
@@ -394,17 +429,24 @@ public final class ChatViewModel: ObservableObject {
         
         // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
         let currentSelectedAgent = activeAgent
+        let responseConversationID = currentConversationId
         multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
             guard let self = self else { return }
             
             DispatchQueue.main.async {
+                // Une réponse calculée pour une ancienne discussion ne doit jamais réapparaître
+                // dans un nouveau chat après un redémarrage, un archivage ou un changement de fil.
+                guard self.currentConversationId == responseConversationID else { return }
                 // Basculer l'agent actif selon la décision de routage / passation de main
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     self.activeAgent = response.agent
                 }
                 
                 let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
-                let responseContent = rawText.decodingHTMLEntities()
+                var responseContent = rawText.decodingHTMLEntities()
+                if response.openStudio, response.generatedCode != nil {
+                    responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
+                }
                 let aiMessage = Message(content: responseContent, isFromUser: false)
                 self.appendMessage(aiMessage)
                 self.isTyping = false
@@ -414,14 +456,10 @@ public final class ChatViewModel: ObservableObject {
                 self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
                 SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: responseContent, topicType: response.agent.rawValue)
                 
-                // Si Raphaël a généré du code -> préparer pour le studio
+                // Si Raphaël a généré du code, il prépare le studio mais ne l'ouvre jamais
+                // de force. L'utilisateur reste dans le chat et choisit lui-même d'ouvrir le rendu.
                 if let code = response.generatedCode {
                     self.vaiCurrentCode = code
-                    if response.openStudio {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                            self.isShowingVAICodingStudio = true
-                        }
-                    }
                 }
                 
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
@@ -436,7 +474,7 @@ public final class ChatViewModel: ObservableObject {
     }
 
     /// Construit une première version HTML locale depuis le brief rempli avec Raphaël.
-    /// Elle est enregistrée dans l'espace de travail VAI et ouverte dans le studio de prévisualisation.
+    /// Elle est enregistrée dans l'espace de travail VAI ; l'ouverture du studio reste un choix explicite.
     public func completeWebsiteBrief(_ brief: WebsiteBrief) {
         activeAgent = .esther
         let html = VAICodeEngine.shared.generateWebsite(brief: brief)
@@ -445,13 +483,9 @@ public final class ChatViewModel: ObservableObject {
         websiteDraft = brief
         isShowingWebsiteBuilder = false
 
-        let response = "💻 **Raphaël — première version prête**\n\nJ’ai créé la maquette locale de **\(brief.name)** : \(brief.category). Elle est ouverte dans le Studio VAI. Tu peux ensuite me dire ce que tu veux améliorer : les couleurs, les sections, les textes ou la mise en page."
+        let response = "💻 **Raphaël — première version prête**\n\nJ’ai créé la maquette locale de **\(brief.name)** : \(brief.category). Tu peux ensuite me dire ce que tu veux améliorer : les couleurs, les sections, les textes ou la mise en page.\n\n🧩 Ouvrir le Studio"
         appendMessage(Message(content: response, isFromUser: false))
         voiceManager.speak(text: "La première version de \(brief.name) est prête. Dis-moi ensuite ce que tu veux améliorer.", for: .esther)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-            self?.isShowingVAICodingStudio = true
-        }
     }
     
     private func appendMessage(_ msg: Message) {

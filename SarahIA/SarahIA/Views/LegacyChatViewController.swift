@@ -58,15 +58,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         view.backgroundColor = .black
         
         loadSavedData()
+        // Un nouveau processus ne restaure jamais la discussion active à l'écran :
+        // l'historique reste dans `conversations`, mais l'utilisateur arrive sur
+        // une conversation vierge. Le gestionnaire consomme ce signal une seule fois.
+        if SessionTimeoutManager.shared.consumeColdLaunchFreshChatRequest() {
+            openBlankConversation(persistCurrentConversation: false)
+        }
         setupUI()
         setupDrawer()
         setupPanGesture()
         setupSpeechPipeline()
         setupKeyboardObservers()
-        
-        if messages.isEmpty {
-            loadInitialWelcomeMessage()
-        }
     }
     
     // MARK: - Chargement & Sauvegarde
@@ -102,6 +104,18 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         state.currentConversationId = currentConversationId
         StorageService.shared.saveState(state)
         drawerTableView.reloadData()
+    }
+
+    /// Ouvre une discussion vide sans supprimer les conversations archivées dans le tiroir.
+    /// Une conversation n'est ajoutée à l'historique qu'au premier vrai message envoyé.
+    private func openBlankConversation(persistCurrentConversation: Bool) {
+        if persistCurrentConversation {
+            saveCurrentState()
+        }
+
+        currentConversationId = UUID()
+        messages = []
+        activeAgent = .sarah
     }
     
     // MARK: - Configuration Interface
@@ -201,7 +215,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         // Champ texte étendu naturellement
         inputTextField.translatesAutoresizingMaskIntoConstraints = false
         inputTextField.attributedPlaceholder = NSAttributedString(
-            string: "Demander à \(activeAgent.rawValue)...",
+            string: "Demander à \(activeAgent.displayName)...",
             attributes: [NSAttributedString.Key.foregroundColor: UIColor.gray]
         )
         inputTextField.textColor = .white
@@ -349,12 +363,12 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func updateAgentCapsuleTitle() {
-        let title = "● \(activeAgent.rawValue) ▼"
+        let title = "● \(activeAgent.displayName) ▼"
         agentCapsuleButton.setTitle(title, for: .normal)
         agentCapsuleButton.setTitleColor(.white, for: .normal)
         agentCapsuleButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 15)
         inputTextField.attributedPlaceholder = NSAttributedString(
-            string: "Demander à \(activeAgent.rawValue)...",
+            string: "Demander à \(activeAgent.displayName)...",
             attributes: [NSAttributedString.Key.foregroundColor: UIColor.gray]
         )
     }
@@ -592,11 +606,9 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     
     @objc private func startNewChat() {
         HapticService.shared.buttonTap()
-        saveCurrentState()
-        
-        self.currentConversationId = UUID()
-        self.messages = []
-        loadInitialWelcomeMessage()
+        openBlankConversation(persistCurrentConversation: true)
+        tableView.reloadData()
+        updateAgentCapsuleTitle()
         closeDrawerAnimated()
         SessionTimeoutManager.shared.recordAppBackgroundTime()
     }
@@ -615,7 +627,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             if let cid = self.currentConversationId, let idx = self.conversations.firstIndex(where: { $0.id == cid }) {
                 self.conversations[idx].messages.removeAll()
             }
-            self.loadInitialWelcomeMessage()
             self.tableView.reloadData()
             self.saveCurrentState()
             HapticService.shared.notificationSuccess()
@@ -635,7 +646,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let alert = UIAlertController(title: "Sélectionner un Agent", message: "Choisissez l'agent actif :", preferredStyle: .actionSheet)
         
         for agent in AgentType.allCases {
-            alert.addAction(UIAlertAction(title: "\(agent.rawValue) — \(agent.roleDescription)", style: .default, handler: { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "\(agent.displayName) — \(agent.roleDescription)", style: .default, handler: { [weak self] _ in
                 self?.activeAgent = agent
                 self?.updateAgentCapsuleTitle()
                 self?.drawerTableView.reloadData()
@@ -681,7 +692,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             } else {
                 self.inputTextField.isEnabled = true
                 self.inputTextField.attributedPlaceholder = NSAttributedString(
-                    string: "Demander à \(self.activeAgent.rawValue)...",
+                    string: "Demander à \(self.activeAgent.displayName)...",
                     attributes: [NSAttributedString.Key.foregroundColor: UIColor.gray]
                 )
                 self.sendButton.isEnabled = true
@@ -737,10 +748,10 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             self?.updateAgentCapsuleTitle()
             self?.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
         }))
-        alert.addAction(UIAlertAction(title: "💻 Studio VAI Coding & Build (Esther)", style: .default, handler: { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "💻 Studio Raphaël — Code & prototypes", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .esther
             self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Esther, crée une interface interactive")
+            self?.sendMessage("Raphaël, crée une interface interactive")
         }))
         alert.addAction(UIAlertAction(title: "🐙 Se Connecter à GitHub", style: .default, handler: { [weak self] _ in
             self?.activeAgent = .esther
@@ -1357,7 +1368,6 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             } else {
                 currentConversationId = UUID()
                 messages = []
-                loadInitialWelcomeMessage()
             }
             self.tableView.reloadData()
         }
@@ -1596,7 +1606,7 @@ public final class LegacySettingsViewController: UIViewController {
         for agent in AgentType.allCases {
             let btn = UIButton(type: .system)
             btn.translatesAutoresizingMaskIntoConstraints = false
-            btn.setTitle("\(agentIconEmoji(agent)) \(agent.rawValue)", for: .normal)
+            btn.setTitle("\(agentIconEmoji(agent)) \(agent.displayName)", for: .normal)
             btn.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .semibold)
             btn.layer.cornerRadius = 15
             btn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
@@ -1647,7 +1657,7 @@ public final class LegacySettingsViewController: UIViewController {
     
     private func selectAgent(_ agent: AgentType) {
         activeAgent = agent
-        heroTitleLabel.text = "Mode \(agent.rawValue)"
+        heroTitleLabel.text = "Mode \(agent.displayName)"
         heroActiveBadge.backgroundColor = agent.uiColor
         heroSubtitleLabel.text = agent.specialtySubtitle
         heroAvatarCircle.backgroundColor = agent.uiColor.withAlphaComponent(0.20)
@@ -1808,7 +1818,7 @@ public final class LegacySettingsViewController: UIViewController {
             row.addSubview(tStack)
             
             let nameLbl = UILabel()
-            nameLbl.text = "\(agent.rawValue) — Voix Siri \(agent.siriVoiceNumber)"
+            nameLbl.text = "\(agent.displayName) — Voix Siri \(agent.siriVoiceNumber)"
             nameLbl.font = UIFont.systemFont(ofSize: 14, weight: .bold)
             nameLbl.textColor = .white
             
@@ -1829,7 +1839,7 @@ public final class LegacySettingsViewController: UIViewController {
             
             let handler = UIActionHandler {
                 HapticService.shared.buttonTap()
-                MultiAgentVoiceManager.shared.speak(text: "Bonjour ! Je suis \(agent.rawValue).", for: agent)
+                MultiAgentVoiceManager.shared.speak(text: "Bonjour ! Je suis \(agent.displayName).", for: agent)
             }
             objc_setAssociatedObject(speakerBtn, "speak_handler", handler, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             speakerBtn.addTarget(handler, action: #selector(UIActionHandler.invoke), for: .touchUpInside)

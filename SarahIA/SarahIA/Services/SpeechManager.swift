@@ -67,10 +67,11 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
         // 1. Forcer la session audio en mode haut-parleur principal
         AudioSessionManager.shared.configurePlaybackSession()
         
-        let utterance = AVSpeechUtterance(string: cleaned)
+        let utterance = MultiAgentVoiceManager.shared.makeUtterance(text: cleaned)
         
-        // 2. Sélection de la voix féminine française
-        utterance.voice = selectBestFrenchFemaleVoice()
+        // 2. Une éventuelle lecture Sarah par ce service historique doit garder
+        // exactement la même sélection Apple que le chat principal.
+        utterance.voice = MultiAgentVoiceManager.shared.getVoice(for: .sarah)
         utterance.pitchMultiplier = pitch
         utterance.rate = rate
         utterance.volume = 1.0
@@ -100,20 +101,6 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
         onVisemeChanged?(0.0)
         endBackgroundTask()
         onSpeechInterrupted?()
-    }
-    
-    // MARK: - Recherche de Voix Française Standard Garantie
-    
-    private func selectBestFrenchFemaleVoice() -> AVSpeechSynthesisVoice {
-        if let frFR = AVSpeechSynthesisVoice(language: "fr-FR") {
-            return frFR
-        }
-        if let fr = AVSpeechSynthesisVoice(language: "fr") {
-            return fr
-        }
-        return AVSpeechSynthesisVoice.speechVoices().first(where: { $0.language.starts(with: "fr") })
-            ?? AVSpeechSynthesisVoice(language: Locale.current.identifier)
-            ?? AVSpeechSynthesisVoice.speechVoices().first!
     }
     
     // MARK: - Animation Labiale (Visèmes / Morphs)

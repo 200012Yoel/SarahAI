@@ -25,8 +25,137 @@ public struct SettingsView: View {
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
-    
+
+    /// Accueil volontairement proche des réglages iOS : les réglages détaillés
+    /// vivent dans des destinations séparées plutôt que dans une longue page.
     public var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    engineHeader
+                }
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+
+                Section("Réglages") {
+                    NavigationLink(destination: AgentsSettingsView(viewModel: viewModel)) {
+                        SettingsHomeRow(
+                            icon: "person.2.fill",
+                            tint: .sarahIndigo,
+                            title: "Agents",
+                            detail: "Les assistants et leurs rôles"
+                        )
+                    }
+
+                    NavigationLink(destination: ConnectionsSettingsView()) {
+                        SettingsHomeRow(
+                            icon: "link",
+                            tint: .sarahCyan,
+                            title: "Connexions",
+                            detail: "Services disponibles et leur état"
+                        )
+                    }
+
+                    NavigationLink(
+                        destination: VoiceAndSpeechSettingsView(
+                            viewModel: viewModel,
+                            speechRate: $speechRate,
+                            speechPitch: $speechPitch,
+                            vadSensitivity: $vadSensitivity
+                        )
+                    ) {
+                        SettingsHomeRow(
+                            icon: "waveform",
+                            tint: .purple,
+                            title: "Voix et parole",
+                            detail: "Voix, vitesse et microphone"
+                        )
+                    }
+
+                    NavigationLink(
+                        destination: DataAndConversationsSettingsView(
+                            viewModel: viewModel,
+                            onStartNewChat: startNewChatAndDismiss
+                        )
+                    ) {
+                        SettingsHomeRow(
+                            icon: "bubble.left.and.bubble.right.fill",
+                            tint: .orange,
+                            title: "Données et discussions",
+                            detail: "Historique et nouvelle conversation"
+                        )
+                    }
+
+                    NavigationLink(destination: AboutSettingsView()) {
+                        SettingsHomeRow(
+                            icon: "info.circle.fill",
+                            tint: .secondary,
+                            title: "À propos",
+                            detail: "Sarah Engine, version, licences et notices"
+                        )
+                    }
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("Réglages")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Terminé") {
+                        saveVoiceSettingsAndDismiss()
+                    }
+                }
+            }
+        }
+        .onAppear(perform: loadVoiceSettings)
+    }
+
+    private var engineHeader: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.sarahCyan)
+                .frame(width: 42, height: 42)
+                .background(Color.sarahCyan.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Sarah IA tourne sur Sarah Engine.")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("Configurez les agents, les connexions et vos discussions.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func loadVoiceSettings() {
+        let settings = StorageService.shared.loadState().voiceSettings
+        speechRate = Double(settings.speechRate)
+        speechPitch = Double(settings.speechPitch)
+        vadSensitivity = Double(settings.vadSensitivity)
+    }
+
+    private func saveVoiceSettingsAndDismiss() {
+        HapticService.shared.buttonTap()
+        viewModel.saveVoiceSettings(
+            rate: Float(speechRate),
+            pitch: Float(speechPitch),
+            vadSensitivity: Float(vadSensitivity)
+        )
+        presentationMode.wrappedValue.dismiss()
+    }
+
+    private func startNewChatAndDismiss() {
+        HapticService.shared.buttonTap()
+        viewModel.startNewChat()
+        presentationMode.wrappedValue.dismiss()
+    }
+
+    // Conservé temporairement comme référence des anciens réglages détaillés.
+    // L'interface affichée par `body` est désormais l'accueil hiérarchisé ci-dessus.
+    private var legacySettingsBody: some View {
         NavigationView {
             ZStack {
                 Color(red: 0.05, green: 0.05, blue: 0.07)
@@ -460,6 +589,437 @@ public struct SettingsView: View {
             .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Accueil et destinations des réglages
+
+/// Une ligne compacte, inspirée des listes de réglages iOS, réutilisée par
+/// l'accueil pour garder la hiérarchie lisible sans masquer les informations.
+@available(iOS 15.0, *)
+private struct SettingsHomeRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundColor(.primary)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct AgentsSettingsView: View {
+    @ObservedObject var viewModel: ChatViewModel
+
+    var body: some View {
+        List {
+            Section("Agent actif") {
+                HStack(spacing: 12) {
+                    Image(systemName: viewModel.activeAgent.iconName)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(viewModel.activeAgent.themeColor)
+                        .frame(width: 38, height: 38)
+                        .background(viewModel.activeAgent.themeColor.opacity(0.14))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(settingsDisplayName(for: viewModel.activeAgent))
+                            .font(.headline)
+                        Text(viewModel.activeAgent.specialtySubtitle)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
+            Section("Tous les agents") {
+                ForEach(AgentType.allCases) { agent in
+                    HStack(spacing: 8) {
+                        Button {
+                            HapticService.shared.buttonTap()
+                            viewModel.activeAgent = agent
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: agent.iconName)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(agent.themeColor)
+                                    .frame(width: 34, height: 34)
+                                    .background(agent.themeColor.opacity(0.12))
+                                    .clipShape(Circle())
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(settingsDisplayName(for: agent))
+                                        .font(.body.weight(.semibold))
+                                        .foregroundColor(.primary)
+                                    Text(agent.specialtySubtitle)
+                                        .font(.footnote)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                if viewModel.activeAgent == agent {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(agent.themeColor)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Button {
+                            HapticService.shared.buttonTap()
+                            MultiAgentVoiceManager.shared.speak(
+                                text: settingsTestPhrase(for: agent),
+                                for: agent
+                            )
+                        } label: {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(agent.themeColor)
+                                .frame(width: 34, height: 34)
+                                .background(agent.themeColor.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                        .accessibilityLabel("Écouter la voix de \(settingsDisplayName(for: agent))")
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Agents")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct ConnectionsSettingsView: View {
+    private struct Connection: Identifiable {
+        let id: String
+        let icon: String
+        let tint: Color
+        let title: String
+        let detail: String
+        let signInURL: URL
+    }
+
+    private let connections: [Connection] = [
+        Connection(
+            id: "instagram",
+            icon: "camera.fill",
+            tint: Color(red: 0.85, green: 0.15, blue: 0.55),
+            title: "Instagram",
+            detail: "Photos et publications",
+            signInURL: URL(string: "https://www.instagram.com/accounts/login/")!
+        ),
+        Connection(
+            id: "tiktok",
+            icon: "music.note",
+            tint: Color(red: 0.95, green: 0.15, blue: 0.35),
+            title: "TikTok",
+            detail: "Vidéos et publications",
+            signInURL: URL(string: "https://www.tiktok.com/login")!
+        ),
+        Connection(
+            id: "youtube",
+            icon: "play.rectangle.fill",
+            tint: .red,
+            title: "YouTube",
+            detail: "Chaîne et vidéos",
+            signInURL: URL(string: "https://youtube.com")!
+        ),
+        Connection(
+            id: "x",
+            icon: "xmark.circle.fill",
+            tint: .secondary,
+            title: "Twitter / X",
+            detail: "Publications et interactions",
+            signInURL: URL(string: "https://twitter.com/login")!
+        ),
+        Connection(
+            id: "github",
+            icon: "chevron.left.forwardslash.chevron.right",
+            tint: .secondary,
+            title: "GitHub",
+            detail: "Dépôts et code",
+            signInURL: URL(string: "https://github.com/login")!
+        ),
+        Connection(
+            id: "google",
+            icon: "g.circle.fill",
+            tint: Color(red: 0.98, green: 0.45, blue: 0.15),
+            title: "Google / Firebase",
+            detail: "Services et synchronisation",
+            signInURL: URL(string: "https://accounts.google.com")!
+        )
+    ]
+
+    var body: some View {
+        List {
+            Section {
+                Text("Aucun service n’est actuellement authentifié dans Sarah IA. Ouvrir un service affiche sa page de connexion sans le marquer comme connecté dans l’application.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Services") {
+                ForEach(connections) { connection in
+                    Button {
+                        HapticService.shared.buttonTap()
+                        UIApplication.shared.open(connection.signInURL)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: connection.icon)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(connection.tint)
+                                .frame(width: 34, height: 34)
+                                .background(connection.tint.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(connection.title)
+                                    .foregroundColor(.primary)
+                                Text(connection.detail)
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Non configuré")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(.sarahCyan)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityHint("Ouvre la page de connexion de \(connection.title)")
+                }
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Connexions")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct VoiceAndSpeechSettingsView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @Binding var speechRate: Double
+    @Binding var speechPitch: Double
+    @Binding var vadSensitivity: Double
+
+    var body: some View {
+        List {
+            Section("Voix active") {
+                HStack(spacing: 12) {
+                    Image(systemName: viewModel.activeAgent.iconName)
+                        .foregroundColor(viewModel.activeAgent.themeColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(settingsDisplayName(for: viewModel.activeAgent))
+                        Text("\(settingsDisplayName(for: viewModel.activeAgent)) · Voix système Apple")
+                            .font(.caption2)
+                            .foregroundColor(.secondary.opacity(0.72))
+                    }
+                }
+            }
+
+            Section("Parole") {
+                settingSlider(
+                    title: "Vitesse de parole",
+                    value: String(format: "%.2fx", speechRate * 2.0),
+                    binding: $speechRate,
+                    range: 0.35...0.65,
+                    step: 0.01
+                )
+
+                settingSlider(
+                    title: "Hauteur de la voix",
+                    value: String(format: "%.2f", speechPitch),
+                    binding: $speechPitch,
+                    range: 0.80...1.20,
+                    step: 0.01
+                )
+            }
+
+            Section("Microphone") {
+                settingSlider(
+                    title: "Sensibilité de détection vocale",
+                    value: "\(Int(vadSensitivity * 100)) %",
+                    binding: $vadSensitivity,
+                    range: 0.30...0.90,
+                    step: 0.05
+                )
+            }
+
+            Section {
+                Text("Les modifications sont enregistrées lorsque vous touchez Terminé dans les réglages.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Voix et parole")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func settingSlider(
+        title: String,
+        value: String,
+        binding: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value)
+                    .foregroundColor(.secondary)
+            }
+            Slider(value: binding, in: range, step: step)
+                .tint(.sarahCyan)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct DataAndConversationsSettingsView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    let onStartNewChat: () -> Void
+
+    var body: some View {
+        List {
+            Section("Discussion actuelle") {
+                Button(role: .destructive, action: onStartNewChat) {
+                    Label("Réinitialiser la conversation", systemImage: "arrow.counterclockwise")
+                }
+
+                Text("Ouvre une nouvelle discussion vide. Les autres discussions restent accessibles depuis le menu principal.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Historique") {
+                HStack {
+                    Text("Discussions enregistrées")
+                    Spacer()
+                    Text("\(viewModel.conversations.count)")
+                        .foregroundColor(.secondary)
+                }
+                Text("Vous pouvez sélectionner, archiver ou supprimer une discussion depuis le menu du chat.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Comportement de test") {
+                Text("Après l’installation d’une nouvelle version, Sarah IA repart avec des données locales vierges. Après une fermeture complète, l’application ouvre aussi une nouvelle discussion vide. Une reprise après moins d’une heure conserve la discussion en cours.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Données et discussions")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct AboutSettingsView: View {
+    private var appVersion: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "\(shortVersion) (\(build))"
+    }
+
+    var body: some View {
+        List {
+            Section("Sarah IA") {
+                HStack {
+                    Text("Moteur")
+                    Spacer()
+                    Text("Sarah Engine")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(appVersion)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Informations légales") {
+                NavigationLink(destination: LegalNoticesView()) {
+                    SettingsHomeRow(
+                        icon: "doc.text.magnifyingglass",
+                        tint: .sarahCyan,
+                        title: "Licences et notices",
+                        detail: "Composants et attributions distribués"
+                    )
+                }
+            }
+
+            Section("Voix") {
+                Text("Sarah IA utilise les voix Apple disponibles sur cet iPhone. Pour bénéficier de la voix choisie, ouvrez Réglages iPhone > Siri > Voix, choisissez la variation voulue, puis laissez le téléchargement se terminer avant de revenir dans Sarah IA.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("À propos")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private func settingsDisplayName(for agent: AgentType) -> String {
+    agent.displayName
+}
+
+private func settingsTestPhrase(for agent: AgentType) -> String {
+    switch agent {
+    case .sarah:
+        return "Bonjour, je suis Sarah, votre agent pilote."
+    case .nathan:
+        return "Bonjour, je suis Nathan, spécialiste des réseaux et des automatisations."
+    case .esther:
+        return "Bonjour, je suis Raphaël, votre agent développeur."
+    case .tom:
+        return "Bonjour, je suis Tom, votre agent histoire et géopolitique."
+    case .yohan:
+        return "Shalom, je suis Yohan, votre agent de traduction."
+    case .ethel:
+        return "Bonjour, je suis Ethel, votre agent créatif."
     }
 }
 

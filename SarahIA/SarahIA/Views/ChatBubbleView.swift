@@ -7,17 +7,20 @@ public struct ChatBubbleView: View {
     public let message: Message
     public var isSpeaking: Bool
     public var onSpeak: (() -> Void)?
+    public var onOpenStudio: (() -> Void)?
     
     public init(
         message: Message,
         isSpeaking: Bool = false,
         isPlayingAudio: Bool = false,
         onSpeak: (() -> Void)? = nil,
-        onPlayTapped: (() -> Void)? = nil
+        onPlayTapped: (() -> Void)? = nil,
+        onOpenStudio: (() -> Void)? = nil
     ) {
         self.message = message
         self.isSpeaking = isSpeaking || isPlayingAudio
         self.onSpeak = onSpeak ?? onPlayTapped
+        self.onOpenStudio = onOpenStudio
     }
     
     public var body: some View {
@@ -154,6 +157,22 @@ public struct ChatBubbleView: View {
                 if let htmlCode = message.detectedHTMLCode {
                     HTMLPreviewPromptCardView(htmlContent: htmlCode)
                         .frame(maxWidth: 290)
+                }
+
+                // Raphaël peut proposer une prévisualisation sans emprisonner la personne
+                // dans un écran plein format : l'ouverture devient volontaire.
+                if message.content.contains("Ouvrir le Studio") {
+                    Button(action: { onOpenStudio?() }) {
+                        Label("Ouvrir le Studio", systemImage: "chevron.left.forwardslash.chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(red: 0.15, green: 0.52, blue: 0.96))
+                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                    .accessibilityLabel("Ouvrir le Studio Raphaël")
                 }
                 
                 // Carte d'alerte interactive HTML / Map (si présente)

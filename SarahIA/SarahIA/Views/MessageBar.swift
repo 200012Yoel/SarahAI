@@ -34,7 +34,7 @@ public struct MessageBar: View {
         HStack(spacing: 12) {
             // Champ texte étendu naturellement avec Micro intégré à droite de la capsule
             HStack(spacing: 8) {
-                TextField("Demander à \(activeAgent.rawValue)...", text: $text, onCommit: {
+                TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
                     submitMessage()
                 })
                 .foregroundColor(.white)

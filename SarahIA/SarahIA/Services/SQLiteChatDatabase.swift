@@ -200,9 +200,21 @@ public final class SQLiteChatDatabase {
     public func clearAllHistory() {
         dbQueue.async { [weak self] in
             guard let self = self else { return }
-            self.executeRawSQL("DELETE FROM chat_messages;")
-            self.executeRawSQL("DELETE FROM conversations;")
-            self.executeRawSQL("VACUUM;")
+            self.clearAllHistoryLocked()
         }
+    }
+
+    /// Variante synchrone réservée au démarrage après l'installation d'une nouvelle version.
+    /// Le prochain chargement de l'interface ne peut ainsi jamais voir les anciens messages.
+    public func clearAllHistorySynchronously() {
+        dbQueue.sync { [weak self] in
+            self?.clearAllHistoryLocked()
+        }
+    }
+
+    private func clearAllHistoryLocked() {
+        executeRawSQL("DELETE FROM chat_messages;")
+        executeRawSQL("DELETE FROM conversations;")
+        executeRawSQL("VACUUM;")
     }
 }

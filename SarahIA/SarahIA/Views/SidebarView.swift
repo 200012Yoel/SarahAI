@@ -1,221 +1,441 @@
+import Foundation
 import SwiftUI
 
-/// Menu Latéral (Sidebar) Épuré, Élégant et Fluide :
-/// - En-tête bien dégagé sous la barre de statut (Dynamic Island / Encoche / Horloge)
-/// - Titre "Discussions" + Bouton "＋ Nouveau"
-/// - Cartes de discussions modernes avec indicateur actif et suppression au toucher long
-/// - Fond sombre pleine hauteur avec bordure subtile
+/// Tiroir des discussions de Sarah IA.
+///
+/// Conserve les discussions actives, épinglées et archivées dans une présentation
+/// compacte pour iPhone, avec les actions usuelles d'une application de messagerie.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isShowingSettings: Bool
-    
-    @State private var isShowingClearAllAlert: Bool = false
-    
+
+    @State private var isShowingArchives = false
+    @State private var conversationPendingDeletion: Conversation?
+    @State private var isShowingDeleteConfirmation = false
+
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
     }
-    
+
     public var body: some View {
-        GeometryReader { geometry in
-            let windowTop: CGFloat = {
-                if #available(iOS 13.0, *) {
-                    return UIApplication.shared.connectedScenes
-                        .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                        .first?.safeAreaInsets.top ?? 47
-                }
-                return 20
-            }()
-            let topPadding = geometry.safeAreaInsets.top > 0 ? geometry.safeAreaInsets.top : windowTop
-            let bottomInset = max(geometry.safeAreaInsets.bottom, 20)
-            
-            VStack(alignment: .leading, spacing: 18) {
-                // 1. En-tête avec dégagement sécurisé sous la barre de statut
-                HStack(spacing: 12) {
-                    // Logo Sarah — dégradé néon
-                    ZStack {
-                        LinearGradient(
-                            colors: [
-                                Color(red: 1.0, green: 0.18, blue: 0.65),
-                                Color(red: 0.55, green: 0.10, blue: 0.90)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .frame(width: 36, height: 36)
-                        
-                        Text("S")
-                            .font(.system(size: 18, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
+        VStack(spacing: 0) {
+            header
+            newChatButton
+                .padding(.top, 18)
+
+            searchField
+                .padding(.top, 14)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    if isShowingArchives {
+                        archivedHistory
+                    } else {
+                        activeHistory
                     }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Sarah IA")
-                            .font(.system(size: 17, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("Multi-Agents Intelligents")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                    }
-                    
-                    Spacer()
-                    
-                    // Bouton fermer le menu (✕)
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                            viewModel.closeDrawer()
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white.opacity(0.7))
-                            .padding(8)
-                            .background(Color.white.opacity(0.10))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                }
-                .padding(.top, topPadding + 10)
-                .padding(.horizontal, 16)
-                
-                // 2. Titre de section & Bouton Nouveau
-                HStack {
-                    Text("Discussions")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.gray)
-                        .textCase(.uppercase)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        viewModel.startNewChat()
-                        viewModel.closeDrawer()
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .bold))
-                            Text("Nouveau")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.15))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
                 }
                 .padding(.horizontal, 16)
-                
-                // 3. Liste des discussions
-                if viewModel.conversations.isEmpty {
-                    VStack(spacing: 12) {
-                        Spacer()
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(.system(size: 32))
-                            .foregroundColor(.gray.opacity(0.4))
-                        Text("Aucune discussion")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.gray.opacity(0.6))
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(spacing: 8) {
-                            ForEach(viewModel.conversations) { conv in
-                                let isSelected = (viewModel.currentConversationId == conv.id)
-                                let firstQuestion = conv.messages.first(where: { $0.isFromUser })?.content ?? conv.title
-                                
-                                Button(action: {
-                                    HapticService.shared.buttonTap()
-                                    viewModel.selectConversation(conv)
-                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                                        viewModel.closeDrawer()
-                                    }
-                                }) {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: isSelected ? "bubble.left.fill" : "bubble.left")
-                                            .font(.system(size: 13))
-                                            .foregroundColor(isSelected ? Color(red: 0.15, green: 0.72, blue: 1.0) : .gray)
-                                        
-                                        Text(firstQuestion)
-                                            .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                                            .foregroundColor(.white)
-                                            .lineLimit(1)
-                                            .truncationMode(.tail)
-                                        
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 11)
-                                    .background(isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.04))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(isSelected ? Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.5) : Color.white.opacity(0.04), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                .contextMenu {
-                                    Button(role: .destructive, action: {
-                                        HapticService.shared.memoryDeleted()
-                                        viewModel.deleteConversation(conv)
-                                    }) {
-                                        Label("Supprimer la discussion", systemImage: "trash")
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 4)
-                    }
-                }
-                
-                Spacer()
-                
-                // 4. Pied de menu : Accès Réglages
-                HStack {
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        viewModel.closeDrawer()
-                        isShowingSettings = true
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Réglages & Modes")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundColor(.white.opacity(0.8))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(ScaleBounceButtonStyle())
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, bottomInset + 10)
+                .padding(.vertical, 18)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                Color(red: 0.08, green: 0.08, blue: 0.10)
-                    .ignoresSafeArea()
+
+            footer
+        }
+        .padding(.top, 12)
+        .background(Color(.systemBackground).ignoresSafeArea())
+        .confirmationDialog(
+            "Supprimer cette discussion ?",
+            isPresented: $isShowingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Supprimer", role: .destructive) {
+                if let conversationPendingDeletion {
+                    viewModel.deleteConversation(conversationPendingDeletion)
+                }
+                conversationPendingDeletion = nil
+            }
+            Button("Annuler", role: .cancel) {
+                conversationPendingDeletion = nil
+            }
+        } message: {
+            Text("Cette action est définitive.")
+        }
+    }
+
+    // MARK: - En-tête
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(isShowingArchives ? "Archives" : "Discussions")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.primary)
+
+                Text(isShowingArchives ? "Conversations conservées" : "Vos conversations récentes")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.closeDrawer()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.bordered)
+            .tint(.secondary)
+            .accessibilityLabel("Fermer les discussions")
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var newChatButton: some View {
+        Button {
+            viewModel.startNewChat()
+            viewModel.closeDrawer()
+        } label: {
+            Label("Nouveau chat", systemImage: "square.and.pencil")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 50)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .padding(.horizontal, 16)
+        .accessibilityHint("Crée une nouvelle discussion avec Sarah")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+
+            TextField("Rechercher une discussion", text: $viewModel.searchQuery)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+
+            if !viewModel.searchQuery.isEmpty {
+                Button {
+                    viewModel.searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .accessibilityLabel("Effacer la recherche")
+            }
+        }
+        .font(.body)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Historique actif
+
+    @ViewBuilder
+    private var activeHistory: some View {
+        let pinned = viewModel.filteredPinnedConversations.sorted { $0.updatedAt > $1.updatedAt }
+        let recent = viewModel.filteredRecentConversations.sorted { $0.updatedAt > $1.updatedAt }
+
+        if pinned.isEmpty && recent.isEmpty {
+            emptyHistory(
+                icon: viewModel.searchQuery.isEmpty ? "bubble.left.and.bubble.right" : "magnifyingglass",
+                title: viewModel.searchQuery.isEmpty ? "Aucune discussion" : "Aucun résultat",
+                message: viewModel.searchQuery.isEmpty
+                    ? "Commencez un nouveau chat avec Sarah."
+                    : "Essayez un autre mot-clé."
             )
-            .overlay(
-                Rectangle()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 1)
-                    .frame(maxHeight: .infinity),
-                alignment: .trailing
+            if !viewModel.filteredArchivedConversations.isEmpty {
+                archivesLink
+            }
+        } else {
+            conversationSection(
+                title: "Épinglées",
+                systemImage: "pin.fill",
+                conversations: pinned
             )
+
+            conversationSection(
+                title: "Récentes",
+                systemImage: "clock",
+                conversations: recent
+            )
+        }
+
+        archivesLink
+    }
+
+    // MARK: - Archives
+
+    @ViewBuilder
+    private var archivedHistory: some View {
+        Button {
+            HapticService.shared.buttonTap()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isShowingArchives = false
+            }
+        } label: {
+            Label("Retour aux discussions", systemImage: "chevron.left")
+                .font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.accentColor)
+
+        let archived = viewModel.filteredArchivedConversations
+        if archived.isEmpty {
+            emptyHistory(
+                icon: "archivebox",
+                title: "Aucune archive",
+                message: "Les discussions archivées apparaîtront ici."
+            )
+        } else {
+            conversationSection(
+                title: "Archives",
+                systemImage: "archivebox",
+                conversations: archived
+            )
+        }
+    }
+
+    private var archivesLink: some View {
+        Button {
+            HapticService.shared.buttonTap()
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isShowingArchives = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "archivebox")
+                    .font(.body)
+                    .foregroundColor(.accentColor)
+                    .frame(width: 24)
+
+                Text("Archives")
+                    .font(.body.weight(.medium))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                let count = viewModel.filteredArchivedConversations.count
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.secondary)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 50)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Afficher les discussions archivées")
+    }
+
+    // MARK: - Composants d'historique
+
+    @ViewBuilder
+    private func conversationSection(
+        title: String,
+        systemImage: String,
+        conversations: [Conversation]
+    ) -> some View {
+        if !conversations.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(title, systemImage: systemImage)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
+
+                ForEach(conversations) { conversation in
+                    ConversationHistoryRow(
+                        conversation: conversation,
+                        isSelected: viewModel.currentConversationId == conversation.id,
+                        viewModel: viewModel,
+                        onDelete: { requestDeletion(of: conversation) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func emptyHistory(icon: String, title: String, message: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 30, weight: .regular))
+                .foregroundColor(.secondary)
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 46)
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Pied
+
+    private var footer: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.closeDrawer()
+                isShowingSettings = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "gearshape")
+                        .font(.body)
+                        .frame(width: 24)
+
+                    Text("Réglages")
+                        .font(.body.weight(.medium))
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+                .foregroundColor(.primary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 56)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Ouvrir les réglages de Sarah IA")
+        }
+    }
+
+    private func requestDeletion(of conversation: Conversation) {
+        conversationPendingDeletion = conversation
+        isShowingDeleteConfirmation = true
+    }
+}
+
+@available(iOS 15.0, *)
+private struct ConversationHistoryRow: View {
+    let conversation: Conversation
+    let isSelected: Bool
+    @ObservedObject var viewModel: ChatViewModel
+    let onDelete: () -> Void
+
+    private var relativeDate: String {
+        RelativeDateTimeFormatter().localizedString(for: conversation.updatedAt, relativeTo: Date())
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                viewModel.selectConversation(conversation)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: conversation.isPinned ? "pin.fill" : "bubble.left")
+                        .font(.body)
+                        .foregroundColor(isSelected ? .accentColor : .secondary)
+                        .frame(width: 22)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(conversation.title)
+                            .font(.body.weight(isSelected ? .semibold : .regular))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+
+                        HStack(spacing: 5) {
+                            if conversation.isArchived {
+                                Text("Archivée")
+                            } else if conversation.isPinned {
+                                Text("Épinglée")
+                            }
+
+                            Text(relativeDate)
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 12)
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(conversation.title)
+            .accessibilityHint("Ouvrir cette discussion")
+
+            Menu {
+                rowActions
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Actions pour \(conversation.title)")
+        }
+        .background(
+            isSelected ? Color.accentColor.opacity(0.14) : Color(.secondarySystemBackground),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.45) : .clear, lineWidth: 1)
+        }
+        .contextMenu {
+            rowActions
+        }
+    }
+
+    @ViewBuilder
+    private var rowActions: some View {
+        Button {
+            viewModel.togglePinConversation(conversation)
+        } label: {
+            Label(
+                conversation.isPinned ? "Désépingler" : "Épingler",
+                systemImage: conversation.isPinned ? "pin.slash" : "pin"
+            )
+        }
+
+        if conversation.isArchived {
+            Button {
+                viewModel.unarchiveConversation(conversation)
+            } label: {
+                Label("Désarchiver", systemImage: "tray.and.arrow.up")
+            }
+        } else {
+            Button {
+                viewModel.archiveConversation(conversation)
+            } label: {
+                Label("Archiver", systemImage: "archivebox")
+            }
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            onDelete()
+        } label: {
+            Label("Supprimer", systemImage: "trash")
         }
     }
 }

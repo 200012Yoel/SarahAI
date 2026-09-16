@@ -120,17 +120,17 @@ public final class MultiAgentCoordinator {
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
-            💻 **Esther [Synthèse Build & Voice Coding]** : Voix de synthèse build & code, Apple Shortcuts, intégrations web et studio de code.
+            💻 **Raphaël [Développeur]** : Sites web, apps iOS, SwiftUI, scripts, raccourcis Apple et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
             🤖 **Nathan [Réseaux Sociaux & IA]** : Création de contenus, préparation de publications et veille IA.
             ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Esther », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Esther pour le code et le build, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
+                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Raphaël pour le développement, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -149,13 +149,13 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .tom, text: text, spokenText: spoken)
                 
             case .esther:
-                let text = "💻 **Esther [Synthèse Build & Voice Coding]**\n\nJe m'appelle **Esther**, voix de synthèse build & code et architecte logiciel de l'équipe. Je conçois des composants interactifs Web, du code Swift, Python, des raccourcis Apple Shortcuts et je pilote le Studio VAI Coding directement sur votre iPhone."
-                let spoken = "Je m'appelle Esther, voix de synthèse build et code de l'équipe Sarah IA. Je crée du code, des raccourcis Apple et des interfaces interactives. Quel est votre projet de développement ?"
+                let text = "💻 **Raphaël [Développeur]**\n\nJe m'appelle **Raphaël**, l'agent développeur de l'équipe. Je peux préparer des maquettes web, des bases SwiftUI pour iPhone, des scripts Python, des raccourcis Apple et des prototypes à améliorer avec vous dans le chat."
+                let spoken = "Je m'appelle Raphaël, votre agent développeur. Je prépare des sites web, du code iOS SwiftUI, des scripts et des prototypes. Quel est votre projet ?"
                 return AgentResponse(agent: .esther, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Esther, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Esther, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
@@ -457,7 +457,7 @@ public final class MultiAgentCoordinator {
             sourceName = "🌍 **Tom**"
         case .esther:
             transitionLine = "Ça marche, je te la passe tout de suite !"
-            sourceName = "💻 **Esther**"
+            sourceName = "💻 **Raphaël**"
         case .yohan:
             transitionLine = "Beseder Yoël, je te le passe !"
             sourceName = "🇮🇱 **Yohan**"
@@ -484,8 +484,8 @@ public final class MultiAgentCoordinator {
             ))
             
         case .esther:
-            let estherGreeting = "Salut Yoël ! C'est Esther en ligne. Prête pour tes développements, raccourcis Apple, projets Swift et composants web. Quel est ton projet ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n💻 **Esther [Synthèse Build & Voice Coding]** :\n\(estherGreeting)"
+            let estherGreeting = "Salut Yoël ! C'est Raphaël en ligne. Je peux préparer des sites web, des projets SwiftUI, des scripts et des raccourcis Apple. Quel est ton projet ?"
+            let fullText = "\(sourceName) : *\(transitionLine)*\n\n💻 **Raphaël [Développeur]** :\n\(estherGreeting)"
             
             completion(AgentResponse(
                 agent: .esther,
@@ -637,7 +637,7 @@ public final class MultiAgentCoordinator {
             DispatchQueue.main.async {
                 UIApplication.shared.open(authURL, options: [:], completionHandler: nil)
             }
-            let responseText = "💻 **Esther [GitHub Integration & OAuth]**\n\nJ'ai ouvert le portail officiel de connexion GitHub : [github.com/login](\(authURL.absoluteString)).\nUne fois connecté, vos dépôts distants et vos déploiements automatiques seront synchronisés !"
+            let responseText = "💻 **Raphaël [GitHub]**\n\nJ'ai ouvert le portail officiel de connexion GitHub : [github.com/login](\(authURL.absoluteString)).\nUne fois connecté, vos dépôts distants et vos déploiements automatiques pourront être synchronisés."
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
@@ -652,7 +652,7 @@ public final class MultiAgentCoordinator {
             DispatchQueue.main.async {
                 UIApplication.shared.open(mailURL, options: [:], completionHandler: nil)
             }
-            let responseText = "💻 **Esther [Intégration Google & Gmail]**\n\nOuverture de votre messagerie Gmail en cours : [mail.google.com](\(mailURL.absoluteString))."
+            let responseText = "💻 **Raphaël [Google et Gmail]**\n\nOuverture de votre messagerie Gmail en cours : [mail.google.com](\(mailURL.absoluteString))."
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
@@ -669,7 +669,7 @@ public final class MultiAgentCoordinator {
             }
             let manifest = VAICodeEngine.shared.generateGooglePlayManifest(appName: "Sarah IA", packageName: "com.sarahia.app")
             _ = VAICodeEngine.shared.saveFile(filename: "AndroidManifest.xml", content: manifest)
-            let responseText = "💻 **Esther [Google Play Developer Console]**\n\nAccès direct au tableau de bord Google Play Console : [play.google.com/console](\(consoleURL.absoluteString)).\nLe fichier de configuration `AndroidManifest.xml` a été compilé dans votre espace `Documents/VAI_Workspace/`."
+            let responseText = "💻 **Raphaël [Google Play Developer Console]**\n\nAccès direct au tableau de bord Google Play Console : [play.google.com/console](\(consoleURL.absoluteString)).\nLe fichier de configuration `AndroidManifest.xml` a été préparé dans votre espace `Documents/VAI_Workspace/`."
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
@@ -680,26 +680,52 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Esther", prompt: prompt)
-            let responseText = "💻 **Esther [Export Apple Shortcut]**\n\nRaccourci Apple généré et compilé avec succès dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
+            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
+            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
-                spokenText: "Raccourci Apple généré avec succès dans votre espace de travail.",
+                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
                 openStudio: true,
                 generatedCode: json
             ))
         }
-        // 6. Code & Studio VAI Coding par défaut
+        // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
+        // prétendue compilée ici : Raphaël prépare le fichier et laisse le Studio en option.
+        else if lower.contains("swiftui") || lower.contains("swift") || lower.contains("ios") || lower.contains("iphone") || lower.contains("ipad") {
+            let swift = VAICodeEngine.shared.generateSwiftUIStarter(prompt: prompt)
+            _ = VAICodeEngine.shared.saveFile(filename: "RaphaelGeneratedView.swift", content: swift)
+            let responseText = "💻 **Raphaël [Prototype SwiftUI]**\n\nJ’ai préparé une première base SwiftUI pour iPhone dans `Documents/VAI_Workspace/RaphaelGeneratedView.swift`. Décris-moi maintenant les écrans, les données et les actions que tu veux améliorer."
+            completion(AgentResponse(
+                agent: .esther,
+                text: responseText,
+                spokenText: "J'ai préparé une première base SwiftUI. Dis-moi quels écrans et actions tu veux ajouter.",
+                openStudio: true,
+                generatedCode: swift
+            ))
+        }
+        else if lower.contains("python") {
+            let python = VAICodeEngine.shared.generatePythonStarter(prompt: prompt)
+            _ = VAICodeEngine.shared.saveFile(filename: "raphael_prototype.py", content: python)
+            let responseText = "💻 **Raphaël [Prototype Python]**\n\nJ’ai préparé une base Python dans `Documents/VAI_Workspace/raphael_prototype.py`. Dis-moi les entrées, les données et le résultat attendu pour que je l’améliore."
+            completion(AgentResponse(
+                agent: .esther,
+                text: responseText,
+                spokenText: "J'ai préparé une base Python. Dis-moi ce que le programme doit faire exactement.",
+                openStudio: true,
+                generatedCode: python
+            ))
+        }
+        // 7. Projet web par défaut
         else {
             let html = VAICodeEngine.shared.generateWebUI(prompt: prompt)
             _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
             DevCodeInjector.injectRender(html: html, css: "", js: "")
-            let responseText = "💻 **Esther [Studio VAI Coding & Live Preview]**\n\nComposant interactif généré avec succès dans `Documents/VAI_Workspace/index.html`.\nRendu en direct injecté dans l'écran virtuel (Live Preview avec Safe Area et Dynamic Island)."
+            let responseText = "💻 **Raphaël [Prototype web]**\n\nJ’ai préparé un composant web dans `Documents/VAI_Workspace/index.html`. Ouvre le Studio si tu veux voir la prévisualisation, puis demande-moi les améliorations souhaitées."
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
-                spokenText: "C'est codé ! Voici le rendu interactif dans le studio VAI Coding.",
+                spokenText: "Le prototype web est prêt. Tu peux ouvrir le Studio pour le voir, puis me demander des améliorations.",
                 openStudio: true,
                 generatedCode: html
             ))

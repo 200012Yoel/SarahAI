@@ -79,8 +79,13 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     public func startListening() {
         guard !isListening else { return }
         
-        // Arrêter toute synthèse vocale avant d'écouter
+        // Arrêter toute synthèse vocale avant d'écouter, y compris la voix du
+        // chat principal qui passe par AgentVoiceManager.
+        TTSManager.shared.stop()
         SpeechManager.shared.stopSpeaking()
+        if #available(iOS 13.0, *) {
+            TTSService.shared.stopSpeaking()
+        }
         
         // Annuler toute tâche de reconnaissance précédente
         stopListening()
