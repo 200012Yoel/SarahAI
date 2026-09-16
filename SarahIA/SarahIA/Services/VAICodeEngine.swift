@@ -172,6 +172,134 @@ public final class VAICodeEngine {
         """
         return html
     }
+
+    /// Génère une première maquette de site à partir du questionnaire de Raphaël.
+    /// Le résultat reste un fichier HTML local : aucune publication ou URL publique n'est simulée ici.
+    public func generateWebsite(brief: WebsiteBrief) -> String {
+        let siteName = htmlEscaped(brief.name.isEmpty ? "Mon nouveau site" : brief.name)
+        let goal = htmlEscaped(brief.purpose.isEmpty ? "Une expérience claire, élégante et pensée pour vos visiteurs." : brief.purpose)
+        let category = htmlEscaped(brief.category)
+        let audience = htmlEscaped(brief.audience.isEmpty ? "vos visiteurs" : brief.audience)
+        let style = htmlEscaped(brief.visualStyle.isEmpty ? "Moderne" : brief.visualStyle)
+        let colors = websiteColors(for: brief.accent)
+        let sections = brief.sections.isEmpty ? ["Accueil", "À propos", "Produits / services", "Contact"] : brief.sections
+
+        let navigation = sections.map { "<a href=\"#\(htmlEscaped($0).replacingOccurrences(of: " ", with: "-"))\">\(htmlEscaped($0))</a>" }.joined(separator: "")
+        let bodySections = sections.map { section in
+            websiteSection(
+                section,
+                siteName: siteName,
+                goal: goal,
+                audience: audience,
+                accent: colors.primary
+            )
+        }.joined(separator: "\n")
+
+        return """
+        <!doctype html>
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>\(siteName)</title>
+          <style>
+            :root { --accent: \(colors.primary); --accent-2: \(colors.secondary); --ink: #181a25; --muted: #687086; --surface: #ffffff; --soft: #f5f6fb; }
+            * { box-sizing: border-box; }
+            html { scroll-behavior: smooth; }
+            body { margin: 0; background: var(--soft); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+            .shell { max-width: 1120px; margin: auto; padding: 0 22px; }
+            nav { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 22px 0; }
+            .brand { font-weight: 800; font-size: 20px; letter-spacing: -.4px; }
+            .brand span { color: var(--accent); }
+            .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 15px; }
+            .links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 650; }
+            .hero { overflow: hidden; position: relative; padding: 68px 34px; border-radius: 30px; color: white; background: linear-gradient(130deg, var(--accent), var(--accent-2)); box-shadow: 0 22px 55px rgba(38, 25, 95, .20); }
+            .hero:after { content: ""; position: absolute; width: 330px; height: 330px; right: -110px; top: -145px; border: 36px solid rgba(255,255,255,.17); border-radius: 50%; }
+            .eyebrow { position: relative; z-index: 1; margin: 0 0 12px; font-size: 13px; letter-spacing: .09em; text-transform: uppercase; font-weight: 800; opacity: .82; }
+            h1 { position: relative; z-index: 1; max-width: 700px; margin: 0; font-size: clamp(36px, 7vw, 64px); letter-spacing: -2px; line-height: 1.02; }
+            .hero p { position: relative; z-index: 1; max-width: 570px; margin: 21px 0 0; font-size: 18px; opacity: .93; }
+            .cta { position: relative; z-index: 1; display: inline-block; margin-top: 30px; padding: 14px 19px; border: 0; border-radius: 14px; color: var(--accent); background: #fff; font-size: 15px; font-weight: 800; cursor: pointer; }
+            section { margin: 30px 0; padding: 31px; border: 1px solid #e8e9f0; border-radius: 25px; background: var(--surface); }
+            h2 { margin: 0 0 10px; font-size: 25px; letter-spacing: -.5px; }
+            .intro { max-width: 700px; color: var(--muted); }
+            .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; margin-top: 22px; }
+            .card { padding: 19px; background: var(--soft); border-radius: 17px; }
+            .card b { display: block; margin-bottom: 6px; }
+            .card p { margin: 0; font-size: 14px; color: var(--muted); }
+            .quote { padding: 18px; border-left: 4px solid var(--accent); background: var(--soft); border-radius: 0 15px 15px 0; color: var(--muted); }
+            .contact { display: flex; align-items: center; justify-content: space-between; gap: 20px; background: #1d2030; color: #fff; }
+            .contact h2 { color: #fff; }
+            .contact p { margin: 0; color: #c6cad8; }
+            .status { margin-top: 16px; color: #fff; font-weight: 650; }
+            footer { padding: 12px 0 38px; text-align: center; color: #8890a6; font-size: 13px; }
+            @media (max-width: 640px) { nav { align-items: flex-start; flex-direction: column; } .links { justify-content: flex-start; } .hero { padding: 48px 24px; } section { padding: 24px; } .cards { grid-template-columns: 1fr; } .contact { align-items: flex-start; flex-direction: column; } }
+          </style>
+        </head>
+        <body>
+          <main class="shell">
+            <nav><div class="brand">\(siteName)<span>•</span></div><div class="links">\(navigation)</div></nav>
+            <header class="hero">
+              <p class="eyebrow">\(category) · \(style)</p>
+              <h1>\(siteName)</h1>
+              <p>\(goal)</p>
+              <button class="cta" onclick="showContact()">Nous contacter</button>
+              <div id="contact-status" class="status" aria-live="polite"></div>
+            </header>
+            \(bodySections)
+            <footer>Première maquette locale créée avec Raphaël · À améliorer dans Sarah IA</footer>
+          </main>
+          <script>
+            function showContact() {
+              document.getElementById('contact-status').textContent = 'Merci ! La section contact est prête à être personnalisée.';
+            }
+          </script>
+        </body>
+        </html>
+        """
+    }
+
+    private func websiteColors(for accent: String) -> (primary: String, secondary: String) {
+        switch accent.lowercased() {
+        case "bleu": return ("#176BFF", "#00B9E8")
+        case "rose": return ("#D42A8F", "#FF7A75")
+        case "orange": return ("#EA6A24", "#FFB347")
+        case "vert": return ("#13865B", "#51B95B")
+        case "noir & blanc": return ("#24252B", "#5B5E6A")
+        default: return ("#6A35D9", "#A452E9")
+        }
+    }
+
+    private func websiteSection(_ section: String, siteName: String, goal: String, audience: String, accent: String) -> String {
+        let anchor = htmlEscaped(section).replacingOccurrences(of: " ", with: "-")
+        let safeSection = htmlEscaped(section)
+        switch section {
+        case "Accueil":
+            return "<section id=\"\(anchor)\"><h2>Bienvenue</h2><p class=\"intro\">\(goal)</p><div class=\"cards\"><div class=\"card\"><b>Simple</b><p>Une présentation immédiatement compréhensible.</p></div><div class=\"card\"><b>Soigné</b><p>Une expérience pensée pour \(audience).</p></div><div class=\"card\"><b>Évolutif</b><p>Chaque texte, couleur et section peut être amélioré.</p></div></div></section>"
+        case "À propos":
+            return "<section id=\"\(anchor)\"><h2>À propos de \(siteName)</h2><p class=\"intro\">Voici l’espace pour raconter votre histoire, vos valeurs et ce qui rend votre proposition unique.</p></section>"
+        case "Produits / services":
+            return "<section id=\"\(anchor)\"><h2>Nos produits et services</h2><div class=\"cards\"><div class=\"card\"><b>Découvrir</b><p>Présentez votre première offre de façon claire.</p></div><div class=\"card\"><b>Choisir</b><p>Ajoutez les détails, prix ou options utiles.</p></div><div class=\"card\"><b>Contacter</b><p>Guidez les visiteurs vers l’étape suivante.</p></div></div></section>"
+        case "Galerie":
+            return "<section id=\"\(anchor)\"><h2>Galerie</h2><div class=\"cards\"><div class=\"card\"><b>Projet 01</b><p>Ajoutez ici vos meilleures images.</p></div><div class=\"card\"><b>Projet 02</b><p>Montrez votre univers visuel.</p></div><div class=\"card\"><b>Projet 03</b><p>Une galerie prête à être personnalisée.</p></div></div></section>"
+        case "Avis clients":
+            return "<section id=\"\(anchor)\"><h2>Ils nous font confiance</h2><p class=\"quote\">« Ajoutez ici un avis client authentique qui explique votre valeur. »</p></section>"
+        case "FAQ":
+            return "<section id=\"\(anchor)\"><h2>Questions fréquentes</h2><div class=\"cards\"><div class=\"card\"><b>Comment ça marche ?</b><p>Ajoutez votre réponse ici.</p></div><div class=\"card\"><b>Quels sont les délais ?</b><p>Donnez une réponse claire à vos visiteurs.</p></div><div class=\"card\"><b>Comment vous joindre ?</b><p>Indiquez votre moyen de contact préféré.</p></div></div></section>"
+        case "Contact":
+            return "<section id=\"\(anchor)\" class=\"contact\"><div><h2>Parlons de votre projet</h2><p>Une question ? Écrivez-nous, nous vous répondrons rapidement.</p></div><button class=\"cta\" onclick=\"showContact()\">Envoyer un message</button></section>"
+        default:
+            return "<section id=\"\(anchor)\"><h2>\(safeSection)</h2><p class=\"intro\">Cette section est prête à être personnalisée avec votre contenu.</p></section>"
+        }
+    }
+
+    private func htmlEscaped(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+    }
     
     /// Générateur d'Automatisation & Raccourcis Apple (.shortcut / JSON)
     public func generateAppleShortcut(title: String, prompt: String) -> (jsonString: String, shortcutURL: URL?) {
@@ -218,13 +346,14 @@ public final class VAICodeEngine {
         return URL(string: "https://github.com/login")!
     }
     
-    /// Déploie le projet de code actif directement en ligne (GitHub Pages / Hébergement Instantané)
+    /// Prépare un fichier local pour publication.
+    /// Une URL publique ne peut être fournie qu'après une vraie connexion à un hébergeur ou à GitHub.
     public func deployProjectOnline(projectName: String, htmlCode: String) -> (liveURL: String, status: String) {
         let cleanName = projectName.lowercased().replacingOccurrences(of: " ", with: "-")
-        let liveUrl = "https://\(cleanName).github.io"
-        _ = saveFile(filename: "\(cleanName)_deployed.html", content: htmlCode)
-        let statusMsg = "🚀 **Projet Déployé en Direct !**\n\nVotre application a été compilée et mise en ligne avec succès sur le réseau distant.\n\n🔗 **URL Accessible :** \(liveUrl)\n⚡ **Statut :** 200 OK (SSL & CDN Actifs)\n📦 **Fichier source :** `Documents/VAI_Workspace/\(cleanName)_deployed.html`"
-        return (liveUrl, statusMsg)
+        let filename = "\(cleanName)_ready_to_publish.html"
+        _ = saveFile(filename: filename, content: htmlCode)
+        let statusMsg = "📦 **Projet préparé localement**\n\nLe fichier HTML est prêt dans `Documents/VAI_Workspace/\(filename)`.\n\nAucune URL publique n’a été créée : pour le mettre réellement en ligne, il faut connecter un dépôt GitHub ou un hébergeur autorisé, puis lancer une publication."
+        return ("", statusMsg)
     }
     
     /// Génère l'URL et le flux de connexion Google / Gmail

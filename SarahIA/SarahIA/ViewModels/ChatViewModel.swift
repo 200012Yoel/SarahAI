@@ -47,7 +47,9 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSearchActive: Bool = false
     @Published public var isShowingVoiceOrbModal: Bool = false
     @Published public var isShowingVAICodingStudio: Bool = false
+    @Published public var isShowingWebsiteBuilder: Bool = false
     @Published public var vaiCurrentCode: String? = nil
+    @Published public var websiteDraft: WebsiteBrief? = nil
     
     public var isGeneratingResponse: Bool {
         get { isTyping }
@@ -369,6 +371,23 @@ public final class ChatViewModel: ObservableObject {
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         inputText = ""
+
+        // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
+        // Le même parcours sert aussi à reprendre et améliorer la dernière maquette créée.
+        if WebsiteBrief.shouldOpenBuilder(for: text) {
+            let isRefinement = WebsiteBrief.isRefinementRequest(text) && websiteDraft != nil
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                activeAgent = .esther
+            }
+            let guidance = isRefinement
+                ? "💻 **Raphaël** — On reprend ta maquette. Je vais te poser quelques questions pour préparer une version améliorée."
+                : "💻 **Raphaël** — Parfait. Je vais te poser quelques questions rapides, puis je génère une première maquette de site que tu pourras améliorer."
+            appendMessage(Message(content: guidance, isFromUser: false))
+            voiceStatus = .idle
+            isTyping = false
+            isShowingWebsiteBuilder = true
+            return
+        }
         
         isTyping = true
         voiceStatus = .processing
@@ -413,6 +432,25 @@ public final class ChatViewModel: ObservableObject {
                     self.voiceManager.speak(text: spoken, for: response.agent)
                 }
             }
+        }
+    }
+
+    /// Construit une première version HTML locale depuis le brief rempli avec Raphaël.
+    /// Elle est enregistrée dans l'espace de travail VAI et ouverte dans le studio de prévisualisation.
+    public func completeWebsiteBrief(_ brief: WebsiteBrief) {
+        activeAgent = .esther
+        let html = VAICodeEngine.shared.generateWebsite(brief: brief)
+        _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
+        vaiCurrentCode = html
+        websiteDraft = brief
+        isShowingWebsiteBuilder = false
+
+        let response = "💻 **Raphaël — première version prête**\n\nJ’ai créé la maquette locale de **\(brief.name)** : \(brief.category). Elle est ouverte dans le Studio VAI. Tu peux ensuite me dire ce que tu veux améliorer : les couleurs, les sections, les textes ou la mise en page."
+        appendMessage(Message(content: response, isFromUser: false))
+        voiceManager.speak(text: "La première version de \(brief.name) est prête. Dis-moi ensuite ce que tu veux améliorer.", for: .esther)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            self?.isShowingVAICodingStudio = true
         }
     }
     

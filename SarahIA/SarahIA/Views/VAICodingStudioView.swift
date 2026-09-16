@@ -151,11 +151,18 @@ public struct VAICodingStudioView: View {
                 // 4. Barre d'Actions Inférieure
                 HStack(spacing: 8) {
                     Button(action: {
-                        startSampleStreaming(prompt: "dashboard")
+                        if viewModel.websiteDraft != nil {
+                            presentationMode.wrappedValue.dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                viewModel.isShowingWebsiteBuilder = true
+                            }
+                        } else {
+                            startSampleStreaming(prompt: "dashboard")
+                        }
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                            Text("Générer")
+                            Image(systemName: viewModel.websiteDraft == nil ? "sparkles" : "slider.horizontal.3")
+                            Text(viewModel.websiteDraft == nil ? "Générer" : "Améliorer")
                         }
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
@@ -170,7 +177,7 @@ public struct VAICodingStudioView: View {
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "globe")
-                            Text("Mettre en ligne")
+                            Text("Préparer")
                         }
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
@@ -295,11 +302,11 @@ public struct VAICodingStudioView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("🚀 Déploiement en Ligne & Intégrations Développeur")
+                    Text("📦 Publication & intégrations développeur")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                     
-                    Text("Raphaël met votre projet en ligne immédiatement et le connecte à vos plateformes.")
+                    Text("Raphaël prépare le fichier localement. Une publication réelle nécessite ensuite un dépôt ou un hébergeur connecté.")
                         .font(.system(size: 13))
                         .foregroundColor(.gray)
                 }
@@ -307,7 +314,7 @@ public struct VAICodingStudioView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
                 
-                // 1. Bouton Mettre en ligne en 1 clic
+                // 1. Préparation locale, sans fausse promesse d'URL publique
                 Button(action: {
                     deployLiveOnline()
                 }) {
@@ -321,10 +328,10 @@ public struct VAICodingStudioView: View {
                                 .foregroundColor(Color(red: 0.10, green: 0.80, blue: 0.45))
                         }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Mettre en Ligne Directement (Live URL)")
+                            Text("Préparer pour publication")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Déploie votre page HTML/CSS/JS sur le Web mondial")
+                            Text("Enregistre le fichier avant une vraie publication GitHub ou hébergeur")
                                 .font(.system(size: 11))
                                 .foregroundColor(.gray)
                         }

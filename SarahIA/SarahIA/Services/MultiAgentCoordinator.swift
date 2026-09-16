@@ -619,14 +619,14 @@ public final class MultiAgentCoordinator {
         let prompt = clean.isEmpty ? text : clean
         let lower = prompt.lowercased()
         
-        // 1. Déploiement en ligne direct
+        // 1. Préparation de publication : ne jamais inventer une URL publique.
         if lower.contains("met en ligne") || lower.contains("mettre en ligne") || lower.contains("deploie") || lower.contains("deploiement") || lower.contains("deploy") || lower.contains("publie") {
             let currentCode = VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
-            let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
+            let (_, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
             completion(AgentResponse(
                 agent: .esther,
                 text: status,
-                spokenText: "Votre projet a été déployé et mis en ligne avec succès sur \(liveURL).",
+                spokenText: "Le fichier de votre projet est prêt localement. Il faut encore le publier via un hébergeur ou un dépôt connecté.",
                 openStudio: true,
                 generatedCode: currentCode
             ))
