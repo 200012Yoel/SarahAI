@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
         subtitle.setPadding(0, dp(4), 0, dp(12));
         root.addView(subtitle);
 
-        ScrollView scroll = new ScrollView(this);
+        final ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         conversation = new LinearLayout(this);
         conversation.setOrientation(LinearLayout.VERTICAL);
@@ -81,7 +81,6 @@ public final class MainActivity extends Activity {
 
         Button send = new Button(this);
         send.setText("Envoyer");
-        send.setAllCaps(false);
         LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
