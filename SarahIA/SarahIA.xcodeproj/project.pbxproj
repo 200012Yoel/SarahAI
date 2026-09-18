@@ -58,6 +58,7 @@
 		A1B2C3D400010001000000B3 /* GenerativeModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B3 /* GenerativeModelManager.swift */; };
 		A1B2C3D400010001000000C0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000010 /* ZIPFoundation */; };
 		A1B2C3D400010001000000C1 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000011 /* StableDiffusion */; };
+		A1B2C3D400010001000000D0 /* VoiceOrbModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000D0 /* VoiceOrbModalView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -107,6 +108,7 @@
 		W1B2C3D40002000100000050 /* SarahIAWidgetsEntryPoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgetsEntryPoint.swift; sourceTree = "<group>"; };
 		W1B2C3D4000200010000005A /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		W1B2C3D4000200010000005B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D400020001000000D0 /* VoiceOrbModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceOrbModalView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,6 +213,7 @@
 				A1B2C3D40002000100000037 /* MessageList.swift */,
 				A1B2C3D40002000100000038 /* MessageBar.swift */,
 				A1B2C3D40002000100000040 /* LegacyChatViewController.swift */,
+				A1B2C3D400020001000000D0 /* VoiceOrbModalView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -413,6 +416,7 @@
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
 				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 				A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */,
+				A1B2C3D400010001000000D0 /* VoiceOrbModalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
