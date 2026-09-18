@@ -28,94 +28,113 @@ public struct SettingsView: View {
         self.viewModel = viewModel
     }
 
-    /// Accueil volontairement proche des réglages iOS : les réglages détaillés
-    /// vivent dans des destinations séparées plutôt que dans une longue page.
+    /// Accueil des réglages : sombre, compact et cohérent avec le menu latéral.
     public var body: some View {
         NavigationView {
-            List {
-                Section {
-                    engineHeader
-                }
-                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
 
-                Section("Réglages") {
-                    NavigationLink(destination: AgentsSettingsView(viewModel: viewModel)) {
-                        SettingsHomeRow(
-                            icon: "person.2.fill",
-                            tint: .sarahIndigo,
-                            title: "Agents",
-                            detail: "Les assistants et leurs rôles"
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        engineHeader
+
+                        Text("RÉGLAGES")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.42))
+                            .padding(.horizontal, 4)
+
+                        VStack(spacing: 0) {
+                            settingsLink(
+                                destination: AgentsSettingsView(viewModel: viewModel),
+                                icon: "person.2.fill",
+                                tint: .sarahIndigo,
+                                title: "Agents",
+                                detail: "Les assistants et leurs rôles"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: ConnectionsSettingsView(),
+                                icon: "link",
+                                tint: .sarahCyan,
+                                title: "Connexions",
+                                detail: "Services disponibles et leur état"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: VoiceAndSpeechSettingsView(
+                                    viewModel: viewModel,
+                                    speechRate: $speechRate,
+                                    speechPitch: $speechPitch,
+                                    vadSensitivity: $vadSensitivity
+                                ),
+                                icon: "waveform",
+                                tint: .purple,
+                                title: "Voix et parole",
+                                detail: "Voix, vitesse et microphone"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: SarahEngineActivationSettingsView(viewModel: viewModel),
+                                icon: "sparkles",
+                                tint: .pink,
+                                title: "Sarah Engine",
+                                detail: "Activation et mode vocal"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: LocalGenerationSettingsView(),
+                                icon: "wand.and.stars",
+                                tint: .purple,
+                                title: "Création locale",
+                                detail: "Images et vidéo adaptées à l’iPhone"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: DataAndConversationsSettingsView(
+                                    viewModel: viewModel,
+                                    onStartNewChat: startNewChatAndDismiss
+                                ),
+                                icon: "bubble.left.and.bubble.right.fill",
+                                tint: .orange,
+                                title: "Données et discussions",
+                                detail: "Historique et nouvelle conversation"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: AboutSettingsView(),
+                                icon: "info.circle.fill",
+                                tint: .gray,
+                                title: "À propos",
+                                detail: "Version, licences et notices"
+                            )
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(Color.white.opacity(0.085))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
                         )
                     }
-
-                    NavigationLink(destination: ConnectionsSettingsView()) {
-                        SettingsHomeRow(
-                            icon: "link",
-                            tint: .sarahCyan,
-                            title: "Connexions",
-                            detail: "Services disponibles et leur état"
-                        )
-                    }
-
-                    NavigationLink(
-                        destination: VoiceAndSpeechSettingsView(
-                            viewModel: viewModel,
-                            speechRate: $speechRate,
-                            speechPitch: $speechPitch,
-                            vadSensitivity: $vadSensitivity
-                        )
-                    ) {
-                        SettingsHomeRow(
-                            icon: "waveform",
-                            tint: .purple,
-                            title: "Voix et parole",
-                            detail: "Voix, vitesse et microphone"
-                        )
-                    }
-
-                    NavigationLink(destination: SarahEngineActivationSettingsView(viewModel: viewModel)) {
-                        SettingsHomeRow(
-                            icon: "sparkles",
-                            tint: .pink,
-                            title: "Sarah Engine",
-                            detail: "Halo, activation et mode vocal"
-                        )
-                    }
-
-                    NavigationLink(destination: LocalGenerationSettingsView()) {
-                        SettingsHomeRow(
-                            icon: "wand.and.stars",
-                            tint: .purple,
-                            title: "Création locale",
-                            detail: "Images et vidéo sur l’iPhone"
-                        )
-                    }
-
-                    NavigationLink(
-                        destination: DataAndConversationsSettingsView(
-                            viewModel: viewModel,
-                            onStartNewChat: startNewChatAndDismiss
-                        )
-                    ) {
-                        SettingsHomeRow(
-                            icon: "bubble.left.and.bubble.right.fill",
-                            tint: .orange,
-                            title: "Données et discussions",
-                            detail: "Historique et nouvelle conversation"
-                        )
-                    }
-
-                    NavigationLink(destination: AboutSettingsView()) {
-                        SettingsHomeRow(
-                            icon: "info.circle.fill",
-                            tint: .secondary,
-                            title: "À propos",
-                            detail: "Sarah Engine, version, licences et notices"
-                        )
-                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 30)
                 }
             }
-            .listStyle(InsetGroupedListStyle())
             .navigationTitle("Réglages")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -123,31 +142,100 @@ public struct SettingsView: View {
                     Button("Terminé") {
                         saveVoiceSettingsAndDismiss()
                     }
+                    .foregroundColor(viewModel.activeAgent.themeColor)
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear(perform: loadVoiceSettings)
     }
 
     private var engineHeader: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundColor(.sarahCyan)
-                .frame(width: 42, height: 42)
-                .background(Color.sarahCyan.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(spacing: 13) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(Color.sarahCyan.opacity(0.15))
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Sarah IA tourne sur Sarah Engine.")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Text("Configurez les agents, les connexions et vos discussions.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                Image(systemName: "cpu.fill")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundColor(.sarahCyan)
             }
+            .frame(width: 48, height: 48)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Sarah Engine")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text("Agents, voix et modèles locaux")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.white.opacity(0.52))
+            }
+
+            Spacer(minLength: 8)
+
+            Text(HardwareDetector.detectTier() == .highEnd ? "Optimisé" : "Adapté")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.green)
         }
-        .padding(.vertical, 4)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.085))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private var settingsDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.065))
+            .frame(height: 1)
+            .padding(.leading, 62)
+    }
+
+    private func settingsLink<Destination: View>(
+        destination: Destination,
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String
+    ) -> some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 13) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(tint)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(tint.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundColor(.white)
+
+                    Text(detail)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.white.opacity(0.46))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.30))
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 68)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private func loadVoiceSettings() {
