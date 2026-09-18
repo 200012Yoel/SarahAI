@@ -4,7 +4,7 @@ run-name: 🍎 Sarah IA iOS Universel (Build #${{ github.run_number }})
 on:
   push:
     branches:
-      - main
+      - stable-2026-recovery
   workflow_dispatch:
     inputs:
       build_id:
@@ -105,11 +105,11 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/stable-2026-recovery'
         with:
-          tag_name: latest
-          name: "🍎 Sarah IA - Version Universelle (iOS 12.0+ à iOS 18.0+)"
-          body: "Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus et tous les iPhones récents."
+          tag_name: stable-2026
+          name: "🍎 Sarah IA - Stable 2026 (iOS 12.0+)"
+          body: "Snapshot stable basé sur la branche de compatibilité iOS 12 du 20 août 2026. Cette édition est volontairement antérieure aux expérimentations iOS 27 et aux nouveaux runtimes génératifs."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
