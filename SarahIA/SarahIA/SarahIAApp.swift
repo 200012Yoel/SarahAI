@@ -131,10 +131,6 @@ struct OpenSarahVoiceIntent: AppIntent {
     )
     var screenSnapshot: IntentFile?
 
-    static var parameterSummary: some ParameterSummary {
-        Summary("Ouvrir Sarah Intelligence avec \(.$screenSnapshot)")
-    }
-
     func perform() async throws -> some IntentResult {
         if let screenSnapshot {
             let data = screenSnapshot.data
