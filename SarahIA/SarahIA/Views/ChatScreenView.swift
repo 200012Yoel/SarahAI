@@ -58,9 +58,8 @@ public struct ChatScreenView: View {
         .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $isShowingVoice) {
             VoiceOrbModalView(viewModel: viewModel)
-                .presentationDetents([.fraction(0.48), .large])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.hidden)
-                .presentationBackground(.black)
         }
     }
 
