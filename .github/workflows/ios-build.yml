@@ -1,4 +1,5 @@
 name: iOS 27 Local AI Build
+# cold-launch-safe-build
 run-name: iOS 27 Local AI (Build #${{ github.run_number }})
 
 on:
