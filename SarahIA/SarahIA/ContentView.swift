@@ -7,6 +7,7 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @State private var drawerDragStartedOpen: Bool? = nil
 
     public init() {}
 
@@ -139,7 +140,13 @@ public struct ContentView: View {
                 // Laisser les scrolls verticaux du chat tranquilles.
                 guard abs(dx) > abs(dy) * 0.85 else { return }
 
-                if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
+                if drawerDragStartedOpen == nil {
+                    drawerDragStartedOpen = viewModel.isDrawerOpen
+                }
+
+                let startedOpen = drawerDragStartedOpen ?? viewModel.isDrawerOpen
+
+                if startedOpen {
                     // Une fois ouvert, on peut le refermer depuis n'importe où
                     // par un glissement vers la gauche.
                     if dx < 0 {
@@ -159,10 +166,15 @@ public struct ContentView: View {
                         return
                     }
 
+                    // Important : on reste dans le mode "départ fermé" pendant
+                    // tout le geste, même lorsque progress devient > 0.
                     viewModel.drawerProgress = clamp(dx / drawerWidth)
                 }
             }
             .onEnded { value in
+                let startedOpen = drawerDragStartedOpen ?? viewModel.isDrawerOpen
+                drawerDragStartedOpen = nil
+
                 let dx = value.translation.width
                 let dy = value.translation.height
 
@@ -174,7 +186,7 @@ public struct ContentView: View {
                 let projectedX = value.predictedEndTranslation.width
                 let progress = clamp(viewModel.drawerProgress)
 
-                if viewModel.isDrawerOpen {
+                if startedOpen {
                     // Si le doigt part franchement à gauche, on ferme même si
                     // le panneau n'a pas dépassé la moitié du trajet.
                     let shouldClose =
