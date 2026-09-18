@@ -175,34 +175,37 @@ public struct SarahGenerativeModelCatalog {
         let ram = physicalRAMGB
         let os = iosMajor
 
-        if os >= 27 && ram >= 5.5 {
+        guard os >= 27 && ram >= 5.5 else {
             return SarahGenerativeModelProfile(
                 kind: .music,
-                identifier: "stable-audio-open-small-coreai",
-                displayName: "Stable Audio Open Small · Core AI",
-                resolution: "44,1 kHz stéréo · ~11 s",
-                licenseName: "Stability AI Community License",
-                licenseURL: "https://stability.ai/license",
-                sourceURL: "https://github.com/john-rocky/coreai-model-zoo",
-                minimumRAMGB: 5.5,
+                identifier: "music-local-unsupported",
+                displayName: "Musique locale indisponible",
+                resolution: "—",
+                licenseName: "—",
+                licenseURL: "",
+                sourceURL: "",
+                minimumRAMGB: 0,
                 minimumIOSMajor: 27,
-                runtimeState: .requiresDownload,
-                note: "Moteur instrumental réellement local sous iOS 27 via Core AI. Le modèle fait environ 1 Go. Usage commercial gratuit tant que l’organisation reste sous le seuil de revenu prévu par la Stability AI Community License."
+                runtimeState: .unsupported,
+                note: "La génération musicale par modèle nécessite iOS 27 et un budget mémoire suffisant."
             )
         }
 
+        let isHighMemory = ram >= 7.5
         return SarahGenerativeModelProfile(
             kind: .music,
-            identifier: "music-local-unsupported",
-            displayName: "Musique locale indisponible",
-            resolution: "—",
-            licenseName: "—",
-            licenseURL: "",
-            sourceURL: "",
-            minimumRAMGB: 0,
+            identifier: "stable-audio-open-small-coreai",
+            displayName: "Stable Audio Open Small · Core AI",
+            resolution: "44,1 kHz stéréo · ~11 s",
+            licenseName: "Stability AI Community License",
+            licenseURL: "https://stability.ai/license",
+            sourceURL: "https://github.com/john-rocky/coreai-model-zoo",
+            minimumRAMGB: 5.5,
             minimumIOSMajor: 27,
-            runtimeState: .unsupported,
-            note: "La génération musicale par modèle nécessite iOS 27 et un budget mémoire suffisant."
+            runtimeState: isHighMemory ? .requiresDownload : .experimental,
+            note: isHighMemory
+                ? "Moteur instrumental local sous iOS 27 via Core AI. Le modèle fait environ 1 Go."
+                : "Profil iPhone 14 / 6 Go : le moteur Core AI peut être essayé localement, mais ce modèle communautaire n’est pas encore validé sur A15. Sarah l’essaie sans promettre vitesse ni absence de pression mémoire."
         )
     }
 
@@ -247,7 +250,7 @@ public struct SarahGenerativeModelCatalog {
 
         // MOVD fournit un pipeline Core ML et une app iOS de référence, avec
         // une exigence publiée : iPhone 15 Pro ou supérieur, iOS 18+.
-        if os >= 18 && ram >= 7.5 {
+        if os >= 27 && ram >= 7.5 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "movd-coreml",
@@ -257,7 +260,7 @@ public struct SarahGenerativeModelCatalog {
                 licenseURL: "https://github.com/eai-lab/MOVD/blob/main/LICENSE",
                 sourceURL: "https://github.com/eai-lab/MOVD",
                 minimumRAMGB: 7.5,
-                minimumIOSMajor: 18,
+                minimumIOSMajor: 27,
                 runtimeState: .requiresDownload,
                 note: "Profil vidéo pour iPhone 15 Pro et appareils plus puissants. Les poids convertis doivent être audités avant distribution commerciale."
             )
@@ -266,7 +269,7 @@ public struct SarahGenerativeModelCatalog {
         // MobileI2V est très compact (0.27B) et sous Apache-2.0, mais son
         // dépôt public ne fournit pas encore un paquet Core ML iOS prêt à
         // intégrer. On le marque volontairement expérimental sur iPhone 14.
-        if os >= 17 && ram >= 5.5 {
+        if os >= 27 && ram >= 5.5 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "mobilei2v-027b",
@@ -276,7 +279,7 @@ public struct SarahGenerativeModelCatalog {
                 licenseURL: "https://huggingface.co/hustvl/MobileI2V",
                 sourceURL: "https://github.com/hustvl/MobileI2V",
                 minimumRAMGB: 5.5,
-                minimumIOSMajor: 17,
+                minimumIOSMajor: 27,
                 runtimeState: .experimental,
                 note: "Candidat iPhone 14 : 0,27B paramètre et checkpoint d’environ 1,07 Go. Le modèle a été démontré sur mobile, mais le dépôt public ne fournit pas encore un runtime Core ML iOS prêt à intégrer ; Sarah peut télécharger le checkpoint sans prétendre qu’il génère déjà sur iPhone."
             )
