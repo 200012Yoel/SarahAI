@@ -396,18 +396,13 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             }
         }
 
+        DispatchQueue.main.async {
+            self.statusText = "Installation du modèle…"
+        }
+
         try fileManager.unzipItem(
             at: downloadedURL,
-            to: destination,
-            skipCRC32: false,
-            progress: { progress in
-                DispatchQueue.main.async {
-                    self.statusText = String(
-                        format: "Installation du modèle… %.0f %%",
-                        progress.fractionCompleted * 100
-                    )
-                }
-            }
+            to: destination
         )
 
         guard SarahLocalImageGenEngine.shared.discoverResourceDirectory() != nil else {
