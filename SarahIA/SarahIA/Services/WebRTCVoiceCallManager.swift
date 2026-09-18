@@ -182,7 +182,9 @@ public final class WebRTCVoiceCallManager: NSObject {
         if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
+            audioEngine.reset()
         }
+        micEnergy = 0.0
     }
     
     // MARK: - Contrôles Pendant l'Appel
@@ -231,6 +233,16 @@ public final class WebRTCVoiceCallManager: NSObject {
         
         translationPipeline.stopPipeline()
         stopAudioEngineInputTap()
+
+        // Rendre la session audio à iOS à la fin d'un appel. Sans cela,
+        // le téléphone peut rester en mode voiceChat et perturber Siri.
+        let session = AVAudioSession.sharedInstance()
+        try? session.overrideOutputAudioPort(.none)
+        do {
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ [WebRTC] Impossible de libérer AVAudioSession: \(error.localizedDescription)")
+        }
         
         #if canImport(Combine)
         self.callState = .ended(reason: reason)
