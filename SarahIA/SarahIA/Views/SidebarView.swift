@@ -27,6 +27,7 @@ public struct SidebarView: View {
             let titleSize = max(25, min(31, width * 0.085))
             let rowFont = max(16, min(19, width * 0.052))
             let circleSize = max(48, min(58, width * 0.16))
+            let insets = currentSafeAreaInsets
 
             ZStack(alignment: .bottom) {
                 Color.black.ignoresSafeArea()
@@ -35,7 +36,8 @@ public struct SidebarView: View {
                     header(
                         horizontal: horizontal,
                         titleSize: titleSize,
-                        circleSize: circleSize
+                        circleSize: circleSize,
+                        topInset: insets.top
                     )
 
                     if isSearching {
@@ -65,7 +67,8 @@ public struct SidebarView: View {
 
                 footer(
                     horizontal: horizontal,
-                    circleSize: circleSize
+                    circleSize: circleSize,
+                    bottomInset: insets.bottom
                 )
             }
         }
@@ -94,7 +97,8 @@ public struct SidebarView: View {
     private func header(
         horizontal: CGFloat,
         titleSize: CGFloat,
-        circleSize: CGFloat
+        circleSize: CGFloat,
+        topInset: CGFloat
     ) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Text(isShowingArchives ? "Archives" : "Sarah")
@@ -133,7 +137,7 @@ public struct SidebarView: View {
             }
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, 12)
+        .padding(.top, max(12, topInset + 8))
         .padding(.bottom, 4)
     }
 
@@ -315,7 +319,8 @@ public struct SidebarView: View {
 
     private func footer(
         horizontal: CGFloat,
-        circleSize: CGFloat
+        circleSize: CGFloat,
+        bottomInset: CGFloat
     ) -> some View {
         HStack(spacing: 12) {
             Button {
@@ -360,7 +365,7 @@ public struct SidebarView: View {
         }
         .padding(.horizontal, horizontal)
         .padding(.top, 10)
-        .padding(.bottom, 10)
+        .padding(.bottom, max(10, bottomInset + 4))
         .background(
             LinearGradient(
                 colors: [
@@ -395,6 +400,17 @@ public struct SidebarView: View {
             .frame(width: size, height: size)
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var currentSafeAreaInsets: UIEdgeInsets {
+        if #available(iOS 13.0, *) {
+            return UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .safeAreaInsets ?? .zero
+        }
+        return UIApplication.shared.keyWindow?.safeAreaInsets ?? .zero
     }
 
     private func requestDeletion(of conversation: Conversation) {
