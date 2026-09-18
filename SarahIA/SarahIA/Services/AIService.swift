@@ -116,15 +116,53 @@ public final class AIService {
         
         let normalized = normalizeText(trimmed)
         
-        // 0.5 GÉNÉRATION D'IMAGES & PHOTOS HYPER-RÉALISTES ON-DEVICE
+        // 0.4 GÉNÉRATION VIDÉO LOCALE
+        let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        if videoCheck.isIntent {
+            let profile = SarahLocalVideoGenEngine.shared.profile
+            let reply = """
+            🎬 **Création vidéo — \(profile.displayName)**
+
+            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
+
+            Profil sélectionné automatiquement pour cet appareil : **\(profile.displayName)** · \(profile.licenseName).
+            """
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            completion(reply.decodingHTMLEntities())
+            return
+        }
+
+        // 0.5 GÉNÉRATION D'IMAGES
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
-            let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
-            SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
-            let reply = "🎨 **Génération d'Image HD**\n\nCréation de : « **\(prompt)** » avec le modèle d'IA générative photoréaliste.\n\n\(imageURL)"
-            recordExchange(userText: trimmed, assistantResponse: reply)
-            completion(reply.decodingHTMLEntities())
+            let profile = SarahGenerativeModelCatalog.imageProfile()
+
+            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { [weak self] result in
+                guard let self = self else { return }
+
+                let reply: String
+                if result.isSuccess {
+                    let locality = result.modelName.hasPrefix("Cloud ·") ? "via le réseau" : "localement sur l’iPhone"
+                    reply = """
+                    🎨 **Image générée**
+
+                    « **\(prompt)** » a été créée \(locality) avec **\(result.modelName)**.
+                    """
+                } else {
+                    reply = """
+                    🎨 **Création locale indisponible**
+
+                    Sarah a sélectionné **\(profile.displayName)** pour cet appareil, mais la génération n'a pas pu démarrer :
+                    \(result.errorMessage ?? "ressources locales indisponibles").
+
+                    Le fallback réseau est \(OpenSourceImageGenerationService.shared.cloudFallbackEnabled ? "activé" : "désactivé").
+                    """
+                }
+
+                self.recordExchange(userText: trimmed, assistantResponse: reply)
+                completion(reply.decodingHTMLEntities())
+            }
             return
         }
         
@@ -255,13 +293,33 @@ public final class AIService {
             return reply
         }
         
-        // 1.2 GÉNÉRATION D'IMAGES & PHOTOS OPEN SOURCE (Flux / SDXL Turbo)
+        // 1.2 GÉNÉRATION VIDÉO
+        let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        if videoCheck.isIntent {
+            let profile = SarahLocalVideoGenEngine.shared.profile
+            let reply = """
+            🎬 **Création vidéo — \(profile.displayName)**
+
+            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
+            """
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
+        }
+
+        // 1.3 GÉNÉRATION D'IMAGES
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
-            let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+            let profile = SarahGenerativeModelCatalog.imageProfile()
+
             OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
-            let reply = "🎨 **Génération d'Image HD**\n\nCréation de : « **\(prompt)** » avec le modèle **Flux.1 HD**.\n\n\(imageURL)"
+
+            let reply = """
+            🎨 **Création d'image lancée**
+
+            Sarah utilise le profil **\(profile.displayName)** (\(profile.licenseName)).
+            Le réseau n'est utilisé que si le fallback cloud a été activé dans les réglages.
+            """
             recordExchange(userText: trimmed, assistantResponse: reply)
             return reply
         }
