@@ -1022,6 +1022,7 @@ private struct VoiceAndSpeechSettingsView: View {
 @available(iOS 15.0, *)
 private struct LocalGenerationSettingsView: View {
     @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
+    @StateObject private var downloader = GenerativeModelDownloader.shared
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
@@ -1036,14 +1037,16 @@ private struct LocalGenerationSettingsView: View {
                         icon: "photo.fill",
                         tint: .purple,
                         title: "Images",
-                        profile: imageProfile
+                        profile: imageProfile,
+                        kind: .image
                     )
 
                     capabilityCard(
                         icon: "video.fill",
                         tint: .orange,
                         title: "Vidéo",
-                        profile: videoProfile
+                        profile: videoProfile,
+                        kind: .video
                     )
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -1119,7 +1122,8 @@ private struct LocalGenerationSettingsView: View {
         icon: String,
         tint: Color,
         title: String,
-        profile: SarahGenerativeModelProfile
+        profile: SarahGenerativeModelProfile,
+        kind: GenerativeModelDownloader.DownloadKind
     ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -1161,6 +1165,8 @@ private struct LocalGenerationSettingsView: View {
                 .foregroundColor(Color.white.opacity(0.54))
                 .fixedSize(horizontal: false, vertical: true)
 
+            modelInstallControls(profile: profile, kind: kind, tint: tint)
+
             if let source = URL(string: profile.sourceURL), !profile.sourceURL.isEmpty {
                 Link(destination: source) {
                     HStack(spacing: 7) {
@@ -1181,6 +1187,84 @@ private struct LocalGenerationSettingsView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func modelInstallControls(
+        profile: SarahGenerativeModelProfile,
+        kind: GenerativeModelDownloader.DownloadKind,
+        tint: Color
+    ) -> some View {
+        let installed = downloader.isInstalled(kind: kind)
+        let isActive = downloader.isDownloading && downloader.activeKind == kind
+
+        if profile.runtimeState == .unsupported {
+            EmptyView()
+        } else if isActive {
+            VStack(alignment: .leading, spacing: 8) {
+                ProgressView(value: downloader.progress)
+                    .tint(tint)
+
+                HStack {
+                    Text(downloader.statusText)
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.58))
+
+                    Spacer()
+
+                    Text("\(Int(downloader.progress * 100)) %")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(Color.white.opacity(0.58))
+                }
+
+                Button("Annuler") {
+                    downloader.cancel()
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.orange)
+            }
+        } else if installed {
+            HStack(spacing: 8) {
+                Image(systemName: kind == .image ? "checkmark.circle.fill" : "tray.and.arrow.down.fill")
+                Text(kind == .image ? "Modèle local installé" : "Checkpoint local téléchargé")
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(.green)
+        } else {
+            Button {
+                HapticService.shared.buttonTap()
+                if kind == .image {
+                    downloader.startImageModelDownload()
+                } else {
+                    downloader.startVideoModelDownload()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text(
+                        kind == .image
+                            ? "Télécharger le modèle local"
+                            : (profile.identifier == "mobilei2v-027b"
+                                ? "Télécharger MobileI2V"
+                                : "Paquet vidéo non automatisé")
+                    )
+                    Spacer()
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(tint)
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(kind == .video && profile.identifier != "mobilei2v-027b")
+        }
+
+        if !downloader.statusText.isEmpty,
+           !downloader.isDownloading,
+           downloader.activeKind == nil {
+            Text(downloader.statusText)
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.48))
+        }
     }
 
     private func capsule(_ text: String) -> some View {
