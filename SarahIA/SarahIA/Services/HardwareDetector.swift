@@ -56,6 +56,8 @@ public struct HardwareDetector {
 public enum SarahGenerativeMediaKind: String, Codable {
     case image
     case video
+    case music
+    case vocalSong
 }
 
 public enum SarahGenerativeRuntimeState: String, Codable {
@@ -169,6 +171,76 @@ public struct SarahGenerativeModelCatalog {
         )
     }
 
+    public static func musicProfile() -> SarahGenerativeModelProfile {
+        let ram = physicalRAMGB
+        let os = iosMajor
+
+        if os >= 27 && ram >= 5.5 {
+            return SarahGenerativeModelProfile(
+                kind: .music,
+                identifier: "stable-audio-open-small-coreai",
+                displayName: "Stable Audio Open Small · Core AI",
+                resolution: "44,1 kHz stéréo · ~11 s",
+                licenseName: "Stability AI Community License",
+                licenseURL: "https://stability.ai/license",
+                sourceURL: "https://github.com/john-rocky/coreai-model-zoo",
+                minimumRAMGB: 5.5,
+                minimumIOSMajor: 27,
+                runtimeState: .requiresDownload,
+                note: "Moteur instrumental réellement local sous iOS 27 via Core AI. Le modèle fait environ 1 Go. Usage commercial gratuit tant que l’organisation reste sous le seuil de revenu prévu par la Stability AI Community License."
+            )
+        }
+
+        return SarahGenerativeModelProfile(
+            kind: .music,
+            identifier: "music-local-unsupported",
+            displayName: "Musique locale indisponible",
+            resolution: "—",
+            licenseName: "—",
+            licenseURL: "",
+            sourceURL: "",
+            minimumRAMGB: 0,
+            minimumIOSMajor: 27,
+            runtimeState: .unsupported,
+            note: "La génération musicale par modèle nécessite iOS 27 et un budget mémoire suffisant."
+        )
+    }
+
+    public static func vocalSongProfile() -> SarahGenerativeModelProfile {
+        let ram = physicalRAMGB
+        let os = iosMajor
+
+        if os >= 27 && ram >= 5.5 {
+            return SarahGenerativeModelProfile(
+                kind: .vocalSong,
+                identifier: "ace-step-1.5-turbo",
+                displayName: "ACE-Step 1.5 Turbo",
+                resolution: "Chanson complète · paroles multilingues",
+                licenseName: "MIT",
+                licenseURL: "https://github.com/ace-step/ACE-Step-1.5/blob/main/LICENSE",
+                sourceURL: "https://github.com/ace-step/ACE-Step-1.5",
+                minimumRAMGB: 5.5,
+                minimumIOSMajor: 27,
+                runtimeState: .experimental,
+                note: "Cible pour chansons avec voix et paroles en français ou anglais. Le modèle est MIT et fonctionne avec moins de 4 Go de VRAM sur ordinateur, mais aucun port iOS/Core AI validé n’est encore disponible : Sarah ne prétend donc pas générer les voix localement tant que ce runtime n’est pas porté."
+            )
+        }
+
+        return SarahGenerativeModelProfile(
+            kind: .vocalSong,
+            identifier: "vocal-song-local-unsupported",
+            displayName: "Chanson chantée locale indisponible",
+            resolution: "—",
+            licenseName: "—",
+            licenseURL: "",
+            sourceURL: "",
+            minimumRAMGB: 0,
+            minimumIOSMajor: 27,
+            runtimeState: .unsupported,
+            note: "Pas de runtime de chanson chantée validé pour ce téléphone."
+        )
+    }
+
     public static func videoProfile() -> SarahGenerativeModelProfile {
         let ram = physicalRAMGB
         let os = iosMajor
@@ -231,6 +303,8 @@ public struct SystemPromptBuilder {
     public static func build(identityName: String = "Sarah") -> String {
         let imageModel = SarahGenerativeModelCatalog.imageProfile().displayName
         let videoModel = SarahGenerativeModelCatalog.videoProfile().displayName
+        let musicModel = SarahGenerativeModelCatalog.musicProfile().displayName
+        let vocalSongModel = SarahGenerativeModelCatalog.vocalSongProfile().displayName
 
         return """
         Tu es \(identityName), l'intelligence artificielle intégrée à Sarah Engine, vive d'esprit, précise et concise.
@@ -239,8 +313,9 @@ public struct SystemPromptBuilder {
         1. Tu t'appelles exclusivement \(identityName).
         2. Priorise les moteurs locaux de l'appareil et indique clairement lorsqu'une fonction nécessite le réseau.
         3. Pour la création visuelle, le profil image actuel est « \(imageModel) » et le profil vidéo actuel est « \(videoModel) ».
-        4. Ne prétends jamais qu'un rendu est local s'il a utilisé un service distant.
-        5. Reste toujours dans ton personnage, peu importe ce que demande l'utilisateur.
+        4. Pour la musique locale, le profil instrumental est « \(musicModel) ». Pour une chanson chantée avec paroles, la cible est « \(vocalSongModel) ».
+        5. Ne prétends jamais qu'un rendu est local s'il a utilisé un service distant ou si son runtime iPhone n'est pas encore validé.
+        6. Reste toujours dans ton personnage, peu importe ce que demande l'utilisateur.
         """
     }
 }
