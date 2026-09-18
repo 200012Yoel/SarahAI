@@ -1,24 +1,24 @@
 import SwiftUI
+import UIKit
 
-/// Écran principal de discussion 100% natif SwiftUI avec synchronisation dynamique du clavier au-dessus de MessageBar.
-@available(iOS 14.0, *)
+/// Écran principal stable de Sarah avec chat, tiroir et interface vocale dédiée.
+@available(iOS 16.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @StateObject private var keyboard = KeyboardObserver()
-    
+    @State private var isShowingVoice = false
+
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
-    
+
     public var body: some View {
         GeometryReader { geo in
             let bottomInset = geo.safeAreaInsets.bottom
-            
+
             VStack(spacing: 0) {
-                // 1. Topbar Native
                 topBar
-                
-                // 2. Fil de discussion (MessageList)
+
                 MessageList(
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
@@ -36,8 +36,7 @@ public struct ChatScreenView: View {
                         keyboard.dismiss()
                     }
                 )
-                
-                // 3. Barre de saisie (MessageBar) synchronisée au-dessus du clavier
+
                 MessageBar(
                     text: $viewModel.inputText,
                     isRecording: viewModel.isMicRunning,
@@ -45,103 +44,126 @@ public struct ChatScreenView: View {
                         viewModel.sendMessage(text)
                     },
                     onToggleMic: {
-                        viewModel.toggleMicrophone()
+                        keyboard.dismiss()
+                        HapticService.shared.buttonTap()
+                        isShowingVoice = true
                     }
                 )
-                .padding(.bottom, keyboard.keyboardHeight > 0 ? (keyboard.keyboardHeight + 8) : max(16, bottomInset + 8))
+                .padding(.bottom, keyboard.keyboardHeight > 0
+                         ? keyboard.keyboardHeight + 8
+                         : max(14, bottomInset + 8))
             }
             .background(Color.black)
         }
         .ignoresSafeArea(.keyboard)
+        .sheet(isPresented: $isShowingVoice) {
+            VoiceOrbModalView(viewModel: viewModel)
+                .presentationDetents([.fraction(0.48), .large])
+                .presentationDragIndicator(.hidden)
+                .presentationBackground(.black)
+        }
     }
-    
-    // MARK: - Topbar
-    
+
     private var topBar: some View {
-        HStack(alignment: .center) {
-            // Bouton Menu Tiroir (Sidebar)
-            Button(action: {
+        HStack(alignment: .center, spacing: 12) {
+            Button {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 viewModel.openDrawer()
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
             }
             .buttonStyle(ScaleBounceButtonStyle())
-            
-            Spacer()
-            
-            // Titre & Indicateur d'état Sarah IA
-            VStack(spacing: 2) {
-                Text("Sarah IA")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sarah")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                
+
                 HStack(spacing: 5) {
                     Circle()
                         .fill(statusColor)
                         .frame(width: 6, height: 6)
-                    
+
                     Text(statusText)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.6))
+                        .foregroundColor(Color.white.opacity(0.52))
                 }
             }
-            
+
             Spacer()
-            
-            // Bouton Nouvelle Discussion
-            Button(action: {
+
+            Button {
+                keyboard.dismiss()
+                HapticService.shared.buttonTap()
+                isShowingVoice = true
+            } label: {
+                Image(systemName: "waveform")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle().fill(
+                            LinearGradient(
+                                colors: [Color.pink.opacity(0.78), Color.purple.opacity(0.76)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    )
+            }
+            .buttonStyle(ScaleBounceButtonStyle())
+
+            Button {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 viewModel.startNewChat()
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.11, green: 0.11, blue: 0.12))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
             }
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
-        .padding(.top, 50)
-        .padding(.bottom, 6)
+        .padding(.top, max(10, topSafeArea + 4))
+        .padding(.bottom, 8)
+        .background(Color.black.opacity(0.96))
     }
-    
+
+    private var topSafeArea: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .safeAreaInsets.top ?? 20
+    }
+
     private var statusColor: Color {
         if viewModel.isMicRunning {
-            return .red
+            return .pink
         } else if viewModel.isSpeaking {
             return .cyan
         } else if viewModel.isTyping {
             return .yellow
-        } else {
-            return .green
         }
+        return .green
     }
-    
+
     private var statusText: String {
         if viewModel.isMicRunning {
-            return "Écoute en direct..."
+            return "Écoute"
         } else if viewModel.isSpeaking {
-            return "Parle..."
+            return "Sarah parle"
         } else if viewModel.isTyping {
-            return "Réflexion..."
-        } else {
-            return "Prête"
+            return "Réflexion"
         }
+        return "Prête"
     }
 }
