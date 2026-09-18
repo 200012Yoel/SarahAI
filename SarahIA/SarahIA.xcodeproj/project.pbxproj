@@ -52,6 +52,12 @@
 		W1B2C3D40001000100000051 /* SarahWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000033 /* SarahWidgets.swift */; };
 		W1B2C3D40001000100000052 /* SarahWidgetBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000002A /* SarahWidgetBridge.swift */; };
 		W1B2C3D4000100010000005A /* SarahIAWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = W1B2C3D4000200010000005A /* SarahIAWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D400010001000000B0 /* GenerativeModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B0 /* GenerativeModelCatalog.swift */; };
+		A1B2C3D400010001000000B1 /* SarahLocalImageGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalImageGenEngine.swift */; };
+		A1B2C3D400010001000000B2 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B2 /* SarahLocalMusicGenEngine.swift */; };
+		A1B2C3D400010001000000B3 /* GenerativeModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B3 /* GenerativeModelManager.swift */; };
+		A1B2C3D400010001000000C0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000010 /* ZIPFoundation */; };
+		A1B2C3D400010001000000C1 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000011 /* StableDiffusion */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -108,6 +114,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D400010001000000C0 /* ZIPFoundation in Frameworks */,
+				A1B2C3D400010001000000C1 /* StableDiffusion in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -181,6 +189,10 @@
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
 				A1B2C3D40002000100000039 /* KeyboardObserver.swift */,
+				A1B2C3D400020001000000B0 /* GenerativeModelCatalog.swift */,
+				A1B2C3D400020001000000B1 /* SarahLocalImageGenEngine.swift */,
+				A1B2C3D400020001000000B2 /* SarahLocalMusicGenEngine.swift */,
+				A1B2C3D400020001000000B3 /* GenerativeModelManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -279,6 +291,10 @@
 				W1B2C3D40004000100000002 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
+			packageProductDependencies = (
+				A1B2C3D4000B000100000010 /* ZIPFoundation */,
+				A1B2C3D4000B000100000011 /* StableDiffusion */,
+			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
 			productType = "com.apple.product-type.application";
@@ -327,6 +343,10 @@
 				Base,
 			);
 			mainGroup = A1B2C3D40004000100000001;
+			packageReferences = (
+				A1B2C3D4000A000100000010 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				A1B2C3D4000A000100000011 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+			);
 			productRefGroup = A1B2C3D40004000100000007 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -393,6 +413,10 @@
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
 				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 				A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */,
+				A1B2C3D400010001000000B0 /* GenerativeModelCatalog.swift in Sources */,
+				A1B2C3D400010001000000B1 /* SarahLocalImageGenEngine.swift in Sources */,
+				A1B2C3D400010001000000B2 /* SarahLocalMusicGenEngine.swift in Sources */,
+				A1B2C3D400010001000000B3 /* GenerativeModelManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
