@@ -187,25 +187,22 @@ public struct SarahGenerativeModelCatalog {
                 minimumRAMGB: 0,
                 minimumIOSMajor: 27,
                 runtimeState: .unsupported,
-                note: "La génération musicale par modèle nécessite iOS 27 et un budget mémoire suffisant."
+                note: "La génération musicale locale nécessite iOS 27 et environ 6 Go de RAM."
             )
         }
 
-        let isHighMemory = ram >= 7.5
         return SarahGenerativeModelProfile(
             kind: .music,
-            identifier: "stable-audio-open-small-coreai",
-            displayName: "Stable Audio Open Small · Core AI",
-            resolution: "44,1 kHz stéréo · ~11 s",
+            identifier: "stable-audio-open-small-coreml",
+            displayName: "Stable Audio Open Small · Core ML",
+            resolution: "44,1 kHz stéréo · jusqu’à ~11,5 s",
             licenseName: "Stability AI Community License",
             licenseURL: "https://stability.ai/license",
-            sourceURL: "https://github.com/john-rocky/coreai-model-zoo",
+            sourceURL: "https://github.com/john-rocky/CoreML-Models/tree/main/sample_apps/StableAudioDemo",
             minimumRAMGB: 5.5,
             minimumIOSMajor: 27,
-            runtimeState: isHighMemory ? .requiresDownload : .experimental,
-            note: isHighMemory
-                ? "Moteur instrumental local sous iOS 27 via Core AI. Le modèle fait environ 1 Go."
-                : "Profil iPhone 14 / 6 Go : le moteur Core AI peut être essayé localement, mais ce modèle communautaire n’est pas encore validé sur A15. Sarah l’essaie sans promettre vitesse ni absence de pression mémoire."
+            runtimeState: .requiresDownload,
+            note: "Profil iPhone 14 : environ 580 Mo de modèles Core ML téléchargés à la demande. Le DiT INT8 utilise CPU + GPU afin de limiter la mémoire tout en gardant une qualité musicale correcte."
         )
     }
 
