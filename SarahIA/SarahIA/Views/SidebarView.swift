@@ -1,294 +1,363 @@
 import SwiftUI
+import UIKit
 
-/// Sidebar (Menu Latéral) Pixel-Perfect 100% Natif SwiftUI reproduisant fidèlement la maquette HTML/CSS.
-@available(iOS 14.0, *)
+/// Menu latéral moderne de Sarah, inspiré de la structure de ChatGPT
+/// tout en conservant l'identité visuelle Sarah.
+@available(iOS 16.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isShowingSettings: Bool
-    
-    @State private var conversationToRename: Conversation? = nil
-    @State private var newTitleText: String = ""
-    @State private var isShowingRenameAlert: Bool = false
-    
+
+    @State private var isSearching = false
+    @State private var isShowingArchives = false
+    @State private var conversationPendingDeletion: Conversation?
+
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
     }
-    
+
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = geo.size.width * 0.78
-            
-            ZStack(alignment: .topLeading) {
-                // Background #000
+            let width = max(CGFloat(280), geo.size.width)
+            let horizontal = max(CGFloat(16), min(CGFloat(24), width * 0.055))
+            let circle = max(CGFloat(48), min(CGFloat(58), width * 0.16))
+
+            ZStack(alignment: .bottom) {
                 Color.black.ignoresSafeArea()
-                
-                VStack(alignment: .leading, spacing: 0) {
-                    // Header: Titre "Sarah IA" + Bouton Recherche Circulaire 44pt
-                    HStack(alignment: .center) {
-                        Text("Sarah IA")
-                            .font(.system(size: 30, weight: .bold))
-                            .foregroundColor(.white)
-                            .tracking(-0.5)
-                        
-                        Spacer()
-                        
-                        // Bouton recherche circulaire 44x44
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                viewModel.isSearchActive.toggle()
-                                if !viewModel.isSearchActive {
-                                    viewModel.searchQuery = ""
-                                }
-                            }
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
-                                
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 19, weight: .medium))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
+
+                VStack(spacing: 0) {
+                    header(horizontal: horizontal, circle: circle)
+
+                    if isSearching {
+                        searchField(horizontal: horizontal)
+                            .padding(.top, 8)
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 50)
-                    .padding(.bottom, 6)
-                    
-                    // Barre de Recherche Animée (.sb-search.on)
-                    if viewModel.isSearchActive {
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58))
-                                .font(.system(size: 15))
-                            
-                            TextField("Rechercher", text: $viewModel.searchQuery)
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                            
-                            if !viewModel.searchQuery.isEmpty {
-                                Button(action: {
-                                    viewModel.searchQuery = ""
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
-                                        .font(.system(size: 16))
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 40)
-                        .background(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                        .cornerRadius(12)
-                        .padding(.horizontal, 18)
-                        .padding(.bottom, 12)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                    
-                    // Liste Déroulante des Discussions (.sb-scroll)
+
                     ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Section Épinglés
-                            if !viewModel.filteredPinnedConversations.isEmpty {
-                                Text("Épinglés")
-                                    .font(.system(size: 21, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .tracking(-0.3)
-                                    .padding(.horizontal, 24)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 6)
-                                
-                                ForEach(viewModel.filteredPinnedConversations) { conv in
-                                    conversationRow(conv, isPinned: true)
-                                }
-                            }
-                            
-                            // Section Récents
-                            Text("Récents")
-                                .font(.system(size: 21, weight: .bold))
-                                .foregroundColor(.white)
-                                .tracking(-0.3)
-                                .padding(.horizontal, 24)
-                                .padding(.top, viewModel.filteredPinnedConversations.isEmpty ? 10 : 26)
-                                .padding(.bottom, 6)
-                            
-                            if viewModel.filteredRecentConversations.isEmpty {
-                                Text(viewModel.searchQuery.isEmpty ? "Aucune discussion." : "Aucun résultat.")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Color(red: 0.56, green: 0.56, blue: 0.58)) // #8e8e93
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 14)
+                        LazyVStack(alignment: .leading, spacing: 22) {
+                            if isShowingArchives {
+                                archivedSection(horizontal: horizontal)
                             } else {
-                                ForEach(viewModel.filteredRecentConversations) { conv in
-                                    conversationRow(conv, isPinned: false)
-                                }
+                                activeSections(horizontal: horizontal)
                             }
-                            
-                            // Espace pour éviter que le contenu ne soit caché par les boutons du bas
-                            Spacer()
-                                .frame(height: 130)
                         }
+                        .padding(.top, 18)
+                        .padding(.bottom, 112)
                     }
                 }
-                .frame(width: sidebarWidth, alignment: .leading)
-                
-                // Barre Inférieure (.sb-bottom) avec dégradé
-                VStack {
-                    Spacer()
-                    
-                    HStack {
-                        // Bouton Pill Bleu "Chat" (#btnNewChat)
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            viewModel.startNewChat()
-                            viewModel.switchToChat()
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 20, weight: .semibold))
-                                
-                                Text("Chat")
-                                    .font(.system(size: 20, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.leading, 22)
-                            .padding(.trailing, 26)
-                            .padding(.vertical, 14)
-                            .background(Color(red: 0.04, green: 0.52, blue: 1.0)) // #0a84ff
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                        
-                        Spacer()
-                        
-                        // Bouton Circulaire Paramètres (#btnSettings)
-                        Button(action: {
-                            HapticService.shared.buttonTap()
-                            isShowingSettings = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.11, green: 0.11, blue: 0.12)) // #1c1c1e
-                                    .frame(width: 44, height: 44)
-                                
-                                Image(systemName: "gearshape")
-                                    .font(.system(size: 20, weight: .regular))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .buttonStyle(ScaleBounceButtonStyle())
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 14)
-                    .padding(.bottom, 34)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.black.opacity(0.0),
-                                Color.black.opacity(0.95),
-                                Color.black
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                }
-                .frame(width: sidebarWidth)
+
+                footer(horizontal: horizontal, circle: circle)
             }
         }
-        // Modale Native de Renommage
-        .alert("Renommer la discussion", isPresented: $isShowingRenameAlert) {
-            TextField("Nouveau titre", text: $newTitleText)
-            Button("Annuler", role: .cancel) {
-                conversationToRename = nil
+        .preferredColorScheme(.dark)
+        .confirmationDialog(
+            "Supprimer cette discussion ?",
+            item: $conversationPendingDeletion
+        ) { conversation in
+            Button("Supprimer", role: .destructive) {
+                viewModel.deleteConversation(conversation)
             }
-            Button("Renommer") {
-                if let conv = conversationToRename {
-                    viewModel.renameConversation(conv, newTitle: newTitleText)
-                }
-                conversationToRename = nil
-            }
-        } message: {
-            Text("Saisissez un nouveau titre.")
+            Button("Annuler", role: .cancel) {}
+        } message: { _ in
+            Text("Cette action est définitive.")
         }
     }
-    
-    // MARK: - Ligne de Discussion (.conv)
-    
-    @ViewBuilder
-    private func conversationRow(_ conv: Conversation, isPinned: Bool) -> some View {
-        let isSelected = (viewModel.currentConversationId == conv.id)
-        
-        Button(action: {
-            HapticService.shared.buttonTap()
-            viewModel.selectConversation(conv)
-            viewModel.closeDrawer()
-        }) {
-            HStack(spacing: 20) {
-                if isPinned {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white.opacity(0.85))
+
+    private func header(horizontal: CGFloat, circle: CGFloat) -> some View {
+        HStack(spacing: 12) {
+            Text(isShowingArchives ? "Archives" : "Sarah")
+                .font(.system(size: 29, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+
+            Spacer()
+
+            Button {
+                HapticService.shared.buttonTap()
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                    if isShowingArchives {
+                        isShowingArchives = false
+                    } else {
+                        isSearching.toggle()
+                        if !isSearching {
+                            viewModel.searchQuery = ""
+                        }
+                    }
                 }
-                
-                Text(conv.title)
-                    .font(.system(size: 19, weight: .regular))
-                    .tracking(-0.2)
+            } label: {
+                Image(systemName: isShowingArchives ? "chevron.left" : (isSearching ? "xmark" : "magnifyingglass"))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white)
-                    .lineLimit(1)
-                
-                Spacer()
+                    .frame(width: circle, height: circle)
+                    .background(Circle().fill(Color.white.opacity(0.10)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
-            .background(isSelected ? Color.white.opacity(0.09) : Color.clear)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
         }
-        .buttonStyle(PlainButtonStyle())
-        // Menu Contextuel Natif iOS (.ctxMenu)
-        .contextMenu {
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.togglePinConversation(conv)
-            } label: {
-                Label(conv.isPinned ? "Détacher" : "Épingler", systemImage: conv.isPinned ? "pin.slash" : "pin")
-            }
-            
-            Button {
-                HapticService.shared.buttonTap()
-                conversationToRename = conv
-                newTitleText = conv.title
-                isShowingRenameAlert = true
-            } label: {
-                Label("Renommer", systemImage: "square.and.pencil")
-            }
-            
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.archiveConversation(conv)
-            } label: {
-                Label("Archiver", systemImage: "archivebox")
-            }
-            
-            Button(role: .destructive) {
-                HapticService.shared.bargeIn()
-                viewModel.deleteConversation(conv)
-            } label: {
-                Label("Supprimer", systemImage: "trash")
+        .padding(.horizontal, horizontal)
+        .padding(.top, max(18, currentSafeAreaInsets.top + 8))
+        .padding(.bottom, 4)
+    }
+
+    private func searchField(horizontal: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(Color.white.opacity(0.46))
+
+            TextField("Rechercher", text: $viewModel.searchQuery)
+                .foregroundColor(.white)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+
+            if !viewModel.searchQuery.isEmpty {
+                Button {
+                    viewModel.searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(Color.white.opacity(0.35))
+                }
+                .buttonStyle(.plain)
             }
         }
+        .padding(.horizontal, 14)
+        .frame(height: 48)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.10))
+        )
+        .padding(.horizontal, horizontal)
+    }
+
+    @ViewBuilder
+    private func activeSections(horizontal: CGFloat) -> some View {
+        let pinned = viewModel.filteredPinnedConversations.sorted { $0.updatedAt > $1.updatedAt }
+        let recent = viewModel.filteredRecentConversations.sorted { $0.updatedAt > $1.updatedAt }
+
+        if !pinned.isEmpty {
+            conversationSection(title: "Épinglés", conversations: pinned, horizontal: horizontal)
+        }
+
+        conversationSection(
+            title: "Récents",
+            conversations: recent,
+            horizontal: horizontal
+        )
+
+        if !viewModel.filteredArchivedConversations.isEmpty {
+            Button {
+                HapticService.shared.buttonTap()
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isShowingArchives = true
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "archivebox")
+                        .frame(width: 24)
+                    Text("Archives")
+                        .font(.system(size: 17))
+                    Spacer()
+                    Text("\(viewModel.filteredArchivedConversations.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.40))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, horizontal)
+                .frame(height: 48)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func archivedSection(horizontal: CGFloat) -> some View {
+        let archived = viewModel.filteredArchivedConversations.sorted { $0.updatedAt > $1.updatedAt }
+
+        if archived.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Archives")
+                    .sectionHeader()
+                Text("Aucune discussion archivée.")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color.white.opacity(0.42))
+            }
+            .padding(.horizontal, horizontal)
+        } else {
+            conversationSection(title: "Archives", conversations: archived, horizontal: horizontal)
+        }
+    }
+
+    private func conversationSection(
+        title: String,
+        conversations: [Conversation],
+        horizontal: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .sectionHeader()
+                .padding(.horizontal, horizontal)
+
+            VStack(spacing: 4) {
+                if conversations.isEmpty && title == "Récents" {
+                    Text("Aucune discussion pour le moment.")
+                        .font(.system(size: 15))
+                        .foregroundColor(Color.white.opacity(0.42))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, horizontal)
+                        .padding(.vertical, 8)
+                } else {
+                    ForEach(conversations) { conversation in
+                        conversationRow(conversation, horizontal: horizontal)
+                    }
+                }
+            }
+        }
+    }
+
+    private func conversationRow(_ conversation: Conversation, horizontal: CGFloat) -> some View {
+        HStack(spacing: 2) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.selectConversation(conversation)
+                viewModel.closeDrawer()
+            } label: {
+                HStack(spacing: 11) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 17))
+                        .frame(width: 24)
+
+                    Text(conversation.title)
+                        .font(.system(size: 17))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Spacer(minLength: 0)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 13)
+                .frame(height: 48)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Button {
+                    viewModel.togglePinConversation(conversation)
+                } label: {
+                    Label(conversation.isPinned ? "Désépingler" : "Épingler",
+                          systemImage: conversation.isPinned ? "pin.slash" : "pin")
+                }
+
+                if conversation.isArchived {
+                    Button {
+                        viewModel.unarchiveConversation(conversation)
+                    } label: {
+                        Label("Désarchiver", systemImage: "tray.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        viewModel.archiveConversation(conversation)
+                    } label: {
+                        Label("Archiver", systemImage: "archivebox")
+                    }
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    conversationPendingDeletion = conversation
+                } label: {
+                    Label("Supprimer", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.46))
+                    .frame(width: 40, height: 44)
+            }
+        }
+        .padding(.horizontal, max(8, horizontal - 8))
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(
+                    viewModel.currentConversationId == conversation.id
+                    ? Color.white.opacity(0.12)
+                    : Color.clear
+                )
+        )
+    }
+
+    private func footer(horizontal: CGFloat, circle: CGFloat) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.startNewChat()
+                viewModel.closeDrawer()
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil")
+                    Text("Chat")
+                        .fontWeight(.bold)
+                }
+                .font(.system(size: 17))
+                .foregroundColor(.white)
+                .padding(.horizontal, 22)
+                .frame(height: circle)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.orange, Color.pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.closeDrawer()
+                isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundColor(.white)
+                    .frame(width: circle, height: circle)
+                    .background(Circle().fill(Color.white.opacity(0.10)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, horizontal)
+        .padding(.top, 10)
+        .padding(.bottom, max(10, currentSafeAreaInsets.bottom + 4))
+        .background(
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.92), .black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+    }
+
+    private var currentSafeAreaInsets: UIEdgeInsets {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .safeAreaInsets ?? .zero
     }
 }
 
-/// Style de bouton interactif avec micro-animation d'échelle au toucher
-public struct ScaleBounceButtonStyle: ButtonStyle {
-    public func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+@available(iOS 16.0, *)
+private extension View {
+    func sectionHeader() -> some View {
+        self
+            .font(.system(size: 15, weight: .bold))
+            .foregroundColor(Color.white.opacity(0.90))
     }
 }
