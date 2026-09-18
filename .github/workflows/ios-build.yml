@@ -12,10 +12,15 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - main
+    paths:
+      - 'SarahIA/SarahIA/Views/VoiceOrbModalView.swift'
 
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: macos-14
     timeout-minutes: 30
     permissions:
@@ -106,7 +111,6 @@ jobs:
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
 
-          # Signature ad-hoc du bundle principal
           codesign -f -s - "$APP_TARGET_DIR" 2>/dev/null || true
 
           echo "=== Structure du Bundle Final dans l'IPA ==="
