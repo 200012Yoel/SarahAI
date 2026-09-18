@@ -82,6 +82,15 @@ public struct SettingsView: View {
                         )
                     }
 
+                    NavigationLink(destination: LocalGenerationSettingsView()) {
+                        SettingsHomeRow(
+                            icon: "wand.and.stars",
+                            tint: .purple,
+                            title: "Création locale",
+                            detail: "Images et vidéo sur l’iPhone"
+                        )
+                    }
+
                     NavigationLink(
                         destination: DataAndConversationsSettingsView(
                             viewModel: viewModel,
@@ -924,6 +933,80 @@ private struct VoiceAndSpeechSettingsView: View {
 }
 
 @available(iOS 15.0, *)
+private struct LocalGenerationSettingsView: View {
+    var body: some View {
+        List {
+            Section("Images") {
+                HStack(spacing: 12) {
+                    Image(systemName: "photo.fill")
+                        .foregroundColor(.purple)
+                        .frame(width: 34, height: 34)
+                        .background(Color.purple.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Stable Diffusion 2.1 Core ML")
+                            .font(.headline)
+                        Text("Version 6-bit palettisée • 512 × 512")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text("iPhone 14")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.green)
+                }
+
+                Text("C’est actuellement la cible la plus réaliste pour une génération d’images réellement locale sur iPhone 14 : pipeline Core ML/Neural Engine, sans serveur. Le modèle n’est pas intégré dans l’IPA tant que le paquet Core ML complet et sa notice ne sont pas validés.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Vidéo") {
+                HStack(spacing: 12) {
+                    Image(systemName: "video.fill")
+                        .foregroundColor(.orange)
+                        .frame(width: 34, height: 34)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("MobileI2V 0.27B")
+                            .font(.headline)
+                        Text("Image → vidéo • Apache-2.0")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text("Expérimental")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.orange)
+                }
+
+                Text("Le projet MobileI2V vise les appareils mobiles et publie un modèle bien plus petit que SVD-XT, mais il n’existe pas encore de paquet Core ML iOS prêt à déposer dans Sarah pour l’iPhone 14. Sarah le garde donc comme moteur vidéo expérimental, sans prétendre qu’il fonctionne déjà localement.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Principe") {
+                Label("Aucun faux « local »", systemImage: "checkmark.shield.fill")
+                    .foregroundColor(.green)
+                Text("Sarah n’affichera “100 % local” que lorsque les poids utilisés pour générer l’image ou la vidéo seront réellement exécutés sur l’iPhone. Un appel réseau ne sera pas présenté comme une génération locale.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Création locale")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+@available(iOS 15.0, *)
 private struct SarahEngineActivationSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
     @AppStorage("sarahEngineHaloEnabled") private var haloEnabled: Bool = true
@@ -1261,6 +1344,24 @@ private struct LegalNoticesView: View {
                         .foregroundColor(.secondary)
                     Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
+                }
+
+                Section("Génération d’images — cible locale") {
+                    Text("Sarah prévoit d’utiliser Stable Diffusion 2.1 converti en Core ML, notamment les poids 6-bit palettisés publiés pour les appareils Apple.")
+                    Text("Le code de conversion et d’inférence Apple ml-stable-diffusion est distribué sous licence MIT. Les poids Stable Diffusion restent soumis à leur licence OpenRAIL++ et à ses restrictions d’usage.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Apple ml-stable-diffusion", destination: URL(string: "https://github.com/apple/ml-stable-diffusion")!)
+                    Link("Poids Core ML Stable Diffusion 2.1", destination: URL(string: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized")!)
+                }
+
+                Section("Génération vidéo — expérimental") {
+                    Text("MobileI2V est étudié comme moteur image-vers-vidéo mobile. Le dépôt est publié sous licence Apache License 2.0.")
+                    Text("À ce stade, Sarah ne distribue pas encore ses poids ni un portage Core ML de MobileI2V dans l’IPA. La mention est conservée ici comme notice de développement et ne signifie pas que la génération vidéo locale est déjà disponible.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Projet MobileI2V", destination: URL(string: "https://github.com/hustvl/MobileI2V")!)
+                    Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                 }
 
                 Section("Composants Apple") {
