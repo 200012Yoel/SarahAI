@@ -994,6 +994,22 @@ public final class MultiAgentCoordinator {
                 }
 
                 let profile = SarahGenerativeModelCatalog.musicProfile()
+
+                guard SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled else {
+                    let responseText = """
+                    🎵 **Sarah & Nathan [Musique locale]**
+
+                    **\(profile.displayName)** doit d'abord être téléchargé dans Réglages → Création locale.
+                    Après installation, la génération s'exécute entièrement sur l'iPhone.
+                    """
+                    completion(AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: "Le modèle musical local doit d'abord être installé."
+                    ))
+                    return
+                }
+
                 SarahLocalMusicGenEngine.shared.generateInstrumental(
                     prompt: musicCheck.prompt
                 ) { _ in }
@@ -1002,7 +1018,7 @@ public final class MultiAgentCoordinator {
                 🎵 **Sarah & Nathan [Musique locale]**
 
                 Génération lancée avec **\(profile.displayName)**.
-                Le modèle est téléchargé au premier usage puis l'inférence s'exécute sur l'iPhone.
+                L'inférence s'exécute localement sur l'iPhone.
                 """
                 completion(AgentResponse(
                     agent: .nathan,
