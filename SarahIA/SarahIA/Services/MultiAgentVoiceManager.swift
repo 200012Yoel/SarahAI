@@ -219,6 +219,10 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
+        // Ne jamais laisser reconnaissance + synthèse tourner en même temps.
+        // Deux AVAudioEngine concurrents peuvent provoquer du routage audio instable
+        // et des ralentissements à l'échelle du téléphone.
+        AppleSpeechRecognizer.shared.stopListening()
         stop()
         pendingSpeechBlock = nil
         
@@ -271,6 +275,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     /// Passation vocale séquentielle fluide entre deux agents
     public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
+        AppleSpeechRecognizer.shared.stopListening()
         stop()
         
         let cleanTransition = cleanTextForSpeech(transitionText)
