@@ -200,13 +200,13 @@ public struct SarahGenerativeModelCatalog {
                 identifier: "mobilei2v-027b",
                 displayName: "MobileI2V 0.27B",
                 resolution: "Image → vidéo",
-                licenseName: "Apache-2.0",
-                licenseURL: "https://github.com/hustvl/MobileI2V/blob/main/LICENSE.txt",
+                licenseName: "MIT (poids) / Apache-2.0 (code)",
+                licenseURL: "https://huggingface.co/hustvl/MobileI2V",
                 sourceURL: "https://github.com/hustvl/MobileI2V",
                 minimumRAMGB: 5.5,
                 minimumIOSMajor: 17,
                 runtimeState: .experimental,
-                note: "Candidat iPhone 14 : modèle mobile léger. Un port Core ML iOS vérifié reste nécessaire avant activation."
+                note: "Candidat iPhone 14 : 0,27B paramètre et checkpoint d’environ 1,07 Go. Le modèle a été démontré sur mobile, mais le dépôt public ne fournit pas encore un runtime Core ML iOS prêt à intégrer ; Sarah peut télécharger le checkpoint sans prétendre qu’il génère déjà sur iPhone."
             )
         }
 
