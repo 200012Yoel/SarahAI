@@ -46,7 +46,8 @@ public struct ContentView: View {
                         viewModel: viewModel,
                         isShowingSettings: $isShowingSettings
                     )
-                    .frame(width: sidebarWidth, maxHeight: .infinity)
+                    .frame(width: sidebarWidth)
+                    .frame(maxHeight: .infinity)
                     .background(Color.black)
                     .ignoresSafeArea(.all, edges: [.top, .bottom])
                     .offset(
