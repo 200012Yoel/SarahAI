@@ -12,9 +12,15 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ios-build.yml'
+
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -30,11 +36,11 @@ jobs:
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure iOS 27 Local AI Target
+      - name: Configure iOS 27-compatible Local AI Target
         run: |
           echo "=== Sarah IA moderne : iOS 27 / Local AI ==="
-          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
-          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
+          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
       - name: Assign a unique build number for this IPA
         run: |
@@ -57,7 +63,7 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            IPHONEOS_DEPLOYMENT_TARGET=27.0 \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -98,7 +104,7 @@ jobs:
 
           INFOPLIST_TARGET="$APP_TARGET_DIR/Info.plist"
           if [ -f "$INFOPLIST_TARGET" ]; then
-            plutil -replace MinimumOSVersion -string "27.0" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace MinimumOSVersion -string "16.2" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
