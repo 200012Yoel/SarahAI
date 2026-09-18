@@ -109,8 +109,8 @@ public struct ChatScreenView: View {
             .padding(.bottom, currentBottomPadding)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
-            VoiceOrbModalView(viewModel: viewModel)
+        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
+            voiceSheetContent
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
             VAICodingStudioView(viewModel: viewModel)
@@ -192,6 +192,35 @@ public struct ChatScreenView: View {
         }
     }
     
+    @ViewBuilder
+    private var voiceSheetContent: some View {
+        if #available(iOS 16.0, *) {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.openDrawer()
+                },
+                onOpenSettings: {
+                    isShowingSettings = true
+                }
+            )
+            // Grand mode + mode réduit. Un glissement vers le bas garde le chat
+            // visible derrière, comme dans les assistants vocaux modernes.
+            .presentationDetents([.height(255), .large])
+            .presentationDragIndicator(.visible)
+        } else {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.openDrawer()
+                },
+                onOpenSettings: {
+                    isShowingSettings = true
+                }
+            )
+        }
+    }
+
     // MARK: - Topbar
     
     private var topBar: some View {
