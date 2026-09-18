@@ -989,7 +989,7 @@ private struct SarahEngineActivationSettingsView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Triple toucher au dos")
                         .font(.headline)
-                    Text("Réglages iPhone > Accessibilité > Toucher > Toucher le dos de l'appareil > Toucher 3 fois > Raccourcis, puis choisis « Sarah Intelligence ».")
+                    Text("Dans l'app Raccourcis, crée si nécessaire un raccourci d'une seule action « Sarah Intelligence ». Puis va dans Réglages iPhone > Accessibilité > Toucher > Toucher le dos de l'appareil > Toucher 3 fois, et choisis ce raccourci.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
