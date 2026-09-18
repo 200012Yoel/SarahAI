@@ -1570,13 +1570,17 @@ private struct LegalNoticesView: View {
                     Link("Poids Core ML Stable Diffusion 2.1", destination: URL(string: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized")!)
                 }
 
-                Section("Génération vidéo — expérimental") {
-                    Text("MobileI2V est étudié comme moteur image-vers-vidéo mobile. Le dépôt est publié sous licence Apache License 2.0.")
-                    Text("À ce stade, Sarah ne distribue pas encore ses poids ni un portage Core ML de MobileI2V dans l’IPA. La mention est conservée ici comme notice de développement et ne signifie pas que la génération vidéo locale est déjà disponible.")
+                Section("Génération vidéo — profils locaux") {
+                    Text("Sur les appareils de classe iPhone 14, Sarah étudie MobileI2V 0.27B comme moteur image-vers-vidéo. Le dépôt est publié sous licence Apache License 2.0.")
+                    Text("Sur les appareils plus puissants compatibles iOS 18, Sarah peut sélectionner MOVD comme cible Core ML. Le dépôt MOVD est publié sous licence MIT et fournit une application iOS de référence.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("À ce stade, Sarah ne distribue pas encore les poids vidéo dans l’IPA. Avant une vente publique, les poids convertis, jeux de données, modèles amont et notices tierces devront être audités séparément de la licence du code.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Link("Projet MobileI2V", destination: URL(string: "https://github.com/hustvl/MobileI2V")!)
-                    Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
+                    Link("Projet MOVD", destination: URL(string: "https://github.com/eai-lab/MOVD")!)
+                    Link("Licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                 }
 
                 Section("Composants Apple") {
