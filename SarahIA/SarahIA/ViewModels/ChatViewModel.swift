@@ -398,11 +398,15 @@ public final class ChatViewModel: ObservableObject {
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
-        AppleSpeechRecognizer.shared.stopListening()
 
+        // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
+        // la session AVAudioSession pouvait rester active si Sarah parlait encore.
         if stopSpeech {
             voiceManager.stop()
         }
+
+        AppleSpeechRecognizer.shared.stopListening()
+        AudioSessionManager.shared.deactivateSession()
 
         isMicRunning = false
         micInputLevel = 0.0
