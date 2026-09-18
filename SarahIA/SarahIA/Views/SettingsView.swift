@@ -952,7 +952,23 @@ private struct SarahEngineActivationSettingsView: View {
             Section("Activation rapide") {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Lien Sarah vocal")
+                        Text("Sarah Intelligence")
+                        Text("Raccourci système intégré")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "waveform.circle.fill")
+                        .foregroundColor(.pink)
+                }
+
+                Text("Sarah expose maintenant une action système appelée « Sarah Intelligence ». Elle ouvre directement le mode vocal et le halo multicolore.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Lien de secours")
                         Text("sarahia://voice")
                             .font(.caption.monospaced())
                             .foregroundColor(.secondary)
@@ -967,14 +983,19 @@ private struct SarahEngineActivationSettingsView: View {
                         }
                     }
                 }
-
-                Text("Ce lien ouvre directement Sarah en mode vocal. Tu peux l'utiliser dans un Raccourci iOS, puis associer ce raccourci à une action système disponible sur ton iPhone.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
             }
 
-            Section("Bouton latéral de l'iPhone") {
-                Text("iOS ne permet pas à une application tierce de remplacer directement Siri lors d'un appui long sur le bouton latéral. Sarah peut toutefois être lancée via le lien ci-dessus ou un Raccourci iOS.")
+            Section("Accessibilité") {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Triple toucher au dos")
+                        .font(.headline)
+                    Text("Réglages iPhone > Accessibilité > Toucher > Toucher le dos de l'appareil > Toucher 3 fois > Raccourcis, puis choisis « Sarah Intelligence ».")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 2)
+
+                Text("Le triple-clic du bouton latéral reste réservé par iOS aux fonctions du Raccourci Accessibilité, comme VoiceOver ou Zoom. Une app tierce ne peut pas s'ajouter à cette liste. Le triple toucher au dos est donc l'équivalent le plus proche et peut lancer Sarah directement.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
