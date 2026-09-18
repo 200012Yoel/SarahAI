@@ -90,13 +90,30 @@ public final class SpeechManager: NSObject, ObservableObject, AVSpeechSynthesize
     // MARK: - Recherche de Voix Française Standard Garantie
     
     private func selectBestFrenchFemaleVoice() -> AVSpeechSynthesisVoice {
+        if let identifier = UserDefaults.standard.string(forKey: "sarahVoiceIdentifier"),
+           let selected = AVSpeechSynthesisVoice(identifier: identifier) {
+            return selected
+        }
+
+        let preferredNames = ["Audrey", "Amélie", "Hortense", "Thomas"]
+        let frenchVoices = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.lowercased().hasPrefix("fr") }
+
+        for preferred in preferredNames {
+            if let voice = frenchVoices.first(where: {
+                $0.name.localizedCaseInsensitiveContains(preferred)
+            }) {
+                return voice
+            }
+        }
+
         if let frFR = AVSpeechSynthesisVoice(language: "fr-FR") {
             return frFR
         }
         if let fr = AVSpeechSynthesisVoice(language: "fr") {
             return fr
         }
-        return AVSpeechSynthesisVoice.speechVoices().first(where: { $0.language.starts(with: "fr") })
+        return frenchVoices.first
             ?? AVSpeechSynthesisVoice(language: Locale.current.identifier)
             ?? AVSpeechSynthesisVoice.speechVoices().first!
     }
