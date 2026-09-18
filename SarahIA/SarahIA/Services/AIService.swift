@@ -284,13 +284,37 @@ public final class AIService {
             return contextualActionResponse
         }
         
-        // 1.1 GÉNÉRATION MUSICALE OPEN SOURCE & LOCALE (AVAudioEngine)
-        let musicCheck = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
-        if musicCheck.isIntent {
-            OpenSourceMusicEngine.shared.generateAndPlayTrack(style: musicCheck.detectedStyle) { _, _ in }
-            let reply = "🎵 Je compose et je lance immédiatement un morceau en style **\(musicCheck.detectedStyle.rawValue)** pour vous !"
-            recordExchange(userText: trimmed, assistantResponse: reply)
-            return reply
+        // 1.1 GÉNÉRATION MUSICALE RÉELLE ON-DEVICE (iOS 27 / Core AI)
+        if #available(iOS 27.0, *) {
+            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            if musicCheck.isIntent {
+                if musicCheck.wantsLyrics {
+                    let profile = SarahGenerativeModelCatalog.vocalSongProfile()
+                    let reply = """
+                    🎤 **Chanson avec paroles — \(profile.displayName)**
+
+                    \(SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage())
+
+                    Sarah peut déjà préparer les paroles en français ou en anglais, mais ne présentera pas une voix chantée comme locale tant que le runtime iPhone du modèle n'est pas validé.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    return reply
+                }
+
+                SarahLocalMusicGenEngine.shared.generateInstrumental(
+                    prompt: musicCheck.prompt
+                ) { _ in }
+
+                let profile = SarahGenerativeModelCatalog.musicProfile()
+                let reply = """
+                🎵 **Génération musicale locale lancée**
+
+                Sarah utilise **\(profile.displayName)** sur iOS 27.
+                Le modèle est téléchargé et mis en cache lors de la première utilisation, puis l'inférence reste sur l'iPhone.
+                """
+                recordExchange(userText: trimmed, assistantResponse: reply)
+                return reply
+            }
         }
         
         // 1.2 GÉNÉRATION VIDÉO
