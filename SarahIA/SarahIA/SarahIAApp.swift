@@ -2,9 +2,6 @@ import UIKit
 import SwiftUI
 import UserNotifications
 import AVFoundation
-#if canImport(AppIntents)
-import AppIntents
-#endif
 
 /// Point d'entrée de l'application Sarah AI compatible iOS 12.0+ à iOS 18.0+.
 @UIApplicationMain
@@ -116,55 +113,3 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
     }
 }
-
-
-#if canImport(AppIntents)
-@available(iOS 16.0, *)
-struct OpenSarahVoiceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Sarah Intelligence"
-    static var description = IntentDescription("Ouvre Sarah en mode vocal avec un fond d’écran capturé juste avant le lancement.")
-    static var openAppWhenRun: Bool = true
-
-    @Parameter(
-        title: "Capture de l’écran",
-        description: "Optionnel : connecte ici la sortie de l’action « Prendre une capture d’écran » dans Raccourcis."
-    )
-    var screenSnapshot: IntentFile?
-
-    func perform() async throws -> some IntentResult {
-        if let screenSnapshot {
-            let data = screenSnapshot.data
-            if let image = UIImage(data: data) {
-                _ = SarahHomeScreenSnapshotStore.save(image)
-            }
-        }
-
-        UserDefaults.standard.set(true, forKey: "sarahOpenVoiceOnNextActivation")
-
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("SarahOpenDeepLink"),
-                object: "voice"
-            )
-        }
-
-        return .result()
-    }
-}
-
-@available(iOS 16.0, *)
-struct SarahAppShortcuts: AppShortcutsProvider {
-    static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: OpenSarahVoiceIntent(),
-            phrases: [
-                "Ouvrir \(.applicationName) Intelligence",
-                "Parler à \(.applicationName)",
-                "Lancer \(.applicationName)"
-            ],
-            shortTitle: "Sarah Intelligence",
-            systemImageName: "waveform.circle.fill"
-        )
-    }
-}
-#endif
