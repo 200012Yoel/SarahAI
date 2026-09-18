@@ -122,10 +122,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 @available(iOS 16.0, *)
 struct OpenSarahVoiceIntent: AppIntent {
     static var title: LocalizedStringResource = "Sarah Intelligence"
-    static var description = IntentDescription("Ouvre Sarah directement en mode vocal.")
+    static var description = IntentDescription("Ouvre Sarah en mode vocal avec un fond d’écran capturé juste avant le lancement.")
     static var openAppWhenRun: Bool = true
 
+    @Parameter(
+        title: "Capture de l’écran",
+        description: "Optionnel : connecte ici la sortie de l’action « Prendre une capture d’écran » dans Raccourcis."
+    )
+    var screenSnapshot: IntentFile?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Ouvrir Sarah Intelligence avec \(.$screenSnapshot)")
+    }
+
     func perform() async throws -> some IntentResult {
+        if let screenSnapshot {
+            let data = screenSnapshot.data
+            if let image = UIImage(data: data) {
+                _ = SarahHomeScreenSnapshotStore.save(image)
+            }
+        }
+
         UserDefaults.standard.set(true, forKey: "sarahOpenVoiceOnNextActivation")
 
         await MainActor.run {
