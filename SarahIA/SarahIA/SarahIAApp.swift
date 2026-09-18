@@ -14,11 +14,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
 
-        // Chaque IPA publiée porte un numéro de build différent. Une installation de build
-        // déclenche une remise à zéro des données de test avant que SwiftUI restaure un chat.
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-        let didResetUserState = StorageService.shared.resetUserStateForNewBuildIfNeeded(currentBuild: build)
-        SessionTimeoutManager.shared.prepareForProcessLaunch(didResetUserStateForNewBuild: didResetUserState)
+        // HOTFIX démarrage : aucune migration lourde, aucun modèle IA et aucune base
+        // de données secondaire ne sont initialisés avant le premier écran.
+        // Cela évite qu'un composant optionnel puisse faire tomber le processus au lancement.
+        SessionTimeoutManager.shared.prepareForProcessLaunch(
+            didResetUserStateForNewBuild: false
+        )
         
         let window = UIWindow(frame: UIScreen.main.bounds)
         self.window = window
@@ -37,19 +38,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         
         window.makeKeyAndVisible()
         
-        // Notifications & Surveillance Batterie
+        // Le premier écran est rendu avant tout service optionnel.
+        // Les permissions audio sont demandées uniquement lorsqu'un mode vocal est lancé.
         UNUserNotificationCenter.current().delegate = self
-        NotificationService.shared.clearBadge()
-        BatteryMonitorManager.shared.startMonitoring()
-        
-        // Demande de permission Microphone immédiate au premier lancement
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            print("🎙️ [SarahIAApp] Permission microphone accordée : \(granted)")
+
+        DispatchQueue.main.async {
+            NotificationService.shared.clearBadge()
         }
-        
-        // Préparation du moteur IA adaptatif au démarrage
-        AIResourceManager.shared.bootstrapEngine()
-        
+
         return true
     }
     
