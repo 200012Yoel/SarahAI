@@ -108,8 +108,24 @@ public struct ContentView: View {
                 viewModel.isShowingVoiceOrbModal = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            consumePendingSarahVoiceLaunch()
+        }
+        .onAppear {
+            consumePendingSarahVoiceLaunch()
+        }
         .onDisappear {
             SarahEngineHaloController.shared.hide()
+        }
+    }
+
+    private func consumePendingSarahVoiceLaunch() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "sarahOpenVoiceOnNextActivation") else { return }
+        defaults.set(false, forKey: "sarahOpenVoiceOnNextActivation")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            viewModel.isShowingVoiceOrbModal = true
         }
     }
 
