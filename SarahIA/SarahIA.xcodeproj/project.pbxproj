@@ -104,6 +104,7 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B2 /* CoreAIOps in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000002 /* CoreAIOps */; };
+		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -213,6 +214,7 @@
 			files = (
 				A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */,
 				A1B2C3D400010001000000B2 /* CoreAIOps in Frameworks */,
+				A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -389,6 +391,7 @@
 			packageProductDependencies = (
 				A1B2C3D4000B000100000001 /* ZIPFoundation */,
 				A1B2C3D4000B000100000002 /* CoreAIOps */,
+				A1B2C3D4000B000100000003 /* StableDiffusion */,
 			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
@@ -422,6 +425,7 @@
 			packageReferences = (
 				A1B2C3D4000A000100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4000A000100000002 /* XCRemoteSwiftPackageReference "coreai-kit" */,
+				A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
 			);
 			productRefGroup = A1B2C3D40004000100000007 /* Products */;
 			projectDirPath = "";
@@ -564,6 +568,14 @@
 				minimumVersion = 0.4.2;
 			};
 		};
+		A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple-aiml-research/ml-stable-diffusion.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.1.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -576,6 +588,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4000A000100000002 /* XCRemoteSwiftPackageReference "coreai-kit" */;
 			productName = CoreAIOps;
+		};
+		A1B2C3D4000B000100000003 /* StableDiffusion */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
+			productName = StableDiffusion;
 		};
 /* End XCSwiftPackageProductDependency section */
 
