@@ -323,6 +323,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+
+        // Ne jamais conserver la route .playAndRecord une fois la voix coupée.
+        if !AppleSpeechRecognizer.shared.isListening {
+            AudioSessionManager.shared.deactivateSession()
+        }
     }
     
     public var isSpeaking: Bool {
@@ -340,8 +345,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             pendingSpeechBlock = nil
             next()
         } else {
+            AudioSessionManager.shared.deactivateSession()
             onSpeechFinished?()
         }
+    }
+
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        AudioSessionManager.shared.deactivateSession()
+        onSpeechFinished?()
     }
 }
 
