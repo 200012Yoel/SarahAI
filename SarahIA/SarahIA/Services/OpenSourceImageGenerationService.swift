@@ -1,11 +1,11 @@
 import Foundation
 import UIKit
 
-/// Service de Génération d'Images et Photos Open Source & Gratuit pour Sarah IA
-/// - Utilise les modèles open source de pointe (Flux, SDXL-Turbo, Stable Diffusion) via l'infrastructure décentralisée et ouverte
-/// - Zéro clé API requise, 100% fonctionnel et accessible sur mobile
-/// - Gestion du cache mémoire et disque pour un affichage instantané
-/// - Notification automatique pour intégration visuelle dans le chat et l'orbe
+/// Service de génération d'images de Sarah IA.
+/// - Priorité absolue au moteur Core ML local sélectionné pour l'appareil.
+/// - Aucun basculement réseau silencieux : le cloud est désactivé par défaut.
+/// - Un fallback distant peut être activé explicitement dans les réglages.
+/// - Les résultats locaux et distants sont annoncés avec leur modèle réel.
 public final class OpenSourceImageGenerationService {
     
     public static let shared = OpenSourceImageGenerationService()
@@ -22,6 +22,11 @@ public final class OpenSourceImageGenerationService {
     private let cache = NSCache<NSString, UIImage>()
     private let fileManager = FileManager.default
     private let session: URLSession
+
+    public var cloudFallbackEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "sarahAllowCloudGeneration") }
+        set { UserDefaults.standard.set(newValue, forKey: "sarahAllowCloudGeneration") }
+    }
     
     private var imagesDirectory: URL {
         let urls = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
@@ -137,7 +142,8 @@ public final class OpenSourceImageGenerationService {
     
     // MARK: - Génération d'Image Haute Définition (CoreML LCM On-Device / Cloud)
     
-    /// Génère une image via le modèle local CoreML LCM (Sarah_ImageGen_Local) ou Cloud HD
+    /// Génère une image. Sarah tente d'abord le profil Core ML local.
+    /// Le fallback distant n'est utilisé que si l'utilisateur l'a activé.
     public func generateImage(
         prompt: String,
         width: Int = 768,
@@ -151,45 +157,83 @@ public final class OpenSourceImageGenerationService {
                 prompt: prompt,
                 image: nil,
                 imageURL: nil,
-                modelName: model,
+                modelName: SarahGenerativeModelCatalog.imageProfile().displayName,
                 isSuccess: false,
                 errorMessage: "Le sujet de l'image est vide."
             ))
             return
         }
-        
-        // 1. Vérifier si le modèle CoreML Sarah_ImageGen_Local est actif (A15 Bionic / Neural Engine)
-        if SarahLocalImageGenEngine.shared.isLocalLCMModelAvailable {
-            let config = SarahLocalImageGenEngine.LCMConfiguration(steps: 4, guidanceScale: 1.8, width: width, height: height)
-            SarahLocalImageGenEngine.shared.generateImage(prompt: cleanPrompt, config: config) { result in
-                switch result {
-                case .success(let image):
+
+        let profile = SarahGenerativeModelCatalog.imageProfile()
+
+        SarahLocalImageGenEngine.shared.generateImage(prompt: cleanPrompt) { [weak self] result in
+            guard let self = self else { return }
+
+            switch result {
+            case .success(let image):
+                let data = image.jpegData(compressionQuality: 0.94)
+                let localURL = data.flatMap {
+                    self.saveImageLocally(data: $0, prompt: cleanPrompt)
+                }
+
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahGeneratedImageReady"),
+                        object: nil,
+                        userInfo: [
+                            "image": image,
+                            "prompt": cleanPrompt,
+                            "fileURL": localURL as Any,
+                            "modelName": profile.displayName,
+                            "isLocal": true
+                        ]
+                    )
+
                     completion(GeneratedImageResult(
                         prompt: cleanPrompt,
                         image: image,
-                        imageURL: nil,
-                        modelName: SarahLocalImageGenEngine.modelIdentifier,
+                        imageURL: localURL,
+                        modelName: profile.displayName,
                         isSuccess: true,
                         errorMessage: nil
                     ))
-                case .failure(let error):
-                    completion(GeneratedImageResult(
-                        prompt: cleanPrompt,
-                        image: nil,
-                        imageURL: nil,
-                        modelName: SarahLocalImageGenEngine.modelIdentifier,
-                        isSuccess: false,
-                        errorMessage: error.localizedDescription
-                    ))
+                }
+
+            case .failure(let localError):
+                guard self.cloudFallbackEnabled else {
+                    DispatchQueue.main.async {
+                        completion(GeneratedImageResult(
+                            prompt: cleanPrompt,
+                            image: nil,
+                            imageURL: nil,
+                            modelName: profile.displayName,
+                            isSuccess: false,
+                            errorMessage: localError.localizedDescription
+                        ))
+                    }
+                    return
+                }
+
+                self.fetchDirectImage(
+                    prompt: cleanPrompt,
+                    width: width,
+                    height: height,
+                    model: model
+                ) { remote in
+                    let result = GeneratedImageResult(
+                        prompt: remote.prompt,
+                        image: remote.image,
+                        imageURL: remote.imageURL,
+                        modelName: "Cloud · \(remote.modelName)",
+                        isSuccess: remote.isSuccess,
+                        errorMessage: remote.errorMessage
+                    )
+                    completion(result)
                 }
             }
-            return
         }
-        
-        // 2. Exécution directe via le pipeline distant Flux / SDXL
-        fetchDirectImage(prompt: cleanPrompt, width: width, height: height, model: model, completion: completion)
     }
-    
+
     /// Télécharge et traite directement l'image avec système de secours multi-serveurs
     public func fetchDirectImage(
         prompt: String,
