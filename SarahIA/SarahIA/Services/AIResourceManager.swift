@@ -41,7 +41,8 @@ public final class AIResourceManager {
     
     private init() {
         setupObservers()
-        bootstrapEngine()
+        // Le modèle n'est plus préparé au lancement de l'application.
+        // bootstrapEngine() est déclenché uniquement lorsqu'une fonction IA en a besoin.
     }
     
     deinit {
