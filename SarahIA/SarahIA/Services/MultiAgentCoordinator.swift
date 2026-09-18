@@ -972,13 +972,43 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 9. Génération Musicale Directe (Moteur Open Source Local)
-        if lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("joue une musique") || lower.contains("musique") {
-            let musicCheck = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
+        // 9. Génération musicale locale via Core AI sur iOS 27
+        if #available(iOS 27.0, *) {
+            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
             if musicCheck.isIntent {
-                OpenSourceMusicEngine.shared.generateAndPlayTrack(style: musicCheck.detectedStyle) { success, msg in }
-                let responseText = "🤖 **Sarah & Nathan [Moteur Musical Open Source]**\n\n🎵 Morceau composé en temps réel en style **\(musicCheck.detectedStyle.rawValue)** !\n\n*Lecture en cours sur les haut-parleurs de votre appareil.*"
-                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère et je joue immédiatement un morceau \(musicCheck.detectedStyle.rawValue) pour toi."))
+                if musicCheck.wantsLyrics {
+                    let profile = SarahGenerativeModelCatalog.vocalSongProfile()
+                    let responseText = """
+                    🎤 **Sarah & Nathan [Chanson avec paroles]**
+
+                    Cible : **\(profile.displayName)** · \(profile.licenseName)
+
+                    \(SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage())
+                    """
+                    completion(AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: "Le moteur de chanson chantée est encore expérimental sur iPhone."
+                    ))
+                    return
+                }
+
+                let profile = SarahGenerativeModelCatalog.musicProfile()
+                SarahLocalMusicGenEngine.shared.generateInstrumental(
+                    prompt: musicCheck.prompt
+                ) { _ in }
+
+                let responseText = """
+                🎵 **Sarah & Nathan [Musique locale]**
+
+                Génération lancée avec **\(profile.displayName)**.
+                Le modèle est téléchargé au premier usage puis l'inférence s'exécute sur l'iPhone.
+                """
+                completion(AgentResponse(
+                    agent: .nathan,
+                    text: responseText,
+                    spokenText: "Je lance la génération musicale locale."
+                ))
                 return
             }
         }
@@ -1010,12 +1040,16 @@ public final class MultiAgentCoordinator {
         if lower.contains("modèle") || lower.contains("modele") || lower.contains("local") || lower.contains("architecture") || lower.contains("moteur ia") {
             let image = SarahGenerativeModelCatalog.imageProfile()
             let video = SarahGenerativeModelCatalog.videoProfile()
+            let music = SarahGenerativeModelCatalog.musicProfile()
+            let vocals = SarahGenerativeModelCatalog.vocalSongProfile()
             let responseText = """
             🤖 **Sarah Engine [Architecture locale d'abord]**
 
             • 🧠 **Texte** : modèle local choisi selon la RAM.
             • 🎨 **Image** : **\(image.displayName)**.
             • 🎬 **Vidéo** : **\(video.displayName)**.
+            • 🎵 **Musique** : **\(music.displayName)**.
+            • 🎤 **Chanson chantée** : **\(vocals.displayName)**.
             • 👁️ **Vision** : frameworks Apple Vision/Core ML.
             • 🔒 **Réseau** : jamais présenté comme local ; le fallback génératif distant est optionnel.
             """
