@@ -413,10 +413,6 @@
 				A1B2C3D40001000100000038 /* MessageBar.swift in Sources */,
 				A1B2C3D40001000100000039 /* KeyboardObserver.swift in Sources */,
 				A1B2C3D40001000100000040 /* LegacyChatViewController.swift in Sources */,
-				A1B2C3D400010001000000B0 /* GenerativeModelCatalog.swift in Sources */,
-				A1B2C3D400010001000000B1 /* SarahLocalImageGenEngine.swift in Sources */,
-				A1B2C3D400010001000000B2 /* SarahLocalMusicGenEngine.swift in Sources */,
-				A1B2C3D400010001000000B3 /* GenerativeModelManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
