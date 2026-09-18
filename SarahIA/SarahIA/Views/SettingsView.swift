@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 /// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents (100% Moteur Local On-Device) :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -926,7 +927,10 @@ private struct VoiceAndSpeechSettingsView: View {
 private struct SarahEngineActivationSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
     @AppStorage("sarahEngineHaloEnabled") private var haloEnabled: Bool = true
+    @AppStorage("sarahEngineCamouflageEnabled") private var camouflageEnabled: Bool = true
     @State private var copied: Bool = false
+    @State private var showingHomeScreenPicker: Bool = false
+    @State private var hasHomeScreenSnapshot: Bool = SarahHomeScreenSnapshotStore.hasSnapshot
 
     var body: some View {
         List {
@@ -940,6 +944,47 @@ private struct SarahEngineActivationSettingsView: View {
                     }
                 }
                 .tint(.pink)
+
+                Toggle(isOn: $camouflageEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Mode écran d'accueil", systemImage: "rectangle.on.rectangle")
+                        Text("Quand Sarah Intelligence se lance, Sarah affiche ta capture d'écran d'accueil derrière le halo pour donner l'illusion que l'écran d'accueil est toujours visible.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .tint(.pink)
+
+                Button {
+                    showingHomeScreenPicker = true
+                    HapticService.shared.buttonTap()
+                } label: {
+                    HStack {
+                        Label(
+                            hasHomeScreenSnapshot ? "Remplacer la capture d'écran d'accueil" : "Choisir une capture d'écran d'accueil",
+                            systemImage: "photo.on.rectangle"
+                        )
+                        Spacer()
+                        if hasHomeScreenSnapshot {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+
+                if hasHomeScreenSnapshot {
+                    Button(role: .destructive) {
+                        SarahHomeScreenSnapshotStore.remove()
+                        hasHomeScreenSnapshot = false
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahHomeScreenSnapshotChanged"),
+                            object: nil
+                        )
+                        HapticService.shared.buttonTap()
+                    } label: {
+                        Label("Supprimer la capture", systemImage: "trash")
+                    }
+                }
 
                 Button {
                     HapticService.shared.buttonTap()
@@ -1003,6 +1048,70 @@ private struct SarahEngineActivationSettingsView: View {
         .listStyle(InsetGroupedListStyle())
         .navigationTitle("Sarah Engine")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingHomeScreenPicker) {
+            SarahHomeScreenImagePicker { image in
+                let saved = SarahHomeScreenSnapshotStore.save(image)
+                hasHomeScreenSnapshot = saved
+                if saved {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahHomeScreenSnapshotChanged"),
+                        object: nil
+                    )
+                }
+                showingHomeScreenPicker = false
+            }
+        }
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahHomeScreenImagePicker: UIViewControllerRepresentable {
+    let onImagePicked: (UIImage) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onImagePicked: onImagePicked)
+    }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration(photoLibrary: .shared())
+        configuration.filter = .images
+        configuration.selectionLimit = 1
+
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let onImagePicked: (UIImage) -> Void
+
+        init(onImagePicked: @escaping (UIImage) -> Void) {
+            self.onImagePicked = onImagePicked
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            guard let provider = results.first?.itemProvider,
+                  provider.canLoadObject(ofClass: UIImage.self) else {
+                picker.dismiss(animated: true)
+                return
+            }
+
+            provider.loadObject(ofClass: UIImage.self) { object, _ in
+                guard let image = object as? UIImage else {
+                    DispatchQueue.main.async {
+                        picker.dismiss(animated: true)
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    self.onImagePicked(image)
+                    picker.dismiss(animated: true)
+                }
+            }
+        }
     }
 }
 
