@@ -1022,6 +1022,8 @@ private struct VoiceAndSpeechSettingsView: View {
 
 @available(iOS 15.0, *)
 private struct LocalGenerationSettingsView: View {
+    @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
+
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
 
@@ -1057,6 +1059,32 @@ private struct LocalGenerationSettingsView: View {
                         Text(String(format: "RAM détectée : %.1f Go • iOS %d", SarahGenerativeModelCatalog.physicalRAMGB, SarahGenerativeModelCatalog.iosMajor))
                             .font(.caption.monospaced())
                             .foregroundColor(Color.white.opacity(0.38))
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.075))
+                    )
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle(isOn: $allowCloudGeneration) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Fallback réseau")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+
+                                Text("Utiliser un service distant seulement si le modèle local est indisponible.")
+                                    .font(.footnote)
+                                    .foregroundColor(Color.white.opacity(0.54))
+                            }
+                        }
+                        .tint(.purple)
+
+                        if allowCloudGeneration {
+                            Text("Les prompts de génération peuvent alors quitter l’iPhone. Sarah l’indiquera dans la réponse.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                     }
                     .padding(16)
                     .background(
