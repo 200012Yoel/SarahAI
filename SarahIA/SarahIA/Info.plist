@@ -21,7 +21,7 @@
 	<key>CFBundleVersion</key>
 	<string>3</string>
 	<key>MinimumOSVersion</key>
-	<string>27.0</string>
+	<string>16.2</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
