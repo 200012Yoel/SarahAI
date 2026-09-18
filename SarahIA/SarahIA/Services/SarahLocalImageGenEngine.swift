@@ -350,11 +350,11 @@ public final class SarahLocalVideoGenEngine {
 
         var prompt = clean
         if let range = lower.range(of: trigger) {
-            let utfRange = Range(range, in: clean)
-            if let utfRange {
-                prompt = String(clean[utfRange.upperBound...])
-                    .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
-            }
+            let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
+            let safeOffset = min(offset, clean.count)
+            let cleanIndex = clean.index(clean.startIndex, offsetBy: safeOffset)
+            prompt = String(clean[cleanIndex...])
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
         }
 
         if prompt.isEmpty {
