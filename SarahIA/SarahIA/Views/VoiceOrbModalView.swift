@@ -1,22 +1,27 @@
 import SwiftUI
+import UIKit
 
-/// Mode vocal plein écran de Sarah.
-/// L'interface reprend les grands principes d'un assistant vocal moderne :
-/// - une scène immersive plein écran,
-/// - un orbe organique réactif au niveau du micro,
-/// - des contrôles simples et lisibles,
-/// - la transcription en direct sans surcharger l'écran.
+/// Interface vocale Sarah.
+/// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
 @available(iOS 14.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.presentationMode) private var presentationMode
 
-    @State private var haloPulse = false
+    private let onOpenMenu: () -> Void
+    private let onOpenSettings: () -> Void
+
+    @State private var pulse = false
     @State private var drift = false
-    @State private var wavePulse = false
 
-    public init(viewModel: ChatViewModel) {
+    public init(
+        viewModel: ChatViewModel,
+        onOpenMenu: @escaping () -> Void = {},
+        onOpenSettings: @escaping () -> Void = {}
+    ) {
         self.viewModel = viewModel
+        self.onOpenMenu = onOpenMenu
+        self.onOpenSettings = onOpenSettings
     }
 
     private var accent: Color {
@@ -28,353 +33,368 @@ public struct VoiceOrbModalView: View {
     }
 
     private var statusTitle: String {
-        if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Je vous écoute"
+        switch viewModel.voiceStatus {
+        case .processing:
+            return "Je réfléchis…"
+        case .speaking:
+            return "Sarah parle"
+        case .error:
+            return "Micro indisponible"
+        default:
+            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Je t’écoute."
+            }
+            return viewModel.isMicRunning ? "Je t’écoute." : "Micro coupé"
         }
-        return viewModel.isMicRunning ? "Écoute…" : "Micro coupé"
     }
 
     private var statusSubtitle: String {
-        viewModel.isMicRunning ? "Vous pouvez parler maintenant" : "Touchez le micro pour reprendre"
+        switch viewModel.voiceStatus {
+        case .error:
+            return "Touchez le micro pour réessayer"
+        case .processing:
+            return "Un instant…"
+        case .speaking:
+            return "Tu peux interrompre Sarah en touchant le micro"
+        default:
+            return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
+        }
     }
 
     public var body: some View {
-        ZStack {
-            Color.black
+        GeometryReader { proxy in
+            let compact = proxy.size.height < 430
+
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                RadialGradient(
+                    gradient: Gradient(colors: [
+                        accent.opacity(compact ? 0.08 : 0.14),
+                        accent.opacity(0.025),
+                        Color.clear
+                    ]),
+                    center: compact ? .bottom : .center,
+                    startRadius: 40,
+                    endRadius: compact ? 260 : 430
+                )
                 .ignoresSafeArea()
 
-            // Halo ambiant statique : beaucoup moins coûteux pour le GPU
-            // qu'un grand gradient flouté animé sur toute la surface.
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    accent.opacity(0.12),
-                    accent.opacity(0.03),
-                    Color.clear
-                ]),
-                center: .center,
-                startRadius: 90,
-                endRadius: 390
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                header
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-
-                Spacer(minLength: 18)
-
-                voiceOrb
-                    .frame(width: 330, height: 330)
-                    .padding(.horizontal, 18)
-
-                Spacer(minLength: 22)
-
-                transcriptionArea
-                    .padding(.horizontal, 28)
-
-                Spacer(minLength: 28)
-
-                bottomControls
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+                if compact {
+                    compactLayout
+                } else {
+                    expandedLayout
+                }
             }
         }
         .onAppear {
-            haloPulse = true
+            pulse = true
             drift = true
-            wavePulse = true
             viewModel.startVoiceConversation()
         }
         .onDisappear {
-            // Toujours couper le mode continu, même si Sarah parle et que le
-            // micro est momentanément arrêté.
+            viewModel.stopVoiceConversation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            // Sarah ne doit jamais conserver une route audio active quand
+            // l'utilisateur quitte l'app ou ouvre Siri / un appel.
             viewModel.stopVoiceConversation()
         }
     }
 
-    // MARK: - Header
+    // MARK: - Grand mode vocal
+
+    private var expandedLayout: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+            Spacer(minLength: 20)
+
+            orb(size: 292)
+                .frame(width: 320, height: 320)
+
+            Spacer(minLength: 22)
+
+            VStack(spacing: 8) {
+                Text(statusTitle)
+                    .font(.system(size: 25, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(viewModel.liveTranscriptionText)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.70))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .padding(.horizontal, 24)
+                } else {
+                    Text(statusSubtitle)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.46))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(minHeight: 76)
+
+            Spacer(minLength: 24)
+
+            composer
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
+        }
+    }
+
+    // MARK: - Mode réduit quand la feuille est baissée
+
+    private var compactLayout: some View {
+        VStack(spacing: 10) {
+            Spacer(minLength: 8)
+
+            orb(size: 86)
+                .frame(width: 112, height: 112)
+
+            Text(statusTitle)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(Color.white.opacity(0.82))
+                .lineLimit(1)
+
+            composer
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
+        }
+    }
+
+    // MARK: - En-tête
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            roundButton(
-                systemName: "xmark",
-                foreground: .white,
-                background: Color.white.opacity(0.10),
-                size: 48
-            ) {
+        HStack(spacing: 14) {
+            circleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
                 viewModel.stopVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    onOpenMenu()
+                }
             }
 
             Spacer()
 
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text(viewModel.activeAgent.displayName)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
 
                 Text("Mode vocal")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.48))
+                    .foregroundColor(Color.white.opacity(0.46))
             }
 
             Spacer()
 
-            // Espace miroir du bouton gauche pour garder le titre parfaitement centré.
-            Color.clear
-                .frame(width: 48, height: 48)
+            circleButton(systemName: "slider.horizontal.3") {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+                presentationMode.wrappedValue.dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    onOpenSettings()
+                }
+            }
         }
     }
 
-    // MARK: - Orbe
+    // MARK: - Orbe Sarah
 
-    private var voiceOrb: some View {
-        GeometryReader { proxy in
-            let side = min(proxy.size.width, proxy.size.height)
-            let core = side * 0.70
-            let voiceBoost = 1.0 + normalizedLevel * 0.085
+    private func orb(size: CGFloat) -> some View {
+        let core = size * 0.72
+        let voiceBoost = 1.0 + normalizedLevel * 0.065
 
-            ZStack {
-                // Aura externe respirante.
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                accent.opacity(0.34),
-                                accent.opacity(0.10),
-                                Color.clear
-                            ]),
-                            center: .center,
-                            startRadius: side * 0.17,
-                            endRadius: side * 0.52
-                        )
-                    )
-                    .frame(width: side, height: side)
-                    .blur(radius: 16)
-                    .scaleEffect((haloPulse ? 1.06 : 0.95) * voiceBoost)
-
-                // Ondes fines autour de l'orbe.
-                ForEach(0..<2) { index in
-                    Circle()
-                        .stroke(
-                            accent.opacity(index == 0 ? 0.45 : 0.20),
-                            lineWidth: index == 0 ? 1.4 : 1.0
-                        )
-                        .frame(
-                            width: core + CGFloat(index * 40),
-                            height: core + CGFloat(index * 40)
-                        )
-                        .scaleEffect(
-                            (wavePulse ? 1.035 : 0.975)
-                            + normalizedLevel * CGFloat(index + 1) * 0.018
-                        )
-                        .opacity(wavePulse ? 0.95 : 0.55)
-                        .animation(
-                            Animation.easeInOut(duration: 1.55 + Double(index) * 0.28)
-                                .repeatForever(autoreverses: true),
-                            value: wavePulse
-                        )
-                }
-
-                // Sphère centrale "liquide".
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.98),
-                                    accent.opacity(0.96),
-                                    accent
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-
-                    Circle()
-                        .fill(accent.opacity(0.62))
-                        .frame(width: core * 0.72, height: core * 0.72)
-                        .blur(radius: 14)
-                        .offset(
-                            x: drift ? core * 0.14 : -core * 0.12,
-                            y: drift ? -core * 0.08 : core * 0.12
-                        )
-                        .animation(
-                            Animation.easeInOut(duration: 2.7).repeatForever(autoreverses: true),
-                            value: drift
-                        )
-
-                    Circle()
-                        .fill(Color.white.opacity(0.72))
-                        .frame(width: core * 0.48, height: core * 0.48)
-                        .blur(radius: 18)
-                        .offset(
-                            x: drift ? -core * 0.10 : core * 0.11,
-                            y: drift ? core * 0.09 : -core * 0.10
-                        )
-                        .animation(
-                            Animation.easeInOut(duration: 3.1).repeatForever(autoreverses: true),
-                            value: drift
-                        )
-
+        return ZStack {
+            Circle()
+                .fill(
                     RadialGradient(
                         gradient: Gradient(colors: [
-                            Color.white.opacity(0.82),
-                            Color.white.opacity(0.16),
+                            accent.opacity(0.30),
+                            accent.opacity(0.08),
                             Color.clear
                         ]),
                         center: .center,
-                        startRadius: 4,
-                        endRadius: core * 0.34
+                        startRadius: core * 0.20,
+                        endRadius: size * 0.52
+                    )
+                )
+                .frame(width: size, height: size)
+                .blur(radius: size > 150 ? 15 : 8)
+
+            ForEach(0..<2) { index in
+                Circle()
+                    .stroke(
+                        accent.opacity(index == 0 ? 0.40 : 0.18),
+                        lineWidth: 1
+                    )
+                    .frame(
+                        width: core + CGFloat(index * 30),
+                        height: core + CGFloat(index * 30)
+                    )
+                    .scaleEffect(
+                        (pulse ? 1.025 : 0.985)
+                        + normalizedLevel * CGFloat(index + 1) * 0.014
+                    )
+                    .animation(
+                        Animation.easeInOut(duration: 1.7 + Double(index) * 0.25)
+                            .repeatForever(autoreverses: true),
+                        value: pulse
+                    )
+            }
+
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.96),
+                                accent.opacity(0.94),
+                                accent
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
 
-                    Image(systemName: viewModel.activeAgent.iconName)
-                        .font(.system(size: 35, weight: .bold))
-                        .foregroundColor(.white)
-                        .shadow(color: Color.black.opacity(0.22), radius: 5, x: 0, y: 2)
-                        .scaleEffect(1.0 + normalizedLevel * 0.08)
-                }
-                .frame(width: core, height: core)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.78),
-                                    accent.opacity(0.55),
-                                    Color.white.opacity(0.12)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
-                        )
-                )
-                .shadow(color: accent.opacity(0.62), radius: 20)
-                .scaleEffect((haloPulse ? 1.018 : 0.985) * voiceBoost)
-                .animation(
-                    Animation.spring(response: 0.24, dampingFraction: 0.72),
-                    value: normalizedLevel
-                )
+                Circle()
+                    .fill(Color.white.opacity(0.54))
+                    .frame(width: core * 0.48, height: core * 0.48)
+                    .blur(radius: size > 150 ? 17 : 8)
+                    .offset(
+                        x: drift ? -core * 0.08 : core * 0.09,
+                        y: drift ? core * 0.07 : -core * 0.07
+                    )
+                    .animation(
+                        Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
+                        value: drift
+                    )
+
+                Image(systemName: viewModel.activeAgent.iconName)
+                    .font(.system(size: max(18, core * 0.16), weight: .bold))
+                    .foregroundColor(.white)
+                    .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 2)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(width: core, height: core)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
+            )
+            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
+            .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
+            .animation(
+                Animation.spring(response: 0.26, dampingFraction: 0.76),
+                value: normalizedLevel
+            )
         }
         .contentShape(Circle())
         .onTapGesture {
             HapticService.shared.buttonTap()
-            viewModel.toggleMicrophone()
-        }
-    }
-
-    // MARK: - État et transcription
-
-    private var transcriptionArea: some View {
-        VStack(spacing: 9) {
-            Text(statusTitle)
-                .font(.system(size: 24, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-
-            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(viewModel.liveTranscriptionText)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(Color.white.opacity(0.72))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .transition(.opacity)
+            if viewModel.isMicRunning {
+                viewModel.toggleMicrophone()
             } else {
-                Text(statusSubtitle)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.50))
-                    .multilineTextAlignment(.center)
+                viewModel.startVoiceConversation()
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 78)
     }
 
-    // MARK: - Contrôles
+    // MARK: - Barre inférieure
 
-    private var bottomControls: some View {
-        HStack(spacing: 0) {
-            roundButton(
+    private var composer: some View {
+        HStack(spacing: 10) {
+            circleButton(systemName: "plus", size: 50) {
+                HapticService.shared.buttonTap()
+            }
+
+            HStack(spacing: 10) {
+                TextField("Demander à Sarah…", text: $viewModel.inputText)
+                    .foregroundColor(.white)
+                    .accentColor(accent)
+                    .font(.system(size: 16))
+                    .submitLabel(.send)
+                    .onSubmit {
+                        sendTextIfNeeded()
+                    }
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if viewModel.isMicRunning {
+                            viewModel.toggleMicrophone()
+                        } else {
+                            viewModel.startVoiceConversation()
+                        }
+                    } else {
+                        sendTextIfNeeded()
+                    }
+                }) {
+                    Image(systemName: viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "waveform" : "arrow.up")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(accent)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(accent.opacity(0.11)))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 7)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 26)
+                    .fill(Color.white.opacity(0.09))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 26)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+
+            circleButton(
                 systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
-                foreground: .white,
-                background: Color.white.opacity(0.10),
-                size: 64
+                size: 50,
+                highlighted: viewModel.isMicRunning
             ) {
                 HapticService.shared.buttonTap()
                 viewModel.toggleMicrophone()
             }
-
-            Spacer()
-
-            liveWaveform
-                .frame(width: 118, height: 46)
-
-            Spacer()
-
-            roundButton(
-                systemName: "xmark",
-                foreground: .white,
-                background: accent,
-                size: 64
-            ) {
-                HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                presentationMode.wrappedValue.dismiss()
-            }
-            .shadow(color: accent.opacity(0.35), radius: 12)
         }
     }
 
-    private var liveWaveform: some View {
-        HStack(alignment: .center, spacing: 5) {
-            ForEach(0..<9) { index in
-                Capsule()
-                    .fill(accent.opacity(viewModel.isMicRunning ? 0.96 : 0.35))
-                    .frame(
-                        width: 5,
-                        height: waveformHeight(for: index)
-                    )
-            }
-        }
-        .animation(
-            Animation.easeOut(duration: 0.16),
-            value: normalizedLevel
-        )
+    private func sendTextIfNeeded() {
+        let text = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        viewModel.sendMessage(text)
     }
 
-    private func waveformHeight(for index: Int) -> CGFloat {
-        let profile: [CGFloat] = [0.28, 0.42, 0.62, 0.82, 1.0, 0.82, 0.62, 0.42, 0.28]
-        let base = 10 + profile[index] * 12
-        let dynamic = normalizedLevel * profile[index] * 24
-        return viewModel.isMicRunning ? base + dynamic : 8
-    }
-
-    private func roundButton(
+    private func circleButton(
         systemName: String,
-        foreground: Color,
-        background: Color,
-        size: CGFloat,
+        size: CGFloat = 48,
+        highlighted: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(background)
+                    .fill(highlighted ? accent.opacity(0.24) : Color.white.opacity(0.10))
                     .frame(width: size, height: size)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    .stroke(
+                        highlighted ? accent.opacity(0.44) : Color.white.opacity(0.08),
+                        lineWidth: 1
+                    )
                     .frame(width: size, height: size)
 
                 Image(systemName: systemName)
-                    .font(.system(size: size * 0.32, weight: .semibold))
-                    .foregroundColor(foreground)
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundColor(highlighted ? accent : .white)
             }
         }
         .buttonStyle(PlainButtonStyle())
