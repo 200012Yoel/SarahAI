@@ -57,42 +57,28 @@ public final class ChatViewModel: ObservableObject {
     }
     
     // MARK: - Services
-    private let aiService = AIService.shared
-    private let notificationService = NotificationService.shared
-    private let storageService = StorageService.shared
-    private let multiAgentCoordinator = MultiAgentCoordinator.shared
-    private let voiceManager = MultiAgentVoiceManager.shared
-    private let haptics = HapticService.shared
-    
+    // Les services lourds sont résolus à la demande. Sur certaines bêtas iOS,
+    // initialiser Speech/AVAudioEngine/AVSpeechSynthesizer avant le premier frame
+    // peut faire tomber le processus. Le chat peut donc toujours démarrer seul.
+    private var aiService: AIService { AIService.shared }
+    private var notificationService: NotificationService { NotificationService.shared }
+    private var storageService: StorageService { StorageService.shared }
+    private var multiAgentCoordinator: MultiAgentCoordinator { MultiAgentCoordinator.shared }
+    private var voiceManager: MultiAgentVoiceManager { MultiAgentVoiceManager.shared }
+    private var haptics: HapticService { HapticService.shared }
+
     private var cancellables = Set<AnyCancellable>()
+    private var isVoicePipelinePrepared = false
     
     public init() {
         restorePersistedState()
-        setupVoicePipeline()
         setupModeObserver()
-        bindServices()
+        bindCoreServices()
     }
     
     // MARK: - Liaison des Services
-    
-    private func bindServices() {
-        ObservableSpeechRecognizer.shared.$isListening
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] listening in
-                self?.isMicRunning = listening
-                if listening {
-                    self?.voiceStatus = .listening(level: 0.5)
-                }
-            }
-            .store(in: &cancellables)
-            
-        ObservableSpeechRecognizer.shared.$micEnergyLevel
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] level in
-                self?.micInputLevel = level
-            }
-            .store(in: &cancellables)
-            
+
+    private func bindCoreServices() {
         NotificationCenter.default.publisher(for: .sarahStartNewChat)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -113,6 +99,30 @@ public final class ChatViewModel: ObservableObject {
                 if let agent = notif.object as? AgentType {
                     self?.activeAgent = agent
                 }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func ensureVoicePipelinePrepared() {
+        guard !isVoicePipelinePrepared else { return }
+        isVoicePipelinePrepared = true
+
+        setupVoicePipeline()
+
+        ObservableSpeechRecognizer.shared.$isListening
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] listening in
+                self?.isMicRunning = listening
+                if listening {
+                    self?.voiceStatus = .listening(level: 0.5)
+                }
+            }
+            .store(in: &cancellables)
+            
+        ObservableSpeechRecognizer.shared.$micEnergyLevel
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] level in
+                self?.micInputLevel = level
             }
             .store(in: &cancellables)
     }
@@ -143,7 +153,7 @@ public final class ChatViewModel: ObservableObject {
             startNewChat(silently: true)
             return
         }
-        aiService.syncHistoryFromMessages(self.messages)
+        // Le moteur IA est synchronisé au premier envoi, pas au lancement.
     }
     
     public func persistCurrentState() {
@@ -368,6 +378,7 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func toggleMicrophone() {
+        ensureVoicePipelinePrepared()
         haptics.buttonTap()
         if isMicRunning || AppleSpeechRecognizer.shared.isListening {
             stopVoiceConversation(stopSpeech: false)
@@ -379,6 +390,7 @@ public final class ChatViewModel: ObservableObject {
     /// Démarre explicitement une session vocale continue.
     /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
+        ensureVoicePipelinePrepared()
         voiceManager.stop()
         isContinuousConversationActive = true
 
@@ -415,11 +427,13 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func speakMessage(_ text: String) {
+        ensureVoicePipelinePrepared()
         haptics.buttonTap()
         voiceManager.speak(text: text, for: activeAgent)
     }
     
     public func toggleSpeechForMessage(_ text: String) {
+        ensureVoicePipelinePrepared()
         haptics.buttonTap()
         if voiceManager.isSpeaking {
             voiceManager.stop()
@@ -434,6 +448,7 @@ public final class ChatViewModel: ObservableObject {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
+        aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         inputText = ""
@@ -547,6 +562,7 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func introduceSarah() {
+        ensureVoicePipelinePrepared()
         haptics.buttonTap()
         let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Raccourcis) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
         let aiMessage = Message(content: introText, isFromUser: false)
