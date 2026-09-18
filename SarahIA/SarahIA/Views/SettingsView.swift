@@ -1022,75 +1022,174 @@ private struct VoiceAndSpeechSettingsView: View {
 
 @available(iOS 15.0, *)
 private struct LocalGenerationSettingsView: View {
+    private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
+    private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
+
     var body: some View {
-        List {
-            Section("Images") {
-                HStack(spacing: 12) {
-                    Image(systemName: "photo.fill")
-                        .foregroundColor(.purple)
-                        .frame(width: 34, height: 34)
-                        .background(Color.purple.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Stable Diffusion 2.1 Core ML")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    capabilityCard(
+                        icon: "photo.fill",
+                        tint: .purple,
+                        title: "Images",
+                        profile: imageProfile
+                    )
+
+                    capabilityCard(
+                        icon: "video.fill",
+                        tint: .orange,
+                        title: "Vidéo",
+                        profile: videoProfile
+                    )
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Sélection automatique", systemImage: "cpu")
                             .font(.headline)
-                        Text("Version 6-bit palettisée • 512 × 512")
+                            .foregroundColor(.white)
+
+                        Text("Sarah choisit le profil selon la RAM et la version d’iOS. Un futur iPhone plus puissant basculera automatiquement vers un profil plus lourd sans modifier l’interface.")
                             .font(.footnote)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.white.opacity(0.54))
+
+                        Text(String(format: "RAM détectée : %.1f Go • iOS %d", SarahGenerativeModelCatalog.physicalRAMGB, SarahGenerativeModelCatalog.iosMajor))
+                            .font(.caption.monospaced())
+                            .foregroundColor(Color.white.opacity(0.38))
                     }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.075))
+                    )
 
-                    Spacer()
-
-                    Text("iPhone 14")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.green)
-                }
-
-                Text("C’est actuellement la cible la plus réaliste pour une génération d’images réellement locale sur iPhone 14 : pipeline Core ML/Neural Engine, sans serveur. Le modèle n’est pas intégré dans l’IPA tant que le paquet Core ML complet et sa notice ne sont pas validés.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-
-            Section("Vidéo") {
-                HStack(spacing: 12) {
-                    Image(systemName: "video.fill")
-                        .foregroundColor(.orange)
-                        .frame(width: 34, height: 34)
-                        .background(Color.orange.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("MobileI2V 0.27B")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Règle de confidentialité", systemImage: "checkmark.shield.fill")
                             .font(.headline)
-                        Text("Image → vidéo • Apache-2.0")
+                            .foregroundColor(.green)
+
+                        Text("Sarah n’affiche « local » que si les poids et l’inférence s’exécutent réellement sur l’iPhone. Un service distant doit être annoncé comme tel et reste désactivé par défaut pour les fonctions génératives.")
                             .font(.footnote)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color.white.opacity(0.54))
                     }
-
-                    Spacer()
-
-                    Text("Expérimental")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.orange)
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.075))
+                    )
                 }
-
-                Text("Le projet MobileI2V vise les appareils mobiles et publie un modèle bien plus petit que SVD-XT, mais il n’existe pas encore de paquet Core ML iOS prêt à déposer dans Sarah pour l’iPhone 14. Sarah le garde donc comme moteur vidéo expérimental, sans prétendre qu’il fonctionne déjà localement.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-            }
-
-            Section("Principe") {
-                Label("Aucun faux « local »", systemImage: "checkmark.shield.fill")
-                    .foregroundColor(.green)
-                Text("Sarah n’affichera “100 % local” que lorsque les poids utilisés pour générer l’image ou la vidéo seront réellement exécutés sur l’iPhone. Un appel réseau ne sera pas présenté comme une génération locale.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                .padding(18)
+                .padding(.bottom, 24)
             }
         }
-        .listStyle(InsetGroupedListStyle())
         .navigationTitle("Création locale")
         .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(.dark)
+    }
+
+    private func capabilityCard(
+        icon: String,
+        tint: Color,
+        title: String,
+        profile: SarahGenerativeModelProfile
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(tint)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(tint.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.46))
+
+                    Text(profile.displayName)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                Spacer(minLength: 8)
+
+                statusBadge(profile.runtimeState)
+            }
+
+            HStack(spacing: 8) {
+                if profile.resolution != "—" {
+                    capsule(profile.resolution)
+                }
+                if profile.licenseName != "—" {
+                    capsule(profile.licenseName)
+                }
+            }
+
+            Text(profile.note)
+                .font(.footnote)
+                .foregroundColor(Color.white.opacity(0.54))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let source = URL(string: profile.sourceURL), !profile.sourceURL.isEmpty {
+                Link(destination: source) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Source du modèle")
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(tint)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.085))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func capsule(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(Color.white.opacity(0.72))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+    }
+
+    private func statusBadge(_ state: SarahGenerativeRuntimeState) -> some View {
+        let text: String
+        let color: Color
+
+        switch state {
+        case .ready:
+            text = "Prêt"
+            color = .green
+        case .requiresDownload:
+            text = "À télécharger"
+            color = .blue
+        case .experimental:
+            text = "Expérimental"
+            color = .orange
+        case .unsupported:
+            text = "Indisponible"
+            color = .gray
+        }
+
+        return Text(text)
+            .font(.caption2.weight(.bold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 }
 
