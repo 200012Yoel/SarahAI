@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import ZIPFoundation
 
 // ============================================================================
 // BACKGROUND MODEL DOWNLOADER — TÉLÉCHARGEMENT PROGRESSIF DU MODÈLE QWEN3 GGUF
@@ -183,5 +185,346 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
                 UserDefaults.standard.set(resumeData, forKey: resumeDataKey)
             }
         }
+    }
+}
+
+
+// ============================================================================
+// GENERATIVE MODEL DOWNLOADER — IMAGE / VIDEO
+// ============================================================================
+
+@available(iOS 13.0, *)
+public final class GenerativeModelDownloader: NSObject, ObservableObject {
+
+    public static let shared = GenerativeModelDownloader()
+
+    public enum DownloadKind: String {
+        case image
+        case video
+    }
+
+    @Published public private(set) var isDownloading: Bool = false
+    @Published public private(set) var progress: Double = 0
+    @Published public private(set) var statusText: String = ""
+    @Published public private(set) var activeKind: DownloadKind?
+
+    private var session: URLSession!
+    private var task: URLSessionDownloadTask?
+    private var activeIdentifier: String?
+    private var activeURL: URL?
+    private let fileManager = FileManager.default
+
+    private override init() {
+        super.init()
+
+        let config = URLSessionConfiguration.background(
+            withIdentifier: "com.sarahia.generative-model-download"
+        )
+        config.isDiscretionary = false
+        config.allowsCellularAccess = false
+        config.sessionSendsLaunchEvents = true
+        config.waitsForConnectivity = true
+
+        self.session = URLSession(
+            configuration: config,
+            delegate: self,
+            delegateQueue: nil
+        )
+    }
+
+    public func startImageModelDownload() {
+        let profile = SarahGenerativeModelCatalog.imageProfile()
+
+        let urlString: String?
+        switch profile.identifier {
+        case "apple-sd21-6bit":
+            urlString = "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized/resolve/main/coreml-stable-diffusion-2-1-base-palettized_split_einsum_v2_compiled.zip?download=true"
+        case "apple-sdxl-1.0-ios-4bit":
+            urlString = "https://huggingface.co/apple/coreml-stable-diffusion-xl-base-ios/resolve/main/coreml-stable-diffusion-xl-base-ios_split_einsum_compiled.zip?download=true"
+        default:
+            urlString = nil
+        }
+
+        guard let urlString, let url = URL(string: urlString) else {
+            publishFailure("Aucun paquet Core ML téléchargeable n'est configuré pour cet appareil.")
+            return
+        }
+
+        start(
+            kind: .image,
+            identifier: profile.identifier,
+            url: url,
+            minimumFreeBytes: profile.identifier.contains("sdxl")
+                ? 7_000_000_000
+                : 3_000_000_000
+        )
+    }
+
+    /// Télécharge le checkpoint MobileI2V officiel pour préparer le port local.
+    /// Le checkpoint seul ne suffit pas pour l'inférence iOS : le runtime mobile
+    /// doit encore être converti/branché. Sarah l'affiche explicitement comme tel.
+    public func startVideoModelDownload() {
+        let profile = SarahGenerativeModelCatalog.videoProfile()
+
+        guard profile.identifier == "mobilei2v-027b" else {
+            publishFailure("Le profil vidéo de cet appareil nécessite un paquet Core ML spécifique qui n'est pas distribué automatiquement.")
+            return
+        }
+
+        guard let url = URL(
+            string: "https://huggingface.co/hustvl/MobileI2V/resolve/main/hybrid_371.pth?download=true"
+        ) else {
+            publishFailure("URL MobileI2V invalide.")
+            return
+        }
+
+        start(
+            kind: .video,
+            identifier: profile.identifier,
+            url: url,
+            minimumFreeBytes: 2_500_000_000
+        )
+    }
+
+    public func cancel() {
+        task?.cancel()
+        task = nil
+        DispatchQueue.main.async {
+            self.isDownloading = false
+            self.progress = 0
+            self.statusText = "Téléchargement annulé"
+            self.activeKind = nil
+        }
+    }
+
+    public func isInstalled(kind: DownloadKind) -> Bool {
+        switch kind {
+        case .image:
+            return SarahLocalImageGenEngine.shared.isLocalLCMModelAvailable
+        case .video:
+            let profile = SarahGenerativeModelCatalog.videoProfile()
+            guard profile.identifier == "mobilei2v-027b" else {
+                return SarahLocalVideoGenEngine.shared.hasInstalledRuntimeAssets
+            }
+            let checkpoint = modelDirectory(for: profile.identifier)
+                .appendingPathComponent("hybrid_371.pth")
+            return fileManager.fileExists(atPath: checkpoint.path)
+        }
+    }
+
+    private func start(
+        kind: DownloadKind,
+        identifier: String,
+        url: URL,
+        minimumFreeBytes: Int64
+    ) {
+        guard !isDownloading else { return }
+
+        guard hasEnoughFreeSpace(minimum: minimumFreeBytes) else {
+            publishFailure("Espace de stockage insuffisant pour ce modèle.")
+            return
+        }
+
+        activeKind = kind
+        activeIdentifier = identifier
+        activeURL = url
+        isDownloading = true
+        progress = 0
+        statusText = kind == .image
+            ? "Téléchargement du modèle image…"
+            : "Téléchargement du modèle vidéo…"
+
+        task = session.downloadTask(with: url)
+        task?.resume()
+    }
+
+    private func hasEnoughFreeSpace(minimum: Int64) -> Bool {
+        let root = modelRootDirectory
+        let values = try? root.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+        )
+        guard let available = values?.volumeAvailableCapacityForImportantUsage else {
+            return true
+        }
+        return available >= minimum
+    }
+
+    private var modelRootDirectory: URL {
+        let base = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? fileManager.temporaryDirectory
+
+        let root = base
+            .appendingPathComponent("SarahAI", isDirectory: true)
+            .appendingPathComponent("GenerativeModels", isDirectory: true)
+
+        try? fileManager.createDirectory(
+            at: root,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        return root
+    }
+
+    private func modelDirectory(for identifier: String) -> URL {
+        let dir = modelRootDirectory.appendingPathComponent(
+            identifier,
+            isDirectory: true
+        )
+        try? fileManager.createDirectory(
+            at: dir,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        return dir
+    }
+
+    private func installImageArchive(
+        from downloadedURL: URL,
+        identifier: String
+    ) throws -> URL {
+        let destination = modelDirectory(for: identifier)
+
+        if fileManager.fileExists(atPath: destination.path) {
+            let items = try fileManager.contentsOfDirectory(
+                at: destination,
+                includingPropertiesForKeys: nil
+            )
+            for item in items {
+                try fileManager.removeItem(at: item)
+            }
+        }
+
+        try fileManager.unzipItem(
+            at: downloadedURL,
+            to: destination,
+            skipCRC32: false,
+            progress: { progress in
+                DispatchQueue.main.async {
+                    self.statusText = String(
+                        format: "Installation du modèle… %.0f %%",
+                        progress.fractionCompleted * 100
+                    )
+                }
+            }
+        )
+
+        guard SarahLocalImageGenEngine.shared.discoverResourceDirectory() != nil else {
+            throw NSError(
+                domain: "com.sarahia.generative-model-download",
+                code: 422,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Le paquet téléchargé ne contient pas les ressources Core ML attendues."
+                ]
+            )
+        }
+
+        return destination
+    }
+
+    private func installVideoCheckpoint(
+        from downloadedURL: URL,
+        identifier: String
+    ) throws -> URL {
+        let destination = modelDirectory(for: identifier)
+            .appendingPathComponent("hybrid_371.pth")
+
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+
+        try fileManager.moveItem(at: downloadedURL, to: destination)
+        return destination
+    }
+
+    private func publishFailure(_ message: String) {
+        DispatchQueue.main.async {
+            self.isDownloading = false
+            self.statusText = message
+            self.activeKind = nil
+        }
+    }
+}
+
+@available(iOS 13.0, *)
+extension GenerativeModelDownloader: URLSessionDownloadDelegate {
+
+    public func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+
+        let value = Double(totalBytesWritten)
+            / Double(totalBytesExpectedToWrite)
+
+        DispatchQueue.main.async {
+            self.progress = value
+        }
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard let kind = activeKind,
+              let identifier = activeIdentifier else {
+            publishFailure("Téléchargement terminé sans profil actif.")
+            return
+        }
+
+        do {
+            let installedURL: URL
+
+            switch kind {
+            case .image:
+                installedURL = try installImageArchive(
+                    from: location,
+                    identifier: identifier
+                )
+                SarahLocalImageGenEngine.shared.checkLocalModelAvailability()
+
+            case .video:
+                installedURL = try installVideoCheckpoint(
+                    from: location,
+                    identifier: identifier
+                )
+            }
+
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.progress = 1
+                self.statusText = kind == .image
+                    ? "Modèle image installé localement"
+                    : "Checkpoint vidéo téléchargé"
+                self.activeKind = nil
+
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SarahGenerativeModelInstalled"),
+                    object: installedURL,
+                    userInfo: [
+                        "kind": kind.rawValue,
+                        "identifier": identifier
+                    ]
+                )
+            }
+        } catch {
+            publishFailure(error.localizedDescription)
+        }
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error else { return }
+        publishFailure(error.localizedDescription)
     }
 }
