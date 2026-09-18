@@ -49,6 +49,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 1.3 // Secondes de pause pour valider la question
     private var hasDetectedSpeechInCurrentSession: Bool = false
+
+    // Limite la télémétrie du niveau micro à ~15 FPS. Le callback audio tourne
+    // beaucoup plus vite et ne doit jamais inonder le thread principal.
+    private var lastEnergyPublishTime: TimeInterval = 0
+    private let energyPublishInterval: TimeInterval = 1.0 / 15.0
     
     private override init() {
         super.init()
@@ -97,7 +102,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
+            // Pendant l'écoute, on n'a besoin que de l'entrée micro. Éviter
+            // .playAndRecord + .duckOthers empêche Sarah de modifier inutilement
+            // le volume/routage audio du reste de l'iPhone.
+            try audioSession.setCategory(.record, mode: .measurement, options: [.allowBluetooth])
+            try audioSession.setPreferredIOBufferDuration(0.046)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             state = .error("Erreur session audio: \(error.localizedDescription)")
@@ -187,6 +196,18 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             micEnergyLevel = 0.0
             HapticService.shared.speechFinished()
         }
+
+        // Très important : rendre immédiatement la session audio à iOS.
+        // Sans cela, le téléphone peut rester dans une route micro/mesure,
+        // perturber le son système ou conserver les autres apps atténuées.
+        let session = AVAudioSession.sharedInstance()
+        if !MultiAgentVoiceManager.shared.isSpeaking && !SpeechManager.shared.isSpeaking {
+            do {
+                try session.setActive(false, options: .notifyOthersOnDeactivation)
+            } catch {
+                print("⚠️ [AppleSpeechRecognizer] Impossible de désactiver la session audio: \(error.localizedDescription)")
+            }
+        }
     }
     
     // MARK: - Détection Automatique de Silence & Finalisation
@@ -223,9 +244,18 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
         let rms = sqrt(sum / Float(frameLength))
         let normalized = min(1.0, max(0.0, rms * 10.0))
-        
+
+        let now = Date().timeIntervalSinceReferenceDate
+        guard now - lastEnergyPublishTime >= energyPublishInterval else { return }
+        lastEnergyPublishTime = now
+
         DispatchQueue.main.async {
+            guard self.isListening else { return }
             self.micEnergyLevel = normalized
+            NotificationCenter.default.post(
+                name: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"),
+                object: nil
+            )
         }
     }
     
@@ -257,6 +287,14 @@ public final class ObservableSpeechRecognizer: ObservableObject {
                 self?.isListening = AppleSpeechRecognizer.shared.isListening
                 self?.currentLiveText = AppleSpeechRecognizer.shared.currentLiveText
                 self?.micEnergyLevel = AppleSpeechRecognizer.shared.micEnergyLevel
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.micEnergyLevel = AppleSpeechRecognizer.shared.micEnergyLevel
+                self?.currentLiveText = AppleSpeechRecognizer.shared.currentLiveText
             }
             .store(in: &cancellables)
     }
