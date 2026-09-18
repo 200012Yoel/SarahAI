@@ -43,23 +43,19 @@ public struct VoiceOrbModalView: View {
             Color.black
                 .ignoresSafeArea()
 
-            // Léger halo ambiant pour éviter un écran totalement plat.
+            // Halo ambiant statique : beaucoup moins coûteux pour le GPU
+            // qu'un grand gradient flouté animé sur toute la surface.
             RadialGradient(
                 gradient: Gradient(colors: [
-                    accent.opacity(0.16),
-                    accent.opacity(0.04),
+                    accent.opacity(0.12),
+                    accent.opacity(0.03),
                     Color.clear
                 ]),
                 center: .center,
-                startRadius: 70,
-                endRadius: 420
+                startRadius: 90,
+                endRadius: 390
             )
             .ignoresSafeArea()
-            .scaleEffect(haloPulse ? 1.08 : 0.96)
-            .animation(
-                Animation.easeInOut(duration: 2.8).repeatForever(autoreverses: true),
-                value: haloPulse
-            )
 
             VStack(spacing: 0) {
                 header
@@ -88,16 +84,12 @@ public struct VoiceOrbModalView: View {
             haloPulse = true
             drift = true
             wavePulse = true
-
-            if !viewModel.isMicRunning {
-                viewModel.toggleMicrophone()
-            }
+            viewModel.startVoiceConversation()
         }
         .onDisappear {
-            // Un mode vocal fermé ne doit jamais laisser le micro tourner.
-            if viewModel.isMicRunning {
-                viewModel.toggleMicrophone()
-            }
+            // Toujours couper le mode continu, même si Sarah parle et que le
+            // micro est momentanément arrêté.
+            viewModel.stopVoiceConversation()
         }
     }
 
@@ -112,6 +104,7 @@ public struct VoiceOrbModalView: View {
                 size: 48
             ) {
                 HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
             }
 
@@ -159,19 +152,19 @@ public struct VoiceOrbModalView: View {
                         )
                     )
                     .frame(width: side, height: side)
-                    .blur(radius: 24)
+                    .blur(radius: 16)
                     .scaleEffect((haloPulse ? 1.06 : 0.95) * voiceBoost)
 
                 // Ondes fines autour de l'orbe.
-                ForEach(0..<3) { index in
+                ForEach(0..<2) { index in
                     Circle()
                         .stroke(
                             accent.opacity(index == 0 ? 0.45 : 0.20),
                             lineWidth: index == 0 ? 1.4 : 1.0
                         )
                         .frame(
-                            width: core + CGFloat(index * 34),
-                            height: core + CGFloat(index * 34)
+                            width: core + CGFloat(index * 40),
+                            height: core + CGFloat(index * 40)
                         )
                         .scaleEffect(
                             (wavePulse ? 1.035 : 0.975)
@@ -203,7 +196,7 @@ public struct VoiceOrbModalView: View {
                     Circle()
                         .fill(accent.opacity(0.62))
                         .frame(width: core * 0.72, height: core * 0.72)
-                        .blur(radius: 24)
+                        .blur(radius: 14)
                         .offset(
                             x: drift ? core * 0.14 : -core * 0.12,
                             y: drift ? -core * 0.08 : core * 0.12
@@ -216,7 +209,7 @@ public struct VoiceOrbModalView: View {
                     Circle()
                         .fill(Color.white.opacity(0.72))
                         .frame(width: core * 0.48, height: core * 0.48)
-                        .blur(radius: 30)
+                        .blur(radius: 18)
                         .offset(
                             x: drift ? -core * 0.10 : core * 0.11,
                             y: drift ? core * 0.09 : -core * 0.10
@@ -260,7 +253,7 @@ public struct VoiceOrbModalView: View {
                             lineWidth: 2
                         )
                 )
-                .shadow(color: accent.opacity(0.78), radius: 34)
+                .shadow(color: accent.opacity(0.62), radius: 20)
                 .scaleEffect((haloPulse ? 1.018 : 0.985) * voiceBoost)
                 .animation(
                     Animation.spring(response: 0.24, dampingFraction: 0.72),
@@ -331,12 +324,10 @@ public struct VoiceOrbModalView: View {
                 size: 64
             ) {
                 HapticService.shared.buttonTap()
-                if viewModel.isMicRunning {
-                    viewModel.toggleMicrophone()
-                }
+                viewModel.stopVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
             }
-            .shadow(color: accent.opacity(0.42), radius: 18)
+            .shadow(color: accent.opacity(0.35), radius: 12)
         }
     }
 
