@@ -1,4 +1,4 @@
-name: 🍎 Sarah IA iOS Build (Universel iOS 12.0+)
+name: 🍎 Sarah IA iOS Build (Universel iOS 16.0+)
 run-name: 🍎 Sarah IA iOS Universel (Build #${{ github.run_number }})
 
 on:
@@ -30,10 +30,10 @@ jobs:
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure Universal iOS 12.0+ Target
+      - name: Configure Universal iOS 16.0+ Target
         run: |
-          echo "=== Normalisation MinimumOSVersion 12.0 dans les Plists ==="
-          find . -name "Info.plist" -not -path "*/SarahIAWidgets/*" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
+          echo "=== Normalisation MinimumOSVersion 16.0 dans les Plists ==="
+          find . -name "Info.plist" -not -path "*/SarahIAWidgets/*" -exec plutil -replace MinimumOSVersion -string "16.0" {} \; 2>/dev/null || true
 
       - name: Build Universal App Mach-O
         run: |
@@ -44,7 +44,7 @@ jobs:
 
           cd "$PROJECT_DIR"
 
-          echo "=== Compilation de l'application Sarah IA (Universal iOS 12.0 -> iOS 18.0) ==="
+          echo "=== Compilation de l'application Sarah IA (Universal iOS 16.0+) ==="
           xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme "SarahIA" \
@@ -81,7 +81,7 @@ jobs:
 
           INFOPLIST_TARGET="/tmp/Payload/$(basename "$APP_PATH")/Info.plist"
           if [ -f "$INFOPLIST_TARGET" ]; then
-            plutil -replace MinimumOSVersion -string "12.0" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace MinimumOSVersion -string "16.0" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
@@ -108,7 +108,7 @@ jobs:
         if: github.ref == 'refs/heads/stable-2026-recovery'
         with:
           tag_name: stable-2026
-          name: "🍎 Sarah IA - Stable 2026 (iOS 12.0+)"
+          name: "🍎 Sarah IA - Stable 2026 (iOS 16.0+)"
           body: "Snapshot stable basé sur la branche de compatibilité iOS 12 du 20 août 2026. Cette édition est volontairement antérieure aux expérimentations iOS 27 et aux nouveaux runtimes génératifs."
           files: dist/SarahIA.ipa
           draft: false
