@@ -92,10 +92,37 @@ public final class SarahLocalImageGenEngine {
         return dir
     }
 
-    /// Structure attendue par le runtime StableDiffusion d'Apple.
-    public var isLocalLCMModelAvailable: Bool {
-        let dir = localModelDirectory
+    /// Retrouve le dossier de ressources Core ML, même si l'archive Hugging Face
+    /// contient un ou plusieurs dossiers parents.
+    public func discoverResourceDirectory() -> URL? {
+        let root = localModelDirectory
 
+        if isValidResourceDirectory(root) {
+            return root
+        }
+
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        for case let url as URL in enumerator {
+            if isValidResourceDirectory(url) {
+                return url
+            }
+        }
+
+        return nil
+    }
+
+    public var isLocalLCMModelAvailable: Bool {
+        discoverResourceDirectory() != nil
+    }
+
+    private func isValidResourceDirectory(_ dir: URL) -> Bool {
         let hasTextEncoder =
             fileManager.fileExists(atPath: dir.appendingPathComponent("TextEncoder.mlmodelc").path)
 
@@ -221,7 +248,7 @@ public final class SarahLocalImageGenEngine {
                 pipelineConfig.guidanceScale = Float(config.guidanceScale)
 
                 let pipeline = try StableDiffusionPipeline(
-                    resourcesAt: self.localModelDirectory,
+                    resourcesAt: self.discoverResourceDirectory() ?? self.localModelDirectory,
                     controlNet: [],
                     configuration: MLModelConfiguration(),
                     disableSafety: false,
