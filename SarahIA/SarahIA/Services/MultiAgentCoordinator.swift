@@ -561,14 +561,21 @@ public final class MultiAgentCoordinator {
         
         let trimmed = clean.isEmpty ? text.trimmingCharacters(in: .whitespacesAndNewlines) : clean
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
-        
+
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
-        let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
-        
-        SarahLocalImageGenEngine.shared.generateImage(prompt: prompt) { _ in }
-        
-        let responseText = "✨ **Ethel [Studio Créatif & Photoréalisme HD]**\n\n🎨 Création photoréaliste en cours pour : « **\(prompt)** » avec le moteur de diffusion local.\n\n\(imageURL)"
-        let spoken = "Je génère votre image photoréaliste de \(prompt)."
+        let profile = SarahGenerativeModelCatalog.imageProfile()
+
+        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+
+        let responseText = """
+        ✨ **Ethel [Studio Créatif]**
+
+        🎨 Création lancée pour : « **\(prompt)** »
+        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+
+        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
+        """
+        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
         completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
     }
     
@@ -905,19 +912,38 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 4. ÉTAPE 1 : Déclenchement d'un flux vidéo ou de publication
-        if lower.contains("vidéo") || lower.contains("video") || lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") {
+        // 4. Génération vidéo locale : prioritaire sur le flux de publication.
+        let localVideoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        if localVideoIntent.isIntent {
+            let profile = SarahLocalVideoGenEngine.shared.profile
+            let responseText = """
+            🎬 **Sarah & Nathan [Création vidéo]**
+
+            Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+
+            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
+            """
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: SarahLocalVideoGenEngine.shared.availabilityMessage()
+            ))
+            return
+        }
+
+        // 5. Flux de publication d'une vidéo existante.
+        if lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") || lower.contains("partager ma vidéo") || lower.contains("partager ma video") {
             nathanStep = .waitingForDestination
             let responseText = """
-            🤖 **Nathan [Réseaux Sociaux & IA]**
+            🤖 **Nathan [Réseaux Sociaux]**
 
-            Que veux-tu faire avec ta vidéo ?
-            • La publier sur **Instagram** (Reels / Post)
-            • La poster sur **TikTok**
-            • La mettre sur **YouTube**
-            • La publier sur **Twitter / X**
+            Où veux-tu préparer le partage de ta vidéo ?
+            • **Instagram**
+            • **TikTok**
+            • **YouTube**
+            • **Twitter / X**
             """
-            let spoken = "Que veux-tu faire avec ta vidéo ? Tu peux choisir Instagram, TikTok, YouTube ou Twitter."
+            let spoken = "Où veux-tu préparer le partage de ta vidéo ?"
             completion(AgentResponse(agent: .nathan, text: responseText, spokenText: spoken))
             return
         }
@@ -946,17 +972,6 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 8. Voo — Génération Vidéo
-        if lower.contains("voo") || lower.contains("génère une vidéo") || lower.contains("genere une video") || lower.contains("générer une vidéo") {
-            let vooURL = URL(string: "https://voo.ai")!
-            DispatchQueue.main.async {
-                UIApplication.shared.open(vooURL)
-            }
-            let responseText = "🤖 **Nathan [Génération Vidéo — Voo AI]**\n\nJ'ai ouvert **Voo** pour toi ! C'est l'un des meilleurs outils IA de génération vidéo.\n\n🎬 Tu peux y décrire ta scène et Voo va générer une vidéo complète."
-            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "J'ai ouvert Voo, le meilleur outil de génération vidéo par intelligence artificielle."))
-            return
-        }
-        
         // 9. Génération Musicale Directe (Moteur Open Source Local)
         if lower.contains("compose une musique") || lower.contains("génère une musique") || lower.contains("joue une musique") || lower.contains("musique") {
             let musicCheck = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
@@ -968,31 +983,47 @@ public final class MultiAgentCoordinator {
             }
         }
         
-        // 9.5 Génération d'Images Directe (Moteur Open Source Flux / SDXL)
+        // 9.5 Génération d'images : même routeur local que Sarah.
         if lower.contains("génère une image") || lower.contains("génère une photo") || lower.contains("dessine") || lower.contains("crée une image") || lower.contains("crée une photo") || lower.contains("fais une image") || lower.contains("fais une photo") || lower.contains("genere une image") || lower.contains("genere une photo") {
             let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
             if imageCheck.isIntent {
                 let prompt = imageCheck.cleanedPrompt
-                let imageURL = OpenSourceImageGenerationService.shared.buildImageURL(for: prompt)
+                let profile = SarahGenerativeModelCatalog.imageProfile()
                 OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
-                let responseText = "🎨 **Sarah & Nathan [Génération Visuelle HD]**\n\nImage en cours de rendu pour : « **\(prompt)** » via le modèle **Flux.1 HD**.\n\n\(imageURL)"
-                completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Je génère votre image de \(prompt)."))
+
+                let responseText = """
+                🎨 **Sarah & Nathan [Création visuelle]**
+
+                Création lancée pour : « **\(prompt)** »
+                Profil : **\(profile.displayName)** · \(profile.licenseName).
+                """
+                completion(AgentResponse(
+                    agent: .nathan,
+                    text: responseText,
+                    spokenText: "Je lance la création de votre image avec le modèle adapté à cet iPhone."
+                ))
                 return
             }
         }
         
-        // 10. Modèles IA & Architecture Sarah Engine 100% On-Device
+        // 10. Modèles IA & architecture Sarah Engine
         if lower.contains("modèle") || lower.contains("modele") || lower.contains("local") || lower.contains("architecture") || lower.contains("moteur ia") {
+            let image = SarahGenerativeModelCatalog.imageProfile()
+            let video = SarahGenerativeModelCatalog.videoProfile()
             let responseText = """
-            🤖 **Sarah Engine [Architecture 100% Embarquée & On-Device]**
+            🤖 **Sarah Engine [Architecture locale d'abord]**
 
-            • 👑 **Sarah Engine Local** : Moteur d'orchestration ultra-rapide (60 FPS, zéro latence).
-            • 🧠 **Local Neural Intelligence** : Traitement déductif, logique et synthèse textuelle 100% sur puce Apple.
-            • 🎵 **Sarah Local DSP Synth** : Génération musicale polyphonique 100% autonome sur haut-parleur.
-            • 👁️ **Vision Locale Apple Vision** : OCR haute précision, classification d'objets et visages sans réseau.
-            • 🔒 **Zéro Serveur / Zéro Dépendance Externe** : Confidentialité et autonomie absolues.
+            • 🧠 **Texte** : modèle local choisi selon la RAM.
+            • 🎨 **Image** : **\(image.displayName)**.
+            • 🎬 **Vidéo** : **\(video.displayName)**.
+            • 👁️ **Vision** : frameworks Apple Vision/Core ML.
+            • 🔒 **Réseau** : jamais présenté comme local ; le fallback génératif distant est optionnel.
             """
-            completion(AgentResponse(agent: .nathan, text: responseText, spokenText: "Voici l'architecture Sarah Engine 100% locale, autonome et sans aucun serveur."))
+            completion(AgentResponse(
+                agent: .nathan,
+                text: responseText,
+                spokenText: "Sarah Engine choisit automatiquement les modèles selon les capacités de cet iPhone."
+            ))
             return
         }
         
