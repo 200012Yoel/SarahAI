@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import PhotosUI
 
 /// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents (100% Moteur Local On-Device) :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -81,7 +80,7 @@ public struct SettingsView: View {
                             settingsDivider
 
                             settingsLink(
-                                destination: SarahEngineActivationSettingsView(viewModel: viewModel),
+                                destination: SarahEngineSettingsView(viewModel: viewModel),
                                 icon: "sparkles",
                                 tint: .pink,
                                 title: "Sarah Engine",
@@ -1222,194 +1221,115 @@ private struct LocalGenerationSettingsView: View {
 }
 
 @available(iOS 15.0, *)
-private struct SarahEngineActivationSettingsView: View {
+private struct SarahEngineSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
-    @AppStorage("sarahEngineHaloEnabled") private var haloEnabled: Bool = true
-    @AppStorage("sarahEngineCamouflageEnabled") private var camouflageEnabled: Bool = true
-    @State private var copied: Bool = false
-    @State private var showingHomeScreenPicker: Bool = false
-    @State private var hasHomeScreenSnapshot: Bool = SarahHomeScreenSnapshotStore.hasSnapshot
+
+    private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
+    private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
 
     var body: some View {
-        List {
-            Section("Apparence") {
-                Toggle(isOn: $haloEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Halo Sarah Engine", systemImage: "sparkles")
-                        Text("Affiche un contour multicolore autour de l'écran et de l'encoche pendant le mode vocal.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .tint(.pink)
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                Toggle(isOn: $camouflageEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Mode écran d'accueil", systemImage: "rectangle.on.rectangle")
-                        Text("Quand Sarah Intelligence se lance, Sarah affiche ta capture d'écran d'accueil derrière le halo pour donner l'illusion que l'écran d'accueil est toujours visible.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .tint(.pink)
-
-                Button {
-                    showingHomeScreenPicker = true
-                    HapticService.shared.buttonTap()
-                } label: {
-                    HStack {
-                        Label(
-                            hasHomeScreenSnapshot ? "Remplacer la capture d'écran d'accueil" : "Choisir une capture d'écran d'accueil",
-                            systemImage: "photo.on.rectangle"
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 16) {
+                    engineCard(
+                        icon: "cpu.fill",
+                        tint: .cyan,
+                        title: "Moteur texte",
+                        value: HardwareDetector.recommendModel(),
+                        detail: String(
+                            format: "%.1f Go de RAM détectés",
+                            SarahGenerativeModelCatalog.physicalRAMGB
                         )
-                        Spacer()
-                        if hasHomeScreenSnapshot {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                        }
-                    }
-                }
+                    )
 
-                if hasHomeScreenSnapshot {
-                    Button(role: .destructive) {
-                        SarahHomeScreenSnapshotStore.remove()
-                        hasHomeScreenSnapshot = false
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("SarahHomeScreenSnapshotChanged"),
-                            object: nil
-                        )
+                    engineCard(
+                        icon: "photo.fill",
+                        tint: .purple,
+                        title: "Génération d’images",
+                        value: imageProfile.displayName,
+                        detail: imageProfile.note
+                    )
+
+                    engineCard(
+                        icon: "video.fill",
+                        tint: .orange,
+                        title: "Génération vidéo",
+                        value: videoProfile.displayName,
+                        detail: videoProfile.note
+                    )
+
+                    Button {
                         HapticService.shared.buttonTap()
+                        viewModel.isShowingVoiceOrbModal = true
                     } label: {
-                        Label("Supprimer la capture", systemImage: "trash")
-                    }
-                }
-
-                Button {
-                    HapticService.shared.buttonTap()
-                    viewModel.isShowingVoiceOrbModal = true
-                } label: {
-                    Label("Tester le mode vocal", systemImage: "waveform.circle.fill")
-                }
-            }
-
-            Section("Activation rapide") {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Sarah Intelligence")
-                        Text("Raccourci système intégré")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "waveform.circle.fill")
-                        .foregroundColor(.pink)
-                }
-
-                Text("Sarah expose maintenant une action système appelée « Sarah Intelligence ». Elle ouvre directement le mode vocal et le halo multicolore.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Lien de secours")
-                        Text("sarahia://voice")
-                            .font(.caption.monospaced())
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Button(copied ? "Copié" : "Copier") {
-                        UIPasteboard.general.string = "sarahia://voice"
-                        copied = true
-                        HapticService.shared.buttonTap()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            copied = false
+                        HStack {
+                            Image(systemName: "waveform.circle.fill")
+                            Text("Tester le mode vocal")
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Color.white.opacity(0.36))
                         }
+                        .foregroundColor(.white)
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color.white.opacity(0.085))
+                        )
                     }
+                    .buttonStyle(PlainButtonStyle())
                 }
-            }
-
-            Section("Accessibilité") {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("Triple toucher au dos")
-                        .font(.headline)
-                    Text("Dans l'app Raccourcis, crée si nécessaire un raccourci d'une seule action « Sarah Intelligence ». Puis va dans Réglages iPhone > Accessibilité > Toucher > Toucher le dos de l'appareil > Toucher 3 fois, et choisis ce raccourci.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.vertical, 2)
-
-                Text("Le triple-clic du bouton latéral reste réservé par iOS aux fonctions du Raccourci Accessibilité, comme VoiceOver ou Zoom. Une app tierce ne peut pas s'ajouter à cette liste. Le triple toucher au dos est donc l'équivalent le plus proche et peut lancer Sarah directement.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                .padding(18)
+                .padding(.bottom, 24)
             }
         }
-        .listStyle(InsetGroupedListStyle())
         .navigationTitle("Sarah Engine")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingHomeScreenPicker) {
-            SarahHomeScreenImagePicker { image in
-                let saved = SarahHomeScreenSnapshotStore.save(image)
-                hasHomeScreenSnapshot = saved
-                if saved {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("SarahHomeScreenSnapshotChanged"),
-                        object: nil
-                    )
-                }
-                showingHomeScreenPicker = false
-            }
-        }
-    }
-}
-
-@available(iOS 15.0, *)
-private struct SarahHomeScreenImagePicker: UIViewControllerRepresentable {
-    let onImagePicked: (UIImage) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onImagePicked: onImagePicked)
+        .preferredColorScheme(.dark)
     }
 
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.filter = .images
-        configuration.selectionLimit = 1
+    private func engineCard(
+        icon: String,
+        tint: Color,
+        title: String,
+        value: String,
+        detail: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 40, height: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(tint.opacity(0.14))
+                )
 
-        let picker = PHPickerViewController(configuration: configuration)
-        picker.delegate = context.coordinator
-        return picker
-    }
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color.white.opacity(0.48))
 
-    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+                Text(value)
+                    .font(.headline)
+                    .foregroundColor(.white)
 
-    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let onImagePicked: (UIImage) -> Void
-
-        init(onImagePicked: @escaping (UIImage) -> Void) {
-            self.onImagePicked = onImagePicked
-        }
-
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            guard let provider = results.first?.itemProvider,
-                  provider.canLoadObject(ofClass: UIImage.self) else {
-                picker.dismiss(animated: true)
-                return
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(Color.white.opacity(0.52))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            provider.loadObject(ofClass: UIImage.self) { object, _ in
-                guard let image = object as? UIImage else {
-                    DispatchQueue.main.async {
-                        picker.dismiss(animated: true)
-                    }
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    self.onImagePicked(image)
-                    picker.dismiss(animated: true)
-                }
-            }
+            Spacer(minLength: 0)
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.075))
+        )
     }
 }
 
