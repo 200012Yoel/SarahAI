@@ -9,7 +9,9 @@ import UIKit
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings: Bool = false
+    @State private var isSarahCamouflageActive: Bool = false
     @AppStorage("sarahEngineHaloEnabled") private var sarahEngineHaloEnabled: Bool = true
+    @AppStorage("sarahEngineCamouflageEnabled") private var sarahEngineCamouflageEnabled: Bool = true
     
     public init() {}
     
@@ -21,10 +23,10 @@ public struct ContentView: View {
                 // Vue Principale (Chat)
                 ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .disabled(viewModel.isDrawerOpen)
+                    .disabled(viewModel.isDrawerOpen || isSarahCamouflageActive)
                 
                 // Overlay sombre + Menu latéral
-                if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
+                if !isSarahCamouflageActive && (viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001) {
                     Color.black
                         .opacity(Double(viewModel.drawerProgress > 0.001 ? viewModel.drawerProgress : (viewModel.isDrawerOpen ? 1.0 : 0.0)) * 0.40)
                         .ignoresSafeArea()
@@ -44,6 +46,12 @@ public struct ContentView: View {
                     .offset(x: (viewModel.drawerProgress > 0.001 ? viewModel.drawerProgress - 1.0 : (viewModel.isDrawerOpen ? 0.0 : -1.0)) * sidebarWidth)
                     .transition(.move(edge: .leading))
                     .zIndex(1)
+                }
+
+                if isSarahCamouflageActive {
+                    SarahCamouflageOverlayView()
+                        .transition(.opacity)
+                        .zIndex(50)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -103,7 +111,11 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahOpenDeepLink"))) { notification in
             guard let host = notification.object as? String else { return }
             if host == "voice" {
-                viewModel.isShowingVoiceOrbModal = true
+                if sarahEngineCamouflageEnabled && SarahHomeScreenSnapshotStore.hasSnapshot {
+                    activateSarahCamouflage()
+                } else {
+                    viewModel.isShowingVoiceOrbModal = true
+                }
             } else if host == "chat" {
                 viewModel.isShowingVoiceOrbModal = false
             }
@@ -111,10 +123,14 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             consumePendingSarahVoiceLaunch()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            deactivateSarahCamouflage()
+        }
         .onAppear {
             consumePendingSarahVoiceLaunch()
         }
         .onDisappear {
+            deactivateSarahCamouflage()
             SarahEngineHaloController.shared.hide()
         }
     }
@@ -125,12 +141,34 @@ public struct ContentView: View {
         defaults.set(false, forKey: "sarahOpenVoiceOnNextActivation")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            viewModel.isShowingVoiceOrbModal = true
+            if sarahEngineCamouflageEnabled && SarahHomeScreenSnapshotStore.hasSnapshot {
+                activateSarahCamouflage()
+            } else {
+                viewModel.isShowingVoiceOrbModal = true
+            }
         }
     }
 
+    private func activateSarahCamouflage() {
+        viewModel.isShowingVoiceOrbModal = false
+        viewModel.closeDrawer()
+        isSarahCamouflageActive = true
+        viewModel.startVoiceConversation()
+
+        if sarahEngineHaloEnabled {
+            SarahEngineHaloController.shared.show()
+        }
+    }
+
+    private func deactivateSarahCamouflage() {
+        guard isSarahCamouflageActive else { return }
+        isSarahCamouflageActive = false
+        viewModel.stopVoiceConversation()
+        SarahEngineHaloController.shared.hide()
+    }
+
     private func updateSarahEngineHalo(isVoiceVisible: Bool) {
-        if isVoiceVisible && sarahEngineHaloEnabled {
+        if (isVoiceVisible || isSarahCamouflageActive) && sarahEngineHaloEnabled {
             SarahEngineHaloController.shared.show()
         } else {
             SarahEngineHaloController.shared.hide()
@@ -247,6 +285,74 @@ private struct SarahEngineHaloOverlay: View {
             withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
                 breathe = true
             }
+        }
+    }
+}
+
+
+// MARK: - Sarah Engine Camouflage
+
+/// Stocke une capture choisie volontairement par l'utilisateur.
+/// iOS ne donne pas accès au vrai SpringBoard en direct ; cette image sert
+/// uniquement à créer l'illusion visuelle pendant que Sarah est au premier plan.
+enum SarahHomeScreenSnapshotStore {
+    private static var directoryURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("SarahEngine", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static var fileURL: URL {
+        directoryURL.appendingPathComponent("home-screen-snapshot.jpg")
+    }
+
+    static var hasSnapshot: Bool {
+        FileManager.default.fileExists(atPath: fileURL.path)
+    }
+
+    static func save(_ image: UIImage) -> Bool {
+        guard let data = image.jpegData(compressionQuality: 0.96) else { return false }
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            return true
+        } catch {
+            print("⚠️ [SarahEngine] Impossible d'enregistrer la capture écran d'accueil: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    static func load() -> UIImage? {
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        return UIImage(data: data)
+    }
+
+    static func remove() {
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahCamouflageOverlayView: View {
+    @State private var snapshot: UIImage? = SarahHomeScreenSnapshotStore.load()
+
+    var body: some View {
+        ZStack {
+            if let snapshot = snapshot {
+                Image(uiImage: snapshot)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
+        }
+        .statusBar(hidden: true)
+        .allowsHitTesting(false)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahHomeScreenSnapshotChanged"))) { _ in
+            snapshot = SarahHomeScreenSnapshotStore.load()
         }
     }
 }
