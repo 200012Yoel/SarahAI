@@ -17,7 +17,9 @@ public struct ContentView: View {
     
     public var body: some View {
         GeometryReader { geo in
-            let sidebarWidth = min(CGFloat(344), geo.size.width * 0.88)
+            // Largeur adaptative : assez large pour les grands iPhone, sans
+            // étouffer le chat sur les écrans compacts.
+            let sidebarWidth = min(CGFloat(360), max(CGFloat(278), geo.size.width * 0.84))
             
             ZStack(alignment: .leading) {
                 // Vue Principale (Chat)
@@ -41,7 +43,7 @@ public struct ContentView: View {
                         isShowingSettings: $isShowingSettings
                     )
                     .frame(maxWidth: sidebarWidth, maxHeight: .infinity)
-                    .background(Color(white: 0.12))
+                    .background(Color.black)
                     .ignoresSafeArea(.all, edges: [.top, .bottom])
                     .offset(x: (viewModel.drawerProgress > 0.001 ? viewModel.drawerProgress - 1.0 : (viewModel.isDrawerOpen ? 0.0 : -1.0)) * sidebarWidth)
                     .transition(.move(edge: .leading))
