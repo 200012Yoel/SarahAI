@@ -1,5 +1,5 @@
-name: 🍎 Sarah IA iOS Build (Universel iOS 16.0+)
-run-name: 🍎 Sarah IA iOS Universel (Build #${{ github.run_number }})
+name: 🍎 Sarah IA iOS 26 Stable Build (Universel iOS 16.0+)
+run-name: 🍎 Sarah IA iOS 26 Stable (Build #${{ github.run_number }})
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-26
     timeout-minutes: 30
     permissions:
       contents: write
@@ -25,10 +25,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select stable Xcode 26.6
         run: |
-          echo "=== Xcode Version Active ==="
+          echo "=== Sélection de Xcode 26.6 stable ==="
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
           xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
 
       - name: Configure Universal iOS 16.0+ Target
         run: |
@@ -108,8 +110,8 @@ jobs:
         if: github.ref == 'refs/heads/stable-2026-recovery'
         with:
           tag_name: stable-2026
-          name: "🍎 Sarah IA - Stable 2026 (iOS 16.0+)"
-          body: "Snapshot stable basé sur la branche de compatibilité iOS 12 du 20 août 2026. Cette édition est volontairement antérieure aux expérimentations iOS 27 et aux nouveaux runtimes génératifs."
+          name: "🍎 Sarah IA - Stable 2026 · Xcode 26.6 (iOS 16.0+)"
+          body: "Snapshot stable du 20 août 2026, compilé avec Xcode 26.6 stable sur macOS 26. Cible minimale iOS 16.0. Cette édition est volontairement antérieure aux expérimentations iOS 27 et aux nouveaux runtimes génératifs."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
