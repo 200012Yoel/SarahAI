@@ -83,55 +83,115 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     public func startListening() {
         guard !isListening else { return }
-        
-        // Arrêter toute synthèse vocale avant d'écouter, y compris la voix du
-        // chat principal qui passe par AgentVoiceManager.
+
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        if speechStatus == .notDetermined || AVAudioSession.sharedInstance().recordPermission == .undetermined {
+            requestAuthorization { [weak self] granted in
+                guard granted else {
+                    self?.state = .error("Autorisation microphone ou dictée refusée")
+                    return
+                }
+                self?.startListening()
+            }
+            return
+        }
+
+        guard speechStatus == .authorized,
+              AVAudioSession.sharedInstance().recordPermission == .granted else {
+            state = .error("Autorisation microphone ou dictée refusée")
+            return
+        }
+
+        // Une seule pile audio à la fois.
         TTSManager.shared.stop()
         SpeechManager.shared.stopSpeaking()
         if #available(iOS 13.0, *) {
             TTSService.shared.stopSpeaking()
         }
-        
-        // Annuler toute tâche de reconnaissance précédente
+
         stopListening()
-        
+
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
             state = .error("Reconnaissance vocale non disponible")
             return
         }
-        
+
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            // Pendant l'écoute, on n'a besoin que de l'entrée micro. Éviter
-            // .playAndRecord + .duckOthers empêche Sarah de modifier inutilement
-            // le volume/routage audio du reste de l'iPhone.
-            try audioSession.setCategory(.record, mode: .measurement, options: [.allowBluetooth])
+            // .voiceChat est plus tolérant que .measurement quand iOS change
+            // de route audio (haut-parleur, écouteurs, Bluetooth).
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.defaultToSpeaker, .allowBluetooth]
+            )
             try audioSession.setPreferredIOBufferDuration(0.046)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            state = .error("Erreur session audio: \(error.localizedDescription)")
+            state = .error("Micro indisponible")
+            print("⚠️ [AppleSpeechRecognizer] AVAudioSession: \(error.localizedDescription)")
             return
         }
-        
+
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let request = recognitionRequest else { return }
-        
+        guard let request = recognitionRequest else {
+            AudioSessionManager.shared.deactivateSession()
+            return
+        }
+
         request.shouldReportPartialResults = true
         if #available(iOS 13.0, *) {
             request.requiresOnDeviceRecognition = false
         }
-        
+
         let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, when) in
-            self?.recognitionRequest?.append(buffer)
-            self?.calculateAudioEnergy(buffer: buffer)
+        let nativeFormat = inputNode.outputFormat(forBus: 0)
+
+        guard nativeFormat.sampleRate > 0, nativeFormat.channelCount > 0 else {
+            state = .error("Micro indisponible")
+            recognitionRequest = nil
+            AudioSessionManager.shared.deactivateSession()
+            return
         }
-        
+
+        inputNode.removeTap(onBus: 0)
+        // format:nil demande à AVAudioEngine d'utiliser la route native actuelle.
+        // Cela évite les erreurs CoreAudio lors d'un changement de casque ou Bluetooth.
+        inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
+            guard let self = self else { return }
+            self.recognitionRequest?.append(buffer)
+            self.calculateAudioEnergy(buffer: buffer)
+        }
+
+        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self = self else { return }
+            DispatchQueue.main.async {
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                    self.currentLiveText = text
+                    self.hasDetectedSpeechInCurrentSession = true
+                    self.onPartialTranscription?(text)
+                    self.resetSilenceTimer()
+
+                    if result.isFinal {
+                        self.finalizeTranscription(text)
+                        return
+                    }
+                }
+
+                if let error = error {
+                    let nsError = error as NSError
+                    if nsError.code != 216 && self.isListening {
+                        self.state = .error("Reconnaissance vocale interrompue")
+                        print("⚠️ [AppleSpeechRecognizer] Recognition: \(error.localizedDescription)")
+                    }
+                    self.stopListening()
+                }
+            }
+        }
+
         audioEngine.prepare()
-        
+
         do {
             try audioEngine.start()
             isListening = true
@@ -140,36 +200,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             hasDetectedSpeechInCurrentSession = false
             HapticService.shared.speechStarted()
         } catch {
-            state = .error("Impossible de démarrer l'AudioEngine: \(error.localizedDescription)")
+            state = .error("Micro indisponible")
+            print("⚠️ [AppleSpeechRecognizer] AVAudioEngine start: \(error.localizedDescription)")
             stopListening()
-            return
-        }
-        
-        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] (result, error) in
-            guard let self = self else { return }
-            
-            if let result = result {
-                let transcribedString = result.bestTranscription.formattedString
-                self.currentLiveText = transcribedString
-                self.hasDetectedSpeechInCurrentSession = true
-                self.onPartialTranscription?(transcribedString)
-                
-                // Réinitialise le timer de silence à chaque mot détecté
-                self.resetSilenceTimer()
-                
-                if result.isFinal {
-                    self.finalizeTranscription(transcribedString)
-                }
-            }
-            
-            if let error = error {
-                let nsError = error as NSError
-                // 216 = Annulation normale par l'utilisateur
-                if nsError.code != 216 && self.isListening {
-                    self.state = .error(error.localizedDescription)
-                }
-                self.stopListening()
-            }
         }
     }
     
