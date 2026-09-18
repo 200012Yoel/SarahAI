@@ -46,6 +46,72 @@ final class AIService {
             return "En \(translationReq.targetLanguage.displayNameFr) : \(translated)"
         }
         
+        if #available(iOS 16.0, *) {
+            // -----------------------------------------------------------------
+            // 0.2 CRÉATION LOCALE — IMAGE / MUSIQUE / VIDÉO
+            // -----------------------------------------------------------------
+            if isImageGenerationIntent(normalized) {
+                let prompt = cleanedMediaPrompt(trimmed, mediaWords: [
+                    "génère une image", "genere une image", "génère une photo", "genere une photo",
+                    "crée une image", "cree une image", "crée une photo", "cree une photo",
+                    "fais une image", "fais une photo", "dessine"
+                ])
+
+                guard SarahLocalImageGenEngine.shared.isInstalled else {
+                    let profile = SarahGenerativeModelCatalog.imageProfile()
+                    return "🎨 Le moteur **\(profile.displayName)** est sélectionné pour cet iPhone. Installe-le d'abord dans Réglages → Création locale."
+                }
+
+                return await withCheckedContinuation { continuation in
+                    SarahLocalImageGenEngine.shared.generate(prompt: prompt) { result in
+                        switch result {
+                        case .success(let url):
+                            continuation.resume(returning:
+                                "🎨 Image générée localement avec **\(SarahGenerativeModelCatalog.imageProfile().displayName)**. Fichier : \(url.lastPathComponent)"
+                            )
+                        case .failure(let error):
+                            continuation.resume(returning: "🎨 La génération locale a échoué : \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+
+            let musicIntent = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            if musicIntent.isIntent {
+                if musicIntent.wantsLyrics {
+                    let languageText = musicIntent.language == "en" ? "anglais" : "français"
+                    return "🎤 Je peux préparer une chanson avec des paroles originales en \(languageText). Le profil de chant **\(SarahGenerativeModelCatalog.vocalSongProfile().displayName)** reste expérimental sur iPhone. Pour l'instant, la vraie génération audio locale disponible est l'instrumental Stable Audio."
+                }
+
+                guard SarahLocalMusicGenEngine.shared.isInstalled else {
+                    return "🎵 Le modèle **\(SarahGenerativeModelCatalog.musicProfile().displayName)** doit d'abord être téléchargé dans Réglages → Création locale."
+                }
+
+                return await withCheckedContinuation { continuation in
+                    SarahLocalMusicGenEngine.shared.generate(prompt: musicIntent.prompt) { result in
+                        switch result {
+                        case .success(let url):
+                            continuation.resume(returning:
+                                "🎵 Musique générée localement avec **Stable Audio Open Small · Core ML**. Fichier : \(url.lastPathComponent)"
+                            )
+                        case .failure(let error):
+                            continuation.resume(returning: "🎵 La génération musicale locale a échoué : \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+
+            if isVideoGenerationIntent(normalized) {
+                let profile = SarahGenerativeModelCatalog.videoProfile()
+                let installed = GenerativeModelManager.shared.isVideoCheckpointInstalled
+                if installed {
+                    return "🎬 **\(profile.displayName)** est téléchargé. Le checkpoint est local, mais son runtime iOS reste expérimental : Sarah ne lance pas une fausse génération tant que l'inférence vidéo n'est pas validée."
+                } else {
+                    return "🎬 Le profil vidéo sélectionné est **\(profile.displayName)**. Tu peux télécharger son checkpoint depuis Réglages → Création locale. Le runtime iOS reste expérimental."
+                }
+            }
+        }
+
         var state = storage.loadState()
         
         // -----------------------------------------------------------------
@@ -210,6 +276,31 @@ final class AIService {
         return "🔔 Test d'arrière-plan réussi ! Sarah AI continue de fonctionner et de vous écouter même en arrière-plan. 🚀"
     }
     
+    private func isImageGenerationIntent(_ normalized: String) -> Bool {
+        [
+            "genere une image", "genere une photo", "cree une image", "cree une photo",
+            "fais une image", "fais une photo", "dessine"
+        ].contains { normalized.contains($0) }
+    }
+
+    private func isVideoGenerationIntent(_ normalized: String) -> Bool {
+        [
+            "genere une video", "cree une video", "fais une video",
+            "video ia", "image vers video"
+        ].contains { normalized.contains($0) }
+    }
+
+    private func cleanedMediaPrompt(_ text: String, mediaWords: [String]) -> String {
+        var result = text
+        for word in mediaWords {
+            result = result.replacingOccurrences(of: word, with: "", options: .caseInsensitive)
+        }
+        result = result.trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-"))
+        )
+        return result.isEmpty ? text : result
+    }
+
     // MARK: - Parsing Helpers
     
     private func parseDirectLearningCommand(_ text: String) -> (trigger: String, response: String)? {
