@@ -11,6 +11,7 @@ public struct SidebarView: View {
     @State private var isSearching = false
     @State private var isShowingArchives = false
     @State private var conversationPendingDeletion: Conversation?
+    @State private var isShowingDeleteConfirmation = false
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -53,13 +54,19 @@ public struct SidebarView: View {
         .preferredColorScheme(.dark)
         .confirmationDialog(
             "Supprimer cette discussion ?",
-            item: $conversationPendingDeletion
-        ) { conversation in
+            isPresented: $isShowingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
             Button("Supprimer", role: .destructive) {
-                viewModel.deleteConversation(conversation)
+                if let conversationPendingDeletion {
+                    viewModel.deleteConversation(conversationPendingDeletion)
+                }
+                conversationPendingDeletion = nil
             }
-            Button("Annuler", role: .cancel) {}
-        } message: { _ in
+            Button("Annuler", role: .cancel) {
+                conversationPendingDeletion = nil
+            }
+        } message: {
             Text("Cette action est définitive.")
         }
     }
@@ -265,6 +272,7 @@ public struct SidebarView: View {
 
                 Button(role: .destructive) {
                     conversationPendingDeletion = conversation
+                    isShowingDeleteConfirmation = true
                 } label: {
                     Label("Supprimer", systemImage: "trash")
                 }
