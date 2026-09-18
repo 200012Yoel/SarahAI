@@ -178,6 +178,12 @@ public final class ChatViewModel: ObservableObject {
         return conversations.filter { !$0.isPinned && !$0.isArchived }
             .filter { query.isEmpty || $0.title.lowercased().contains(query) }
     }
+
+    public var filteredArchivedConversations: [Conversation] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return conversations.filter { $0.isArchived }
+            .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+    }
     
     public func startNewChat() {
         haptics.buttonTap()
@@ -239,6 +245,14 @@ public final class ChatViewModel: ObservableObject {
             if currentConversationId == conv.id {
                 startNewChat()
             }
+            persistCurrentState()
+        }
+    }
+
+    public func unarchiveConversation(_ conv: Conversation) {
+        haptics.buttonTap()
+        if let index = conversations.firstIndex(where: { $0.id == conv.id }) {
+            conversations[index].isArchived = false
             persistCurrentState()
         }
     }
