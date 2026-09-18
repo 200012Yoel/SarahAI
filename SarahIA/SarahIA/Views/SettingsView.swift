@@ -1784,7 +1784,7 @@ private struct LegalNoticesView: View {
                 }
 
                 Section("Génération vidéo — profils locaux") {
-                    Text("Sur les appareils de classe iPhone 14, Sarah étudie MobileI2V 0.27B comme moteur image-vers-vidéo. Le dépôt est publié sous licence Apache License 2.0.")
+                    Text("Sur les appareils de classe iPhone 14, Sarah étudie MobileI2V 0.27B comme moteur image-vers-vidéo. Le code du projet est publié sous Apache-2.0 ; le checkpoint est traité séparément dans les notices du modèle.")
                     Text("Sous iOS 27, Sarah sélectionne le profil vidéo selon la mémoire disponible. Sur les appareils plus puissants, MOVD reste une cible Core ML ; le dépôt MOVD est publié sous licence MIT et fournit une application iOS de référence.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
@@ -1797,11 +1797,11 @@ private struct LegalNoticesView: View {
                 }
 
                 Section("Génération musicale locale") {
-                    Text("Sarah utilise Core AI / CoreAIOps comme runtime local pour Stable Audio Open Small. Core AI Kit et son Model Zoo sont distribués sous licence BSD 3-Clause.")
-                    Text("Les poids Stable Audio Open Small sont soumis à la Stability AI Community License. Elle prévoit notamment un usage commercial gratuit sous le seuil de revenu annuel défini par Stability AI ; au-delà, une licence Enterprise peut être nécessaire.")
+                    Text("Sarah exécute Stable Audio Open Small avec Core ML directement sur l’iPhone. Les quatre modèles convertis (T5, durée, DiT INT8 et VAE) sont téléchargés à la demande afin de garder l’IPA légère.")
+                    Text("Les poids Stable Audio Open Small restent soumis à la Stability AI Community License. Pour une distribution commerciale, Sarah doit continuer à respecter cette licence et toute condition applicable au modèle.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
-                    Link("Core AI Kit", destination: URL(string: "https://github.com/john-rocky/coreai-kit")!)
+                    Link("Référence Core ML Stable Audio", destination: URL(string: "https://github.com/john-rocky/CoreML-Models/tree/main/sample_apps/StableAudioDemo")!)
                     Link("Licence Stability AI", destination: URL(string: "https://stability.ai/license")!)
                 }
 
