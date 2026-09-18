@@ -147,10 +147,17 @@ public final class ChatViewModel: ObservableObject {
             self.messages = []
         }
 
-        // Après une relance complète de l'app, on arrive toujours sur une discussion vierge.
-        // Les anciennes discussions restent disponibles dans le tiroir, sauf après une mise à jour.
+        // Après une relance complète, ouvrir un chat vierge sans appeler startNewChat().
+        // startNewChat() initialise la voix, la mémoire sémantique et d'autres moteurs lourds ;
+        // aucun de ces composants ne doit être touché pendant le démarrage du processus.
         if SessionTimeoutManager.shared.consumeColdLaunchFreshChatRequest() {
-            startNewChat(silently: true)
+            currentConversationId = nil
+            messages = []
+            inputText = ""
+            appMode = .text
+            isDrawerOpen = false
+            drawerProgress = 0
+            activeAgent = .sarah
             return
         }
         // Le moteur IA est synchronisé au premier envoi, pas au lancement.
