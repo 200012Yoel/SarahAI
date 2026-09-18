@@ -2,6 +2,9 @@ import UIKit
 import SwiftUI
 import UserNotifications
 import AVFoundation
+#if canImport(AppIntents)
+import AppIntents
+#endif
 
 /// Point d'entrée de l'application Sarah AI compatible iOS 12.0+ à iOS 18.0+.
 @UIApplicationMain
@@ -113,3 +116,42 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
     }
 }
+
+
+#if canImport(AppIntents)
+@available(iOS 16.0, *)
+struct OpenSarahVoiceIntent: AppIntent {
+    static var title: LocalizedStringResource = "Sarah Intelligence"
+    static var description = IntentDescription("Ouvre Sarah directement en mode vocal.")
+    static var openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult {
+        UserDefaults.standard.set(true, forKey: "sarahOpenVoiceOnNextActivation")
+
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahOpenDeepLink"),
+                object: "voice"
+            )
+        }
+
+        return .result()
+    }
+}
+
+@available(iOS 16.0, *)
+struct SarahAppShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: OpenSarahVoiceIntent(),
+            phrases: [
+                "Ouvrir \(.applicationName) Intelligence",
+                "Parler à \(.applicationName)",
+                "Lancer \(.applicationName)"
+            ],
+            shortTitle: "Sarah Intelligence",
+            systemImageName: "waveform.circle.fill"
+        )
+    }
+}
+#endif
