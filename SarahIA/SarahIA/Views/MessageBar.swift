@@ -121,3 +121,19 @@ public struct MessageBar: View {
         }
     }
 }
+
+
+@available(iOS 13.0, *)
+public struct ScaleBounceButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.93 : 1.0)
+            .opacity(configuration.isPressed ? 0.86 : 1.0)
+            .animation(
+                .spring(response: 0.22, dampingFraction: 0.72),
+                value: configuration.isPressed
+            )
+    }
+}
