@@ -1,220 +1,411 @@
 import Foundation
 import UIKit
 import CoreML
-import Accelerate
 
-/// Moteur de Génération d'Images Local 100% On-Device Photoréaliste
-/// Modèle : Stable Diffusion 1.5 Fine-Tuned Photoréalisme Absolu (Realistic Vision V5.1 LCM / EpicRealism)
-/// Optimisé pour iPhone 14 (A15 Bionic) & Apple Neural Engine (ANE) avec Latent Consistency Model (LCM)
-/// - Génération ultra-rapide en 4 étapes (2 à 3 secondes)
-/// - Format CoreML : .mlpackage (.mlmodelc compilé ANE + Metal GPU)
-/// - Budget RAM garanti sous les 2.1 Go (Strict respect de la limite Jetsam 3 Go)
+#if canImport(StableDiffusion)
+import StableDiffusion
+#endif
+
+/// Moteur d'images local de Sarah.
+///
+/// Cette classe ne simule jamais une génération locale :
+/// - le profil est choisi par SarahGenerativeModelCatalog,
+/// - les ressources Core ML doivent réellement être présentes,
+/// - le runtime StableDiffusion doit être lié au projet,
+/// - sinon l'appel échoue explicitement au lieu de basculer silencieusement
+///   vers un service réseau.
 public final class SarahLocalImageGenEngine {
-    
+
     public static let shared = SarahLocalImageGenEngine()
-    
-    public static let modelIdentifier = "Realistic_Vision_V5.1_LCM"
-    public static let modelPackageName = "Realistic_Vision_V5.1_LCM.mlpackage"
-    public static let modelCompiledName = "Realistic_Vision_V5.1_LCM.mlmodelc"
-    public static let modelDownloadURL = "https://huggingface.co/sayakpaul/realistic-vision-v5-1-lcm-coreml/resolve/main/Realistic_Vision_V5.1_LCM.mlpackage.zip"
-    
-    // Spécifications LCM (Latent Consistency Models)
+
     public struct LCMConfiguration {
-        public var steps: Int = 4 // 4 étapes LCM optimales
-        public var guidanceScale: Float = 1.8 // LCM Guidance optimale basse (1.5 - 2.0)
-        public var width: Int = 512
-        public var height: Int = 512
-        public var seed: UInt32 = UInt32.random(in: 0...UInt32.max)
-        public var enablePhotorealismBoost: Bool = true
-        
-        public init(steps: Int = 4, guidanceScale: Float = 1.8, width: Int = 512, height: Int = 512, enablePhotorealismBoost: Bool = true) {
-            self.steps = max(2, min(steps, 6))
+        public var steps: Int
+        public var guidanceScale: Float
+        public var width: Int
+        public var height: Int
+        public var seed: UInt32
+        public var enablePhotorealismBoost: Bool
+
+        public init(
+            steps: Int = 20,
+            guidanceScale: Float = 7.5,
+            width: Int = 512,
+            height: Int = 512,
+            enablePhotorealismBoost: Bool = false
+        ) {
+            self.steps = max(1, min(steps, 50))
             self.guidanceScale = guidanceScale
             self.width = width
             self.height = height
+            self.seed = UInt32.random(in: 0...UInt32.max)
             self.enablePhotorealismBoost = enablePhotorealismBoost
         }
     }
-    
+
     public enum EngineStatus {
         case ready
-        case downloading(progress: Double)
-        case compiling
+        case missingModel
+        case missingRuntime
         case generating(step: Int, totalSteps: Int)
-        case fallbackCloud
         case error(String)
     }
-    
+
     public var onStatusChanged: ((EngineStatus) -> Void)?
-    
+
     private let fileManager = FileManager.default
-    private let executionQueue = DispatchQueue(label: "com.sarahia.imagegen.local", qos: .userInitiated)
-    
-    private var isModelLoaded: Bool = false
-    private var mlConfiguration: MLModelConfiguration
-    
-    private var localModelDirectory: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fileManager.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("SarahAI/ImageGen", isDirectory: true)
-        if !fileManager.fileExists(atPath: dir.path) {
-            try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        }
-        return dir
-    }
-    
+    private let executionQueue = DispatchQueue(
+        label: "com.sarahia.imagegen.local",
+        qos: .userInitiated
+    )
+
     private init() {
-        // Configuration CoreML haute performance pour A15 Bionic (iPhone 14)
-        self.mlConfiguration = MLModelConfiguration()
-        self.mlConfiguration.computeUnits = .all // Force Neural Engine + Metal GPU + CPU
-        if #available(iOS 16.0, *) {
-            self.mlConfiguration.allowLowPrecisionAccumulationOnGPU = true
-        }
-        
         checkLocalModelAvailability()
     }
-    
-    // MARK: - Vérification & Disponibilité du Modèle Local
-    
-    public var isLocalLCMModelAvailable: Bool {
-        let packagePath = localModelDirectory.appendingPathComponent(SarahLocalImageGenEngine.modelPackageName).path
-        let compiledPath = localModelDirectory.appendingPathComponent(SarahLocalImageGenEngine.modelCompiledName).path
-        return fileManager.fileExists(atPath: packagePath) || fileManager.fileExists(atPath: compiledPath)
+
+    public static var modelIdentifier: String {
+        SarahGenerativeModelCatalog.imageProfile().identifier
     }
-    
-    public func checkLocalModelAvailability() {
-        if isLocalLCMModelAvailable {
-            self.isModelLoaded = true
-            self.onStatusChanged?(.ready)
-        } else {
-            self.isModelLoaded = false
-            self.onStatusChanged?(.fallbackCloud)
+
+    public static var modelDisplayName: String {
+        SarahGenerativeModelCatalog.imageProfile().displayName
+    }
+
+    public var localModelDirectory: URL {
+        let base = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? fileManager.temporaryDirectory
+
+        let dir = base
+            .appendingPathComponent("SarahAI", isDirectory: true)
+            .appendingPathComponent("GenerativeModels", isDirectory: true)
+            .appendingPathComponent(Self.modelIdentifier, isDirectory: true)
+
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(
+                at: dir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
         }
+
+        return dir
     }
-    
-    // MARK: - Pipeline de Génération Photoréaliste LCM (4 Étapes / ~2.5s)
-    
-    /// Génère une image photoréaliste (surcharge simplifiée)
-    public func generateImage(prompt: String, completion: @escaping (Result<UIImage, Error>) -> Void) {
-        generateImage(prompt: prompt, config: LCMConfiguration(), progressHandler: nil, completion: completion)
+
+    /// Structure attendue par le runtime StableDiffusion d'Apple.
+    public var isLocalLCMModelAvailable: Bool {
+        let dir = localModelDirectory
+
+        let hasTextEncoder =
+            fileManager.fileExists(atPath: dir.appendingPathComponent("TextEncoder.mlmodelc").path)
+
+        let hasUNet =
+            fileManager.fileExists(atPath: dir.appendingPathComponent("Unet.mlmodelc").path)
+            || (
+                fileManager.fileExists(atPath: dir.appendingPathComponent("UnetChunk1.mlmodelc").path)
+                && fileManager.fileExists(atPath: dir.appendingPathComponent("UnetChunk2.mlmodelc").path)
+            )
+
+        let hasVAE =
+            fileManager.fileExists(atPath: dir.appendingPathComponent("VAEDecoder.mlmodelc").path)
+
+        let hasVocabulary =
+            fileManager.fileExists(atPath: dir.appendingPathComponent("vocab.json").path)
+
+        let hasMerges =
+            fileManager.fileExists(atPath: dir.appendingPathComponent("merges.txt").path)
+            || fileManager.fileExists(atPath: dir.appendingPathComponent("merges.text").path)
+
+        return hasTextEncoder && hasUNet && hasVAE && hasVocabulary && hasMerges
     }
-    
-    /// Génère une image photoréaliste via Realistic Vision V5.1 LCM sur Neural Engine
+
+    public func checkLocalModelAvailability() {
+        guard SarahGenerativeModelCatalog.imageProfile().runtimeState != .unsupported else {
+            onStatusChanged?(.error("Génération d'images locale non prise en charge sur cet appareil."))
+            return
+        }
+
+        guard isLocalLCMModelAvailable else {
+            onStatusChanged?(.missingModel)
+            return
+        }
+
+        #if canImport(StableDiffusion)
+        onStatusChanged?(.ready)
+        #else
+        onStatusChanged?(.missingRuntime)
+        #endif
+    }
+
+    public func generateImage(
+        prompt: String,
+        completion: @escaping (Result<UIImage, Error>) -> Void
+    ) {
+        generateImage(
+            prompt: prompt,
+            config: LCMConfiguration(),
+            progressHandler: nil,
+            completion: completion
+        )
+    }
+
     public func generateImage(
         prompt: String,
         config: LCMConfiguration = LCMConfiguration(),
         progressHandler: ((Int, Int) -> Void)? = nil,
         completion: @escaping (Result<UIImage, Error>) -> Void
     ) {
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPrompt.isEmpty else {
-            completion(.failure(NSError(domain: "SarahLocalImageGenEngine", code: 400, userInfo: [NSLocalizedDescriptionKey: "Le prompt de génération d'image est vide."])))
+        let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !clean.isEmpty else {
+            completion(.failure(localError(
+                code: 400,
+                message: "Le prompt de génération d'image est vide."
+            )))
             return
         }
-        
-        // Optimisation photoréaliste automatique pour concepts complexes (ex: "un dauphin sur une voiture")
-        let enhancedPrompt = enhancePromptForPhotorealism(trimmedPrompt, enabled: config.enablePhotorealismBoost)
-        
-        executionQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            if self.isLocalLCMModelAvailable {
-                self.runCoreMLLCMPipeline(prompt: enhancedPrompt, config: config, progressHandler: progressHandler, completion: completion)
-            } else {
-                print("⚡ [SarahLocalImageGenEngine] Modèle CoreML en téléchargement -> Bascule sur le pipeline Cloud Flux/SDXL HD")
-                OpenSourceImageGenerationService.shared.fetchDirectImage(prompt: enhancedPrompt, width: config.width, height: config.height, model: "flux") { result in
-                    if let image = result.image {
-                        completion(.success(image))
-                    } else {
-                        let err = NSError(domain: "SarahLocalImageGenEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: result.errorMessage ?? "Échec de génération"])
-                        completion(.failure(err))
-                    }
-                }
-            }
+
+        guard SarahGenerativeModelCatalog.imageProfile().runtimeState != .unsupported else {
+            completion(.failure(localError(
+                code: 410,
+                message: "Cet iPhone ne prend pas en charge le profil d'image local sélectionné."
+            )))
+            return
         }
-    }
-    
-    // MARK: - Optimisation du Photoréalisme & Concepts Complexes
-    
-    private func enhancePromptForPhotorealism(_ original: String, enabled: Bool) -> String {
-        guard enabled else { return original }
-        
-        // Préservation du concept de base tout en injectant des descripteurs optiques de caméra reflex
-        let lower = original.lowercased()
-        var base = original
-        
-        // Si la requête est en français, traduction conceptuelle pour le CLIP Text Encoder
-        if lower.contains("dauphin") && lower.contains("voiture") {
-            base = "a cinematic RAW photo of a real dolphin on top of a car, intricate skin texture, natural daylight, hyperrealistic"
+
+        guard isLocalLCMModelAvailable else {
+            completion(.failure(localError(
+                code: 404,
+                message: "Le modèle Core ML local n'est pas installé."
+            )))
+            return
         }
-        
-        return "\(base), RAW photo, 8k uhd, dslr, high quality, realistic lighting, highly detailed, film grain, Fujifilm XT3"
+
+        #if canImport(StableDiffusion)
+        if #available(iOS 16.2, *) {
+            runStableDiffusionPipeline(
+                prompt: clean,
+                config: config,
+                progressHandler: progressHandler,
+                completion: completion
+            )
+        } else {
+            completion(.failure(localError(
+                code: 426,
+                message: "Le runtime Stable Diffusion local nécessite iOS 16.2 ou plus récent."
+            )))
+        }
+        #else
+        completion(.failure(localError(
+            code: 501,
+            message: "Le runtime StableDiffusion n'est pas encore lié à cette compilation."
+        )))
+        #endif
     }
-    
-    // MARK: - Exécution CoreML LCM On-Device (Apple Neural Engine A15)
-    
-    private func runCoreMLLCMPipeline(
+
+    #if canImport(StableDiffusion)
+    @available(iOS 16.2, *)
+    private func runStableDiffusionPipeline(
         prompt: String,
         config: LCMConfiguration,
         progressHandler: ((Int, Int) -> Void)?,
         completion: @escaping (Result<UIImage, Error>) -> Void
     ) {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        print("🧠 [Realistic_Vision_V5.1_LCM] Démarrage inférence Neural Engine A15 (4 Steps LCM) : \"\(prompt)\"")
-        
-        for step in 1...config.steps {
-            usleep(550_000) // ~0.55s par step LCM (total ~2.2s pour 4 steps sur A15 ANE)
-            
-            DispatchQueue.main.async {
-                progressHandler?(step, config.steps)
-                self.onStatusChanged?(.generating(step: step, totalSteps: config.steps))
-            }
-        }
-        
-        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
-        print("✅ [Realistic_Vision_V5.1_LCM] Rendu photoréaliste terminé en \(String(format: "%.2f", elapsed))s")
-        
-        // Décodage VAE & Rendu
-        OpenSourceImageGenerationService.shared.fetchDirectImage(prompt: prompt, width: config.width, height: config.height) { result in
-            DispatchQueue.main.async {
-                self.onStatusChanged?(.ready)
-                if let img = result.image {
-                    completion(.success(img))
-                } else {
-                    completion(.failure(NSError(domain: "SarahLocalImageGenEngine", code: 500, userInfo: [NSLocalizedDescriptionKey: "Erreur VAE Decode"])))
+        executionQueue.async { [weak self] in
+            guard let self else { return }
+
+            do {
+                var pipelineConfig = StableDiffusionPipeline.Configuration(prompt: prompt)
+                pipelineConfig.seed = UInt32(config.seed)
+                pipelineConfig.stepCount = config.steps
+                pipelineConfig.guidanceScale = Float(config.guidanceScale)
+
+                let pipeline = try StableDiffusionPipeline(
+                    resourcesAt: self.localModelDirectory,
+                    controlNet: [],
+                    configuration: MLModelConfiguration(),
+                    disableSafety: false,
+                    reduceMemory: true
+                )
+
+                try pipeline.loadResources()
+                self.onStatusChanged?(.generating(step: 0, totalSteps: config.steps))
+
+                let images = try pipeline.generateImages(
+                    configuration: pipelineConfig
+                ) { progress in
+                    let step = min(config.steps, max(0, progress.step))
+                    DispatchQueue.main.async {
+                        progressHandler?(step, config.steps)
+                        self.onStatusChanged?(.generating(step: step, totalSteps: config.steps))
+                    }
+                    return true
+                }
+
+                pipeline.unloadResources()
+
+                guard let cgImage = images.compactMap({ $0 }).first else {
+                    throw self.localError(
+                        code: 500,
+                        message: "Le pipeline local n'a produit aucune image."
+                    )
+                }
+
+                let uiImage = UIImage(cgImage: cgImage)
+
+                DispatchQueue.main.async {
+                    self.onStatusChanged?(.ready)
+                    completion(.success(uiImage))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.onStatusChanged?(.error(error.localizedDescription))
+                    completion(.failure(error))
                 }
             }
         }
     }
-    
-    // MARK: - Téléchargement & Compilation du Paquet CoreML (.mlpackage)
-    
-    public func downloadAndInstallRealisticVisionModel(
-        onProgress: @escaping (Double) -> Void,
-        completion: @escaping (Result<URL, Error>) -> Void
-    ) {
-        self.onStatusChanged?(.downloading(progress: 0.0))
-        let targetURL = localModelDirectory.appendingPathComponent(SarahLocalImageGenEngine.modelPackageName)
-        
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            guard let self = self else { return }
-            
-            for p in stride(from: 0.1, through: 1.0, by: 0.1) {
-                usleep(150_000)
-                DispatchQueue.main.async {
-                    onProgress(p)
-                    self.onStatusChanged?(.downloading(progress: p))
-                }
-            }
-            
-            // Compilation et initialisation des poids
-            try? "Realistic_Vision_V5.1_LCM_CoreML_ANE_A15".write(to: targetURL, atomically: true, encoding: .utf8)
-            self.isModelLoaded = true
-            
-            DispatchQueue.main.async {
-                self.onStatusChanged?(.ready)
-                completion(.success(targetURL))
-            }
-        }
+    #endif
+
+    /// Emplacement prévu pour installer les ressources téléchargées par un
+    /// gestionnaire de modèles. Cette méthode remplace l'ancien faux
+    /// téléchargement qui écrivait simplement un fichier texte.
+    public func expectedInstallDirectory() -> URL {
+        localModelDirectory
+    }
+
+    private func localError(code: Int, message: String) -> NSError {
+        NSError(
+            domain: "SarahLocalImageGenEngine",
+            code: code,
+            userInfo: [NSLocalizedDescriptionKey: message]
+        )
     }
 }
 
+// MARK: - Génération vidéo locale
+
+/// Routage vidéo local de Sarah.
+///
+/// MobileI2V est sélectionné sur les appareils de classe iPhone 14 comme
+/// candidat expérimental. MOVD est sélectionné sur les appareils plus puissants
+/// lorsque la configuration publiée (iOS 18+, ~8 Go de RAM) est satisfaite.
+///
+/// Cette classe ne prétend pas qu'un portage est actif tant que les modèles
+/// Core ML nécessaires ne sont pas réellement présents dans l'app.
+public final class SarahLocalVideoGenEngine {
+
+    public static let shared = SarahLocalVideoGenEngine()
+
+    public struct VideoIntent {
+        public let isIntent: Bool
+        public let prompt: String
+    }
+
+    private let fileManager = FileManager.default
+
+    private init() {}
+
+    public var profile: SarahGenerativeModelProfile {
+        SarahGenerativeModelCatalog.videoProfile()
+    }
+
+    public var localModelDirectory: URL {
+        let base = fileManager.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? fileManager.temporaryDirectory
+
+        let dir = base
+            .appendingPathComponent("SarahAI", isDirectory: true)
+            .appendingPathComponent("GenerativeModels", isDirectory: true)
+            .appendingPathComponent(profile.identifier, isDirectory: true)
+
+        if !fileManager.fileExists(atPath: dir.path) {
+            try? fileManager.createDirectory(
+                at: dir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+        }
+
+        return dir
+    }
+
+    public func detectVideoIntent(_ text: String) -> VideoIntent {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = clean.lowercased()
+
+        let triggers = [
+            "génère une vidéo", "genere une video",
+            "génère-moi une vidéo", "genere moi une video",
+            "crée une vidéo", "cree une video",
+            "fais une vidéo", "fais une video",
+            "generate a video"
+        ]
+
+        guard let trigger = triggers.first(where: { lower.contains($0) }) else {
+            return VideoIntent(isIntent: false, prompt: "")
+        }
+
+        var prompt = clean
+        if let range = lower.range(of: trigger) {
+            let utfRange = Range(range, in: clean)
+            if let utfRange {
+                prompt = String(clean[utfRange.upperBound...])
+                    .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
+            }
+        }
+
+        if prompt.isEmpty {
+            prompt = clean
+        }
+
+        return VideoIntent(isIntent: true, prompt: prompt)
+    }
+
+    /// Indique uniquement si un ensemble de ressources locales crédible est
+    /// présent. L'inférence vidéo complète sera activée au moment où le
+    /// runtime Core ML correspondant est intégré et validé sur l'appareil.
+    public var hasInstalledRuntimeAssets: Bool {
+        switch profile.identifier {
+        case "movd-coreml":
+            let names = ["T5.mlmodelc", "STDiT3.mlmodelc", "VAE"]
+            return names.allSatisfy {
+                fileManager.fileExists(
+                    atPath: localModelDirectory.appendingPathComponent($0).path
+                )
+            }
+
+        case "mobilei2v-027b":
+            let names = ["MobileI2V.mlmodelc", "VideoVAE.mlmodelc"]
+            return names.allSatisfy {
+                fileManager.fileExists(
+                    atPath: localModelDirectory.appendingPathComponent($0).path
+                )
+            }
+
+        default:
+            return false
+        }
+    }
+
+    public func availabilityMessage() -> String {
+        switch profile.runtimeState {
+        case .unsupported:
+            return "La génération vidéo locale n'est pas prise en charge sur cet appareil."
+
+        case .experimental:
+            return "Le profil \(profile.displayName) est sélectionné pour cet iPhone, mais son port Core ML iOS n'est pas encore validé dans cette version de Sarah."
+
+        case .requiresDownload:
+            if hasInstalledRuntimeAssets {
+                return "Les ressources de \(profile.displayName) sont présentes, mais le runtime vidéo doit encore être validé avant activation."
+            }
+            return "Le profil \(profile.displayName) est compatible avec ce niveau de matériel, mais les ressources locales ne sont pas installées."
+
+        case .ready:
+            return "\(profile.displayName) est prêt."
+        }
+    }
+}
