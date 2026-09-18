@@ -1,5 +1,5 @@
-name: iOS 27 Core AI Build
-run-name: iOS 27 Core AI (Build #${{ github.run_number }})
+name: iOS 27 Local AI Build
+run-name: iOS 27 Local AI (Build #${{ github.run_number }})
 
 on:
   workflow_dispatch:
@@ -12,9 +12,15 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ios-build.yml'
+
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -30,9 +36,9 @@ jobs:
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure iOS 27 Core AI Target
+      - name: Configure iOS 27 Local AI Target
         run: |
-          echo "=== Sarah IA moderne : iOS 27 / Core AI ==="
+          echo "=== Sarah IA moderne : iOS 27 / Local AI ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
           find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
 
@@ -134,7 +140,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Sarah IA - iOS 27 / Core AI"
+          name: "Sarah IA - iOS 27 / Local AI"
           body: "Build #${{ github.run_number }}. Édition iOS 27 de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
           files: dist/SarahIA.ipa
           draft: false
