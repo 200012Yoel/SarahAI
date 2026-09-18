@@ -1023,9 +1023,14 @@ private struct VoiceAndSpeechSettingsView: View {
 private struct LocalGenerationSettingsView: View {
     @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
     @StateObject private var downloader = GenerativeModelDownloader.shared
+    @State private var musicDownloadProgress: Double = 0
+    @State private var musicStatus: String = ""
+    @State private var isPreparingMusic: Bool = false
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
+    private let musicProfile = SarahGenerativeModelCatalog.musicProfile()
+    private let vocalSongProfile = SarahGenerativeModelCatalog.vocalSongProfile()
 
     var body: some View {
         ZStack {
@@ -1048,6 +1053,10 @@ private struct LocalGenerationSettingsView: View {
                         profile: videoProfile,
                         kind: .video
                     )
+
+                    musicCapabilityCard
+
+                    vocalSongCapabilityCard
 
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Sélection automatique", systemImage: "cpu")
@@ -1116,6 +1125,188 @@ private struct LocalGenerationSettingsView: View {
         .navigationTitle("Création locale")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+    }
+
+    private var musicCapabilityCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.pink)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.pink.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Musique / instrumental")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.46))
+
+                    Text(musicProfile.displayName)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                Spacer(minLength: 8)
+                statusBadge(musicProfile.runtimeState)
+            }
+
+            HStack(spacing: 8) {
+                capsule(musicProfile.resolution)
+                capsule(musicProfile.licenseName)
+            }
+
+            Text(musicProfile.note)
+                .font(.footnote)
+                .foregroundColor(Color.white.opacity(0.54))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isPreparingMusic {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: musicDownloadProgress)
+                        .tint(.pink)
+
+                    HStack {
+                        Text(musicStatus.isEmpty ? "Préparation du modèle…" : musicStatus)
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.58))
+                        Spacer()
+                        Text("\(Int(musicDownloadProgress * 100)) %")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(Color.white.opacity(0.58))
+                    }
+                }
+            } else if musicProfile.runtimeState != .unsupported {
+                Button {
+                    HapticService.shared.buttonTap()
+                    prepareMusicModel()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Préparer le modèle musical local")
+                        Spacer()
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.pink)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+
+            if !musicStatus.isEmpty && !isPreparingMusic {
+                Text(musicStatus)
+                    .font(.caption)
+                    .foregroundColor(
+                        musicStatus.contains("prêt") ? .green : Color.white.opacity(0.48)
+                    )
+            }
+
+            if let source = URL(string: musicProfile.sourceURL), !musicProfile.sourceURL.isEmpty {
+                Link(destination: source) {
+                    Label("Source du modèle", systemImage: "arrow.up.right.square")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.pink)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.085))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private var vocalSongCapabilityCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "music.mic")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.cyan)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.cyan.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Chanson avec paroles")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.46))
+
+                    Text(vocalSongProfile.displayName)
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                Spacer(minLength: 8)
+                statusBadge(vocalSongProfile.runtimeState)
+            }
+
+            HStack(spacing: 8) {
+                capsule(vocalSongProfile.resolution)
+                capsule(vocalSongProfile.licenseName)
+            }
+
+            Text(vocalSongProfile.note)
+                .font(.footnote)
+                .foregroundColor(Color.white.opacity(0.54))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Français et anglais prévus. L'option reste verrouillée tant qu'un runtime iPhone réellement local n'a pas été validé.")
+                .font(.caption)
+                .foregroundColor(.orange)
+
+            if let source = URL(string: vocalSongProfile.sourceURL), !vocalSongProfile.sourceURL.isEmpty {
+                Link(destination: source) {
+                    Label("Projet ACE-Step", systemImage: "arrow.up.right.square")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.cyan)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.085))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func prepareMusicModel() {
+        guard #available(iOS 27.0, *) else {
+            musicStatus = "La génération musicale locale nécessite iOS 27."
+            return
+        }
+
+        isPreparingMusic = true
+        musicDownloadProgress = 0
+        musicStatus = "Téléchargement du modèle musical…"
+
+        SarahLocalMusicGenEngine.shared.prepareInstrumentalModel(
+            progress: { value, file in
+                musicDownloadProgress = value
+                musicStatus = file.isEmpty ? "Téléchargement du modèle musical…" : file
+            },
+            completion: { result in
+                isPreparingMusic = false
+                switch result {
+                case .success:
+                    musicDownloadProgress = 1
+                    musicStatus = "Modèle musical local prêt"
+                case .failure(let error):
+                    musicStatus = error.localizedDescription
+                }
+            }
+        )
     }
 
     private func capabilityCard(
@@ -1310,6 +1501,8 @@ private struct SarahEngineSettingsView: View {
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
+    private let musicProfile = SarahGenerativeModelCatalog.musicProfile()
+    private let vocalSongProfile = SarahGenerativeModelCatalog.vocalSongProfile()
 
     var body: some View {
         ZStack {
@@ -1342,6 +1535,22 @@ private struct SarahEngineSettingsView: View {
                         title: "Génération vidéo",
                         value: videoProfile.displayName,
                         detail: videoProfile.note
+                    )
+
+                    engineCard(
+                        icon: "music.note.list",
+                        tint: .pink,
+                        title: "Musique locale",
+                        value: musicProfile.displayName,
+                        detail: musicProfile.note
+                    )
+
+                    engineCard(
+                        icon: "music.mic",
+                        tint: .cyan,
+                        title: "Chanson avec paroles",
+                        value: vocalSongProfile.displayName,
+                        detail: vocalSongProfile.note
                     )
 
                     Button {
@@ -1576,7 +1785,7 @@ private struct LegalNoticesView: View {
 
                 Section("Génération vidéo — profils locaux") {
                     Text("Sur les appareils de classe iPhone 14, Sarah étudie MobileI2V 0.27B comme moteur image-vers-vidéo. Le dépôt est publié sous licence Apache License 2.0.")
-                    Text("Sur les appareils plus puissants compatibles iOS 18, Sarah peut sélectionner MOVD comme cible Core ML. Le dépôt MOVD est publié sous licence MIT et fournit une application iOS de référence.")
+                    Text("Sous iOS 27, Sarah sélectionne le profil vidéo selon la mémoire disponible. Sur les appareils plus puissants, MOVD reste une cible Core ML ; le dépôt MOVD est publié sous licence MIT et fournit une application iOS de référence.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Text("À ce stade, Sarah ne distribue pas encore les poids vidéo dans l’IPA. Avant une vente publique, les poids convertis, jeux de données, modèles amont et notices tierces devront être audités séparément de la licence du code.")
@@ -1585,6 +1794,23 @@ private struct LegalNoticesView: View {
                     Link("Projet MobileI2V", destination: URL(string: "https://github.com/hustvl/MobileI2V")!)
                     Link("Projet MOVD", destination: URL(string: "https://github.com/eai-lab/MOVD")!)
                     Link("Licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
+                }
+
+                Section("Génération musicale locale") {
+                    Text("Sarah utilise Core AI / CoreAIOps comme runtime local pour Stable Audio Open Small. Core AI Kit et son Model Zoo sont distribués sous licence BSD 3-Clause.")
+                    Text("Les poids Stable Audio Open Small sont soumis à la Stability AI Community License. Elle prévoit notamment un usage commercial gratuit sous le seuil de revenu annuel défini par Stability AI ; au-delà, une licence Enterprise peut être nécessaire.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Core AI Kit", destination: URL(string: "https://github.com/john-rocky/coreai-kit")!)
+                    Link("Licence Stability AI", destination: URL(string: "https://stability.ai/license")!)
+                }
+
+                Section("Chansons avec paroles — expérimental") {
+                    Text("ACE-Step 1.5 est la cible retenue pour les chansons complètes avec paroles en français ou en anglais. Son dépôt est publié sous licence MIT.")
+                    Text("Sarah IA ne distribue ni n’annonce actuellement ce moteur comme fonctionnel sur iPhone : l’intégration restera expérimentale jusqu’à validation d’un runtime iOS/Core AI réellement local.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Projet ACE-Step 1.5", destination: URL(string: "https://github.com/ace-step/ACE-Step-1.5")!)
                 }
 
                 Section("Composants Apple") {
