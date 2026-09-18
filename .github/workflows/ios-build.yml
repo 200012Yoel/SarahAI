@@ -1,5 +1,5 @@
-name: iOS Build Universal
-run-name: iOS Build Universal (Build #${{ github.run_number }})
+name: iOS 27 Core AI Build
+run-name: iOS 27 Core AI (Build #${{ github.run_number }})
 
 on:
   workflow_dispatch:
@@ -12,11 +12,17 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ios-build.yml'
+
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
-    runs-on: macos-14
-    timeout-minutes: 30
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    runs-on: xcode-27
+    timeout-minutes: 45
     permissions:
       contents: write
       actions: read
@@ -30,18 +36,18 @@ jobs:
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure Universal iOS 12.0+ Target
+      - name: Configure iOS 27 Core AI Target
         run: |
-          echo "=== Normalisation des MinimumOSVersion dans les Plists ==="
-          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "12.0" {} \; 2>/dev/null || true
-          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "14.0" {} \; 2>/dev/null || true
+          echo "=== Sarah IA moderne : iOS 27 / Core AI ==="
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
+          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "27.0" {} \; 2>/dev/null || true
 
       - name: Assign a unique build number for this IPA
         run: |
           echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
-      - name: Build Universal App Mach-O
+      - name: Build iOS 27 App
         run: |
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
@@ -57,6 +63,7 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            IPHONEOS_DEPLOYMENT_TARGET=27.0 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
@@ -97,7 +104,7 @@ jobs:
 
           INFOPLIST_TARGET="$APP_TARGET_DIR/Info.plist"
           if [ -f "$INFOPLIST_TARGET" ]; then
-            plutil -replace MinimumOSVersion -string "12.0" "$INFOPLIST_TARGET" 2>/dev/null || true
+            plutil -replace MinimumOSVersion -string "27.0" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
             plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
@@ -118,7 +125,7 @@ jobs:
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-          echo "=== Fichier SarahIA.ipa Universel genere avec succes ==="
+          echo "=== Fichier SarahIA.ipa iOS 27 genere avec succes ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
 
       - name: Upload IPA Artifact
@@ -133,8 +140,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Sarah IA - iOS Universal (iOS 12.0+ / iPhone 5S 6 7 8 X 11 12 13 14 15 16)"
-          body: "Build #${{ github.run_number }}. Fichier IPA universel unique compatible iPhone 5S, iPhone 6, iPhone 6 Plus, iPhone 7 et tous les iPhones récents. L'installation de ce nouveau build remet les données de test Sarah IA à zéro."
+          name: "Sarah IA - iOS 27 / Core AI"
+          body: "Build #${{ github.run_number }}. Édition iOS 27 de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
