@@ -315,14 +315,16 @@ public struct VoiceOrbModalView: View {
             }
 
             HStack(spacing: 10) {
-                TextField("Demander à Sarah…", text: $viewModel.inputText)
+                TextField(
+                    "Demander à Sarah…",
+                    text: $viewModel.inputText,
+                    onCommit: {
+                        sendTextIfNeeded()
+                    }
+                )
                     .foregroundColor(.white)
                     .accentColor(accent)
                     .font(.system(size: 16))
-                    .submitLabel(.send)
-                    .onSubmit {
-                        sendTextIfNeeded()
-                    }
 
                 Button(action: {
                     HapticService.shared.buttonTap()
