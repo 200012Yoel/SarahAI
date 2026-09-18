@@ -116,6 +116,78 @@ public final class AIService {
         
         let normalized = normalizeText(trimmed)
         
+        // 0.3 GÉNÉRATION MUSICALE LOCALE (Core ML / iOS 27)
+        if #available(iOS 27.0, *) {
+            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            if musicCheck.isIntent {
+                if musicCheck.wantsLyrics {
+                    let profile = SarahGenerativeModelCatalog.vocalSongProfile()
+
+                    let lyricsPrompt = musicCheck.language == "en"
+                        ? "Write original English song lyrics for this idea: \(musicCheck.prompt). Use verse, chorus and bridge. Do not imitate any existing song."
+                        : "Écris des paroles originales en français pour cette idée : \(musicCheck.prompt). Utilise couplet, refrain et pont. N'imite aucune chanson existante."
+
+                    LocalNeuralIntelligenceEngine.shared.generateLocalResponse(
+                        prompt: lyricsPrompt,
+                        contextHistory: []
+                    ) { [weak self] result in
+                        guard let self = self else { return }
+                        let reply = """
+                        🎤 **Paroles préparées localement**
+
+                        \(result.text)
+
+                        **Voix chantée : \(profile.displayName)** reste expérimentale sur iPhone. Sarah ne prétend pas avoir généré le chant tant que ce runtime n'est pas validé.
+                        """
+                        self.recordExchange(userText: trimmed, assistantResponse: reply)
+                        DispatchQueue.main.async {
+                            completion(reply.decodingHTMLEntities())
+                        }
+                    }
+                    return
+                }
+
+                if !SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    let reply = """
+                    🎵 **Modèle musical à installer**
+
+                    Ouvre **Réglages → Création locale → Musique / instrumental** puis touche **Préparer le modèle musical local**.
+                    Sarah téléchargera environ 580 Mo de modèles Core ML. Après installation, la génération reste sur l'iPhone.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    completion(reply.decodingHTMLEntities())
+                    return
+                }
+
+                SarahLocalMusicGenEngine.shared.generateInstrumental(
+                    prompt: musicCheck.prompt
+                ) { [weak self] result in
+                    guard let self = self else { return }
+
+                    let reply: String
+                    switch result {
+                    case .success(let url):
+                        reply = """
+                        🎵 **Musique générée localement**
+
+                        Création terminée avec **Stable Audio Open Small · Core ML**.
+                        Fichier : \(url.lastPathComponent)
+                        """
+                    case .failure(let error):
+                        reply = """
+                        🎵 **Génération musicale interrompue**
+
+                        \(error.localizedDescription)
+                        """
+                    }
+
+                    self.recordExchange(userText: trimmed, assistantResponse: reply)
+                    completion(reply.decodingHTMLEntities())
+                }
+                return
+            }
+        }
+
         // 0.4 GÉNÉRATION VIDÉO LOCALE
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
         if videoCheck.isIntent {
@@ -284,7 +356,7 @@ public final class AIService {
             return contextualActionResponse
         }
         
-        // 1.1 GÉNÉRATION MUSICALE RÉELLE ON-DEVICE (iOS 27 / Core AI)
+        // 1.1 GÉNÉRATION MUSICALE RÉELLE ON-DEVICE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
             let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
             if musicCheck.isIntent {
@@ -293,27 +365,35 @@ public final class AIService {
                     let reply = """
                     🎤 **Chanson avec paroles — \(profile.displayName)**
 
-                    \(SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage())
-
-                    Sarah peut déjà préparer les paroles en français ou en anglais, mais ne présentera pas une voix chantée comme locale tant que le runtime iPhone du modèle n'est pas validé.
+                    Sarah peut rédiger des paroles originales en français ou en anglais. Le moteur de voix chantée reste expérimental sur iPhone et n'est pas présenté comme fonctionnel tant qu'il n'a pas été validé localement.
                     """
                     recordExchange(userText: trimmed, assistantResponse: reply)
                     return reply
                 }
 
-                SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
-                ) { _ in }
-
                 let profile = SarahGenerativeModelCatalog.musicProfile()
-                let reply = """
-                🎵 **Génération musicale locale lancée**
+                if SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    SarahLocalMusicGenEngine.shared.generateInstrumental(
+                        prompt: musicCheck.prompt
+                    ) { _ in }
 
-                Sarah utilise **\(profile.displayName)** sur iOS 27.
-                Le modèle est téléchargé et mis en cache lors de la première utilisation, puis l'inférence reste sur l'iPhone.
-                """
-                recordExchange(userText: trimmed, assistantResponse: reply)
-                return reply
+                    let reply = """
+                    🎵 **Génération musicale locale lancée**
+
+                    Sarah utilise **\(profile.displayName)** sur iOS 27.
+                    L'inférence s'exécute localement sur l'iPhone.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    return reply
+                } else {
+                    let reply = """
+                    🎵 **Modèle musical à installer**
+
+                    Prépare d'abord **\(profile.displayName)** depuis Réglages → Création locale.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    return reply
+                }
             }
         }
         
