@@ -12,9 +12,15 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ios-build.yml'
+
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -106,8 +112,22 @@ jobs:
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
 
-          # Signature ad-hoc du bundle principal
-          codesign -f -s - "$APP_TARGET_DIR" 2>/dev/null || true
+          # Signer d'abord tous les composants imbriqués, puis le bundle principal.
+          # Une dépendance dynamique non signée peut provoquer une fermeture immédiate au lancement.
+          if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
+            find "$APP_TARGET_DIR/Frameworks" -type d -name "*.framework" -print0 | while IFS= read -r -d '' FRAMEWORK; do
+              codesign -f -s - "$FRAMEWORK"
+            done
+          fi
+
+          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
+            find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0 | while IFS= read -r -d '' APPEX; do
+              codesign -f -s - "$APPEX"
+            done
+          fi
+
+          codesign -f -s - "$APP_TARGET_DIR"
+          codesign --verify --deep --strict "$APP_TARGET_DIR"
 
           echo "=== Structure du Bundle Final dans l'IPA ==="
           ls -la "$APP_TARGET_DIR"
