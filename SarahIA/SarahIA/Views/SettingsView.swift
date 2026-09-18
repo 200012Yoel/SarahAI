@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents (100% Moteur Local On-Device) :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -68,6 +69,15 @@ public struct SettingsView: View {
                             tint: .purple,
                             title: "Voix et parole",
                             detail: "Voix, vitesse et microphone"
+                        )
+                    }
+
+                    NavigationLink(destination: SarahEngineActivationSettingsView(viewModel: viewModel)) {
+                        SettingsHomeRow(
+                            icon: "sparkles",
+                            tint: .pink,
+                            title: "Sarah Engine",
+                            detail: "Halo, activation et mode vocal"
                         )
                     }
 
@@ -909,6 +919,69 @@ private struct VoiceAndSpeechSettingsView: View {
                 .tint(.sarahCyan)
         }
         .padding(.vertical, 2)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahEngineActivationSettingsView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @AppStorage("sarahEngineHaloEnabled") private var haloEnabled: Bool = true
+    @State private var copied: Bool = false
+
+    var body: some View {
+        List {
+            Section("Apparence") {
+                Toggle(isOn: $haloEnabled) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Halo Sarah Engine", systemImage: "sparkles")
+                        Text("Affiche un contour multicolore autour de l'écran et de l'encoche pendant le mode vocal.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .tint(.pink)
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    viewModel.isShowingVoiceOrbModal = true
+                } label: {
+                    Label("Tester le mode vocal", systemImage: "waveform.circle.fill")
+                }
+            }
+
+            Section("Activation rapide") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Lien Sarah vocal")
+                        Text("sarahia://voice")
+                            .font(.caption.monospaced())
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Button(copied ? "Copié" : "Copier") {
+                        UIPasteboard.general.string = "sarahia://voice"
+                        copied = true
+                        HapticService.shared.buttonTap()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            copied = false
+                        }
+                    }
+                }
+
+                Text("Ce lien ouvre directement Sarah en mode vocal. Tu peux l'utiliser dans un Raccourci iOS, puis associer ce raccourci à une action système disponible sur ton iPhone.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Bouton latéral de l'iPhone") {
+                Text("iOS ne permet pas à une application tierce de remplacer directement Siri lors d'un appui long sur le bouton latéral. Sarah peut toutefois être lancée via le lien ci-dessus ou un Raccourci iOS.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Sarah Engine")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
