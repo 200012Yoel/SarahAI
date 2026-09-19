@@ -1,7 +1,10 @@
-name: iOS 27 Local AI Build
-run-name: iOS 27 Local AI (Build #${{ github.run_number }})
+name: iOS 26 Stable Build
+run-name: iOS 26 Stable (Build #${{ github.run_number }})
 
 on:
+  push:
+    branches:
+      - feature/sarah-native-shortcuts-v4
   workflow_dispatch:
     inputs:
       confirm_release:
@@ -14,8 +17,8 @@ on:
         default: 'no'
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
-    runs-on: xcode-27
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    runs-on: macos-26
     timeout-minutes: 45
     permissions:
       contents: write
@@ -25,14 +28,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Xcode 26.6 stable
         run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure iOS 27-compatible Local AI Target
+      - name: Configure iOS 26 stable Local AI Target
         run: |
-          echo "=== Sarah IA moderne : iOS 27 / Local AI ==="
+          echo "=== Sarah IA moderne : iOS 26 Stable / Local AI ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
           find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
@@ -41,7 +45,7 @@ jobs:
           echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
-      - name: Build iOS 27 App
+      - name: Build iOS 26 App
         run: |
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
@@ -133,7 +137,7 @@ jobs:
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-          echo "=== Fichier SarahIA.ipa iOS 27 genere avec succes ==="
+          echo "=== Fichier SarahIA.ipa iOS 26 genere avec succes ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
 
       - name: Upload IPA Artifact
@@ -148,8 +152,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: latest
-          name: "Sarah IA - iOS 27 / Local AI"
-          body: "Build #${{ github.run_number }}. Édition iOS 27 de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
+          name: "Sarah IA - iOS 26 Stable / Local AI"
+          body: "Build #${{ github.run_number }}. Édition iOS 26 stable de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
