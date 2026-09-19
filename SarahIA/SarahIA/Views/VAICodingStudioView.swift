@@ -616,6 +616,27 @@ public struct VAICodingStudioView: View {
     private func exportShortcut(title: String, prompt: String) {
         HapticService.shared.buttonTap()
 
+        if ShortcutGenerator.shared.communitySigningEnabled {
+            ShortcutGenerator.shared.buildInstallableShortcut(
+                title: title,
+                prompt: prompt
+            ) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let signedURL):
+                        exportMessage = "Raccourci signé et prêt : \(signedURL.lastPathComponent). Touchez Continuer puis choisissez Raccourcis / Ajouter le raccourci."
+                        isShowingExportAlert = true
+                        try? ShortcutGenerator.shared.presentInstallSheet(for: signedURL)
+
+                    case .failure(let error):
+                        exportMessage = "La signature n’a pas abouti : \(error.localizedDescription). Le brouillon local reste disponible."
+                        isShowingExportAlert = true
+                    }
+                }
+            }
+            return
+        }
+
         do {
             let draft = try ShortcutGenerator.shared.createDraft(
                 title: title,
@@ -626,7 +647,7 @@ public struct VAICodingStudioView: View {
             exportMessage = """
             \(draft.summary)
 
-            Apple ne fournit pas d’API publique iPhone permettant à une app tierce de signer silencieusement un .shortcut arbitraire. J’ouvre donc Raccourcis pour la finalisation. Les actions Sarah via App Intents, elles, sont déjà natives et directement disponibles.
+            Pour obtenir directement un .shortcut signé, active Réglages → Connexions → Apple Raccourcis → Signature communautaire HubSign.
             """
             isShowingExportAlert = true
 
