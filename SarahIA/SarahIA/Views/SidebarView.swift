@@ -1,10 +1,8 @@
 import Foundation
 import SwiftUI
 
-/// Tiroir latéral principal de Sarah IA.
-/// Design sombre moderne inspiré de la maquette validée :
-/// titre, recherche permanente, discussions sous forme de cartes,
-// puis actions principales fixes en bas.
+/// Tiroir latéral compact et adaptatif de Sarah IA.
+/// Aucun bloc ne flotte par-dessus la liste : le contenu se répartit selon la hauteur disponible.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -22,14 +20,14 @@ public struct SidebarView: View {
     public var body: some View {
         GeometryReader { geo in
             let width = max(280, geo.size.width)
-            let horizontal = max(18, min(24, width * 0.055))
-            let insets = currentSafeAreaInsets
+            let horizontal = max(14, min(20, width * 0.05))
+            let safeInsets = currentSafeAreaInsets
 
-            ZStack(alignment: .bottom) {
+            ZStack {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.045, green: 0.050, blue: 0.065),
-                        Color(red: 0.028, green: 0.031, blue: 0.041)
+                        Color(red: 0.038, green: 0.043, blue: 0.056),
+                        Color(red: 0.022, green: 0.025, blue: 0.034)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -37,11 +35,15 @@ public struct SidebarView: View {
                 .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    header(horizontal: horizontal, topInset: insets.top)
+                    header(
+                        horizontal: horizontal,
+                        topInset: safeInsets.top
+                    )
+
                     searchField(horizontal: horizontal)
 
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 16) {
+                        LazyVStack(alignment: .leading, spacing: 14) {
                             if !viewModel.filteredPinnedConversations.isEmpty {
                                 conversationSection(
                                     title: "Épinglés",
@@ -56,15 +58,20 @@ public struct SidebarView: View {
                                 horizontal: horizontal
                             )
                         }
-                        .padding(.top, 24)
-                        .padding(.bottom, 210)
+                        .padding(.top, 18)
+                        .padding(.bottom, 14)
                     }
-                }
+                    .frame(maxHeight: .infinity)
 
-                footer(
-                    horizontal: horizontal,
-                    bottomInset: insets.bottom
-                )
+                    Rectangle()
+                        .fill(Color.white.opacity(0.065))
+                        .frame(height: 0.5)
+
+                    footer(
+                        horizontal: horizontal,
+                        bottomInset: safeInsets.bottom
+                    )
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -89,45 +96,45 @@ public struct SidebarView: View {
         .alert("Aide et support", isPresented: $isShowingHelp) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Retrouve ici les fonctions d’aide de Sarah IA. Cette section pourra être reliée au centre d’aide complet.")
+            Text("Retrouve ici les fonctions d’aide de Sarah IA.")
         }
     }
 
-    // MARK: - Header
+    // MARK: - En-tête
 
     private func header(horizontal: CGFloat, topInset: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
                 Text("Sarah IA")
-                    .font(.system(size: 35, weight: .bold, design: .rounded))
+                    .font(.system(size: 29, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.8)
 
                 Image(systemName: "sparkles")
-                    .font(.system(size: 23, weight: .semibold))
-                    .foregroundColor(Color(red: 0.37, green: 0.47, blue: 1.0))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color(red: 0.37, green: 0.52, blue: 1.0))
 
                 Spacer(minLength: 0)
             }
 
             Text("Toujours là pour vous 💙")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundColor(Color.white.opacity(0.58))
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(Color.white.opacity(0.48))
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, max(18, topInset + 14))
-        .padding(.bottom, 20)
+        .padding(.top, max(14, topInset + 8))
+        .padding(.bottom, 14)
     }
 
     private func searchField(horizontal: CGFloat) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 19, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.82))
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.70))
 
-            TextField("Rechercher une conversation...", text: $viewModel.searchQuery)
-                .font(.system(size: 16, weight: .regular))
+            TextField("Rechercher une conversation…", text: $viewModel.searchQuery)
+                .font(.system(size: 14.5))
                 .foregroundColor(.white)
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
@@ -137,26 +144,26 @@ public struct SidebarView: View {
                     viewModel.searchQuery = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 17))
-                        .foregroundColor(Color.white.opacity(0.34))
+                        .font(.system(size: 15))
+                        .foregroundColor(Color.white.opacity(0.32))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.horizontal, 16)
-        .frame(height: 54)
+        .padding(.horizontal, 13)
+        .frame(height: 44)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.075))
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(Color.white.opacity(0.07))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.055), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 0.7)
         )
         .padding(.horizontal, horizontal)
     }
 
-    // MARK: - Conversations
+    // MARK: - Discussions
 
     @ViewBuilder
     private func conversationSection(
@@ -164,22 +171,21 @@ public struct SidebarView: View {
         conversations: [Conversation],
         horizontal: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text(title)
-                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
 
                 Spacer()
 
                 if title == "Récents" {
                     Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.72))
-                        .frame(width: 36, height: 36)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.58))
+                        .frame(width: 30, height: 30)
                         .background(
-                            Circle()
-                                .fill(Color.white.opacity(0.07))
+                            Circle().fill(Color.white.opacity(0.055))
                         )
                 }
             }
@@ -191,12 +197,12 @@ public struct SidebarView: View {
                         ? "Aucune discussion pour le moment."
                         : "Aucune discussion trouvée."
                 )
-                .font(.system(size: 14))
-                .foregroundColor(Color.white.opacity(0.38))
+                .font(.system(size: 13))
+                .foregroundColor(Color.white.opacity(0.34))
                 .padding(.horizontal, horizontal)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
             } else {
-                VStack(spacing: 10) {
+                VStack(spacing: 7) {
                     ForEach(conversations) { conversation in
                         ConversationHistoryRow(
                             conversation: conversation,
@@ -206,124 +212,149 @@ public struct SidebarView: View {
                         )
                     }
                 }
-                .padding(.horizontal, max(12, horizontal - 4))
+                .padding(.horizontal, max(10, horizontal - 3))
             }
         }
     }
 
-    // MARK: - Footer
+    // MARK: - Bas du menu
 
     private func footer(horizontal: CGFloat, bottomInset: CGFloat) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 7) {
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.startNewChat()
                 viewModel.closeDrawer()
             } label: {
-                HStack(spacing: 11) {
+                HStack(spacing: 9) {
                     Image(systemName: "square.and.pencil")
-                        .font(.system(size: 19, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
 
                     Text("Nouveau chat")
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 15.5, weight: .bold))
 
                     Spacer()
                 }
                 .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .frame(height: 58)
+                .padding(.horizontal, 16)
+                .frame(height: 48)
                 .background(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.18, green: 0.48, blue: 1.0),
-                            Color(red: 0.14, green: 0.36, blue: 0.95)
+                            Color(red: 0.16, green: 0.47, blue: 1.0),
+                            Color(red: 0.19, green: 0.36, blue: 0.94)
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: Color.blue.opacity(0.18), radius: 16, y: 8)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleBounceButtonStyle())
 
-            footerRow(
-                systemName: "gearshape",
-                title: "Paramètres"
-            ) {
-                HapticService.shared.buttonTap()
-                viewModel.closeDrawer()
-                isShowingSettings = true
+            HStack(spacing: 8) {
+                compactAction(
+                    systemName: "waveform",
+                    title: "Mode vocal",
+                    emphasized: true
+                ) {
+                    HapticService.shared.buttonTap()
+                    viewModel.closeDrawer()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                        viewModel.isShowingVoiceOrbModal = true
+                    }
+                }
+
+                compactAction(
+                    systemName: "gearshape",
+                    title: "Paramètres",
+                    emphasized: false
+                ) {
+                    HapticService.shared.buttonTap()
+                    viewModel.closeDrawer()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        isShowingSettings = true
+                    }
+                }
             }
 
-            footerRow(
-                systemName: "questionmark.circle",
-                title: "Aide et support"
-            ) {
+            Button {
                 HapticService.shared.buttonTap()
                 isShowingHelp = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 16, weight: .medium))
+                        .frame(width: 22)
+
+                    Text("Aide et support")
+                        .font(.system(size: 14.5, weight: .medium))
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.34))
+                }
+                .foregroundColor(Color.white.opacity(0.84))
+                .padding(.horizontal, 8)
+                .frame(height: 38)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, 16)
-        .padding(.bottom, max(16, bottomInset + 10))
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.030, green: 0.034, blue: 0.044).opacity(0.10),
-                    Color(red: 0.030, green: 0.034, blue: 0.044).opacity(0.97),
-                    Color(red: 0.030, green: 0.034, blue: 0.044)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.white.opacity(0.07))
-                .frame(height: 0.5)
-        }
+        .padding(.top, 10)
+        .padding(.bottom, max(10, bottomInset + 5))
+        .background(Color(red: 0.024, green: 0.027, blue: 0.036).opacity(0.96))
     }
 
-    private func footerRow(
+    private func compactAction(
         systemName: String,
         title: String,
+        emphasized: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
+            HStack(spacing: 7) {
                 Image(systemName: systemName)
-                    .font(.system(size: 20, weight: .medium))
-                    .frame(width: 28)
+                    .font(.system(size: 15, weight: .semibold))
 
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.42))
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.84)
             }
-            .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .frame(height: 48)
-            .contentShape(Rectangle())
+            .foregroundColor(emphasized ? .white : Color.white.opacity(0.82))
+            .frame(maxWidth: .infinity)
+            .frame(height: 42)
+            .background(
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(
+                        emphasized
+                            ? viewModel.activeAgent.themeColor.opacity(0.18)
+                            : Color.white.opacity(0.055)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(
+                        emphasized
+                            ? viewModel.activeAgent.themeColor.opacity(0.28)
+                            : Color.white.opacity(0.045),
+                        lineWidth: 0.7
+                    )
+            )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(ScaleBounceButtonStyle())
     }
 
     private var currentSafeAreaInsets: UIEdgeInsets {
-        if #available(iOS 13.0, *) {
-            return UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first(where: { $0.isKeyWindow })?
-                .safeAreaInsets ?? .zero
-        }
-
-        return UIApplication.shared.keyWindow?.safeAreaInsets ?? .zero
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .safeAreaInsets ?? .zero
     }
 
     private func requestDeletion(of conversation: Conversation) {
@@ -341,36 +372,37 @@ private struct ConversationHistoryRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 0) {
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.selectConversation(conversation)
                 viewModel.closeDrawer()
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Image(systemName: "bubble.left")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(
                             isSelected
                                 ? Color(red: 0.42, green: 0.70, blue: 1.0)
-                                : Color.white.opacity(0.84)
+                                : Color.white.opacity(0.70)
                         )
-                        .frame(width: 26)
+                        .frame(width: 22)
 
                     Text(conversation.title)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 14.5, weight: .medium))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 6)
 
                     Text(timeLabel)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.42))
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.34))
                 }
-                .padding(.horizontal, 15)
-                .frame(height: 62)
+                .padding(.leading, 13)
+                .padding(.trailing, 5)
+                .frame(height: 52)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
@@ -379,34 +411,29 @@ private struct ConversationHistoryRow: View {
                 rowActions
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.48))
-                    .frame(width: 36, height: 44)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.42))
+                    .frame(width: 34, height: 42)
                     .contentShape(Rectangle())
             }
-            .padding(.trailing, 5)
+            .padding(.trailing, 3)
         }
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .fill(
                     isSelected
-                        ? Color(red: 0.08, green: 0.18, blue: 0.32).opacity(0.92)
-                        : Color.white.opacity(0.052)
+                        ? Color(red: 0.08, green: 0.18, blue: 0.32).opacity(0.88)
+                        : Color.white.opacity(0.045)
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(
                     isSelected
-                        ? Color(red: 0.20, green: 0.53, blue: 1.0)
-                        : Color.white.opacity(0.035),
-                    lineWidth: isSelected ? 1.2 : 0.7
+                        ? Color(red: 0.20, green: 0.53, blue: 1.0).opacity(0.85)
+                        : Color.white.opacity(0.03),
+                    lineWidth: isSelected ? 1 : 0.6
                 )
-        )
-        .shadow(
-            color: isSelected ? Color.blue.opacity(0.10) : Color.clear,
-            radius: 12,
-            y: 4
         )
         .contextMenu {
             rowActions

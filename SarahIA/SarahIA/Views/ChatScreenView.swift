@@ -17,51 +17,16 @@ public struct ChatScreenView: View {
         self._isShowingSettings = isShowingSettings
     }
     
-    private var topSafeArea: CGFloat {
-        if #available(iOS 13.0, *) {
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                .first
-            if let top = window?.safeAreaInsets.top, top > 0 {
-                return top
-            }
-        }
-        return 20
-    }
-    
-    private var bottomSafeArea: CGFloat {
-        if #available(iOS 13.0, *) {
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                .first
-            if let insets = window?.safeAreaInsets {
-                return insets.bottom
-            }
-        }
-        return 0
-    }
-    
-    private var currentBottomPadding: CGFloat {
-        if keyboard.isVisible && keyboard.keyboardHeight > 0 {
-            // Collé au millimètre près sur le dessus du clavier
-            return keyboard.keyboardHeight
-        }
-        return bottomSafeArea > 0 ? bottomSafeArea : 8
-    }
-    
     public var body: some View {
         ZStack {
-            // Fond noir plein écran
             Color.black
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                // 1. En-tête (TopBar calée sous l'encoche / Dynamic Island)
                 topBar
-                    .padding(.top, topSafeArea)
-                    .padding(.bottom, 6)
-                
-                // 2. Liste des messages (ScrollView)
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
+
                 MessageList(
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
@@ -86,29 +51,29 @@ public struct ChatScreenView: View {
                 .onTapGesture {
                     keyboard.dismiss()
                 }
-                
-                // 3. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
-                MessageBar(
-                    text: $viewModel.inputText,
-                    activeAgent: $viewModel.activeAgent,
-                    isRecording: viewModel.isMicRunning,
-                    onSend: { text in
-                        viewModel.sendMessage(text)
-                    },
-                    onToggleMic: {
-                        viewModel.toggleMicrophone()
-                    },
-                    onOpenVoiceOrb: {
-                        viewModel.isShowingVoiceOrbModal = true
-                    },
-                    onOpenVAICoding: {
-                        viewModel.isShowingVAICodingStudio = true
-                    }
-                )
             }
-            .padding(.bottom, currentBottomPadding)
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            MessageBar(
+                text: $viewModel.inputText,
+                activeAgent: $viewModel.activeAgent,
+                isRecording: viewModel.isMicRunning,
+                onSend: { text in
+                    viewModel.sendMessage(text)
+                },
+                onToggleMic: {
+                    viewModel.toggleMicrophone()
+                },
+                onOpenVoiceOrb: {
+                    keyboard.dismiss()
+                    viewModel.isShowingVoiceOrbModal = true
+                },
+                onOpenVAICoding: {
+                    viewModel.isShowingVAICodingStudio = true
+                }
+            )
+            .background(Color.black.opacity(0.97))
+        }
         .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
         }
@@ -121,7 +86,11 @@ public struct ChatScreenView: View {
         .fullScreenCover(isPresented: $isShowingVoiceCallScreen) {
             VoiceCallScreenView()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentVoiceCallModal"))) { _ in
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: NSNotification.Name("SarahPresentVoiceCallModal")
+            )
+        ) { _ in
             isShowingVoiceCallScreen = true
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
@@ -129,7 +98,8 @@ public struct ChatScreenView: View {
                 title: Text("Écosystème Développeur & Multi-Agents"),
                 buttons: [
                     .default(Text("📞 Appel Vocal WebRTC & Traduction IA")) {
-                        if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
+                        if WebRTCVoiceCallManager.shared.callState == .idle,
+                           let c = VoiceCallContactManager.shared.contacts.first {
                             WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
                         }
                         isShowingVoiceCallScreen = true
@@ -171,7 +141,7 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .esther
                         viewModel.sendMessage("Ouvre mes mails Gmail")
                     },
-                    .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
+                    .default(Text("🔮 Ouvrir le mode vocal")) {
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
@@ -191,7 +161,7 @@ public struct ChatScreenView: View {
             )
         }
     }
-    
+
     @ViewBuilder
     private var voiceSheetContent: some View {
         if #available(iOS 16.0, *) {
@@ -204,9 +174,9 @@ public struct ChatScreenView: View {
                     isShowingSettings = true
                 }
             )
-            // Grand mode + mode réduit. Un glissement vers le bas garde le chat
-            // visible derrière, comme dans les assistants vocaux modernes.
-            .presentationDetents([.height(255), .large])
+            // Le mode vocal s'ouvre immédiatement en grand.
+            // Le geste de descente standard d'iOS permet de revenir au chat.
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         } else {
             VoiceOrbModalView(
@@ -224,61 +194,78 @@ public struct ChatScreenView: View {
     // MARK: - Topbar
     
     private var topBar: some View {
-        HStack(alignment: .center) {
-            // Bouton Menu Tiroir (Sidebar)
-            Button(action: {
+        HStack(spacing: 10) {
+            topBarButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 viewModel.openDrawer()
-            }) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
             }
-            .buttonStyle(ScaleBounceButtonStyle())
-            
-            Spacer()
-            
-            // Titre de l'agent actif (centre)
-            Button(action: {
+            .accessibilityLabel("Ouvrir le menu")
+
+            Spacer(minLength: 8)
+
+            Button {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
                 viewModel.isShowingVoiceOrbModal = true
-            }) {
+            } label: {
                 HStack(spacing: 6) {
                     Circle()
                         .fill(viewModel.activeAgent.themeColor)
-                        .frame(width: 8, height: 8)
-                    
+                        .frame(width: 7, height: 7)
+
                     Text(viewModel.activeAgent.displayName)
-                        .font(.headline)
+                        .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
+                        .lineLimit(1)
+
+                    Image(systemName: "waveform")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.42))
                 }
+                .padding(.horizontal, 10)
+                .frame(height: 38)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.045))
+                )
             }
             .buttonStyle(PlainButtonStyle())
-            
-            Spacer()
-            
-            // Bouton Paramètres — Roue crantée ⚙️
-            Button(action: {
+            .accessibilityLabel("Ouvrir le mode vocal avec \(viewModel.activeAgent.displayName)")
+
+            Spacer(minLength: 8)
+
+            topBarButton(systemName: "gearshape") {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 isShowingSettings = true
-            }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
             }
-            .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel("Ouvrir les paramètres")
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
     }
+
+    private func topBarButton(
+        systemName: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 40, height: 40)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.105))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.05), lineWidth: 0.7)
+                )
+        }
+        .buttonStyle(ScaleBounceButtonStyle())
+    }
+
 }
 
 /// Brief conservé entre une première maquette et ses améliorations.

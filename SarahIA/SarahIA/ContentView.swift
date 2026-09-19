@@ -16,8 +16,8 @@ public struct ContentView: View {
         ZStack {
             GeometryReader { geo in
             let drawerWidth = min(
-                CGFloat(390),
-                max(CGFloat(300), geo.size.width * 0.88)
+                CGFloat(352),
+                max(CGFloat(286), geo.size.width - 46)
             )
 
             let progress = min(
@@ -37,17 +37,17 @@ public struct ContentView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .scaleEffect(
-                    1.0 - (0.035 * progress),
+                    1.0 - (0.018 * progress),
                     anchor: .trailing
                 )
-                .offset(x: drawerWidth * 0.10 * progress)
+                .offset(x: 18 * progress)
                 .disabled(progress > 0.001)
                 .animation(nil, value: progress)
 
                 // Voile progressif derrière le panneau.
                 if progress > 0.001 || viewModel.isDrawerOpen {
                     Color.black
-                        .opacity(Double(progress) * 0.46)
+                        .opacity(Double(progress) * 0.62)
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -69,13 +69,13 @@ public struct ContentView: View {
                     )
                     .clipShape(
                         RoundedRectangle(
-                            cornerRadius: 32,
+                            cornerRadius: 24,
                             style: .continuous
                         )
                     )
                     .overlay(
                         RoundedRectangle(
-                            cornerRadius: 32,
+                            cornerRadius: 24,
                             style: .continuous
                         )
                         .stroke(
@@ -85,12 +85,11 @@ public struct ContentView: View {
                     )
                     .shadow(
                         color: Color.black.opacity(0.55),
-                        radius: 28,
-                        x: 10,
-                        y: 6
+                        radius: 20,
+                        x: 8,
+                        y: 2
                     )
-                    .padding(.top, max(6, geo.safeAreaInsets.top + 6))
-                    .padding(.bottom, max(6, geo.safeAreaInsets.bottom + 6))
+                    .padding(.vertical, 4)
                     .offset(
                         x: -drawerWidth * (1.0 - progress)
                     )

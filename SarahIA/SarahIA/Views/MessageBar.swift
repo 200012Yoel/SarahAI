@@ -1,17 +1,18 @@
 import SwiftUI
 
-/// Barre de saisie 100% native SwiftUI (MessageBar) avec Capsule Élargie,
-/// champ texte, microphone intégré et bouton waveform / envoi.
+/// Barre de saisie compacte de Sarah IA.
+/// Le micro dans le champ sert à la dictée ; le bouton onde ouvre le vrai mode vocal.
 @available(iOS 14.0, *)
 public struct MessageBar: View {
     @Binding var text: String
     @Binding var activeAgent: AgentType
+
     var isRecording: Bool
     var onSend: (String) -> Void
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
-    
+
     public init(
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
@@ -29,63 +30,95 @@ public struct MessageBar: View {
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
     }
-    
+
     public var body: some View {
-        HStack(spacing: 12) {
-            // Champ texte étendu naturellement avec Micro intégré à droite de la capsule
-            HStack(spacing: 8) {
-                TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
-                    submitMessage()
-                })
+        HStack(spacing: 8) {
+            HStack(spacing: 7) {
+                TextField(
+                    "Demander à \(activeAgent.displayName)…",
+                    text: $text,
+                    onCommit: submitMessage
+                )
                 .foregroundColor(.white)
-                .accentColor(.blue)
-                .font(.system(size: 15))
-                
-                Button(action: {
+                .accentColor(activeAgent.themeColor)
+                .font(.system(size: 15, weight: .regular))
+                .lineLimit(1)
+
+                Button {
+                    HapticService.shared.buttonTap()
                     onToggleMic()
-                }) {
+                } label: {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .foregroundColor(isRecording ? .red : .gray)
-                        .font(.system(size: 18))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(isRecording ? activeAgent.themeColor : Color.white.opacity(0.52))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel(isRecording ? "Arrêter la dictée" : "Dicter un message")
             }
-            .padding(.horizontal, 16)
-            .frame(height: 48)
-            .background(Color(white: 0.15))
-            .cornerRadius(24)
-            
-            // Bouton Waveform / Envoi
-            let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            Button(action: {
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.white.opacity(0.10))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.white.opacity(0.055), lineWidth: 0.7)
+            )
+
+            Button {
+                let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                HapticService.shared.buttonTap()
+
                 if hasText {
                     submitMessage()
                 } else {
-                    HapticService.shared.buttonTap()
                     onOpenVoiceOrb()
                 }
-            }) {
+            } label: {
+                let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
                 Image(systemName: hasText ? "arrow.up" : "waveform")
-                    .font(.system(size: 18, weight: hasText ? .bold : .regular))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.white)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        Circle()
+                            .fill(
+                                hasText
+                                    ? activeAgent.themeColor
+                                    : Color.white.opacity(0.12)
+                            )
+                    )
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(hasText ? 0.12 : 0.07), lineWidth: 0.7)
+                    )
             }
-            .frame(width: 44, height: 44)
-            .background(hasText ? Color.blue : Color(white: 0.15))
-            .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel(
+                text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Ouvrir le mode vocal"
+                    : "Envoyer"
+            )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 7)
     }
-    
+
     private func submitMessage() {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            HapticService.shared.buttonTap()
-            onSend(trimmed)
-            text = ""
-        } else {
+        guard !trimmed.isEmpty else {
             onToggleMic()
+            return
         }
+
+        HapticService.shared.buttonTap()
+        onSend(trimmed)
+        text = ""
     }
 }
