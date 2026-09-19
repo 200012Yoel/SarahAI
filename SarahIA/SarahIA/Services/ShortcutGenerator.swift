@@ -37,6 +37,10 @@ public final class ShortcutGenerator {
     public enum ShortcutBuildError: LocalizedError {
         case serializationFailed
         case writeFailed
+        case communitySigningDisabled
+        case signingServiceUnavailable
+        case invalidSigningResponse
+        case presentationUnavailable
 
         public var errorDescription: String? {
             switch self {
@@ -44,6 +48,14 @@ public final class ShortcutGenerator {
                 return "Impossible de sérialiser le brouillon Apple Shortcuts."
             case .writeFailed:
                 return "Impossible d'enregistrer le brouillon dans le dossier Shortcuts de Sarah."
+            case .communitySigningDisabled:
+                return "La signature communautaire est désactivée dans Réglages > Connexions > Apple Raccourcis."
+            case .signingServiceUnavailable:
+                return "Le service de signature communautaire est momentanément indisponible."
+            case .invalidSigningResponse:
+                return "Le service n'a pas renvoyé un fichier .shortcut signé valide."
+            case .presentationUnavailable:
+                return "Impossible d'afficher la feuille d'installation iOS."
             }
         }
     }
@@ -62,6 +74,19 @@ public final class ShortcutGenerator {
         "Presse-papiers", "URL", "Ouvrir une URL", "Commentaire",
         "Batterie", "Date actuelle", "Attendre", "Vibrer"
     ]
+
+    private enum DefaultsKey {
+        static let communitySigningEnabled = "sarah.shortcuts.communitySigningEnabled"
+    }
+
+    private let hubSignURL = URL(string: "https://hubsign.routinehub.services/sign")!
+
+    /// Option volontaire : quand elle est activée, le plist du raccourci est envoyé
+    /// à HubSign (RoutineHub) afin de recevoir un fichier AEA1 importable sur iOS.
+    public var communitySigningEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: DefaultsKey.communitySigningEnabled) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.communitySigningEnabled) }
+    }
 
     private var shortcutsDirectory: URL {
         let fm = FileManager.default
@@ -217,6 +242,157 @@ public final class ShortcutGenerator {
         if let url = components.url {
             UIApplication.shared.open(url, options: [:], completionHandler: nil)
         }
+    }
+
+    // MARK: - Signature communautaire optionnelle
+
+    /// Génère, signe et prépare l'installation d'un raccourci.
+    /// Le service HubSign reçoit le XML du raccourci. L'option doit être activée
+    /// explicitement par l'utilisateur dans Réglages.
+    public func buildInstallableShortcut(
+        title: String,
+        prompt: String,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) {
+        guard communitySigningEnabled else {
+            completion(.failure(ShortcutBuildError.communitySigningDisabled))
+            return
+        }
+
+        let draft: DraftResult
+        do {
+            draft = try createDraft(title: title, prompt: prompt)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        signWithHubSign(
+            title: draft.title,
+            plistString: draft.plistString
+        ) { [weak self] result in
+            guard let self = self else { return }
+
+            switch result {
+            case .success(let signedData):
+                let destination = self.shortcutsDirectory
+                    .appendingPathComponent("\(self.safeFilename(draft.title)).signed.shortcut")
+
+                do {
+                    try signedData.write(to: destination, options: .atomic)
+                    completion(.success(destination))
+                } catch {
+                    completion(.failure(ShortcutBuildError.writeFailed))
+                }
+
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
+    }
+
+    /// HubSign est un service tiers de RoutineHub. Aucun secret Sarah n'est envoyé :
+    /// uniquement le nom et le XML du raccourci que l'utilisateur vient de demander.
+    private func signWithHubSign(
+        title: String,
+        plistString: String,
+        completion: @escaping (Result<Data, Error>) -> Void
+    ) {
+        let payload: [String: String] = [
+            "shortcutName": title,
+            "shortcut": plistString
+        ]
+
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            completion(.failure(ShortcutBuildError.serializationFailed))
+            return
+        }
+
+        var request = URLRequest(url: hubSignURL)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.httpBody = body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("SarahIA/4.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://routinehub.co", forHTTPHeaderField: "Origin")
+        request.setValue("https://routinehub.co/", forHTTPHeaderField: "Referer")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if error != nil {
+                completion(.failure(ShortcutBuildError.signingServiceUnavailable))
+                return
+            }
+
+            guard let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode),
+                  let data = data,
+                  data.count > 4 else {
+                completion(.failure(ShortcutBuildError.signingServiceUnavailable))
+                return
+            }
+
+            guard self.isSignedShortcut(data) else {
+                completion(.failure(ShortcutBuildError.invalidSigningResponse))
+                return
+            }
+
+            completion(.success(data))
+        }.resume()
+    }
+
+    private func isSignedShortcut(_ data: Data) -> Bool {
+        guard data.count >= 4 else { return false }
+        return String(data: data.prefix(4), encoding: .ascii) == "AEA1"
+    }
+
+    /// Présente la feuille iOS avec le fichier signé. L'utilisateur choisit ensuite
+    /// Raccourcis / Ajouter le raccourci. Apple exige cette confirmation humaine.
+    @MainActor
+    public func presentInstallSheet(for fileURL: URL) throws {
+        guard let presenter = Self.topViewController() else {
+            throw ShortcutBuildError.presentationUnavailable
+        }
+
+        let activity = UIActivityViewController(
+            activityItems: [fileURL],
+            applicationActivities: nil
+        )
+
+        if let popover = activity.popoverPresentationController {
+            popover.sourceView = presenter.view
+            popover.sourceRect = CGRect(
+                x: presenter.view.bounds.midX,
+                y: presenter.view.bounds.maxY - 40,
+                width: 1,
+                height: 1
+            )
+        }
+
+        presenter.present(activity, animated: true)
+    }
+
+    @MainActor
+    private static func topViewController(
+        from base: UIViewController? = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .rootViewController
+    ) -> UIViewController? {
+        if let navigation = base as? UINavigationController {
+            return topViewController(from: navigation.visibleViewController)
+        }
+
+        if let tab = base as? UITabBarController,
+           let selected = tab.selectedViewController {
+            return topViewController(from: selected)
+        }
+
+        if let presented = base?.presentedViewController {
+            return topViewController(from: presented)
+        }
+
+        return base
     }
 
     // MARK: - Compilateur déterministe
