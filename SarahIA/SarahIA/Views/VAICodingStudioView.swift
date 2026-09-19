@@ -616,27 +616,6 @@ public struct VAICodingStudioView: View {
     private func exportShortcut(title: String, prompt: String) {
         HapticService.shared.buttonTap()
 
-        if ShortcutGenerator.shared.communitySigningEnabled {
-            ShortcutGenerator.shared.buildInstallableShortcut(
-                title: title,
-                prompt: prompt
-            ) { result in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let signedURL):
-                        exportMessage = "Raccourci signé et prêt : \(signedURL.lastPathComponent). Touchez Continuer puis choisissez Raccourcis / Ajouter le raccourci."
-                        isShowingExportAlert = true
-                        try? ShortcutGenerator.shared.presentInstallSheet(for: signedURL)
-
-                    case .failure(let error):
-                        exportMessage = "La signature n’a pas abouti : \(error.localizedDescription). Le brouillon local reste disponible."
-                        isShowingExportAlert = true
-                    }
-                }
-            }
-            return
-        }
-
         do {
             let draft = try ShortcutGenerator.shared.createDraft(
                 title: title,
@@ -644,10 +623,19 @@ public struct VAICodingStudioView: View {
             )
             codeText = draft.plistString
             viewModel.vaiCurrentCode = draft.plistString
+
+            let plan = ShortcutGenerator.shared.proposePlan(for: prompt)
+            let summary = plan.enumerated()
+                .map { "• \($0.element.title)" }
+                .joined(separator: "\n")
+
             exportMessage = """
             \(draft.summary)
 
-            Pour obtenir directement un .shortcut signé, active Réglages → Connexions → Apple Raccourcis → Signature communautaire HubSign.
+            Plan local :
+            \(summary)
+
+            Aucune donnée n’a quitté l’iPhone. Apple Raccourcis va s’ouvrir pour la finalisation.
             """
             isShowingExportAlert = true
 
