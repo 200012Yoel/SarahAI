@@ -2,29 +2,328 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Télécharger Sarah IA pour iPhone.">
-  <title>Sarah IA — Téléchargement</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="Télécharger Sarah IA 4.0 pour iPhone.">
+  <title>Sarah IA 4.0 — Télécharger</title>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #090b10;
+      --panel: rgba(20, 24, 34, .82);
+      --panel-2: rgba(255,255,255,.055);
+      --text: #f7f8fb;
+      --muted: #9ca5b7;
+      --line: rgba(255,255,255,.09);
+      --blue: #3478f6;
+      --cyan: #57d8ff;
+      --violet: #7b61ff;
+      --green: #35d07f;
+    }
+
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #11121a; color: #f9f9fc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    main { width: min(620px, calc(100% - 40px)); padding: 54px 34px; border: 1px solid #303044; border-radius: 28px; background: linear-gradient(145deg, #222138, #15151f); box-shadow: 0 28px 80px #0009; text-align: center; }
-    .mark { display: grid; place-items: center; width: 62px; height: 62px; margin: 0 auto 22px; border-radius: 20px; background: linear-gradient(135deg, #f46b52, #9f46ff); font-size: 30px; font-weight: 800; }
-    h1 { margin: 0; font-size: clamp(38px, 8vw, 58px); letter-spacing: -.06em; }
-    p { margin: 18px auto 30px; max-width: 460px; color: #bbb9cc; line-height: 1.55; }
-    .download { display: inline-flex; align-items: center; justify-content: center; min-height: 58px; padding: 0 25px; border-radius: 16px; background: #a94cff; color: #fff; font-size: 17px; font-weight: 800; text-decoration: none; box-shadow: 0 12px 28px #9b3dff55; }
-    .download:hover { background: #bd6dff; }
-    small { display: block; margin-top: 27px; color: #8d8b9e; line-height: 1.5; }
+    html { background: var(--bg); }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(52,120,246,.22), transparent 34rem),
+        radial-gradient(circle at 90% 15%, rgba(123,97,255,.18), transparent 30rem),
+        var(--bg);
+      display: flex;
+      justify-content: center;
+      padding:
+        max(24px, env(safe-area-inset-top))
+        18px
+        max(30px, env(safe-area-inset-bottom));
+    }
+
+    .wrap {
+      width: min(720px, 100%);
+      margin: auto;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      padding: clamp(28px, 7vw, 52px);
+      background: linear-gradient(145deg, rgba(30,35,49,.92), rgba(13,15,22,.94));
+      box-shadow: 0 28px 100px rgba(0,0,0,.52);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      right: -170px;
+      top: -170px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(87,216,255,.28), transparent 65%);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 30px;
+    }
+
+    .mark {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      font-size: 27px;
+      font-weight: 850;
+      letter-spacing: -.05em;
+      background: linear-gradient(135deg, var(--blue), var(--violet));
+      box-shadow: 0 12px 28px rgba(52,120,246,.28);
+    }
+
+    .brand-text strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+
+    .brand-text span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 0 12px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(53,208,127,.25);
+      border-radius: 999px;
+      color: #9ef0c5;
+      background: rgba(53,208,127,.08);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 14px rgba(53,208,127,.75);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(42px, 10vw, 68px);
+      line-height: .98;
+      letter-spacing: -.065em;
+    }
+
+    .subtitle {
+      max-width: 570px;
+      margin: 20px 0 26px;
+      color: #b2bac9;
+      font-size: clamp(17px, 4vw, 20px);
+      line-height: 1.55;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin-bottom: 28px;
+    }
+
+    .pill {
+      padding: 9px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: #c8cfda;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .download {
+      width: 100%;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 11px;
+      border-radius: 18px;
+      color: white;
+      background: linear-gradient(135deg, #2878ff, #7357ff);
+      box-shadow: 0 14px 34px rgba(52,120,246,.30);
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 800;
+      transition: transform .16s ease, filter .16s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .download:hover { filter: brightness(1.08); }
+    .download:active { transform: scale(.985); }
+
+    .download svg {
+      width: 21px;
+      height: 21px;
+      fill: currentColor;
+    }
+
+    .direct {
+      margin: 14px 4px 0;
+      color: #7f899b;
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .card {
+      min-height: 116px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,.035);
+    }
+
+    .card .icon {
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .card span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    footer {
+      padding: 20px 8px 0;
+      text-align: center;
+      color: #697386;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    footer a {
+      color: #93a8cc;
+      text-decoration: none;
+    }
+
+    @media (max-width: 560px) {
+      .hero { border-radius: 26px; }
+      .grid { grid-template-columns: 1fr; }
+      .card {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 36px 1fr;
+        column-gap: 8px;
+      }
+      .card .icon {
+        grid-row: 1 / 3;
+        margin: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <div class="mark">S</div>
-    <h1>Sarah IA</h1>
-    <p>La dernière version iPhone est disponible ici.</p>
-    <a class="download" href="https://github.com/200012Yoel/SarahAI/releases/latest/download/SarahIA.ipa">Télécharger l’IPA</a>
-    <small>Le bouton télécharge directement le fichier SarahIA.ipa depuis la dernière version GitHub. L’IPA doit ensuite être installée et signée localement avec SideStore.</small>
-  </main>
+  <div class="wrap">
+    <main class="hero">
+      <div class="brand">
+        <div class="mark">S</div>
+        <div class="brand-text">
+          <strong>Sarah IA</strong>
+          <span>Assistant local pour iPhone</span>
+        </div>
+      </div>
+
+      <div class="status"><span class="dot"></span> Version 4.0 disponible</div>
+
+      <h1>Sarah IA 4.0</h1>
+      <p class="subtitle">
+        Nouvelle interface, Apple Raccourcis natifs, widgets Sarah et améliorations de stabilité.
+        La version iOS 26 stable est prête à être installée.
+      </p>
+
+      <div class="meta">
+        <span class="pill">iOS 16.2+</span>
+        <span class="pill">Xcode 26.6 stable</span>
+        <span class="pill">IPA ≈ 3,9 Mo</span>
+      </div>
+
+      <a
+        class="download"
+        href="https://github.com/200012Yoel/SarahAI/releases/download/sarah-ia-4.0-latest/SarahIA.ipa"
+        aria-label="Télécharger Sarah IA 4.0 au format IPA"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V4a1 1 0 0 1 1-1ZM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z"/>
+        </svg>
+        Télécharger directement l’IPA
+      </a>
+
+      <p class="direct">
+        Le bouton télécharge directement <strong>SarahIA.ipa</strong> depuis la release Sarah IA 4.0.
+        Aucun passage par la page Artifacts n’est nécessaire.
+      </p>
+
+      <section class="grid" aria-label="Nouveautés">
+        <div class="card">
+          <div class="icon">✨</div>
+          <strong>Interface modernisée</strong>
+          <span>Nouveau panneau latéral, animations et navigation plus fluide.</span>
+        </div>
+        <div class="card">
+          <div class="icon">⚡️</div>
+          <strong>Apple Raccourcis</strong>
+          <span>Actions Sarah exposées à Raccourcis avec App Intents.</span>
+        </div>
+        <div class="card">
+          <div class="icon">📊</div>
+          <strong>Widgets Sarah</strong>
+          <span>Santé, activité Sarah et accès rapides directement sur l’écran d’accueil.</span>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Installation par sideloading requise, par exemple avec SideStore ou Sideloadly.
+      <br>
+      <a href="https://github.com/200012Yoel/SarahAI/releases/tag/sarah-ia-4.0-latest">Voir la release GitHub</a>
+    </footer>
+  </div>
 </body>
 </html>
