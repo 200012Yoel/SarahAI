@@ -153,7 +153,7 @@ public final class WidgetDataBridge {
         }
 
         let readTypes = healthReadTypes()
-        healthStore.requestAuthorization(toShare: [], read: readTypes) { success, error in
+        healthStore.requestAuthorization(toShare: Set<HKSampleType>(), read: readTypes) { success, error in
             if let error {
                 completion(.failure(error))
                 return
