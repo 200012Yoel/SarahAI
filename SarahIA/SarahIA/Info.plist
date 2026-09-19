@@ -46,6 +46,8 @@
 		<string>audio</string>
 		<string>fetch</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Sarah IA lit vos données d’activité et de forme afin d’afficher, avec votre autorisation, des résumés privés dans vos widgets Santé.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales multi-agents en direct (100% hors-ligne).</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
