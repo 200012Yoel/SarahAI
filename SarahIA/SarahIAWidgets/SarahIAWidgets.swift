@@ -146,18 +146,28 @@ private struct WidgetShell<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .padding(14)
-            .containerBackground(for: .widget) {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.035, green: 0.045, blue: 0.075),
-                        Color(red: 0.018, green: 0.020, blue: 0.030)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+        if #available(iOS 17.0, *) {
+            content
+                .padding(14)
+                .containerBackground(for: .widget) {
+                    widgetGradient
+                }
+        } else {
+            content
+                .padding(14)
+                .background(widgetGradient)
+        }
+    }
+
+    private var widgetGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.035, green: 0.045, blue: 0.075),
+                Color(red: 0.018, green: 0.020, blue: 0.030)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }
 
@@ -259,8 +269,7 @@ private struct SarahHealthWidgetView: View {
             }
         }
         .widgetURL(URL(string: "sarahia://widgets"))
-        .redacted(reason: .privacy)
-        .unredacted()
+        .privacySensitive()
     }
 
     private var mediumHealth: some View {
