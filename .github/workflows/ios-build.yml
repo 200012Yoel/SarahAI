@@ -149,14 +149,16 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/feature/sarah-native-shortcuts-v4'
         with:
-          tag_name: latest
-          name: "Sarah IA - iOS 26 Stable / Local AI"
-          body: "Build #${{ github.run_number }}. Édition iOS 26 stable de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
+          tag_name: sarah-ia-4.0-latest
+          name: "Sarah IA 4.0 - iOS 26 Stable"
+          body: "Build #${{ github.run_number }}. Version Sarah IA 4.0 compilée avec Xcode 26.6 stable, avec nouvelle interface, App Shortcuts natifs et widgets Sarah."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
+          make_latest: true
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
