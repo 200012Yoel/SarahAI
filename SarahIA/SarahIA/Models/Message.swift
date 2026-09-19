@@ -50,11 +50,6 @@ public struct Message: Identifiable, Equatable, Codable {
                 return "https://image.pollinations.ai/prompt/\(urlPart)"
             }
         }
-        if let prompt = imageGenerationPrompt, !prompt.isEmpty {
-            if let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
-                return "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=flux&nologo=true&enhance=true"
-            }
-        }
         return nil
     }
     

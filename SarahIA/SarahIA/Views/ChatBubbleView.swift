@@ -78,6 +78,22 @@ public struct ChatBubbleView: View {
         }
     }
     
+    private func safeAssistantContent(_ raw: String) -> String {
+        let decoded = raw.decodingHTMLEntities()
+        let leaked =
+            decoded.localizedCaseInsensitiveContains("<|im_start|>") ||
+            decoded.localizedCaseInsensitiveContains("<|im_end|>") ||
+            decoded.localizedCaseInsensitiveContains("RÈGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("REGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine")
+        
+        if leaked {
+            return "⚠️ Cette ancienne réponse a été masquée car elle contenait des données internes du moteur."
+        }
+        
+        return decoded
+    }
+    
     // MARK: - Bulle Sarah AI (Gris Charcoal Sombre Haute Lisibilité + Bouton Écouter)
     
     private var aiBubble: some View {
@@ -106,11 +122,14 @@ public struct ChatBubbleView: View {
                 if !message.isVisionReport {
                     let rawContent = message.content
                     let displayContent: String = {
-                        if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
-                            let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-                            return cleaned.isEmpty ? "🎨 Photo Photoréaliste HD en cours de création..." : cleaned
+                        let safe = safeAssistantContent(rawContent)
+                        if let imgURL = message.detectedImageURL, safe.contains(imgURL) {
+                            let cleaned = safe
+                                .replacingOccurrences(of: imgURL, with: "")
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            return cleaned.isEmpty ? "🎨 Image générée" : cleaned
                         }
-                        return rawContent
+                        return safe
                     }()
                     
                     if !displayContent.isEmpty {
@@ -135,10 +154,23 @@ public struct ChatBubbleView: View {
                     }
                 }
                 
-                // Carte Interactive d'Image Générée (Flux / SDXL / CoreML)
-                if let imageURL = message.detectedImageURL {
-                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.imageGenerationPrompt ?? message.content)
+                // Image locale : afficher directement les octets du rendu.
+                if let data = message.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: 290)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                        )
+                } else if let imageURL = message.detectedImageURL {
+                    GeneratedImageCardView(
+                        imageURLString: imageURL,
+                        promptDescription: message.imageGenerationPrompt ?? message.content
+                    )
+                    .frame(maxWidth: 290)
                 }
                 
                 // Carte Interactive Musicale Générative (DSP Synth)

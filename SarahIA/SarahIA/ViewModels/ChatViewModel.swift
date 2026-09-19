@@ -580,8 +580,44 @@ public final class ChatViewModel: ObservableObject {
         if voiceManager.isSpeaking {
             voiceManager.stop()
         } else {
-            voiceManager.speak(text: text, for: activeAgent)
+            voiceManager.speak(text: sanitizeAssistantOutput(text), for: activeAgent)
         }
+    }
+    
+    private func sanitizeAssistantOutput(_ raw: String) -> String {
+        var text = raw.decodingHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let leakedPrompt =
+            text.localizedCaseInsensitiveContains("<|im_start|>") ||
+            text.localizedCaseInsensitiveContains("<|im_end|>") ||
+            text.localizedCaseInsensitiveContains("RÈGLES ABSOLUES") ||
+            text.localizedCaseInsensitiveContains("REGLES ABSOLUES") ||
+            text.localizedCaseInsensitiveContains("Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine")
+        
+        if leakedPrompt {
+            return "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+        }
+        
+        if let regex = try? NSRegularExpression(pattern: "(?is)<think>.*?</think>") {
+            text = regex.stringByReplacingMatches(
+                in: text,
+                range: NSRange(location: 0, length: text.utf16.count),
+                withTemplate: ""
+            )
+        }
+        
+        for token in [
+            "<|assistant|>", "<|user|>", "<|system|>",
+            "<|endoftext|>", "<|im_start|>", "<|im_end|>"
+        ] {
+            text = text.replacingOccurrences(of: token, with: "")
+        }
+        
+        let result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty
+            ? "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+            : result
     }
     
     // MARK: - Envoi de Message & Orchestration Multi-Agents
@@ -632,12 +668,20 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
                 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
-                var responseContent = rawText.decodingHTMLEntities()
+                let rawText = response.text.isEmpty
+                    ? "Je n’ai pas reçu de réponse du moteur."
+                    : response.text
+                var responseContent = self.sanitizeAssistantOutput(rawText)
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
-                let aiMessage = Message(content: responseContent, isFromUser: false)
+                let aiMessage = Message(
+                    content: responseContent,
+                    isFromUser: false,
+                    imageData: response.generatedImageData,
+                    generatedImageURL: response.generatedImageURL,
+                    imageGenerationPrompt: response.imageGenerationPrompt
+                )
                 self.appendMessage(aiMessage)
                 self.isTyping = false
                 self.voiceStatus = .idle
@@ -656,7 +700,8 @@ public final class ChatViewModel: ObservableObject {
                     let src = response.handoffSourceAgent ?? .sarah
                     self.voiceManager.speakHandoff(transitionText: transitionPart.decodingHTMLEntities(), sourceAgent: src, agentGreeting: agentPart.decodingHTMLEntities(), targetAgent: response.agent)
                 } else {
-                    let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText).decodingHTMLEntities()
+                    let spokenRaw = response.spokenText.isEmpty ? responseContent : response.spokenText
+                    let spoken = self.sanitizeAssistantOutput(spokenRaw)
                     self.voiceManager.speak(text: spoken, for: response.agent)
                 }
             }

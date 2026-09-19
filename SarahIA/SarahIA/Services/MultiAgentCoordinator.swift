@@ -19,6 +19,9 @@ public final class MultiAgentCoordinator {
         public let handoffSarahTransition: String?
         public let handoffAgentGreeting: String?
         public let handoffSourceAgent: AgentType?
+        public let generatedImageData: Data?
+        public let generatedImageURL: String?
+        public let imageGenerationPrompt: String?
         
         public init(
             agent: AgentType,
@@ -28,7 +31,10 @@ public final class MultiAgentCoordinator {
             generatedCode: String? = nil,
             handoffSarahTransition: String? = nil,
             handoffAgentGreeting: String? = nil,
-            handoffSourceAgent: AgentType? = nil
+            handoffSourceAgent: AgentType? = nil,
+            generatedImageData: Data? = nil,
+            generatedImageURL: String? = nil,
+            imageGenerationPrompt: String? = nil
         ) {
             self.agent = agent
             self.text = text
@@ -38,6 +44,9 @@ public final class MultiAgentCoordinator {
             self.handoffSarahTransition = handoffSarahTransition
             self.handoffAgentGreeting = handoffAgentGreeting
             self.handoffSourceAgent = handoffSourceAgent
+            self.generatedImageData = generatedImageData
+            self.generatedImageURL = generatedImageURL
+            self.imageGenerationPrompt = imageGenerationPrompt
         }
     }
     
@@ -69,6 +78,14 @@ public final class MultiAgentCoordinator {
         // Ce garde-fou passe avant les moteurs musique, média, code et autres outils.
         if isSimpleGreeting(normalized) {
             completion(makeGreetingResponse(for: sourceAgent))
+            return
+        }
+        
+        // 1.7 Une demande de création visuelle va directement au studio créatif.
+        // Elle doit être détectée avant la conversation générale et avant tout média.
+        let visualIntent = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        if visualIntent.isIntent {
+            processWithEthel(text: trimmed, completion: completion)
             return
         }
         
@@ -611,22 +628,39 @@ public final class MultiAgentCoordinator {
         
         let trimmed = clean.isEmpty ? text.trimmingCharacters(in: .whitespacesAndNewlines) : clean
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
-
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
-
-        let responseText = """
-        ✨ **Ethel [Studio Créatif]**
-
-        🎨 Création lancée pour : « **\(prompt)** »
-        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
-
-        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
-        """
-        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+            let imageData = result.image?.jpegData(compressionQuality: 0.92)
+            
+            if result.isSuccess {
+                let locality = result.modelName.hasPrefix("Cloud ·")
+                    ? "via le réseau"
+                    : "localement sur l’iPhone"
+                
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: "🎨 Image créée \(locality) avec **\(result.modelName)**.",
+                    spokenText: "L'image est prête.",
+                    generatedImageData: imageData,
+                    generatedImageURL: result.imageURL?.absoluteString,
+                    imageGenerationPrompt: prompt
+                ))
+            } else {
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: """
+                    🎨 **Création d’image indisponible**
+                    
+                    Le profil **\(profile.displayName)** n’a pas pu terminer le rendu :
+                    \(result.errorMessage ?? "ressources locales indisponibles").
+                    """,
+                    spokenText: "Je n'ai pas pu terminer la génération de l'image.",
+                    imageGenerationPrompt: nil
+                ))
+            }
+        }
     }
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {

@@ -142,10 +142,11 @@ public final class AIService {
                         contextHistory: []
                     ) { [weak self] result in
                         guard let self = self else { return }
+                        let safeLyrics = self.sanitizeGeneratedOutput(result.text)
                         let reply = """
                         🎤 **Paroles préparées localement**
 
-                        \(result.text)
+                        \(safeLyrics)
 
                         **Voix chantée : \(profile.displayName)** reste expérimentale sur iPhone. Sarah ne prétend pas avoir généré le chant tant que ce runtime n'est pas validé.
                         """
@@ -282,55 +283,67 @@ public final class AIService {
             return
         }
         
-        // 4. Inférence Réelle : Routage selon la RAM et compatibilité matérielle
-        if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
-            // Le détecteur choisit le Qwen3 le plus puissant que ce téléphone peut charger durablement.
-            if BackgroundModelDownloader.isModelDownloaded, let modelURL = BackgroundModelDownloader.localModelURL {
-                let systemPrompt = SystemPromptBuilder.build(identityName: "Sarah")
-                let formattedChatML = ModelSelectionEngine.shared.formatChatMLPrompt(system: systemPrompt, user: trimmed)
-                
-                // Exécution via SarahBrainEngine / llama.cpp natif
-                SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML) { [weak self] (localText: String) in
-                    guard let self = self else { return }
-                    let cleaned = localText.decodingHTMLEntities()
-                    self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                    DispatchQueue.main.async {
-                        completion(cleaned)
-                    }
-                }
-                return
-            } else {
-                // Modèle GGUF en cours d'initialisation -> Exécution sur le Moteur Neuronal 100% Local On-Device
-                BackgroundModelDownloader.shared.startQwenModelDownload()
-                let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
-                var history: [String] = []
-                if let ctx = pastContext { history.append(ctx) }
-                
-                LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
-                    guard let self = self else { return }
-                    let cleaned = result.text.decodingHTMLEntities()
-                    self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                    DispatchQueue.main.async {
-                        completion(cleaned)
-                    }
-                }
-                return
-            }
-        } else {
-            // Appareils avec mémoire restreinte : Moteur Neuronal 100% Local On-Device
-            let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
-            var history: [String] = []
-            if let ctx = pastContext { history.append(ctx) }
-            
-            LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
-                guard let self = self else { return }
-                let cleaned = result.text.decodingHTMLEntities()
-                self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                DispatchQueue.main.async {
-                    completion(cleaned)
-                }
+        // 4. Conversation locale.
+        // IMPORTANT : un prompt ChatML complet ne doit jamais être envoyé au
+        // routeur d'intentions SarahBrainEngine. Le routeur lirait alors les
+        // règles système comme si elles venaient de l'utilisateur.
+        //
+        // Tant qu'un runtime GGUF direct n'est pas relié à ce fichier, Sarah
+        // utilise son moteur neuronal local déjà intégré pour la conversation.
+        let pastContext = SemanticMemoryIndex.shared.findRelevantContext(query: trimmed)
+        var history: [String] = []
+        if let ctx = pastContext { history.append(ctx) }
+        
+        LocalNeuralIntelligenceEngine.shared.generateLocalResponse(
+            prompt: trimmed,
+            contextHistory: history
+        ) { [weak self] result in
+            guard let self = self else { return }
+            let cleaned = self.sanitizeGeneratedOutput(result.text)
+            self.recordExchange(userText: trimmed, assistantResponse: cleaned)
+            DispatchQueue.main.async {
+                completion(cleaned)
             }
         }
+    }
+    
+    private func sanitizeGeneratedOutput(_ raw: String) -> String {
+        var text = raw.decodingHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Ne jamais exposer un template ChatML, un prompt système ou une chaîne
+        // de raisonnement interne dans la conversation.
+        let leakMarkers = [
+            "<|im_start|>", "<|im_end|>",
+            "RÈGLES ABSOLUES", "REGLES ABSOLUES",
+            "Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine"
+        ]
+        
+        if leakMarkers.contains(where: { text.localizedCaseInsensitiveContains($0) }) {
+            return "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+        }
+        
+        // Retirer les blocs <think>...</think> si un petit modèle les émet.
+        if let regex = try? NSRegularExpression(
+            pattern: "(?is)<think>.*?</think>",
+            options: []
+        ) {
+            text = regex.stringByReplacingMatches(
+                in: text,
+                options: [],
+                range: NSRange(location: 0, length: text.utf16.count),
+                withTemplate: ""
+            )
+        }
+        
+        for token in ["<|assistant|>", "<|user|>", "<|system|>", "<|endoftext|>"] {
+            text = text.replacingOccurrences(of: token, with: "")
+        }
+        
+        let result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty
+            ? "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+            : result
     }
     
     /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh

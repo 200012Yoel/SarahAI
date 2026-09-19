@@ -52,6 +52,18 @@ public final class OpenSourceImageGenerationService {
         let lower = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         
         let triggers = [
+            "tu peux générer une image de ", "tu peux générer une photo de ",
+            "tu peux générer une image ", "tu peux générer une photo ",
+            "peux-tu générer une image de ", "peux-tu générer une photo de ",
+            "peux-tu générer une image ", "peux-tu générer une photo ",
+            "peux tu générer une image de ", "peux tu générer une photo de ",
+            "peux tu générer une image ", "peux tu générer une photo ",
+            "est-ce que tu peux générer une image de ", "est-ce que tu peux générer une photo de ",
+            "est ce que tu peux générer une image de ", "est ce que tu peux générer une photo de ",
+            "générer une image de ", "générer une photo de ",
+            "générer une image ", "générer une photo ",
+            "generer une image de ", "generer une photo de ",
+            "generer une image ", "generer une photo ",
             "génère une image de ", "génère une photo de ", "génère une image d'un ", "génère une photo d'un ",
             "genere une image de ", "genere une photo de ", "genere une image d un ", "genere une photo d un ",
             "génère-moi une image de ", "génère-moi une photo de ", "genere moi une image de ", "genere moi une photo de ",
@@ -79,11 +91,22 @@ public final class OpenSourceImageGenerationService {
         }
         
         // Mots-clés isolés de déclenchement
-        if (lower.contains("génère") || lower.contains("genere") || lower.contains("crée") || lower.contains("cree") || lower.contains("fais")) &&
+        if (lower.contains("génère") || lower.contains("genere") ||
+            lower.contains("générer") || lower.contains("generer") ||
+            lower.contains("crée") || lower.contains("cree") ||
+            lower.contains("créer") || lower.contains("creer") ||
+            lower.contains("dessine") || lower.contains("dessiner") ||
+            lower.contains("fais") || lower.contains("faire")) &&
            (lower.contains("image") || lower.contains("photo") || lower.contains("dessin") || lower.contains("illustration") || lower.contains("tableau")) {
             // Nettoyage rapide pour isoler le sujet
             var cleaned = text
-            let stopWords = ["sarah", "s'il te plaît", "sil te plait", "stp", "peux-tu", "peux tu", "génère", "genere", "crée", "cree", "fais", "moi", "une", "un", "des", "image", "photo", "dessin", "illustration", "de", "d'un", "d'une", "du", "sur"]
+            let stopWords = ["sarah", "s'il te plaît", "sil te plait", "stp",
+                "tu peux", "peux-tu", "peux tu", "est-ce que tu peux", "est ce que tu peux",
+                "génère", "genere", "générer", "generer",
+                "crée", "cree", "créer", "creer",
+                "dessine", "dessiner", "fais", "faire",
+                "moi", "une", "un", "des", "image", "photo", "dessin", "illustration", "visuel",
+                "de", "d'un", "d'une", "du", "sur"]
             for word in stopWords {
                 let pattern = "\\b\(word)\\b"
                 if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
