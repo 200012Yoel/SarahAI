@@ -94,6 +94,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     
     func applicationDidBecomeActive(_ application: UIApplication) {
         SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
+        WidgetDataBridge.shared.refreshHealthSnapshot()
     }
     
     // MARK: - Finalisation du Téléchargement Background (URLSession GGUF)
