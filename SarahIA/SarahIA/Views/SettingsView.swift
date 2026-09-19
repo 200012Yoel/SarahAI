@@ -823,6 +823,9 @@ private struct AgentsSettingsView: View {
 
 @available(iOS 15.0, *)
 private struct ConnectionsSettingsView: View {
+    @AppStorage("sarah.shortcuts.communitySigningEnabled")
+    private var communitySigningEnabled: Bool = false
+
     private struct Connection: Identifiable {
         let id: String
         let icon: String
@@ -926,6 +929,32 @@ private struct ConnectionsSettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
+
+                Toggle(isOn: $communitySigningEnabled) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Signature communautaire HubSign")
+                        Text("Transforme les workflows Sarah en .shortcut importables sans Mac.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .tint(.blue)
+
+                if communitySigningEnabled {
+                    Label(
+                        "Le nom et le contenu XML du raccourci sont envoyés à HubSign, un service tiers de RoutineHub. Connexion Internet requise.",
+                        systemImage: "network"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                } else {
+                    Label(
+                        "Désactivé : Sarah garde les workflows uniquement sur l’iPhone et ouvre Raccourcis pour la finalisation.",
+                        systemImage: "iphone.and.arrow.forward"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                }
             }
 
             Section("Services") {
@@ -1809,6 +1838,32 @@ private struct LegalNoticesView: View {
                         .foregroundColor(.secondary)
                     Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
+                }
+
+                Section("shortcut-signer — MIT") {
+                    Text("Sarah utilise une implémentation Swift indépendante du protocole HubSign documenté par le projet shortcut-signer. Le projet shortcut-signer est distribué sous licence MIT.")
+                    Text("""
+MIT License
+
+Copyright (c) 2026 Minis Automation Community
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to inclusion of the copyright and permission notice.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+""")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                    Link("Projet shortcut-signer", destination: URL(string: "https://github.com/wynx1123/shortcut-signer")!)
+                }
+
+                Section("HubSign / RoutineHub") {
+                    Text("La signature communautaire est facultative et désactivée par défaut. Quand elle est activée, Sarah envoie le nom et le plist XML du raccourci au service HubSign de RoutineHub et vérifie que la réponse commence par la signature AEA1 avant de proposer l’installation.")
+                        .font(.footnote)
+                    Text("HubSign est un service tiers : Sarah IA ne l’opère pas et ne peut pas garantir sa disponibilité. Aucun mot de passe, historique de discussion ou modèle IA n’est envoyé par ce module.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("RoutineHub", destination: URL(string: "https://routinehub.co")!)
                 }
 
                 Section("Apple Shortcuts & App Intents") {
