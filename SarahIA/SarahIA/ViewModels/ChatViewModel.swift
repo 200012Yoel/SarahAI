@@ -71,6 +71,7 @@ public final class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var isVoicePipelinePrepared = false
     private var pendingVoiceActionText: String? = nil
+    private var shouldResumeVoiceAfterInterruption = false
     
     public init() {
         restorePersistedState()
@@ -110,6 +111,33 @@ public final class ChatViewModel: ObservableObject {
         isVoicePipelinePrepared = true
 
         setupVoicePipeline()
+
+        // Relier réellement les interruptions système au mode vocal.
+        // Avant ce correctif, AudioSessionManager détectait Siri/appels/alarmes
+        // mais personne ne coupait puis ne restaurait la conversation vocale.
+        AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
+            guard let self = self else { return }
+            let shouldResume = self.isContinuousConversationActive && self.isShowingVoiceOrbModal
+
+            if shouldResume || AppleSpeechRecognizer.shared.isListening || self.voiceManager.isSpeaking {
+                self.stopVoiceConversation()
+            }
+
+            self.shouldResumeVoiceAfterInterruption = shouldResume
+        }
+
+        AudioSessionManager.shared.onInterruptionEnded = { [weak self] in
+            guard let self = self else { return }
+            let shouldResume = self.shouldResumeVoiceAfterInterruption
+            self.shouldResumeVoiceAfterInterruption = false
+
+            guard shouldResume, self.isShowingVoiceOrbModal else { return }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard self.isShowingVoiceOrbModal else { return }
+                self.startVoiceConversation()
+            }
+        }
 
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
@@ -197,12 +225,20 @@ public final class ChatViewModel: ObservableObject {
     
     public func startNewChat(silently: Bool = false) {
         if !silently { haptics.buttonTap() }
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
-        let newSessionId = UUID()
-        currentConversationId = newSessionId
+        currentConversationId = nil
         messages = []
         inputText = ""
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
@@ -211,14 +247,22 @@ public final class ChatViewModel: ObservableObject {
         SemanticMemoryIndex.shared.clearSessionContext()
         ConversationContext.shared.reset()
         SarahBrainEngine.shared.clearSessionHistory()
-        SessionTimeoutManager.shared.recordAppBackgroundTime()
         persistCurrentState()
     }
     
     public func selectConversation(_ conv: Conversation) {
         haptics.buttonTap()
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -271,12 +315,21 @@ public final class ChatViewModel: ObservableObject {
     
     public func deleteAllConversations() {
         haptics.memoryDeleted()
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
         conversations.removeAll()
         messages.removeAll()
         currentConversationId = nil
         inputText = ""
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         aiService.syncHistoryFromMessages([])
         SemanticMemoryIndex.shared.clearSessionContext()
         ConversationContext.shared.reset()
@@ -395,7 +448,6 @@ public final class ChatViewModel: ObservableObject {
                     if self.pendingVoiceActionText == nil {
                         self.liveTranscriptionText = ""
                     }
-                    AudioSessionManager.shared.deactivateSession()
                     AppleSpeechRecognizer.shared.startListening()
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
@@ -531,6 +583,7 @@ public final class ChatViewModel: ObservableObject {
     /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+        shouldResumeVoiceAfterInterruption = false
         voiceManager.stop()
         isContinuousConversationActive = true
 
@@ -549,6 +602,7 @@ public final class ChatViewModel: ObservableObject {
     /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        shouldResumeVoiceAfterInterruption = false
         isContinuousConversationActive = false
         pendingVoiceActionText = nil
         pendingVoiceConfirmation = nil
@@ -571,7 +625,7 @@ public final class ChatViewModel: ObservableObject {
     public func speakMessage(_ text: String) {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        voiceManager.speak(text: text, for: activeAgent)
+        voiceManager.speak(text: sanitizeAssistantOutput(text), for: activeAgent)
     }
     
     public func toggleSpeechForMessage(_ text: String) {
@@ -686,8 +740,8 @@ public final class ChatViewModel: ObservableObject {
                 self.isTyping = false
                 self.voiceStatus = .idle
                 
-                // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
-                self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
+                // La mémoire courte AIService est resynchronisée depuis les messages au prochain envoi.
+                // Ne pas réenregistrer ici, sinon chaque réponse de Sarah apparaît deux fois dans le contexte.
                 SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: responseContent, topicType: response.agent.rawValue)
                 
                 // Si Raphaël a généré du code, il prépare le studio mais ne l'ouvre jamais
@@ -696,13 +750,24 @@ public final class ChatViewModel: ObservableObject {
                     self.vaiCurrentCode = code
                 }
                 
-                if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
-                    let src = response.handoffSourceAgent ?? .sarah
-                    self.voiceManager.speakHandoff(transitionText: transitionPart.decodingHTMLEntities(), sourceAgent: src, agentGreeting: agentPart.decodingHTMLEntities(), targetAgent: response.agent)
-                } else {
-                    let spokenRaw = response.spokenText.isEmpty ? responseContent : response.spokenText
-                    let spoken = self.sanitizeAssistantOutput(spokenRaw)
-                    self.voiceManager.speak(text: spoken, for: response.agent)
+                // En chat texte, Sarah reste silencieuse. La lecture automatique est
+                // réservée au vrai mode vocal ; le bouton "Écouter" reste disponible
+                // manuellement sur chaque réponse.
+                if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+                    if let transitionPart = response.handoffSarahTransition,
+                       let agentPart = response.handoffAgentGreeting {
+                        let src = response.handoffSourceAgent ?? .sarah
+                        self.voiceManager.speakHandoff(
+                            transitionText: self.sanitizeAssistantOutput(transitionPart),
+                            sourceAgent: src,
+                            agentGreeting: self.sanitizeAssistantOutput(agentPart),
+                            targetAgent: response.agent
+                        )
+                    } else {
+                        let spokenRaw = response.spokenText.isEmpty ? responseContent : response.spokenText
+                        let spoken = self.sanitizeAssistantOutput(spokenRaw)
+                        self.voiceManager.speak(text: spoken, for: response.agent)
+                    }
                 }
             }
         }

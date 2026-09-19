@@ -45,6 +45,44 @@ jobs:
           echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
+      - name: Sarah regression guards
+        run: |
+          set -euo pipefail
+
+          AI="SarahIA/SarahIA/Services/AIService.swift"
+          BRAIN="SarahIA/SarahIA/Services/SarahBrainEngine.swift"
+          COORD="SarahIA/SarahIA/Services/MultiAgentCoordinator.swift"
+          VM="SarahIA/SarahIA/ViewModels/ChatViewModel.swift"
+
+          echo "=== Vérification des régressions critiques Sarah ==="
+
+          if grep -Fq 'SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML)' "$AI"; then
+            echo "❌ Régression détectée : le prompt système ChatML est renvoyé au routeur d'intentions."
+            exit 1
+          fi
+
+          grep -Fq 'sanitizeAssistantOutput' "$VM" || {
+            echo "❌ Filtre anti-fuite du prompt interne absent."
+            exit 1
+          }
+
+          grep -Fq 'hasMediaVerb' "$BRAIN" || {
+            echo "❌ Le média peut à nouveau être déclenché par un simple mot-clé."
+            exit 1
+          }
+
+          grep -Fq 'visualIntent' "$COORD" || {
+            echo "❌ Le routage prioritaire de génération d'image a disparu."
+            exit 1
+          }
+
+          grep -Fq 'isContinuousConversationActive && self.isShowingVoiceOrbModal' "$VM" || {
+            echo "❌ La lecture vocale automatique n'est plus limitée au mode vocal."
+            exit 1
+          }
+
+          echo "✅ Garde-fous Sarah validés."
+
       - name: Build iOS 26 App
         run: |
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
