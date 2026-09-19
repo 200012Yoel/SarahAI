@@ -458,6 +458,8 @@ public final class ChatViewModel: ObservableObject {
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
+        WidgetDataBridge.shared.recordQuestion()
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
         inputText = ""
 
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
@@ -557,6 +559,7 @@ public final class ChatViewModel: ObservableObject {
             isAudio: false
         )
         SQLiteChatDatabase.shared.insertMessage(persisted)
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
     }
     
     private func ensureConversation(withFirstMessage text: String) {
