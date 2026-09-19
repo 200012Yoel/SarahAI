@@ -687,42 +687,98 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            do {
-                let draft = try ShortcutGenerator.shared.createDraft(
-                    title: "Automatisation Sarah",
+            let title = "Automatisation Sarah"
+
+            if ShortcutGenerator.shared.communitySigningEnabled {
+                ShortcutGenerator.shared.buildInstallableShortcut(
+                    title: title,
                     prompt: prompt
-                )
+                ) { result in
+                    switch result {
+                    case .success(let signedURL):
+                        DispatchQueue.main.async {
+                            try? ShortcutGenerator.shared.presentInstallSheet(for: signedURL)
+                        }
 
-                DispatchQueue.main.async {
-                    ShortcutGenerator.shared.openShortcutCreation()
+                        let responseText = """
+                        💻 **Raphaël [Apple Shortcuts]**
+
+                        Le raccourci a été **généré puis signé** et le fichier importable est prêt : `\(signedURL.lastPathComponent)`.
+
+                        J’ouvre la feuille iOS pour l’envoyer vers **Raccourcis**. Il reste uniquement la confirmation Apple **Ajouter le raccourci**.
+
+                        🔐 Signature : HubSign / RoutineHub
+                        📱 Génération : Sarah IA
+                        """
+
+                        completion(AgentResponse(
+                            agent: .esther,
+                            text: responseText,
+                            spokenText: "Le raccourci est signé et prêt à être ajouté dans Apple Raccourcis.",
+                            openStudio: false,
+                            generatedCode: nil
+                        ))
+
+                    case .failure(let error):
+                        let fallbackText = """
+                        💻 **Raphaël [Apple Shortcuts]**
+
+                        La signature communautaire n’a pas abouti : \(error.localizedDescription)
+
+                        Je garde le brouillon local et j’ouvre Raccourcis pour que tu ne perdes rien.
+                        """
+
+                        DispatchQueue.main.async {
+                            ShortcutGenerator.shared.openShortcutCreation()
+                        }
+
+                        completion(AgentResponse(
+                            agent: .esther,
+                            text: fallbackText,
+                            spokenText: "La signature n'a pas abouti. J'ai gardé le brouillon et j'ouvre Raccourcis.",
+                            openStudio: true,
+                            generatedCode: ShortcutGenerator.shared.createDraftJSON(
+                                title: title,
+                                prompt: prompt
+                            )
+                        ))
+                    }
                 }
+            } else {
+                do {
+                    let draft = try ShortcutGenerator.shared.createDraft(
+                        title: title,
+                        prompt: prompt
+                    )
 
-                let responseText = """
-                💻 **Raphaël [Apple Shortcuts]**
+                    DispatchQueue.main.async {
+                        ShortcutGenerator.shared.openShortcutCreation()
+                    }
 
-                J’ai préparé un vrai brouillon Shortcuts **« \(draft.title) »** avec **\(draft.actionCount) action(s)** dans `Documents/Shortcuts/`.
+                    let responseText = """
+                    💻 **Raphaël [Apple Shortcuts]**
 
-                J’ouvre aussi l’app **Raccourcis** pour que tu puisses le finaliser. Les actions natives de Sarah (**Demander à Sarah**, **Nouveau chat Sarah**, **Créer un brouillon**) apparaissent directement dans Raccourcis via App Intents.
+                    J’ai préparé **« \(draft.title) »** avec **\(draft.actionCount) action(s)**.
 
-                ⚠️ iOS ne donne pas aux apps tierces une API publique pour signer silencieusement un fichier `.shortcut` arbitraire sur l’iPhone. Sarah n’affichera donc jamais une fausse signature réussie.
-                """
+                    La signature communautaire est désactivée. Active **Réglages → Connexions → Apple Raccourcis → Signature communautaire HubSign** pour que Sarah puisse te remettre directement un `.shortcut` signé et importable.
+                    """
 
-                completion(AgentResponse(
-                    agent: .esther,
-                    text: responseText,
-                    spokenText: "Le brouillon du raccourci est prêt et j'ouvre Apple Raccourcis pour le finaliser.",
-                    openStudio: true,
-                    generatedCode: draft.plistString
-                ))
-            } catch {
-                let responseText = "💻 **Raphaël [Apple Shortcuts]**\n\nImpossible de préparer le brouillon : \(error.localizedDescription)"
-                completion(AgentResponse(
-                    agent: .esther,
-                    text: responseText,
-                    spokenText: "Je n'ai pas pu préparer ce raccourci.",
-                    openStudio: false,
-                    generatedCode: nil
-                ))
+                    completion(AgentResponse(
+                        agent: .esther,
+                        text: responseText,
+                        spokenText: "Le brouillon est prêt. Tu peux activer la signature communautaire pour recevoir directement un raccourci importable.",
+                        openStudio: true,
+                        generatedCode: draft.plistString
+                    ))
+                } catch {
+                    completion(AgentResponse(
+                        agent: .esther,
+                        text: "💻 **Raphaël [Apple Shortcuts]**\n\nImpossible de préparer le raccourci : \(error.localizedDescription)",
+                        spokenText: "Je n'ai pas pu préparer ce raccourci.",
+                        openStudio: false,
+                        generatedCode: nil
+                    ))
+                }
             }
         }
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
