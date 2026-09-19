@@ -509,34 +509,35 @@ public struct CreateSarahShortcutDraftIntent: AppIntent {
 
 @available(iOS 16.0, *)
 public struct SarahAppShortcutsProvider: AppShortcutsProvider {
+    @AppShortcutsBuilder
     public static var appShortcuts: [AppShortcut] {
-        [
-            AppShortcut(
-                intent: AskSarahIntent(),
-                phrases: [
-                    "Demande à \(.applicationName)",
-                    "Pose une question à \(.applicationName)"
-                ],
-                shortTitle: "Demander à Sarah",
-                systemImageName: "sparkles"
-            ),
-            AppShortcut(
-                intent: NewSarahChatIntent(),
-                phrases: [
-                    "Nouveau chat avec \(.applicationName)"
-                ],
-                shortTitle: "Nouveau chat",
-                systemImageName: "square.and.pencil"
-            ),
-            AppShortcut(
-                intent: CreateSarahShortcutDraftIntent(),
-                phrases: [
-                    "Crée un raccourci avec \(.applicationName)"
-                ],
-                shortTitle: "Créer un raccourci",
-                systemImageName: "wand.and.stars"
-            )
-        ]
+        AppShortcut(
+            intent: AskSarahIntent(),
+            phrases: [
+                "Demande à \(.applicationName)",
+                "Pose une question à \(.applicationName)"
+            ],
+            shortTitle: "Demander à Sarah",
+            systemImageName: "sparkles"
+        )
+
+        AppShortcut(
+            intent: NewSarahChatIntent(),
+            phrases: [
+                "Nouveau chat avec \(.applicationName)"
+            ],
+            shortTitle: "Nouveau chat",
+            systemImageName: "square.and.pencil"
+        )
+
+        AppShortcut(
+            intent: CreateSarahShortcutDraftIntent(),
+            phrases: [
+                "Crée un raccourci avec \(.applicationName)"
+            ],
+            shortTitle: "Créer un raccourci",
+            systemImageName: "wand.and.stars"
+        )
     }
 }
 #endif
