@@ -310,14 +310,14 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func openDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.30, dampingFraction: 0.88, blendDuration: 0.12)) {
             isDrawerOpen = true
             drawerProgress = 1.0
         }
     }
     
     public func closeDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.90, blendDuration: 0.10)) {
             isDrawerOpen = false
             drawerProgress = 0.0
         }
