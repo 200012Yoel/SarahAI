@@ -685,18 +685,53 @@ public final class MultiAgentCoordinator {
                 generatedCode: manifest
             ))
         }
-        // 5. Raccourcis Apple Shortcuts
+        // 5. Raccourcis Apple Shortcuts — 100 % local
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
-            completion(AgentResponse(
-                agent: .esther,
-                text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
-            ))
+            let title = "Automatisation Sarah"
+
+            do {
+                let draft = try ShortcutGenerator.shared.createDraft(
+                    title: title,
+                    prompt: prompt
+                )
+                let plan = ShortcutGenerator.shared.proposePlan(for: prompt)
+                let planText = plan.enumerated()
+                    .map { "\($0.offset + 1). \($0.element.title)" }
+                    .joined(separator: "\n")
+
+                DispatchQueue.main.async {
+                    ShortcutGenerator.shared.openShortcutCreation()
+                }
+
+                let responseText = """
+                💻 **Raphaël [Apple Raccourcis · Local]**
+
+                J’ai préparé localement **« \(draft.title) »** avec **\(draft.actionCount) action(s)**.
+
+                **Plan proposé :**
+                \(planText)
+
+                Rien n’a été envoyé sur Internet. J’ouvre maintenant Apple Raccourcis pour la finalisation que iOS exige.
+                """
+
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: responseText,
+                    spokenText: "Le raccourci a été préparé entièrement en local. J'ouvre Apple Raccourcis pour la finalisation.",
+                    openStudio: true,
+                    generatedCode: draft.plistString
+                ))
+            } catch {
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: "💻 **Raphaël [Apple Raccourcis]**\n\nImpossible de préparer le raccourci : \(error.localizedDescription)",
+                    spokenText: "Je n'ai pas pu préparer ce raccourci.",
+                    openStudio: false,
+                    generatedCode: nil
+                ))
+            }
         }
+
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
         // prétendue compilée ici : Raphaël prépare le fichier et laisse le Studio en option.
         else if lower.contains("swiftui") || lower.contains("swift") || lower.contains("ios") || lower.contains("iphone") || lower.contains("ipad") {

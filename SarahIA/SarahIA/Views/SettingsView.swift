@@ -100,6 +100,16 @@ public struct SettingsView: View {
                             settingsDivider
 
                             settingsLink(
+                                destination: WidgetsHealthSettingsView(),
+                                icon: "rectangle.grid.2x2.fill",
+                                tint: .cyan,
+                                title: "Widgets et Santé",
+                                detail: "Tableau Santé, activité Sarah et accès rapides"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
                                 destination: DataAndConversationsSettingsView(
                                     viewModel: viewModel,
                                     onStartNewChat: startNewChatAndDismiss
@@ -891,6 +901,50 @@ private struct ConnectionsSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Apple") {
+                Button {
+                    HapticService.shared.buttonTap()
+                    ShortcutGenerator.shared.openShortcutsApp()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: 34, height: 34)
+                            .background(Color.blue.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple Raccourcis")
+                                .foregroundColor(.primary)
+                            Text("App Intents Sarah + génération locale")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("100 % local")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Image(systemName: "checkmark.shield.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Label(
+                    "Les définitions de raccourcis restent sur l’iPhone. Sarah ouvre ensuite l’app Raccourcis pour la finalisation autorisée par iOS.",
+                    systemImage: "iphone.and.arrow.forward"
+                )
+                .font(.footnote)
+                .foregroundColor(.secondary)
+            }
+
             Section("Services") {
                 ForEach(connections) { connection in
                     Button {
@@ -1627,6 +1681,115 @@ private struct SarahEngineSettingsView: View {
 }
 
 @available(iOS 15.0, *)
+private struct WidgetsHealthSettingsView: View {
+    @State private var healthEnabled = WidgetDataBridge.shared.isHealthWidgetEnabled
+    @State private var statusText = ""
+    @State private var isRequesting = false
+
+    var body: some View {
+        List {
+            Section("Widgets disponibles") {
+                widgetRow(
+                    icon: "heart.text.square.fill",
+                    title: "Sarah · Santé",
+                    detail: "Pas, distance, calories actives, exercice, activité, fréquence cardiaque au repos et tendance."
+                )
+                widgetRow(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    title: "Sarah · Activité",
+                    detail: "Questions aujourd’hui, sur 7 jours, 30 jours et nombre de discussions."
+                )
+                widgetRow(
+                    icon: "bolt.fill",
+                    title: "Sarah · Rapide",
+                    detail: "Chat, mode vocal et Apple Raccourcis."
+                )
+            }
+
+            Section("Apple Santé") {
+                Toggle("Afficher le résumé Santé dans le widget", isOn: Binding(
+                    get: { healthEnabled },
+                    set: { value in
+                        healthEnabled = value
+                        WidgetDataBridge.shared.isHealthWidgetEnabled = value
+                        if value {
+                            WidgetDataBridge.shared.refreshHealthSnapshot()
+                        }
+                    }
+                ))
+                .tint(.cyan)
+
+                Button {
+                    isRequesting = true
+                    statusText = "Demande d’autorisation…"
+                    WidgetDataBridge.shared.requestHealthAuthorization { result in
+                        DispatchQueue.main.async {
+                            isRequesting = false
+                            switch result {
+                            case .success(let allowed):
+                                healthEnabled = allowed
+                                statusText = allowed
+                                    ? "Accès Santé prêt. Les widgets seront actualisés."
+                                    : "HealthKit n’est pas disponible ou l’accès n’a pas été accordé."
+                            case .failure(let error):
+                                statusText = error.localizedDescription
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "heart.circle.fill")
+                        Text(isRequesting ? "Autorisation en cours…" : "Autoriser et actualiser Santé")
+                        Spacer()
+                        if isRequesting {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRequesting)
+
+                Text("Sarah lit uniquement les catégories nécessaires au tableau : pas, distance marche/course, calories actives, minutes d’exercice, temps debout et fréquence cardiaque au repos. Les données détaillées restent dans HealthKit ; le widget reçoit seulement un résumé via l’App Group.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                if !statusText.isEmpty {
+                    Text(statusText)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Confidentialité") {
+                Text("Les informations Santé affichées sur un widget peuvent être visibles sur l’écran d’accueil. Désactivez le widget Santé si vous ne souhaitez pas qu’un résumé d’activité soit visible sans ouvrir Sarah.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Widgets et Santé")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func widgetRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.cyan)
+                .frame(width: 32, height: 32)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+@available(iOS 15.0, *)
 private struct DataAndConversationsSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
     let onStartNewChat: () -> Void
@@ -1774,6 +1937,29 @@ private struct LegalNoticesView: View {
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
                 }
 
+                Section("Shortcut Agent Skill — MIT") {
+                    Text("Référence de génération utilisée pour valider la structure plist, les UUID, les variables et les familles d’actions Apple Shortcuts. Le projet annonce 427+ actions prises en charge et est distribué sous licence MIT.")
+                    Text("Copyright (c) 2026 owgit — MIT License. Permission is hereby granted, free of charge, to use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software, subject to inclusion of the copyright and permission notice. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                    Link("Projet Shortcut Agent Skill", destination: URL(string: "https://github.com/owgit/shortcut-agent-skill")!)
+                }
+
+                Section("Apple Raccourcis & App Intents") {
+                    Text("Sarah IA expose ses propres actions directement dans l’app Raccourcis avec le framework public Apple App Intents.")
+                    Text("Actions Sarah publiées : Demander à Sarah, Nouveau chat Sarah et Créer un brouillon de raccourci.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La génération de workflow est effectuée localement sur l’iPhone. Sarah ne transmet pas le contenu d’un raccourci à un service externe.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("Apple ne fournit pas d’API publique permettant à une app tierce d’injecter arbitrairement des blocs dans l’éditeur Raccourcis ou de signer localement un .shortcut arbitraire. Sarah prépare donc le workflow puis ouvre Raccourcis pour la finalisation.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Documentation Apple App Intents", destination: URL(string: "https://developer.apple.com/documentation/appintents")!)
+                }
+
                 Section("Génération d’images — cible locale") {
                     Text("Sarah prévoit d’utiliser Stable Diffusion 2.1 converti en Core ML, notamment les poids 6-bit palettisés publiés pour les appareils Apple.")
                     Text("Le code de conversion et d’inférence Apple ml-stable-diffusion est distribué sous licence MIT. Les poids Stable Diffusion restent soumis à leur licence OpenRAIL++ et à ses restrictions d’usage.")
@@ -1816,6 +2002,17 @@ private struct LegalNoticesView: View {
                 Section("Composants Apple") {
                     Text("Sarah IA utilise les frameworks système Apple, notamment SwiftUI, UIKit, Foundation, AVFoundation, Speech, Vision, WebKit et Core ML. Ces composants sont fournis avec iOS et soumis aux conditions Apple applicables.")
                         .font(.footnote)
+                }
+
+                Section("Conditions d’utilisation — Raccourcis") {
+                    Text("Les automatisations générées par Sarah doivent être vérifiées par l’utilisateur avant exécution. Certaines actions peuvent demander des autorisations iOS supplémentaires ou dépendre d’apps installées sur l’iPhone.")
+                        .font(.footnote)
+                    Text("Sarah respecte les protections d’iOS : elle ne contourne pas les permissions, ne modifie pas silencieusement la bibliothèque Raccourcis et ne prétend pas signer un fichier lorsque l’API publique Apple ne le permet pas.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La disponibilité exacte d’une action dépend de la version d’iOS, des apps présentes et des autorisations accordées par l’utilisateur.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
 
                 Section("Information importante") {

@@ -1,19 +1,18 @@
 import Foundation
 import SwiftUI
 
-/// Menu latéral principal de Sarah.
-/// Inspiré d'un tiroir de messagerie moderne : titre, recherche, épinglés,
-/// récents, puis deux actions fixes en bas. L'interface s'adapte à toutes
-/// les largeurs d'iPhone sans tailles rigides.
+/// Tiroir latéral principal de Sarah IA.
+/// Design sombre moderne inspiré de la maquette validée :
+/// titre, recherche permanente, discussions sous forme de cartes,
+// puis actions principales fixes en bas.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Binding var isShowingSettings: Bool
 
-    @State private var isSearching = false
-    @State private var isShowingArchives = false
     @State private var conversationPendingDeletion: Conversation?
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingHelp = false
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -23,51 +22,47 @@ public struct SidebarView: View {
     public var body: some View {
         GeometryReader { geo in
             let width = max(280, geo.size.width)
-            let horizontal = max(16, min(24, width * 0.055))
-            let titleSize = max(25, min(31, width * 0.085))
-            let rowFont = max(16, min(19, width * 0.052))
-            let circleSize = max(48, min(58, width * 0.16))
+            let horizontal = max(18, min(24, width * 0.055))
             let insets = currentSafeAreaInsets
 
             ZStack(alignment: .bottom) {
-                Color.black.ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.045, green: 0.050, blue: 0.065),
+                        Color(red: 0.028, green: 0.031, blue: 0.041)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    header(
-                        horizontal: horizontal,
-                        titleSize: titleSize,
-                        circleSize: circleSize,
-                        topInset: insets.top
-                    )
-
-                    if isSearching {
-                        searchField(horizontal: horizontal)
-                            .padding(.top, 8)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    header(horizontal: horizontal, topInset: insets.top)
+                    searchField(horizontal: horizontal)
 
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: 22) {
-                            if isShowingArchives {
-                                archivedHistory(
-                                    horizontal: horizontal,
-                                    rowFont: rowFont
-                                )
-                            } else {
-                                activeHistory(
-                                    horizontal: horizontal,
-                                    rowFont: rowFont
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            if !viewModel.filteredPinnedConversations.isEmpty {
+                                conversationSection(
+                                    title: "Épinglés",
+                                    conversations: viewModel.filteredPinnedConversations,
+                                    horizontal: horizontal
                                 )
                             }
+
+                            conversationSection(
+                                title: "Récents",
+                                conversations: viewModel.filteredRecentConversations,
+                                horizontal: horizontal
+                            )
                         }
-                        .padding(.top, 20)
-                        .padding(.bottom, 112)
+                        .padding(.top, 24)
+                        .padding(.bottom, 210)
                     }
                 }
 
                 footer(
                     horizontal: horizontal,
-                    circleSize: circleSize,
                     bottomInset: insets.bottom
                 )
             }
@@ -84,320 +79,237 @@ public struct SidebarView: View {
                 }
                 conversationPendingDeletion = nil
             }
+
             Button("Annuler", role: .cancel) {
                 conversationPendingDeletion = nil
             }
         } message: {
             Text("Cette action est définitive.")
         }
+        .alert("Aide et support", isPresented: $isShowingHelp) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Retrouve ici les fonctions d’aide de Sarah IA. Cette section pourra être reliée au centre d’aide complet.")
+        }
     }
 
     // MARK: - Header
 
-    private func header(
-        horizontal: CGFloat,
-        titleSize: CGFloat,
-        circleSize: CGFloat,
-        topInset: CGFloat
-    ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text(isShowingArchives ? "Archives" : "Sarah")
-                .font(.system(size: titleSize, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+    private func header(horizontal: CGFloat, topInset: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                Text("Sarah IA")
+                    .font(.system(size: 35, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
 
-            Spacer(minLength: 12)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 23, weight: .semibold))
+                    .foregroundColor(Color(red: 0.37, green: 0.47, blue: 1.0))
 
-            if isShowingArchives {
-                circularButton(
-                    systemName: "chevron.left",
-                    size: circleSize
-                ) {
-                    HapticService.shared.buttonTap()
-                    withAnimation(.easeInOut(duration: 0.20)) {
-                        isShowingArchives = false
-                    }
-                }
-                .accessibilityLabel("Retour aux discussions")
-            } else {
-                circularButton(
-                    systemName: isSearching ? "xmark" : "magnifyingglass",
-                    size: circleSize
-                ) {
-                    HapticService.shared.buttonTap()
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
-                        isSearching.toggle()
-                        if !isSearching {
-                            viewModel.searchQuery = ""
-                        }
-                    }
-                }
-                .accessibilityLabel(isSearching ? "Fermer la recherche" : "Rechercher")
+                Spacer(minLength: 0)
             }
+
+            Text("Toujours là pour vous 💙")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(Color.white.opacity(0.58))
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, max(12, topInset + 8))
-        .padding(.bottom, 4)
+        .padding(.top, max(18, topInset + 14))
+        .padding(.bottom, 20)
     }
 
     private func searchField(horizontal: CGFloat) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.50))
+                .font(.system(size: 19, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.82))
 
-            TextField("Rechercher", text: $viewModel.searchQuery)
+            TextField("Rechercher une conversation...", text: $viewModel.searchQuery)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(.white)
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
-                .font(.system(size: 17))
-                .foregroundColor(.white)
 
             if !viewModel.searchQuery.isEmpty {
                 Button {
                     viewModel.searchQuery = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Color.white.opacity(0.38))
+                        .font(.system(size: 17))
+                        .foregroundColor(Color.white.opacity(0.34))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.horizontal, 14)
-        .frame(height: 48)
+        .padding(.horizontal, 16)
+        .frame(height: 54)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.10))
+                .fill(Color.white.opacity(0.075))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.055), lineWidth: 1)
         )
         .padding(.horizontal, horizontal)
     }
 
-    // MARK: - Active conversations
+    // MARK: - Conversations
 
     @ViewBuilder
-    private func activeHistory(
-        horizontal: CGFloat,
-        rowFont: CGFloat
-    ) -> some View {
-        let pinned = viewModel.filteredPinnedConversations
-            .sorted { $0.updatedAt > $1.updatedAt }
-        let recent = viewModel.filteredRecentConversations
-            .sorted { $0.updatedAt > $1.updatedAt }
-
-        if pinned.isEmpty && recent.isEmpty {
-            if viewModel.searchQuery.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Récents")
-                        .sectionTitleStyle()
-
-                    Text("Aucune discussion pour le moment.")
-                        .font(.system(size: 15))
-                        .foregroundColor(Color.white.opacity(0.42))
-                        .padding(.top, 2)
-                }
-                .padding(.horizontal, horizontal)
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Résultats")
-                        .sectionTitleStyle()
-
-                    Text("Aucune discussion trouvée.")
-                        .font(.system(size: 15))
-                        .foregroundColor(Color.white.opacity(0.42))
-                }
-                .padding(.horizontal, horizontal)
-            }
-        } else {
-            if !pinned.isEmpty {
-                conversationSection(
-                    title: "Épinglés",
-                    conversations: pinned,
-                    horizontal: horizontal,
-                    rowFont: rowFont
-                )
-            }
-
-            if !recent.isEmpty {
-                conversationSection(
-                    title: "Récents",
-                    conversations: recent,
-                    horizontal: horizontal,
-                    rowFont: rowFont
-                )
-            }
-        }
-
-        if !viewModel.filteredArchivedConversations.isEmpty {
-            Button {
-                HapticService.shared.buttonTap()
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isShowingArchives = true
-                }
-            } label: {
-                HStack(spacing: 11) {
-                    Image(systemName: "archivebox")
-                        .font(.system(size: 17, weight: .medium))
-                        .frame(width: 24)
-
-                    Text("Archives")
-                        .font(.system(size: rowFont, weight: .regular))
-
-                    Spacer()
-
-                    Text("\(viewModel.filteredArchivedConversations.count)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(Color.white.opacity(0.40))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, horizontal)
-                .frame(height: 48)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-
-    // MARK: - Archives
-
-    @ViewBuilder
-    private func archivedHistory(
-        horizontal: CGFloat,
-        rowFont: CGFloat
-    ) -> some View {
-        let archived = viewModel.filteredArchivedConversations
-            .sorted { $0.updatedAt > $1.updatedAt }
-
-        if archived.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Archives")
-                    .sectionTitleStyle()
-
-                Text("Aucune discussion archivée.")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color.white.opacity(0.42))
-            }
-            .padding(.horizontal, horizontal)
-        } else {
-            conversationSection(
-                title: "Archives",
-                conversations: archived,
-                horizontal: horizontal,
-                rowFont: rowFont
-            )
-        }
-    }
-
-    // MARK: - Sections / rows
-
     private func conversationSection(
         title: String,
         conversations: [Conversation],
-        horizontal: CGFloat,
-        rowFont: CGFloat
+        horizontal: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .sectionTitleStyle()
-                .padding(.horizontal, horizontal)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 21, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
 
-            VStack(spacing: 3) {
-                ForEach(conversations) { conversation in
-                    ConversationHistoryRow(
-                        conversation: conversation,
-                        isSelected: viewModel.currentConversationId == conversation.id,
-                        rowFont: rowFont,
-                        viewModel: viewModel,
-                        onDelete: { requestDeletion(of: conversation) }
-                    )
+                Spacer()
+
+                if title == "Récents" {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color.white.opacity(0.72))
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(Color.white.opacity(0.07))
+                        )
                 }
             }
-            .padding(.horizontal, max(8, horizontal - 8))
+            .padding(.horizontal, horizontal)
+
+            if conversations.isEmpty {
+                Text(
+                    viewModel.searchQuery.isEmpty
+                        ? "Aucune discussion pour le moment."
+                        : "Aucune discussion trouvée."
+                )
+                .font(.system(size: 14))
+                .foregroundColor(Color.white.opacity(0.38))
+                .padding(.horizontal, horizontal)
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(conversations) { conversation in
+                        ConversationHistoryRow(
+                            conversation: conversation,
+                            isSelected: viewModel.currentConversationId == conversation.id,
+                            viewModel: viewModel,
+                            onDelete: { requestDeletion(of: conversation) }
+                        )
+                    }
+                }
+                .padding(.horizontal, max(12, horizontal - 4))
+            }
         }
     }
 
-    // MARK: - Bottom bar
+    // MARK: - Footer
 
-    private func footer(
-        horizontal: CGFloat,
-        circleSize: CGFloat,
-        bottomInset: CGFloat
-    ) -> some View {
-        HStack(spacing: 12) {
+    private func footer(horizontal: CGFloat, bottomInset: CGFloat) -> some View {
+        VStack(spacing: 10) {
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.startNewChat()
                 viewModel.closeDrawer()
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 11) {
                     Image(systemName: "square.and.pencil")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 19, weight: .semibold))
 
-                    Text("Chat")
+                    Text("Nouveau chat")
                         .font(.system(size: 17, weight: .bold))
+
+                    Spacer()
                 }
                 .foregroundColor(.white)
-                .padding(.horizontal, 22)
-                .frame(height: circleSize)
+                .padding(.horizontal, 20)
+                .frame(height: 58)
                 .background(
-                    Capsule(style: .continuous)
-                        .fill(viewModel.activeAgent.themeColor)
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.18, green: 0.48, blue: 1.0),
+                            Color(red: 0.14, green: 0.36, blue: 0.95)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
                 )
-                .shadow(
-                    color: viewModel.activeAgent.themeColor.opacity(0.22),
-                    radius: 14,
-                    y: 5
-                )
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: Color.blue.opacity(0.18), radius: 16, y: 8)
             }
             .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Nouveau chat")
 
-            Spacer()
-
-            circularButton(
+            footerRow(
                 systemName: "gearshape",
-                size: circleSize
+                title: "Paramètres"
             ) {
                 HapticService.shared.buttonTap()
                 viewModel.closeDrawer()
                 isShowingSettings = true
             }
-            .accessibilityLabel("Réglages")
+
+            footerRow(
+                systemName: "questionmark.circle",
+                title: "Aide et support"
+            ) {
+                HapticService.shared.buttonTap()
+                isShowingHelp = true
+            }
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, 10)
-        .padding(.bottom, max(10, bottomInset + 4))
+        .padding(.top, 16)
+        .padding(.bottom, max(16, bottomInset + 10))
         .background(
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.0),
-                    Color.black.opacity(0.90),
-                    Color.black
+                    Color(red: 0.030, green: 0.034, blue: 0.044).opacity(0.10),
+                    Color(red: 0.030, green: 0.034, blue: 0.044).opacity(0.97),
+                    Color(red: 0.030, green: 0.034, blue: 0.044)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
         )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.07))
+                .frame(height: 0.5)
+        }
     }
 
-    private func circularButton(
+    private func footerRow(
         systemName: String,
-        size: CGFloat,
+        title: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.10))
-
-                Circle()
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
-
+            HStack(spacing: 14) {
                 Image(systemName: systemName)
-                    .font(.system(size: size * 0.37, weight: .medium))
-                    .foregroundColor(.white)
+                    .font(.system(size: 20, weight: .medium))
+                    .frame(width: 28)
+
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.42))
             }
-            .frame(width: size, height: size)
+            .foregroundColor(.white)
+            .padding(.horizontal, 10)
+            .frame(height: 48)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -410,6 +322,7 @@ public struct SidebarView: View {
                 .first(where: { $0.isKeyWindow })?
                 .safeAreaInsets ?? .zero
         }
+
         return UIApplication.shared.keyWindow?.safeAreaInsets ?? .zero
     }
 
@@ -423,7 +336,6 @@ public struct SidebarView: View {
 private struct ConversationHistoryRow: View {
     let conversation: Conversation
     let isSelected: Bool
-    let rowFont: CGFloat
 
     @ObservedObject var viewModel: ChatViewModel
     let onDelete: () -> Void
@@ -435,22 +347,30 @@ private struct ConversationHistoryRow: View {
                 viewModel.selectConversation(conversation)
                 viewModel.closeDrawer()
             } label: {
-                HStack(spacing: 11) {
+                HStack(spacing: 12) {
                     Image(systemName: "bubble.left")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundColor(Color.white.opacity(isSelected ? 0.95 : 0.82))
-                        .frame(width: 24)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(
+                            isSelected
+                                ? Color(red: 0.42, green: 0.70, blue: 1.0)
+                                : Color.white.opacity(0.84)
+                        )
+                        .frame(width: 26)
 
                     Text(conversation.title)
-                        .font(.system(size: rowFont, weight: .regular))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 8)
+
+                    Text(timeLabel)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.42))
                 }
-                .padding(.horizontal, 13)
-                .frame(height: 48)
+                .padding(.horizontal, 15)
+                .frame(height: 62)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
@@ -459,19 +379,58 @@ private struct ConversationHistoryRow: View {
                 rowActions
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.50))
-                    .frame(width: 40, height: 44)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.48))
+                    .frame(width: 36, height: 44)
                     .contentShape(Rectangle())
             }
+            .padding(.trailing, 5)
         }
         .background(
-            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    isSelected
+                        ? Color(red: 0.08, green: 0.18, blue: 0.32).opacity(0.92)
+                        : Color.white.opacity(0.052)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(
+                    isSelected
+                        ? Color(red: 0.20, green: 0.53, blue: 1.0)
+                        : Color.white.opacity(0.035),
+                    lineWidth: isSelected ? 1.2 : 0.7
+                )
+        )
+        .shadow(
+            color: isSelected ? Color.blue.opacity(0.10) : Color.clear,
+            radius: 12,
+            y: 4
         )
         .contextMenu {
             rowActions
         }
+    }
+
+    private var timeLabel: String {
+        let calendar = Calendar.current
+
+        if calendar.isDateInToday(conversation.updatedAt) {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "fr_FR")
+            formatter.dateFormat = "HH:mm"
+            return formatter.string(from: conversation.updatedAt)
+        }
+
+        if calendar.isDateInYesterday(conversation.updatedAt) {
+            return "Hier"
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: conversation.updatedAt).capitalized
     }
 
     @ViewBuilder
@@ -506,14 +465,5 @@ private struct ConversationHistoryRow: View {
         } label: {
             Label("Supprimer", systemImage: "trash")
         }
-    }
-}
-
-@available(iOS 15.0, *)
-private extension View {
-    func sectionTitleStyle() -> some View {
-        self
-            .font(.system(size: 15, weight: .bold))
-            .foregroundColor(Color.white.opacity(0.88))
     }
 }

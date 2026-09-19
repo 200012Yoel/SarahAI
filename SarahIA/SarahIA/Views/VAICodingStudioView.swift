@@ -284,6 +284,49 @@ public struct VAICodingStudioView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "link.badge.plus")
+                        .foregroundColor(Color(red: 0.24, green: 0.58, blue: 1.0))
+                    Text("Connexion native Apple Raccourcis")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text("\(ShortcutGenerator.documentedActionCoverage) réf.")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.gray)
+                }
+
+                Text("Sarah publie ses propres actions via App Intents. Les workflows autonomes sont générés en plist local puis finalisés dans Raccourcis.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    ShortcutGenerator.shared.openShortcutsApp()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Ouvrir Apple Raccourcis")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 13))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 16)
             
             VStack(spacing: 12) {
                 Button(action: {
@@ -572,10 +615,37 @@ public struct VAICodingStudioView: View {
     
     private func exportShortcut(title: String, prompt: String) {
         HapticService.shared.buttonTap()
-        let shortcutContent = VAICodeEngine.shared.generateShortcutJSON(name: title, prompt: prompt)
-        _ = VAICodeEngine.shared.saveFile(filename: "\(title).json", content: shortcutContent)
-        exportMessage = "Raccourci « \(title) » généré avec succès ! Vous pouvez l'importer dans Apple Shortcuts."
-        isShowingExportAlert = true
+
+        do {
+            let draft = try ShortcutGenerator.shared.createDraft(
+                title: title,
+                prompt: prompt
+            )
+            codeText = draft.plistString
+            viewModel.vaiCurrentCode = draft.plistString
+
+            let plan = ShortcutGenerator.shared.proposePlan(for: prompt)
+            let summary = plan.enumerated()
+                .map { "• \($0.element.title)" }
+                .joined(separator: "\n")
+
+            exportMessage = """
+            \(draft.summary)
+
+            Plan local :
+            \(summary)
+
+            Aucune donnée n’a quitté l’iPhone. Apple Raccourcis va s’ouvrir pour la finalisation.
+            """
+            isShowingExportAlert = true
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                ShortcutGenerator.shared.openShortcutCreation()
+            }
+        } catch {
+            exportMessage = "Impossible de préparer ce raccourci : \(error.localizedDescription)"
+            isShowingExportAlert = true
+        }
     }
     
     private func deployLiveOnline() {

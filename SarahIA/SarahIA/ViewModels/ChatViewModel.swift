@@ -310,14 +310,14 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func openDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.30, dampingFraction: 0.88, blendDuration: 0.12)) {
             isDrawerOpen = true
             drawerProgress = 1.0
         }
     }
     
     public func closeDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.90, blendDuration: 0.10)) {
             isDrawerOpen = false
             drawerProgress = 0.0
         }
@@ -458,6 +458,8 @@ public final class ChatViewModel: ObservableObject {
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
+        WidgetDataBridge.shared.recordQuestion()
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
         inputText = ""
 
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
@@ -557,6 +559,7 @@ public final class ChatViewModel: ObservableObject {
             isAudio: false
         )
         SQLiteChatDatabase.shared.insertMessage(persisted)
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
     }
     
     private func ensureConversation(withFirstMessage text: String) {
