@@ -8,11 +8,13 @@ public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
     @State private var drawerDragStartedOpen: Bool? = nil
+    @State private var isShowingLaunchAnimation = true
 
     public init() {}
 
     public var body: some View {
-        GeometryReader { geo in
+        ZStack {
+            GeometryReader { geo in
             let drawerWidth = min(
                 CGFloat(390),
                 max(CGFloat(300), geo.size.width * 0.88)
@@ -104,6 +106,21 @@ public struct ContentView: View {
                     screenWidth: geo.size.width
                 )
             )
+            }
+
+            if isShowingLaunchAnimation {
+                SarahLaunchAnimationView()
+                    .transition(.opacity)
+                    .zIndex(100)
+            }
+        }
+        .onAppear {
+            guard isShowingLaunchAnimation else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.65) {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    isShowingLaunchAnimation = false
+                }
+            }
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
@@ -222,5 +239,79 @@ public struct ContentView: View {
 
     private func clamp(_ value: CGFloat) -> CGFloat {
         min(max(value, 0.0), 1.0)
+    }
+}
+
+
+@available(iOS 15.0, *)
+private struct SarahLaunchAnimationView: View {
+    @State private var logoScale: CGFloat = 0.72
+    @State private var logoOpacity: Double = 0.0
+    @State private var glowScale: CGFloat = 0.65
+    @State private var glowOpacity: Double = 0.0
+    @State private var subtitleOpacity: Double = 0.0
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            RadialGradient(
+                colors: [
+                    Color(red: 0.18, green: 0.35, blue: 0.95).opacity(0.20),
+                    Color.clear
+                ],
+                center: .center,
+                startRadius: 10,
+                endRadius: 260
+            )
+            .scaleEffect(glowScale)
+            .opacity(glowOpacity)
+
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Text("Sarah")
+                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.34, green: 0.52, blue: 1.0),
+                                    Color(red: 0.55, green: 0.34, blue: 1.0)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .scaleEffect(logoScale)
+                .opacity(logoOpacity)
+
+                Text("Intelligence locale · Raccourcis · Création")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.48))
+                    .opacity(subtitleOpacity)
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.spring(response: 0.62, dampingFraction: 0.74)) {
+                logoScale = 1.0
+                logoOpacity = 1.0
+                glowScale = 1.0
+                glowOpacity = 1.0
+            }
+
+            withAnimation(.easeOut(duration: 0.45).delay(0.36)) {
+                subtitleOpacity = 1.0
+            }
+
+            withAnimation(.easeInOut(duration: 0.70).repeatForever(autoreverses: true).delay(0.55)) {
+                glowScale = 1.10
+                glowOpacity = 0.66
+            }
+        }
     }
 }
