@@ -140,9 +140,13 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         request.shouldReportPartialResults = true
+        request.taskHint = .dictation
+        request.contextualStrings = [
+            "bonjour", "salut", "coucou", "bonsoir",
+            "Sarah", "Tom", "Raphaël", "Yohan",
+            "nouveau chat", "mode vocal", "confirme", "annule"
+        ]
         if #available(iOS 13.0, *) {
-            // Utiliser le moteur Apple embarqué quand il est disponible.
-            // Sinon iOS conserve automatiquement son moteur de reconnaissance standard.
             request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         }
 
@@ -169,7 +173,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             guard let self = self else { return }
             DispatchQueue.main.async {
                 if let result = result {
-                    let text = result.bestTranscription.formattedString
+                    let alternatives = result.transcriptions.map { $0.formattedString }
+                    let text = self.preferredTranscript(
+                        best: result.bestTranscription.formattedString,
+                        alternatives: alternatives
+                    )
                     self.currentLiveText = text
                     self.hasDetectedSpeechInCurrentSession = true
                     self.onPartialTranscription?(text)
@@ -206,6 +214,40 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             print("⚠️ [AppleSpeechRecognizer] AVAudioEngine start: \(error.localizedDescription)")
             stopListening()
         }
+    }
+    
+    private func preferredTranscript(best: String, alternatives: [String]) -> String {
+        func normalized(_ value: String) -> String {
+            value
+                .lowercased()
+                .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+                .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+        
+        // Sur les phrases très courtes, Apple propose parfois la bonne salutation
+        // en alternative alors que le premier candidat ressemble à une commande.
+        let greetingMap: [String: String] = [
+            "bonjour": "bonjour",
+            "bonjour sarah": "bonjour",
+            "bon jour": "bonjour",
+            "salut": "salut",
+            "salut sarah": "salut",
+            "coucou": "coucou",
+            "coucou sarah": "coucou",
+            "bonsoir": "bonsoir",
+            "bonsoir sarah": "bonsoir"
+        ]
+        
+        for candidate in [best] + alternatives {
+            if let canonical = greetingMap[normalized(candidate)] {
+                return canonical
+            }
+        }
+        
+        return best
     }
     
     // MARK: - Arrêt de l'Écoute

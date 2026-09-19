@@ -39,6 +39,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
+    @Published public var pendingVoiceConfirmation: String? = nil
     
     // MARK: - Navigation, Studio VAI Coding & Voice Orb
     @Published public var isDrawerOpen: Bool = false
@@ -69,6 +70,7 @@ public final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var isVoicePipelinePrepared = false
+    private var pendingVoiceActionText: String? = nil
     
     public init() {
         restorePersistedState()
@@ -351,7 +353,7 @@ public final class ChatViewModel: ObservableObject {
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             
-            // Une transcription ne doit jamais être envoyée pendant que Sarah parle.
+            // Ne jamais traiter le micro pendant que Sarah parle.
             guard !self.voiceManager.isSpeaking else { return }
             
             let cleaned = self.sanitizeVoiceTranscript(finalTranscription)
@@ -360,10 +362,15 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
             
-            // On conserve ce que l'iPhone a réellement compris pendant le traitement.
-            // Cela évite l'effet "boîte noire" et permet de repérer immédiatement
-            // une éventuelle mauvaise reconnaissance.
             self.liveTranscriptionText = cleaned
+            
+            // Les actions qui ouvrent une app ou modifient l'iPhone ne partent
+            // jamais directement depuis une transcription vocale. Une mauvaise
+            // reconnaissance de "bonjour" ne peut donc plus ouvrir Apple Music.
+            if self.handleVoiceActionSafety(cleaned) {
+                return
+            }
+            
             self.voiceStatus = .processing
             self.sendMessage(cleaned)
         }
@@ -381,11 +388,13 @@ public final class ChatViewModel: ObservableObject {
             self.haptics.speechFinished()
             
             if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.80) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.10) {
                     guard self.isContinuousConversationActive,
                           self.isShowingVoiceOrbModal,
                           !self.voiceManager.isSpeaking else { return }
-                    self.liveTranscriptionText = ""
+                    if self.pendingVoiceActionText == nil {
+                        self.liveTranscriptionText = ""
+                    }
                     AudioSessionManager.shared.deactivateSession()
                     AppleSpeechRecognizer.shared.startListening()
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
@@ -418,6 +427,94 @@ public final class ChatViewModel: ObservableObject {
         default:
             return trimmed
         }
+    }
+    
+    private func normalizeVoiceCommand(_ text: String) -> String {
+        text
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+    
+    /// Retourne true si la transcription a été consommée par le garde-fou vocal.
+    private func handleVoiceActionSafety(_ text: String) -> Bool {
+        let normalized = normalizeVoiceCommand(text)
+        
+        let confirmations: Set<String> = [
+            "confirme", "je confirme", "oui confirme", "oui je confirme",
+            "ok confirme", "vas y confirme"
+        ]
+        let cancellations: Set<String> = [
+            "annule", "annuler", "non annule", "laisse tomber", "oublie"
+        ]
+        
+        if let pending = pendingVoiceActionText {
+            if confirmations.contains(normalized) {
+                pendingVoiceActionText = nil
+                pendingVoiceConfirmation = nil
+                liveTranscriptionText = pending
+                voiceStatus = .processing
+                sendMessage(pending)
+                return true
+            }
+            
+            if cancellations.contains(normalized) {
+                pendingVoiceActionText = nil
+                pendingVoiceConfirmation = nil
+                liveTranscriptionText = "Action annulée"
+                voiceStatus = .speaking
+                voiceManager.speak(
+                    text: "D'accord, action annulée.",
+                    for: activeAgent
+                )
+                return true
+            }
+            
+            // Une nouvelle phrase remplace l'ancienne demande non confirmée.
+            pendingVoiceActionText = nil
+            pendingVoiceConfirmation = nil
+        }
+        
+        guard requiresVoiceConfirmation(normalized) else {
+            return false
+        }
+        
+        pendingVoiceActionText = text
+        pendingVoiceConfirmation = text
+        liveTranscriptionText = text
+        voiceStatus = .speaking
+        
+        voiceManager.speak(
+            text: "J'ai compris : \(text). Dis confirme pour exécuter cette action, ou annule.",
+            for: activeAgent
+        )
+        return true
+    }
+    
+    private func requiresVoiceConfirmation(_ normalized: String) -> Bool {
+        let actionVerbs = [
+            "ouvre", "lance", "mets", "joue", "demarre", "active",
+            "desactive", "allume", "eteins", "appelle", "telephone"
+        ]
+        
+        let sideEffectTargets = [
+            "apple music", "spotify", "musique", "radio", "podcast",
+            "youtube", "camera", "appareil photo", "torche", "lampe",
+            "flash", "appel", "telephone", "instagram", "tiktok",
+            "whatsapp", "reglages"
+        ]
+        
+        let hasActionVerb = actionVerbs.contains { verb in
+            normalized == verb ||
+            normalized.hasPrefix(verb + " ") ||
+            normalized.contains(" " + verb + " ")
+        }
+        
+        let hasTarget = sideEffectTargets.contains { normalized.contains($0) }
+        return hasActionVerb && hasTarget
     }
     
     public func toggleMicrophone() {
@@ -453,6 +550,8 @@ public final class ChatViewModel: ObservableObject {
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
+        pendingVoiceActionText = nil
+        pendingVoiceConfirmation = nil
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.

@@ -16,8 +16,8 @@ public struct ContentView: View {
         ZStack {
             GeometryReader { geo in
             let drawerWidth = min(
-                CGFloat(352),
-                max(CGFloat(286), geo.size.width - 46)
+                CGFloat(326),
+                max(CGFloat(276), geo.size.width - 68)
             )
 
             let progress = min(
@@ -69,13 +69,13 @@ public struct ContentView: View {
                     )
                     .clipShape(
                         RoundedRectangle(
-                            cornerRadius: 24,
+                            cornerRadius: 20,
                             style: .continuous
                         )
                     )
                     .overlay(
                         RoundedRectangle(
-                            cornerRadius: 24,
+                            cornerRadius: 20,
                             style: .continuous
                         )
                         .stroke(

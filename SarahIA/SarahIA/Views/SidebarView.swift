@@ -1,8 +1,8 @@
 import Foundation
 import SwiftUI
 
-/// Tiroir latéral compact et adaptatif de Sarah IA.
-/// Aucun bloc ne flotte par-dessus la liste : le contenu se répartit selon la hauteur disponible.
+/// Menu latéral Sarah IA, volontairement compact : plus de place aux discussions,
+/// moins de grosses cartes et des actions proches des conventions iOS.
 @available(iOS 15.0, *)
 public struct SidebarView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -19,28 +19,18 @@ public struct SidebarView: View {
 
     public var body: some View {
         GeometryReader { geo in
-            let width = max(280, geo.size.width)
-            let horizontal = max(14, min(20, width * 0.05))
-            let safeInsets = currentSafeAreaInsets
+            let horizontal: CGFloat = geo.size.width < 310 ? 14 : 16
 
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.038, green: 0.043, blue: 0.056),
-                        Color(red: 0.022, green: 0.025, blue: 0.034)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                Color(red: 0.025, green: 0.028, blue: 0.036)
+                    .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    header(
-                        horizontal: horizontal,
-                        topInset: safeInsets.top
-                    )
+                    header(horizontal: horizontal, topInset: geo.safeAreaInsets.top)
 
-                    searchField(horizontal: horizontal)
+                    searchField
+                        .padding(.horizontal, horizontal)
+                        .padding(.bottom, 12)
 
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 14) {
@@ -58,19 +48,14 @@ public struct SidebarView: View {
                                 horizontal: horizontal
                             )
                         }
-                        .padding(.top, 18)
-                        .padding(.bottom, 14)
+                        .padding(.bottom, 12)
                     }
                     .frame(maxHeight: .infinity)
 
-                    Rectangle()
-                        .fill(Color.white.opacity(0.065))
-                        .frame(height: 0.5)
+                    Divider()
+                        .overlay(Color.white.opacity(0.07))
 
-                    footer(
-                        horizontal: horizontal,
-                        bottomInset: safeInsets.bottom
-                    )
+                    footer(horizontal: horizontal, bottomInset: geo.safeAreaInsets.bottom)
                 }
             }
         }
@@ -86,7 +71,6 @@ public struct SidebarView: View {
                 }
                 conversationPendingDeletion = nil
             }
-
             Button("Annuler", role: .cancel) {
                 conversationPendingDeletion = nil
             }
@@ -100,41 +84,55 @@ public struct SidebarView: View {
         }
     }
 
-    // MARK: - En-tête
-
     private func header(horizontal: CGFloat, topInset: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text("Sarah IA")
-                    .font(.system(size: 29, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("Sarah IA")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
 
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color(red: 0.37, green: 0.52, blue: 1.0))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(Color(red: 0.39, green: 0.55, blue: 1.0))
+                }
 
-                Spacer(minLength: 0)
+                Text("Toujours là pour vous 💙")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.42))
             }
 
-            Text("Toujours là pour vous 💙")
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(Color.white.opacity(0.48))
+            Spacer()
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.startNewChat()
+                viewModel.closeDrawer()
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle().fill(viewModel.activeAgent.themeColor.opacity(0.92))
+                    )
+            }
+            .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel("Nouveau chat")
         }
         .padding(.horizontal, horizontal)
-        .padding(.top, max(14, topInset + 8))
-        .padding(.bottom, 14)
+        .padding(.top, max(12, topInset + 6))
+        .padding(.bottom, 12)
     }
 
-    private func searchField(horizontal: CGFloat) -> some View {
-        HStack(spacing: 9) {
+    private var searchField: some View {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.70))
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.48))
 
-            TextField("Rechercher une conversation…", text: $viewModel.searchQuery)
-                .font(.system(size: 14.5))
+            TextField("Rechercher", text: $viewModel.searchQuery)
+                .font(.system(size: 14))
                 .foregroundColor(.white)
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
@@ -144,26 +142,23 @@ public struct SidebarView: View {
                     viewModel.searchQuery = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 15))
-                        .foregroundColor(Color.white.opacity(0.32))
+                        .font(.system(size: 14))
+                        .foregroundColor(Color.white.opacity(0.28))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.horizontal, 13)
-        .frame(height: 44)
+        .padding(.horizontal, 12)
+        .frame(height: 40)
         .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(Color.white.opacity(0.07))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.055))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.045), lineWidth: 0.7)
         )
-        .padding(.horizontal, horizontal)
     }
-
-    // MARK: - Discussions
 
     @ViewBuilder
     private func conversationSection(
@@ -171,38 +166,28 @@ public struct SidebarView: View {
         conversations: [Conversation],
         horizontal: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(title)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .font(.system(size: 15.5, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.90))
 
                 Spacer()
 
-                if title == "Récents" {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.58))
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Circle().fill(Color.white.opacity(0.055))
-                        )
-                }
+                Text("\(conversations.count)")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.28))
             }
-            .padding(.horizontal, horizontal)
+            .padding(.horizontal, horizontal + 2)
 
             if conversations.isEmpty {
-                Text(
-                    viewModel.searchQuery.isEmpty
-                        ? "Aucune discussion pour le moment."
-                        : "Aucune discussion trouvée."
-                )
-                .font(.system(size: 13))
-                .foregroundColor(Color.white.opacity(0.34))
-                .padding(.horizontal, horizontal)
-                .padding(.vertical, 6)
+                Text(viewModel.searchQuery.isEmpty ? "Aucune discussion" : "Aucun résultat")
+                    .font(.system(size: 12.5))
+                    .foregroundColor(Color.white.opacity(0.30))
+                    .padding(.horizontal, horizontal + 2)
+                    .padding(.vertical, 5)
             } else {
-                VStack(spacing: 7) {
+                VStack(spacing: 4) {
                     ForEach(conversations) { conversation in
                         ConversationHistoryRow(
                             conversation: conversation,
@@ -212,149 +197,79 @@ public struct SidebarView: View {
                         )
                     }
                 }
-                .padding(.horizontal, max(10, horizontal - 3))
+                .padding(.horizontal, horizontal - 4)
             }
         }
     }
-
-    // MARK: - Bas du menu
 
     private func footer(horizontal: CGFloat, bottomInset: CGFloat) -> some View {
-        VStack(spacing: 7) {
-            Button {
+        VStack(spacing: 2) {
+            menuAction(
+                systemName: "waveform",
+                title: "Mode vocal",
+                tint: viewModel.activeAgent.themeColor
+            ) {
                 HapticService.shared.buttonTap()
-                viewModel.startNewChat()
                 viewModel.closeDrawer()
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 16, weight: .semibold))
-
-                    Text("Nouveau chat")
-                        .font(.system(size: 15.5, weight: .bold))
-
-                    Spacer()
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .frame(height: 48)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.16, green: 0.47, blue: 1.0),
-                            Color(red: 0.19, green: 0.36, blue: 0.94)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            }
-            .buttonStyle(ScaleBounceButtonStyle())
-
-            HStack(spacing: 8) {
-                compactAction(
-                    systemName: "waveform",
-                    title: "Mode vocal",
-                    emphasized: true
-                ) {
-                    HapticService.shared.buttonTap()
-                    viewModel.closeDrawer()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                        viewModel.isShowingVoiceOrbModal = true
-                    }
-                }
-
-                compactAction(
-                    systemName: "gearshape",
-                    title: "Paramètres",
-                    emphasized: false
-                ) {
-                    HapticService.shared.buttonTap()
-                    viewModel.closeDrawer()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                        isShowingSettings = true
-                    }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                    viewModel.isShowingVoiceOrbModal = true
                 }
             }
 
-            Button {
+            menuAction(
+                systemName: "gearshape",
+                title: "Paramètres",
+                tint: Color.white.opacity(0.72)
+            ) {
+                HapticService.shared.buttonTap()
+                viewModel.closeDrawer()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    isShowingSettings = true
+                }
+            }
+
+            menuAction(
+                systemName: "questionmark.circle",
+                title: "Aide et support",
+                tint: Color.white.opacity(0.64)
+            ) {
                 HapticService.shared.buttonTap()
                 isShowingHelp = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 22)
-
-                    Text("Aide et support")
-                        .font(.system(size: 14.5, weight: .medium))
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.34))
-                }
-                .foregroundColor(Color.white.opacity(0.84))
-                .padding(.horizontal, 8)
-                .frame(height: 38)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(PlainButtonStyle())
         }
-        .padding(.horizontal, horizontal)
-        .padding(.top, 10)
-        .padding(.bottom, max(10, bottomInset + 5))
-        .background(Color(red: 0.024, green: 0.027, blue: 0.036).opacity(0.96))
+        .padding(.horizontal, horizontal - 4)
+        .padding(.top, 7)
+        .padding(.bottom, max(8, bottomInset + 3))
     }
 
-    private func compactAction(
+    private func menuAction(
         systemName: String,
         title: String,
-        emphasized: Bool,
+        tint: Color,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 11) {
                 Image(systemName: systemName)
                     .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(tint)
+                    .frame(width: 25)
 
                 Text(title)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.84)
-            }
-            .foregroundColor(emphasized ? .white : Color.white.opacity(0.82))
-            .frame(maxWidth: .infinity)
-            .frame(height: 42)
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(
-                        emphasized
-                            ? viewModel.activeAgent.themeColor.opacity(0.18)
-                            : Color.white.opacity(0.055)
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .stroke(
-                        emphasized
-                            ? viewModel.activeAgent.themeColor.opacity(0.28)
-                            : Color.white.opacity(0.045),
-                        lineWidth: 0.7
-                    )
-            )
-        }
-        .buttonStyle(ScaleBounceButtonStyle())
-    }
+                    .font(.system(size: 14.5, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.88))
 
-    private var currentSafeAreaInsets: UIEdgeInsets {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first(where: { $0.isKeyWindow })?
-            .safeAreaInsets ?? .zero
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.22))
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private func requestDeletion(of conversation: Conversation) {
@@ -367,7 +282,6 @@ public struct SidebarView: View {
 private struct ConversationHistoryRow: View {
     let conversation: Conversation
     let isSelected: Bool
-
     @ObservedObject var viewModel: ChatViewModel
     let onDelete: () -> Void
 
@@ -378,31 +292,31 @@ private struct ConversationHistoryRow: View {
                 viewModel.selectConversation(conversation)
                 viewModel.closeDrawer()
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: 9) {
                     Image(systemName: "bubble.left")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 13.5, weight: .medium))
                         .foregroundColor(
                             isSelected
-                                ? Color(red: 0.42, green: 0.70, blue: 1.0)
-                                : Color.white.opacity(0.70)
+                                ? viewModel.activeAgent.themeColor
+                                : Color.white.opacity(0.46)
                         )
-                        .frame(width: 22)
+                        .frame(width: 19)
 
                     Text(conversation.title)
-                        .font(.system(size: 14.5, weight: .medium))
-                        .foregroundColor(.white)
+                        .font(.system(size: 13.5, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.90))
                         .lineLimit(1)
                         .truncationMode(.tail)
 
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 5)
 
                     Text(timeLabel)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.34))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.25))
                 }
-                .padding(.leading, 13)
-                .padding(.trailing, 5)
-                .frame(height: 52)
+                .padding(.leading, 10)
+                .padding(.trailing, 2)
+                .frame(height: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
@@ -411,28 +325,28 @@ private struct ConversationHistoryRow: View {
                 rowActions
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.42))
-                    .frame(width: 34, height: 42)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.31))
+                    .frame(width: 31, height: 40)
                     .contentShape(Rectangle())
             }
-            .padding(.trailing, 3)
+            .padding(.trailing, 2)
         }
         .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .fill(
                     isSelected
-                        ? Color(red: 0.08, green: 0.18, blue: 0.32).opacity(0.88)
-                        : Color.white.opacity(0.045)
+                        ? viewModel.activeAgent.themeColor.opacity(0.11)
+                        : Color.white.opacity(0.025)
                 )
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(
                     isSelected
-                        ? Color(red: 0.20, green: 0.53, blue: 1.0).opacity(0.85)
-                        : Color.white.opacity(0.03),
-                    lineWidth: isSelected ? 1 : 0.6
+                        ? viewModel.activeAgent.themeColor.opacity(0.26)
+                        : Color.clear,
+                    lineWidth: 0.7
                 )
         )
         .contextMenu {
@@ -442,18 +356,15 @@ private struct ConversationHistoryRow: View {
 
     private var timeLabel: String {
         let calendar = Calendar.current
-
         if calendar.isDateInToday(conversation.updatedAt) {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "fr_FR")
             formatter.dateFormat = "HH:mm"
             return formatter.string(from: conversation.updatedAt)
         }
-
         if calendar.isDateInYesterday(conversation.updatedAt) {
             return "Hier"
         }
-
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "fr_FR")
         formatter.dateFormat = "EEE"

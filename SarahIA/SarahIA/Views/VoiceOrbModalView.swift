@@ -33,6 +33,10 @@ public struct VoiceOrbModalView: View {
     }
 
     private var statusTitle: String {
+        if viewModel.pendingVoiceConfirmation != nil {
+            return "Confirmer l’action ?"
+        }
+        
         switch viewModel.voiceStatus {
         case .processing:
             return "Je réfléchis…"
@@ -49,6 +53,10 @@ public struct VoiceOrbModalView: View {
     }
 
     private var statusSubtitle: String {
+        if viewModel.pendingVoiceConfirmation != nil {
+            return "Dis « confirme » ou « annule »"
+        }
+        
         switch viewModel.voiceStatus {
         case .error:
             return "Touchez le micro pour réessayer"
@@ -66,7 +74,7 @@ public struct VoiceOrbModalView: View {
             let compact = proxy.size.height < 520
             let orbSize = compact
                 ? min(CGFloat(150), proxy.size.width * 0.38)
-                : min(CGFloat(250), proxy.size.width * 0.62, proxy.size.height * 0.34)
+                : min(CGFloat(210), proxy.size.width * 0.54, proxy.size.height * 0.29)
 
             ZStack {
                 Color.black
@@ -175,10 +183,29 @@ public struct VoiceOrbModalView: View {
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
 
-            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let confirmation = viewModel.pendingVoiceConfirmation {
+                VStack(spacing: 7) {
+                    Text("« \(confirmation) »")
+                        .font(.system(size: compact ? 14 : 15, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.84))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                    
+                    Text(statusSubtitle)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundColor(accent.opacity(0.90))
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.065))
+                )
+                .padding(.horizontal, 18)
+            } else if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(viewModel.liveTranscriptionText)
                     .font(.system(size: compact ? 14 : 15.5))
-                    .foregroundColor(Color.white.opacity(0.68))
+                    .foregroundColor(Color.white.opacity(0.72))
                     .multilineTextAlignment(.center)
                     .lineLimit(compact ? 2 : 3)
                     .padding(.horizontal, 22)
