@@ -833,9 +833,6 @@ private struct AgentsSettingsView: View {
 
 @available(iOS 15.0, *)
 private struct ConnectionsSettingsView: View {
-    @AppStorage("sarah.shortcuts.communitySigningEnabled")
-    private var communitySigningEnabled: Bool = false
-
     private struct Connection: Identifiable {
         let id: String
         let icon: String
@@ -920,7 +917,7 @@ private struct ConnectionsSettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Apple Raccourcis")
                                 .foregroundColor(.primary)
-                            Text("App Intents Sarah disponibles nativement")
+                            Text("App Intents Sarah + génération locale")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
@@ -928,10 +925,10 @@ private struct ConnectionsSettingsView: View {
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("Intégré")
+                            Text("100 % local")
                                 .font(.caption)
                                 .foregroundColor(.green)
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: "checkmark.shield.fill")
                                 .font(.caption.weight(.semibold))
                                 .foregroundColor(.green)
                         }
@@ -940,31 +937,12 @@ private struct ConnectionsSettingsView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                Toggle(isOn: $communitySigningEnabled) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Signature communautaire HubSign")
-                        Text("Transforme les workflows Sarah en .shortcut importables sans Mac.")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .tint(.blue)
-
-                if communitySigningEnabled {
-                    Label(
-                        "Le nom et le contenu XML du raccourci sont envoyés à HubSign, un service tiers de RoutineHub. Connexion Internet requise.",
-                        systemImage: "network"
-                    )
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                } else {
-                    Label(
-                        "Désactivé : Sarah garde les workflows uniquement sur l’iPhone et ouvre Raccourcis pour la finalisation.",
-                        systemImage: "iphone.and.arrow.forward"
-                    )
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                }
+                Label(
+                    "Les définitions de raccourcis restent sur l’iPhone. Sarah ouvre ensuite l’app Raccourcis pour la finalisation autorisée par iOS.",
+                    systemImage: "iphone.and.arrow.forward"
+                )
+                .font(.footnote)
+                .foregroundColor(.secondary)
             }
 
             Section("Services") {
@@ -1968,45 +1946,18 @@ private struct LegalNoticesView: View {
                     Link("Projet Shortcut Agent Skill", destination: URL(string: "https://github.com/owgit/shortcut-agent-skill")!)
                 }
 
-                Section("shortcut-signer — MIT") {
-                    Text("Sarah utilise une implémentation Swift indépendante du protocole HubSign documenté par le projet shortcut-signer. Le projet shortcut-signer est distribué sous licence MIT.")
-                    Text("""
-MIT License
-
-Copyright (c) 2026 Minis Automation Community
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to inclusion of the copyright and permission notice.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
-""")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .textSelection(.enabled)
-                    Link("Projet shortcut-signer", destination: URL(string: "https://github.com/wynx1123/shortcut-signer")!)
-                }
-
-                Section("HubSign / RoutineHub") {
-                    Text("La signature communautaire est facultative et désactivée par défaut. Quand elle est activée, Sarah envoie le nom et le plist XML du raccourci au service HubSign de RoutineHub et vérifie que la réponse commence par la signature AEA1 avant de proposer l’installation.")
-                        .font(.footnote)
-                    Text("HubSign est un service tiers : Sarah IA ne l’opère pas et ne peut pas garantir sa disponibilité. Aucun mot de passe, historique de discussion ou modèle IA n’est envoyé par ce module.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                    Link("RoutineHub", destination: URL(string: "https://routinehub.co")!)
-                }
-
-                Section("Apple Shortcuts & App Intents") {
-                    Text("Sarah IA expose ses propres actions directement dans l’app Raccourcis avec le framework public Apple App Intents. Ces actions sont enregistrées par iOS avec l’application ; elles ne nécessitent pas de fichier .shortcut externe à signer.")
+                Section("Apple Raccourcis & App Intents") {
+                    Text("Sarah IA expose ses propres actions directement dans l’app Raccourcis avec le framework public Apple App Intents.")
                     Text("Actions Sarah publiées : Demander à Sarah, Nouveau chat Sarah et Créer un brouillon de raccourci.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
-                    Text("Référence technique consultée pendant le développement : generate-shortcuts-skill, qui documente 427 actions WF* et 728 App Intents (1 155 entrées annoncées). Son README indique MIT, mais le dépôt ne contient pas de fichier LICENSE séparé au moment de l’intégration. Sarah ne redistribue donc pas ces fichiers de référence verbatim et conserve une implémentation indépendante.")
+                    Text("La génération de workflow est effectuée localement sur l’iPhone. Sarah ne transmet pas le contenu d’un raccourci à un service externe.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
-                    Text("Pour les raccourcis autonomes générés en plist, Apple ne fournit pas d’API publique iPhone permettant à une app tierce de signer silencieusement un .shortcut arbitraire. Sarah prépare le workflow et ouvre Raccourcis pour la finalisation. Les App Intents Sarah, eux, sont utilisables directement.")
+                    Text("Apple ne fournit pas d’API publique permettant à une app tierce d’injecter arbitrairement des blocs dans l’éditeur Raccourcis ou de signer localement un .shortcut arbitraire. Sarah prépare donc le workflow puis ouvre Raccourcis pour la finalisation.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Link("Documentation Apple App Intents", destination: URL(string: "https://developer.apple.com/documentation/appintents")!)
-                    Link("Référence generate-shortcuts-skill", destination: URL(string: "https://github.com/drewocarr/generate-shortcuts-skill")!)
                 }
 
                 Section("Génération d’images — cible locale") {
