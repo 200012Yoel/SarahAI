@@ -1840,6 +1840,15 @@ private struct LegalNoticesView: View {
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
                 }
 
+                Section("Shortcut Agent Skill — MIT") {
+                    Text("Référence de génération utilisée pour valider la structure plist, les UUID, les variables et les familles d’actions Apple Shortcuts. Le projet annonce 427+ actions prises en charge et est distribué sous licence MIT.")
+                    Text("Copyright (c) 2026 owgit — MIT License. Permission is hereby granted, free of charge, to use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software, subject to inclusion of the copyright and permission notice. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                    Link("Projet Shortcut Agent Skill", destination: URL(string: "https://github.com/owgit/shortcut-agent-skill")!)
+                }
+
                 Section("shortcut-signer — MIT") {
                     Text("Sarah utilise une implémentation Swift indépendante du protocole HubSign documenté par le projet shortcut-signer. Le projet shortcut-signer est distribué sous licence MIT.")
                     Text("""
