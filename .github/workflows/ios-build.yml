@@ -110,34 +110,37 @@ jobs:
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
 
-          # Signer d'abord tous les composants imbriqués, puis le bundle principal.
-          # Une dépendance dynamique non signée peut provoquer une fermeture immédiate au lancement.
-          if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
-            find "$APP_TARGET_DIR/Frameworks" -type d -name "*.framework" -print0 | while IFS= read -r -d '' FRAMEWORK; do
-              codesign -f -s - "$FRAMEWORK"
-            done
-          fi
+          # SideStore re-signe l'application avec le compte Apple de l'utilisateur.
+          # On publie donc une IPA propre et non pré-signée, comme la branche stable.
+          find "$APP_TARGET_DIR" -type d -name "_CodeSignature" -prune -exec rm -rf {} + 2>/dev/null || true
+          find "$APP_TARGET_DIR" -name "embedded.mobileprovision" -delete 2>/dev/null || true
+
+          # Validation stricte du bundle avant création de l'IPA.
+          MAIN_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_TARGET_DIR/Info.plist")
+          test -n "$MAIN_EXEC"
+          test -x "$APP_TARGET_DIR/$MAIN_EXEC"
 
           if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0 | while IFS= read -r -d '' APPEX; do
-              codesign -f -s - "$APPEX"
-            done
+            while IFS= read -r -d '' APPEX; do
+              APPEX_PLIST="$APPEX/Info.plist"
+              EXT_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APPEX_PLIST")
+              EXT_BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APPEX_PLIST")
+              echo "=== Extension : $EXT_BUNDLE / $EXT_EXEC ==="
+              test -n "$EXT_EXEC"
+              test -x "$APPEX/$EXT_EXEC"
+            done < <(find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0)
           fi
-
-          codesign -f -s - "$APP_TARGET_DIR"
-          codesign --verify --deep --strict "$APP_TARGET_DIR"
 
           echo "=== Structure du Bundle Final dans l'IPA ==="
-          ls -la "$APP_TARGET_DIR"
-          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            ls -la "$APP_TARGET_DIR/PlugIns"
-          fi
+          find "$APP_TARGET_DIR" -maxdepth 3 -print
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-          echo "=== Fichier SarahIA.ipa iOS 26 genere avec succes ==="
+          echo "=== Vérification de l'archive IPA ==="
+          unzip -t "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+          echo "=== Fichier SarahIA.ipa iOS 26 généré avec succès ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
 
       - name: Upload IPA Artifact
