@@ -5,15 +5,19 @@ import UIKit
 import AppIntents
 #endif
 
-/// Pont natif entre Sarah IA et Apple Shortcuts.
+/// Pont 100 % local entre Sarah IA et Apple Raccourcis.
 ///
-/// Principes :
-/// - Les actions Sarah sont exposées nativement à Raccourcis via App Intents (iOS 16+).
-/// - Sarah peut générer localement un brouillon plist de raccourci pour les workflows.
-/// - Un fichier .shortcut arbitraire ne peut pas être signé silencieusement sur iPhone
-///   par une API publique Apple ; Sarah n'affiche donc jamais une fausse "signature réussie".
-/// - Pour les actions Sarah elles-mêmes, App Intents évite totalement ce problème :
-///   iOS les publie directement dans l'app Raccourcis.
+/// Sarah peut :
+/// - proposer un plan d'actions ;
+/// - générer localement un plist Shortcuts ;
+/// - ouvrir l'éditeur Raccourcis ;
+/// - lancer ou ouvrir un raccourci déjà installé ;
+/// - exposer ses propres actions via App Intents.
+///
+/// Apple ne fournit pas d'API publique permettant à une app tierce d'injecter
+/// silencieusement des blocs arbitraires dans l'éditeur Raccourcis ou de signer
+/// localement un .shortcut arbitraire sur iPhone. Sarah reste donc strictement
+/// dans les API publiques et ne transmet aucune définition de raccourci à un serveur.
 public final class ShortcutGenerator {
 
     public static let shared = ShortcutGenerator()
@@ -34,59 +38,43 @@ public final class ShortcutGenerator {
         public let summary: String
     }
 
+    public struct PlanStep: Identifiable, Codable, Equatable {
+        public let id: UUID
+        public let title: String
+        public let actionIdentifier: String
+        public let explanation: String
+
+        public init(title: String, actionIdentifier: String, explanation: String) {
+            self.id = UUID()
+            self.title = title
+            self.actionIdentifier = actionIdentifier
+            self.explanation = explanation
+        }
+    }
+
     public enum ShortcutBuildError: LocalizedError {
         case serializationFailed
         case writeFailed
-        case communitySigningDisabled
-        case signingServiceUnavailable
-        case invalidSigningResponse
-        case presentationUnavailable
 
         public var errorDescription: String? {
             switch self {
             case .serializationFailed:
-                return "Impossible de sérialiser le brouillon Apple Shortcuts."
+                return "Impossible de sérialiser le brouillon Apple Raccourcis."
             case .writeFailed:
-                return "Impossible d'enregistrer le brouillon dans le dossier Shortcuts de Sarah."
-            case .communitySigningDisabled:
-                return "La signature communautaire est désactivée dans Réglages > Connexions > Apple Raccourcis."
-            case .signingServiceUnavailable:
-                return "Le service de signature communautaire est momentanément indisponible."
-            case .invalidSigningResponse:
-                return "Le service n'a pas renvoyé un fichier .shortcut signé valide."
-            case .presentationUnavailable:
-                return "Impossible d'afficher la feuille d'installation iOS."
+                return "Impossible d'enregistrer le brouillon local."
             }
         }
     }
 
-    /// Couverture documentaire de la référence Shortcuts utilisée pendant le développement.
-    /// Ces nombres décrivent la référence technique consultée, pas 1 155 fonctions codées
-    /// en dur dans Sarah.
     public static let documentedLegacyActionCount = 427
     public static let documentedAppIntentCount = 728
     public static let documentedActionCoverage = documentedLegacyActionCount + documentedAppIntentCount
 
-    /// Familles d'actions que le compilateur local de Sarah sait actuellement produire
-    /// de manière déterministe, sans demander à un LLM d'inventer des clés plist.
     public static let locallyValidatedActionFamilies: [String] = [
         "Texte", "Afficher le résultat", "Demander une saisie", "Notification",
         "Presse-papiers", "URL", "Ouvrir une URL", "Commentaire",
         "Batterie", "Date actuelle", "Attendre", "Vibrer"
     ]
-
-    private enum DefaultsKey {
-        static let communitySigningEnabled = "sarah.shortcuts.communitySigningEnabled"
-    }
-
-    private let hubSignURL = URL(string: "https://hubsign.routinehub.services/sign")!
-
-    /// Option volontaire : quand elle est activée, le plist du raccourci est envoyé
-    /// à HubSign (RoutineHub) afin de recevoir un fichier AEA1 importable sur iOS.
-    public var communitySigningEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: DefaultsKey.communitySigningEnabled) }
-        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.communitySigningEnabled) }
-    }
 
     private var shortcutsDirectory: URL {
         let fm = FileManager.default
@@ -100,7 +88,92 @@ public final class ShortcutGenerator {
 
     private init() {}
 
-    // MARK: - API historique
+    // MARK: - Plan local interactif
+
+    /// Prépare les étapes que l'interface Sarah peut faire confirmer une par une.
+    public func proposePlan(for prompt: String) -> [PlanStep] {
+        let lower = normalized(prompt)
+        var steps: [PlanStep] = []
+
+        steps.append(PlanStep(
+            title: "Commentaire Sarah",
+            actionIdentifier: "is.workflow.actions.comment",
+            explanation: "Ajoute une note expliquant la demande d'origine."
+        ))
+
+        if lower.contains("demande") || lower.contains("saisie") || lower.contains("question") {
+            steps.append(PlanStep(
+                title: "Demander une saisie",
+                actionIdentifier: "is.workflow.actions.ask",
+                explanation: "Demande une information à l'utilisateur."
+            ))
+        }
+
+        if lower.contains("batterie") {
+            steps.append(PlanStep(
+                title: "Niveau de batterie",
+                actionIdentifier: "is.workflow.actions.getbatterylevel",
+                explanation: "Récupère le niveau de batterie de l'iPhone."
+            ))
+        }
+
+        if lower.contains("presse papier") || lower.contains("presse-papier") || lower.contains("clipboard") {
+            steps.append(PlanStep(
+                title: "Presse-papiers",
+                actionIdentifier: lower.contains("copie") ? "is.workflow.actions.setclipboard" : "is.workflow.actions.getclipboard",
+                explanation: "Lit ou modifie le presse-papiers."
+            ))
+        }
+
+        if extractURL(from: prompt) != nil || lower.contains("url") || lower.contains("site") {
+            steps.append(PlanStep(
+                title: "Ouvrir une URL",
+                actionIdentifier: "is.workflow.actions.openurl",
+                explanation: "Ouvre l'adresse demandée."
+            ))
+        }
+
+        if lower.contains("notification") || lower.contains("alerte") || lower.contains("notifie") {
+            steps.append(PlanStep(
+                title: "Notification",
+                actionIdentifier: "is.workflow.actions.notification",
+                explanation: "Affiche une notification locale."
+            ))
+        }
+
+        if lower.contains("attend") || lower.contains("pause") {
+            steps.append(PlanStep(
+                title: "Attendre",
+                actionIdentifier: "is.workflow.actions.delay",
+                explanation: "Insère une courte attente."
+            ))
+        }
+
+        if lower.contains("vibre") || lower.contains("vibration") {
+            steps.append(PlanStep(
+                title: "Vibrer",
+                actionIdentifier: "is.workflow.actions.vibrate",
+                explanation: "Déclenche une vibration."
+            ))
+        }
+
+        if steps.count == 1 {
+            steps.append(PlanStep(
+                title: "Texte",
+                actionIdentifier: "is.workflow.actions.gettext",
+                explanation: "Prépare le texte demandé."
+            ))
+            steps.append(PlanStep(
+                title: "Afficher le résultat",
+                actionIdentifier: "is.workflow.actions.showresult",
+                explanation: "Affiche le résultat à l'écran."
+            ))
+        }
+
+        return steps
+    }
+
+    // MARK: - Génération locale
 
     public func createShortcut(
         title: String,
@@ -123,11 +196,6 @@ public final class ShortcutGenerator {
         return schema
     }
 
-    // MARK: - Génération locale de brouillons
-
-    /// Construit un plist Shortcuts réel à partir des intentions courantes.
-    /// Le résultat reste un brouillon non signé tant qu'il n'est pas finalisé
-    /// par l'app Raccourcis / un outil Apple de signature.
     public func createDraft(title: String, prompt: String) throws -> DraftResult {
         let finalTitle = normalizedTitle(title)
         let actions = buildActions(from: prompt, title: finalTitle)
@@ -175,44 +243,39 @@ public final class ShortcutGenerator {
             plistString: plist,
             fileURL: url,
             actionCount: actions.count,
-            summary: "Brouillon « \(finalTitle) » créé avec \(actions.count) action(s). Il peut être inspecté dans Sarah puis finalisé dans Apple Raccourcis."
+            summary: "Brouillon local « \(finalTitle) » créé avec \(actions.count) action(s)."
         )
     }
 
     public func createDraftJSON(title: String, prompt: String) -> String {
         do {
-            let draft = try createDraft(title: title, prompt: prompt)
-            return draft.plistString
+            return try createDraft(title: title, prompt: prompt).plistString
         } catch {
-            return "Erreur Shortcuts : \(error.localizedDescription)"
+            return "Erreur Raccourcis : \(error.localizedDescription)"
         }
     }
 
-    // MARK: - Connexion à l'app Raccourcis
+    // MARK: - Apple Raccourcis
 
-    /// Ouvre l'app Raccourcis.
     @MainActor
     public func openShortcutsApp() {
         guard let url = URL(string: "shortcuts://") else { return }
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        UIApplication.shared.open(url)
     }
 
-    /// Ouvre l'éditeur d'un nouveau raccourci.
     @MainActor
     public func openShortcutCreation() {
         guard let url = URL(string: "shortcuts://create-shortcut") else {
             openShortcutsApp()
             return
         }
-        UIApplication.shared.open(url, options: [:]) { success in
+        UIApplication.shared.open(url) { success in
             if !success {
                 self.openShortcutsApp()
             }
         }
     }
 
-    /// Exécute un raccourci déjà présent dans la bibliothèque de l'utilisateur.
-    /// Le nom est encodé et l'entrée texte est transmise par l'URL officielle.
     @MainActor
     public func runInstalledShortcut(named name: String, input: String? = nil) {
         var components = URLComponents()
@@ -227,11 +290,10 @@ public final class ShortcutGenerator {
         components.queryItems = items
 
         if let url = components.url {
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            UIApplication.shared.open(url)
         }
     }
 
-    /// Ouvre un raccourci existant dans l'éditeur Shortcuts.
     @MainActor
     public func openInstalledShortcut(named name: String) {
         var components = URLComponents()
@@ -240,291 +302,85 @@ public final class ShortcutGenerator {
         components.queryItems = [URLQueryItem(name: "name", value: name)]
 
         if let url = components.url {
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            UIApplication.shared.open(url)
         }
     }
 
-    // MARK: - Signature communautaire optionnelle
-
-    /// Génère, signe et prépare l'installation d'un raccourci.
-    /// Le service HubSign reçoit le XML du raccourci. L'option doit être activée
-    /// explicitement par l'utilisateur dans Réglages.
-    public func buildInstallableShortcut(
-        title: String,
-        prompt: String,
-        completion: @escaping (Result<URL, Error>) -> Void
-    ) {
-        guard communitySigningEnabled else {
-            completion(.failure(ShortcutBuildError.communitySigningDisabled))
-            return
-        }
-
-        let draft: DraftResult
-        do {
-            draft = try createDraft(title: title, prompt: prompt)
-        } catch {
-            completion(.failure(error))
-            return
-        }
-
-        signWithHubSign(
-            title: draft.title,
-            plistString: draft.plistString
-        ) { [weak self] result in
-            guard let self = self else { return }
-
-            switch result {
-            case .success(let signedData):
-                let destination = self.shortcutsDirectory
-                    .appendingPathComponent("\(self.safeFilename(draft.title)).signed.shortcut")
-
-                do {
-                    try signedData.write(to: destination, options: .atomic)
-                    completion(.success(destination))
-                } catch {
-                    completion(.failure(ShortcutBuildError.writeFailed))
-                }
-
-            case .failure(let error):
-                completion(.failure(error))
-            }
-        }
-    }
-
-    /// HubSign est un service tiers de RoutineHub. Aucun secret Sarah n'est envoyé :
-    /// uniquement le nom et le XML du raccourci que l'utilisateur vient de demander.
-    private func signWithHubSign(
-        title: String,
-        plistString: String,
-        completion: @escaping (Result<Data, Error>) -> Void
-    ) {
-        let payload: [String: String] = [
-            "shortcutName": title,
-            "shortcut": plistString
-        ]
-
-        guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
-            completion(.failure(ShortcutBuildError.serializationFailed))
-            return
-        }
-
-        var request = URLRequest(url: hubSignURL)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.httpBody = body
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("SarahIA/4.0", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://routinehub.co", forHTTPHeaderField: "Origin")
-        request.setValue("https://routinehub.co/", forHTTPHeaderField: "Referer")
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if error != nil {
-                completion(.failure(ShortcutBuildError.signingServiceUnavailable))
-                return
-            }
-
-            guard let http = response as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode),
-                  let data = data,
-                  data.count > 4 else {
-                completion(.failure(ShortcutBuildError.signingServiceUnavailable))
-                return
-            }
-
-            guard self.isSignedShortcut(data) else {
-                completion(.failure(ShortcutBuildError.invalidSigningResponse))
-                return
-            }
-
-            completion(.success(data))
-        }.resume()
-    }
-
-    private func isSignedShortcut(_ data: Data) -> Bool {
-        guard data.count >= 4 else { return false }
-        return String(data: data.prefix(4), encoding: .ascii) == "AEA1"
-    }
-
-    /// Présente la feuille iOS avec le fichier signé. L'utilisateur choisit ensuite
-    /// Raccourcis / Ajouter le raccourci. Apple exige cette confirmation humaine.
-    @MainActor
-    public func presentInstallSheet(for fileURL: URL) throws {
-        guard let presenter = Self.topViewController() else {
-            throw ShortcutBuildError.presentationUnavailable
-        }
-
-        let activity = UIActivityViewController(
-            activityItems: [fileURL],
-            applicationActivities: nil
-        )
-
-        if let popover = activity.popoverPresentationController {
-            popover.sourceView = presenter.view
-            popover.sourceRect = CGRect(
-                x: presenter.view.bounds.midX,
-                y: presenter.view.bounds.maxY - 40,
-                width: 1,
-                height: 1
-            )
-        }
-
-        presenter.present(activity, animated: true)
-    }
-
-    @MainActor
-    private static func topViewController(
-        from base: UIViewController? = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first(where: { $0.isKeyWindow })?
-            .rootViewController
-    ) -> UIViewController? {
-        if let navigation = base as? UINavigationController {
-            return topViewController(from: navigation.visibleViewController)
-        }
-
-        if let tab = base as? UITabBarController,
-           let selected = tab.selectedViewController {
-            return topViewController(from: selected)
-        }
-
-        if let presented = base?.presentedViewController {
-            return topViewController(from: presented)
-        }
-
-        return base
-    }
-
-    // MARK: - Compilateur déterministe
+    // MARK: - Actions plist
 
     private func buildActions(from prompt: String, title: String) -> [[String: Any]] {
-        let lower = prompt
-            .lowercased()
-            .folding(options: .diacriticInsensitive, locale: .current)
-
+        let lower = normalized(prompt)
         var actions: [[String: Any]] = [
             action(
                 "is.workflow.actions.comment",
-                [
-                    "WFCommentActionText":
-                        "Créé par Sarah IA. Demande originale : \(prompt)"
-                ]
+                ["WFCommentActionText": "Créé localement par Sarah IA. Demande : \(prompt)"]
             )
         ]
 
-        if lower.contains("demande") || lower.contains("saisie") || lower.contains("ask") {
-            actions.append(
-                action(
-                    "is.workflow.actions.ask",
-                    [
-                        "WFAskActionPrompt": extractQuotedText(from: prompt) ?? "Que souhaitez-vous saisir ?",
-                        "WFInputType": "Text"
-                    ]
-                )
-            )
+        if lower.contains("demande") || lower.contains("saisie") || lower.contains("question") {
+            actions.append(action(
+                "is.workflow.actions.ask",
+                [
+                    "WFAskActionPrompt": extractQuotedText(from: prompt) ?? "Que souhaitez-vous saisir ?",
+                    "WFInputType": "Text"
+                ]
+            ))
         }
 
-        if lower.contains("batterie") || lower.contains("battery") {
-            actions.append(
-                action(
-                    "is.workflow.actions.getbatterylevel",
-                    [:]
-                )
-            )
+        if lower.contains("batterie") {
+            actions.append(action("is.workflow.actions.getbatterylevel", [:]))
         }
 
-        if lower.contains("date") || lower.contains("heure") || lower.contains("time") {
-            actions.append(
-                action(
-                    "is.workflow.actions.date",
-                    [:]
-                )
-            )
+        if lower.contains("date") || lower.contains("heure") {
+            actions.append(action("is.workflow.actions.date", [:]))
         }
 
-        if lower.contains("presse-papier") || lower.contains("presse papier") || lower.contains("clipboard") {
-            if lower.contains("copie") || lower.contains("mettre") || lower.contains("set") {
-                actions.append(
-                    action(
-                        "is.workflow.actions.setclipboard",
-                        ["WFText": extractQuotedText(from: prompt) ?? prompt]
-                    )
-                )
+        if lower.contains("presse papier") || lower.contains("presse-papier") || lower.contains("clipboard") {
+            if lower.contains("copie") || lower.contains("mettre") {
+                actions.append(action(
+                    "is.workflow.actions.setclipboard",
+                    ["WFText": extractQuotedText(from: prompt) ?? prompt]
+                ))
             } else {
-                actions.append(
-                    action(
-                        "is.workflow.actions.getclipboard",
-                        [:]
-                    )
-                )
+                actions.append(action("is.workflow.actions.getclipboard", [:]))
             }
         }
 
         if let url = extractURL(from: prompt) {
-            actions.append(
-                action(
-                    "is.workflow.actions.url",
-                    ["WFURLActionURL": url]
-                )
-            )
-            actions.append(
-                action(
-                    "is.workflow.actions.openurl",
-                    [:]
-                )
-            )
+            actions.append(action("is.workflow.actions.url", ["WFURLActionURL": url]))
+            actions.append(action("is.workflow.actions.openurl", [:]))
         }
 
-        if lower.contains("notification") || lower.contains("notifie") || lower.contains("alerte") {
-            actions.append(
-                action(
-                    "is.workflow.actions.notification",
-                    [
-                        "WFNotificationActionTitle": title,
-                        "WFNotificationActionBody": extractQuotedText(from: prompt) ?? prompt
-                    ]
-                )
-            )
+        if lower.contains("notification") || lower.contains("alerte") || lower.contains("notifie") {
+            actions.append(action(
+                "is.workflow.actions.notification",
+                [
+                    "WFNotificationActionTitle": title,
+                    "WFNotificationActionBody": extractQuotedText(from: prompt) ?? prompt
+                ]
+            ))
         }
 
-        if lower.contains("attends") || lower.contains("attendre") || lower.contains("wait") {
-            actions.append(
-                action(
-                    "is.workflow.actions.delay",
-                    ["WFDelayTime": 1]
-                )
-            )
+        if lower.contains("attend") || lower.contains("pause") {
+            actions.append(action("is.workflow.actions.delay", ["WFDelayTime": 1]))
         }
 
-        if lower.contains("vibre") || lower.contains("vibrer") || lower.contains("vibration") {
-            actions.append(
-                action(
-                    "is.workflow.actions.vibrate",
-                    [:]
-                )
-            )
+        if lower.contains("vibre") || lower.contains("vibration") {
+            actions.append(action("is.workflow.actions.vibrate", [:]))
         }
 
-        if lower.contains("texte") || lower.contains("text") || actions.count == 1 {
-            actions.append(
-                action(
-                    "is.workflow.actions.gettext",
-                    [
-                        "WFTextActionText": extractQuotedText(from: prompt) ?? prompt
-                    ]
-                )
-            )
+        if lower.contains("texte") || actions.count == 1 {
+            actions.append(action(
+                "is.workflow.actions.gettext",
+                ["WFTextActionText": extractQuotedText(from: prompt) ?? prompt]
+            ))
         }
 
-        if lower.contains("affiche") || lower.contains("montre") || lower.contains("show") || actions.count == 2 {
-            actions.append(
-                action(
-                    "is.workflow.actions.showresult",
-                    [
-                        "Text": "Exécution terminée par Sarah IA"
-                    ]
-                )
-            )
+        if lower.contains("affiche") || lower.contains("montre") || actions.count == 2 {
+            actions.append(action(
+                "is.workflow.actions.showresult",
+                ["Text": "Exécution terminée par Sarah IA"]
+            ))
         }
 
         return actions
@@ -537,6 +393,11 @@ public final class ShortcutGenerator {
             "WFWorkflowActionIdentifier": identifier,
             "WFWorkflowActionParameters": mutable
         ]
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 
     private func normalizedTitle(_ title: String) -> String {
@@ -557,20 +418,11 @@ public final class ShortcutGenerator {
             return nil
         }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return detector
-            .firstMatch(in: text, options: [], range: range)?
-            .url?
-            .absoluteString
+        return detector.firstMatch(in: text, options: [], range: range)?.url?.absoluteString
     }
 
     private func extractQuotedText(from text: String) -> String? {
-        let patterns = [
-            "«([^»]+)»",
-            "\"([^\"]+)\"",
-            "“([^”]+)”"
-        ]
-
-        for pattern in patterns {
+        for pattern in ["«([^»]+)»", "\"([^\"]+)\"", "“([^”]+)”"] {
             guard let regex = try? NSRegularExpression(pattern: pattern),
                   let match = regex.firstMatch(
                     in: text,
@@ -622,10 +474,7 @@ public struct NewSarahChatIntent: AppIntent {
     public init() {}
 
     public func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: .sarahStartNewChat,
-            object: nil
-        )
+        NotificationCenter.default.post(name: .sarahStartNewChat, object: nil)
         return .result()
     }
 }
@@ -634,7 +483,7 @@ public struct NewSarahChatIntent: AppIntent {
 public struct CreateSarahShortcutDraftIntent: AppIntent {
     public static var title: LocalizedStringResource = "Créer un brouillon de raccourci"
     public static var description = IntentDescription(
-        "Demande à Sarah de préparer un workflow Apple Shortcuts local."
+        "Demande à Sarah de préparer localement un workflow Apple Raccourcis."
     )
 
     @Parameter(title: "Nom")
