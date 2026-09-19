@@ -891,6 +891,43 @@ private struct ConnectionsSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Apple") {
+                Button {
+                    HapticService.shared.buttonTap()
+                    ShortcutGenerator.shared.openShortcutsApp()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: 34, height: 34)
+                            .background(Color.blue.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple Raccourcis")
+                                .foregroundColor(.primary)
+                            Text("App Intents Sarah disponibles nativement")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Intégré")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+
             Section("Services") {
                 ForEach(connections) { connection in
                     Button {
@@ -1831,6 +1868,17 @@ private struct LegalNoticesView: View {
                 Section("Composants Apple") {
                     Text("Sarah IA utilise les frameworks système Apple, notamment SwiftUI, UIKit, Foundation, AVFoundation, Speech, Vision, WebKit et Core ML. Ces composants sont fournis avec iOS et soumis aux conditions Apple applicables.")
                         .font(.footnote)
+                }
+
+                Section("Conditions d’utilisation — Raccourcis") {
+                    Text("Les automatisations générées par Sarah doivent être vérifiées par l’utilisateur avant exécution. Certaines actions peuvent demander des autorisations iOS supplémentaires ou dépendre d’apps installées sur l’iPhone.")
+                        .font(.footnote)
+                    Text("Sarah respecte les protections d’iOS : elle ne contourne pas les permissions, ne modifie pas silencieusement la bibliothèque Raccourcis et ne prétend pas signer un fichier lorsque l’API publique Apple ne le permet pas.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La disponibilité exacte d’une action dépend de la version d’iOS, des apps présentes et des autorisations accordées par l’utilisateur.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
 
                 Section("Information importante") {
