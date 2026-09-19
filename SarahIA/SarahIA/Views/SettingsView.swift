@@ -100,6 +100,16 @@ public struct SettingsView: View {
                             settingsDivider
 
                             settingsLink(
+                                destination: WidgetsHealthSettingsView(),
+                                icon: "rectangle.grid.2x2.fill",
+                                tint: .cyan,
+                                title: "Widgets et Santé",
+                                detail: "Tableau Santé, activité Sarah et accès rapides"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
                                 destination: DataAndConversationsSettingsView(
                                     viewModel: viewModel,
                                     onStartNewChat: startNewChatAndDismiss
@@ -1689,6 +1699,115 @@ private struct SarahEngineSettingsView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color.white.opacity(0.075))
         )
+    }
+}
+
+@available(iOS 15.0, *)
+private struct WidgetsHealthSettingsView: View {
+    @State private var healthEnabled = WidgetDataBridge.shared.isHealthWidgetEnabled
+    @State private var statusText = ""
+    @State private var isRequesting = false
+
+    var body: some View {
+        List {
+            Section("Widgets disponibles") {
+                widgetRow(
+                    icon: "heart.text.square.fill",
+                    title: "Sarah · Santé",
+                    detail: "Pas, distance, calories actives, exercice, activité, fréquence cardiaque au repos et tendance."
+                )
+                widgetRow(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    title: "Sarah · Activité",
+                    detail: "Questions aujourd’hui, sur 7 jours, 30 jours et nombre de discussions."
+                )
+                widgetRow(
+                    icon: "bolt.fill",
+                    title: "Sarah · Rapide",
+                    detail: "Chat, mode vocal et Apple Raccourcis."
+                )
+            }
+
+            Section("Apple Santé") {
+                Toggle("Afficher le résumé Santé dans le widget", isOn: Binding(
+                    get: { healthEnabled },
+                    set: { value in
+                        healthEnabled = value
+                        WidgetDataBridge.shared.isHealthWidgetEnabled = value
+                        if value {
+                            WidgetDataBridge.shared.refreshHealthSnapshot()
+                        }
+                    }
+                ))
+                .tint(.cyan)
+
+                Button {
+                    isRequesting = true
+                    statusText = "Demande d’autorisation…"
+                    WidgetDataBridge.shared.requestHealthAuthorization { result in
+                        DispatchQueue.main.async {
+                            isRequesting = false
+                            switch result {
+                            case .success(let allowed):
+                                healthEnabled = allowed
+                                statusText = allowed
+                                    ? "Accès Santé prêt. Les widgets seront actualisés."
+                                    : "HealthKit n’est pas disponible ou l’accès n’a pas été accordé."
+                            case .failure(let error):
+                                statusText = error.localizedDescription
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "heart.circle.fill")
+                        Text(isRequesting ? "Autorisation en cours…" : "Autoriser et actualiser Santé")
+                        Spacer()
+                        if isRequesting {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRequesting)
+
+                Text("Sarah lit uniquement les catégories nécessaires au tableau : pas, distance marche/course, calories actives, minutes d’exercice, temps debout et fréquence cardiaque au repos. Les données détaillées restent dans HealthKit ; le widget reçoit seulement un résumé via l’App Group.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                if !statusText.isEmpty {
+                    Text(statusText)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Confidentialité") {
+                Text("Les informations Santé affichées sur un widget peuvent être visibles sur l’écran d’accueil. Désactivez le widget Santé si vous ne souhaitez pas qu’un résumé d’activité soit visible sans ouvrir Sarah.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Widgets et Santé")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func widgetRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.cyan)
+                .frame(width: 32, height: 32)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 }
 
