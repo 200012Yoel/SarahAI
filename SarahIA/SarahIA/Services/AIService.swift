@@ -116,6 +116,16 @@ public final class AIService {
         
         let normalized = normalizeText(trimmed)
         
+        // 0.1 SALUTATIONS : priorité absolue sur toute action système/média.
+        // Une salutation ne doit jamais ouvrir une app ni lancer de musique.
+        if let greeting = immediateGreetingResponse(for: normalized) {
+            recordExchange(userText: trimmed, assistantResponse: greeting)
+            DispatchQueue.main.async {
+                completion(greeting)
+            }
+            return
+        }
+        
         // 0.3 GÉNÉRATION MUSICALE LOCALE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
             let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
@@ -327,6 +337,10 @@ public final class AIService {
     public func generateSyncResponse(for question: String) -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)
+        
+        if let greeting = immediateGreetingResponse(for: normalized) {
+            return greeting
+        }
         
         // 0. COMMANDE D'ARRÊT & FERMETURE IMMÉDIATE ("Casse-toi", "Tais-toi", "Ferme-la", "Ferme les conf", "Arrête tout")
         if normalized.contains("casse toi") || normalized.contains("casse-toi") || normalized.contains("cassetoi") ||
@@ -709,6 +723,25 @@ public final class AIService {
         return syncResponse
     }
     
+    /// Réponse déterministe aux salutations simples.
+    /// Gardée volontairement séparée des actions matérielles afin qu'aucun
+    /// faux positif de reconnaissance vocale ne déclenche musique/caméra/etc.
+    private func immediateGreetingResponse(for normalized: String) -> String? {
+        let greetings: Set<String> = [
+            "bonjour", "salut", "coucou", "hello", "bonsoir",
+            "yo", "wesh", "re",
+            "bonjour sarah", "salut sarah", "coucou sarah", "bonsoir sarah"
+        ]
+        
+        guard greetings.contains(normalized) else { return nil }
+        
+        let hour = Calendar.current.component(.hour, from: Date())
+        if hour >= 18 || hour < 5 {
+            return "Bonsoir ! 🌙 Sarah à ton écoute. Qu’est-ce que je peux faire pour toi ?"
+        }
+        return "Bonjour ! 👋 Sarah à ton écoute. Qu’est-ce que je peux faire pour toi ?"
+    }
+    
     // MARK: - Dynamic Memory Mesh (Brain Vault Integration)
     
     /// Balaye automatiquement la phrase pour repérer les mots-clés du coffre mémoire et injecter les faits appris
@@ -856,9 +889,17 @@ public final class AIService {
         }
         
         // 0.4 Musique & Lecteur Audio (Apple Music / Spotify)
-        if normalized.contains("mets de la musique") || normalized.contains("lance de la musique") || normalized.contains("joue de la musique") ||
-           normalized.contains("ouvre apple music") || normalized.contains("ouvre spotify") || normalized.contains("mets de la zik") ||
-           normalized.contains("mets spotify") || normalized.contains("lance spotify") || normalized.contains("musique") && (normalized.contains("mets") || normalized.contains("lance")) {
+        let explicitMusicPlayback =
+            normalized.hasPrefix("mets de la musique") ||
+            normalized.hasPrefix("lance de la musique") ||
+            normalized.hasPrefix("joue de la musique") ||
+            normalized.hasPrefix("ouvre apple music") ||
+            normalized.hasPrefix("ouvre spotify") ||
+            normalized.hasPrefix("mets de la zik") ||
+            normalized.hasPrefix("mets spotify") ||
+            normalized.hasPrefix("lance spotify")
+        
+        if explicitMusicPlayback {
             var musicQuery = normalized.replacingOccurrences(of: "mets de la musique", with: "")
                 .replacingOccurrences(of: "lance de la musique", with: "")
                 .replacingOccurrences(of: "joue de la musique", with: "")

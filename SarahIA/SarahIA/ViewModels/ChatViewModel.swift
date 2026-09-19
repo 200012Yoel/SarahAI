@@ -350,12 +350,21 @@ public final class ChatViewModel: ObservableObject {
         
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
-            let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Une transcription ne doit jamais être envoyée pendant que Sarah parle.
+            guard !self.voiceManager.isSpeaking else { return }
+            
+            let cleaned = self.sanitizeVoiceTranscript(finalTranscription)
             guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
                 return
             }
-            self.liveTranscriptionText = ""
+            
+            // On conserve ce que l'iPhone a réellement compris pendant le traitement.
+            // Cela évite l'effet "boîte noire" et permet de repérer immédiatement
+            // une éventuelle mauvaise reconnaissance.
+            self.liveTranscriptionText = cleaned
+            self.voiceStatus = .processing
             self.sendMessage(cleaned)
         }
         
@@ -372,15 +381,42 @@ public final class ChatViewModel: ObservableObject {
             self.haptics.speechFinished()
             
             if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.80) {
                     guard self.isContinuousConversationActive,
                           self.isShowingVoiceOrbModal,
                           !self.voiceManager.isSpeaking else { return }
+                    self.liveTranscriptionText = ""
+                    AudioSessionManager.shared.deactivateSession()
                     AppleSpeechRecognizer.shared.startListening()
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
                 }
             }
+        }
+    }
+    
+    private func sanitizeVoiceTranscript(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        
+        let normalized = trimmed
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        
+        // Canoniser les salutations courtes, très fréquentes en vocal.
+        switch normalized {
+        case "bonjour", "bonjour sarah", "bon jour":
+            return "bonjour"
+        case "salut", "salut sarah", "coucou", "coucou sarah":
+            return "salut"
+        case "bonsoir", "bonsoir sarah":
+            return "bonsoir"
+        default:
+            return trimmed
         }
     }
     

@@ -79,38 +79,52 @@ public final class SarahLocalMusicGenEngine {
 
     public func detectIntent(_ text: String) -> MusicIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean.lowercased()
+        let lower = clean
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
 
-        let triggers = [
-            "génère une musique", "genere une musique",
-            "génère un morceau", "genere un morceau",
-            "compose une musique", "compose un morceau",
-            "crée une musique", "cree une musique",
-            "fais une musique", "fais un morceau",
-            "generate music", "generate a song",
-            "instrumental", "chanson avec paroles"
+        // Un nom de média seul ("instrumental", "chanson", "musique") n'est
+        // jamais suffisant. Il faut une vraie intention de création explicite.
+        let creationVerbs = [
+            "genere", "compose", "cree", "fais", "fabrique", "produis",
+            "generate", "create", "make", "compose"
+        ]
+        let musicNouns = [
+            "musique", "morceau", "instrumental", "chanson", "beat",
+            "music", "song", "track"
         ]
 
-        let isIntent = triggers.contains { lower.contains($0) }
+        let words = Set(lower.split(separator: " ").map(String.init))
+        let hasCreationVerb = creationVerbs.contains { words.contains($0) }
+        let hasMusicNoun = musicNouns.contains { words.contains($0) }
+        let isIntent = hasCreationVerb && hasMusicNoun
+
         let wantsLyrics =
-            lower.contains("paroles")
-            || lower.contains("lyrics")
-            || lower.contains("chanson")
-            || lower.contains("song")
+            words.contains("paroles")
+            || words.contains("lyrics")
+            || words.contains("chanson")
+            || words.contains("song")
 
         let language = (
-            lower.contains("anglais")
-            || lower.contains("english")
+            words.contains("anglais")
+            || words.contains("english")
         ) ? "en" : "fr"
 
-        var prompt = clean
-        for trigger in triggers {
-            prompt = prompt.replacingOccurrences(
-                of: trigger,
-                with: "",
-                options: .caseInsensitive
-            )
-        }
+        let removableWords = Set(creationVerbs + [
+            "une", "un", "de", "du", "des", "moi", "me",
+            "musique", "morceau", "instrumental", "chanson",
+            "music", "song", "track"
+        ])
+        
+        var prompt = lower
+            .split(separator: " ")
+            .map(String.init)
+            .filter { !removableWords.contains($0) }
+            .joined(separator: " ")
 
         prompt = prompt.trimmingCharacters(
             in: CharacterSet.whitespacesAndNewlines

@@ -141,7 +141,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
         request.shouldReportPartialResults = true
         if #available(iOS 13.0, *) {
-            request.requiresOnDeviceRecognition = false
+            // Utiliser le moteur Apple embarqué quand il est disponible.
+            // Sinon iOS conserve automatiquement son moteur de reconnaissance standard.
+            request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         }
 
         let inputNode = audioEngine.inputNode
@@ -257,8 +259,14 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     }
     
     private func finalizeTranscription(_ text: String) {
-        let textToSend = text
+        let textToSend = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textToSend.isEmpty else {
+            stopListening()
+            return
+        }
+        
         stopListening()
+        currentLiveText = textToSend
         state = .processing
         HapticService.shared.notificationSuccess()
         onFinalTranscription?(textToSend)

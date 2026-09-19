@@ -65,6 +65,13 @@ public final class MultiAgentCoordinator {
             return
         }
         
+        // 1.5 Les salutations simples sont conversationnelles, jamais des commandes.
+        // Ce garde-fou passe avant les moteurs musique, média, code et autres outils.
+        if isSimpleGreeting(normalized) {
+            completion(makeGreetingResponse(for: sourceAgent))
+            return
+        }
+        
         // 2. Détermination de l'agent actif. Le sélecteur visuel reste le contexte
         // par défaut, mais une demande qui cite un spécialiste doit être routée
         // vers celui-ci (ex. « Raphaël, génère un site Internet »).
@@ -97,6 +104,49 @@ public final class MultiAgentCoordinator {
         case .ethel:
             processWithEthel(text: trimmed, completion: completion)
         }
+    }
+    
+    private func isSimpleGreeting(_ normalized: String) -> Bool {
+        let greetings: Set<String> = [
+            "bonjour", "salut", "coucou", "hello", "bonsoir",
+            "yo", "wesh", "re",
+            "bonjour sarah", "salut sarah", "coucou sarah", "bonsoir sarah"
+        ]
+        return greetings.contains(normalized)
+    }
+    
+    private func makeGreetingResponse(for agent: AgentType) -> AgentResponse {
+        let text: String
+        let spoken: String
+        
+        switch agent {
+        case .sarah:
+            text = "👋 **Bonjour !** Je suis Sarah. Qu’est-ce que je peux faire pour toi ?"
+            spoken = "Bonjour ! Je suis Sarah. Qu'est-ce que je peux faire pour toi ?"
+        case .tom:
+            text = "🌍 **Bonjour !** Tom à l’écoute. De quoi veux-tu parler ?"
+            spoken = "Bonjour ! Tom à l'écoute. De quoi veux-tu parler ?"
+        case .esther:
+            text = "💻 **Bonjour !** Raphaël à l’écoute. Qu’est-ce qu’on construit ?"
+            spoken = "Bonjour ! Raphaël à l'écoute. Qu'est-ce qu'on construit ?"
+        case .yohan:
+            text = "🇮🇱 **Bonjour !** Yohan à l’écoute. Que veux-tu traduire ou apprendre ?"
+            spoken = "Bonjour ! Yohan à l'écoute. Que veux-tu traduire ou apprendre ?"
+        case .nathan:
+            text = "🤖 **Bonjour !** Nathan à l’écoute. Qu’est-ce que tu veux préparer ?"
+            spoken = "Bonjour ! Nathan à l'écoute. Qu'est-ce que tu veux préparer ?"
+        case .ethel:
+            text = "✨ **Bonjour !** Ethel à l’écoute. Qu’est-ce qu’on imagine ?"
+            spoken = "Bonjour ! Ethel à l'écoute. Qu'est-ce qu'on imagine ?"
+        }
+        
+        return AgentResponse(
+            agent: agent,
+            text: text,
+            spokenText: spoken,
+            openStudio: false,
+            generatedCode: nil
+        )
     }
     
     // MARK: - Conscience de Soi & Connaissance de l'Équipe (Sarah, Tom, Raphaël, Yohan, Nathan, Ethel)
