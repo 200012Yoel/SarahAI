@@ -687,15 +687,43 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
-            completion(AgentResponse(
-                agent: .esther,
-                text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
-            ))
+            do {
+                let draft = try ShortcutGenerator.shared.createDraft(
+                    title: "Automatisation Sarah",
+                    prompt: prompt
+                )
+
+                DispatchQueue.main.async {
+                    ShortcutGenerator.shared.openShortcutCreation()
+                }
+
+                let responseText = """
+                💻 **Raphaël [Apple Shortcuts]**
+
+                J’ai préparé un vrai brouillon Shortcuts **« \(draft.title) »** avec **\(draft.actionCount) action(s)** dans `Documents/Shortcuts/`.
+
+                J’ouvre aussi l’app **Raccourcis** pour que tu puisses le finaliser. Les actions natives de Sarah (**Demander à Sarah**, **Nouveau chat Sarah**, **Créer un brouillon**) apparaissent directement dans Raccourcis via App Intents.
+
+                ⚠️ iOS ne donne pas aux apps tierces une API publique pour signer silencieusement un fichier `.shortcut` arbitraire sur l’iPhone. Sarah n’affichera donc jamais une fausse signature réussie.
+                """
+
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: responseText,
+                    spokenText: "Le brouillon du raccourci est prêt et j'ouvre Apple Raccourcis pour le finaliser.",
+                    openStudio: true,
+                    generatedCode: draft.plistString
+                ))
+            } catch {
+                let responseText = "💻 **Raphaël [Apple Shortcuts]**\n\nImpossible de préparer le brouillon : \(error.localizedDescription)"
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: responseText,
+                    spokenText: "Je n'ai pas pu préparer ce raccourci.",
+                    openStudio: false,
+                    generatedCode: nil
+                ))
+            }
         }
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
         // prétendue compilée ici : Raphaël prépare le fichier et laisse le Studio en option.
