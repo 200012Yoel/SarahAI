@@ -1774,6 +1774,21 @@ private struct LegalNoticesView: View {
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
                 }
 
+                Section("Apple Shortcuts & App Intents") {
+                    Text("Sarah IA expose ses propres actions directement dans l’app Raccourcis avec le framework public Apple App Intents. Ces actions sont enregistrées par iOS avec l’application ; elles ne nécessitent pas de fichier .shortcut externe à signer.")
+                    Text("Actions Sarah publiées : Demander à Sarah, Nouveau chat Sarah et Créer un brouillon de raccourci.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("Référence technique consultée pendant le développement : generate-shortcuts-skill, qui documente 427 actions WF* et 728 App Intents (1 155 entrées annoncées). Son README indique MIT, mais le dépôt ne contient pas de fichier LICENSE séparé au moment de l’intégration. Sarah ne redistribue donc pas ces fichiers de référence verbatim et conserve une implémentation indépendante.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("Pour les raccourcis autonomes générés en plist, Apple ne fournit pas d’API publique iPhone permettant à une app tierce de signer silencieusement un .shortcut arbitraire. Sarah prépare le workflow et ouvre Raccourcis pour la finalisation. Les App Intents Sarah, eux, sont utilisables directement.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Documentation Apple App Intents", destination: URL(string: "https://developer.apple.com/documentation/appintents")!)
+                    Link("Référence generate-shortcuts-skill", destination: URL(string: "https://github.com/drewocarr/generate-shortcuts-skill")!)
+                }
+
                 Section("Génération d’images — cible locale") {
                     Text("Sarah prévoit d’utiliser Stable Diffusion 2.1 converti en Core ML, notamment les poids 6-bit palettisés publiés pour les appareils Apple.")
                     Text("Le code de conversion et d’inférence Apple ml-stable-diffusion est distribué sous licence MIT. Les poids Stable Diffusion restent soumis à leur licence OpenRAIL++ et à ses restrictions d’usage.")
