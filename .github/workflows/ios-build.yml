@@ -149,7 +149,6 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/feature/sarah-native-shortcuts-v4'
         with:
           tag_name: sarah-ia-4.0-latest
           name: "Sarah IA 4.0 - iOS 26 Stable"
