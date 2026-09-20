@@ -48,14 +48,26 @@ public struct MessageBar: View {
                     HapticService.shared.buttonTap()
                     onToggleMic()
                 } label: {
-                    Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isRecording ? activeAgent.themeColor : Color.white.opacity(0.52))
-                        .frame(width: 32, height: 32)
-                        .contentShape(Circle())
+                    ZStack {
+                        if isRecording {
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(Color.white.opacity(0.10))
+                                .frame(width: 32, height: 32)
+
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(activeAgent.themeColor)
+                                .frame(width: 11, height: 11)
+                        } else {
+                            Image(systemName: "mic")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color.white.opacity(0.52))
+                                .frame(width: 32, height: 32)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel(isRecording ? "Arrêter la dictée" : "Dicter un message")
+                .accessibilityLabel(isRecording ? "Arrêter la dictée et conserver le texte" : "Dicter un message")
             }
             .padding(.leading, 14)
             .padding(.trailing, 6)
@@ -111,6 +123,11 @@ public struct MessageBar: View {
     }
 
     private func submitMessage() {
+        if isRecording {
+            onToggleMic()
+            return
+        }
+
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             onToggleMic()
