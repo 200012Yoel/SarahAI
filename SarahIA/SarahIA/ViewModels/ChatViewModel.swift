@@ -38,6 +38,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var isComposerDictating: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var pendingVoiceConfirmation: String? = nil
     @Published public var isVoiceBubbleVisible: Bool = false
@@ -73,6 +74,7 @@ public final class ChatViewModel: ObservableObject {
     private var isVoicePipelinePrepared = false
     private var pendingVoiceActionText: String? = nil
     private var shouldResumeVoiceAfterInterruption = false
+    private var composerDictationBaseText: String = ""
     
     public init() {
         restorePersistedState()
@@ -401,16 +403,36 @@ public final class ChatViewModel: ObservableObject {
     
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
-            self?.liveTranscriptionText = partial
+            guard let self = self else { return }
+            self.liveTranscriptionText = partial
+
+            if self.isComposerDictating {
+                self.inputText = self.composerText(with: partial)
+            }
         }
         
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
+
+            let cleaned = self.sanitizeVoiceTranscript(finalTranscription)
+
+            // Dictée de la barre de saisie : conserver le texte, ne jamais
+            // l'envoyer automatiquement à Sarah.
+            if self.isComposerDictating {
+                if !cleaned.isEmpty {
+                    self.inputText = self.composerText(with: cleaned)
+                }
+                self.isComposerDictating = false
+                self.isMicRunning = false
+                self.liveTranscriptionText = ""
+                self.voiceStatus = .idle
+                self.composerDictationBaseText = ""
+                return
+            }
             
             // Ne jamais traiter le micro pendant que Sarah parle.
             guard !self.voiceManager.isSpeaking else { return }
             
-            let cleaned = self.sanitizeVoiceTranscript(finalTranscription)
             guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
                 return
@@ -570,6 +592,63 @@ public final class ChatViewModel: ObservableObject {
         return hasActionVerb && hasTarget
     }
     
+    private func composerText(with transcript: String) -> String {
+        let spoken = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = composerDictationBaseText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !base.isEmpty else { return spoken }
+        guard !spoken.isEmpty else { return base }
+        return base + " " + spoken
+    }
+
+    public func toggleComposerDictation() {
+        ensureVoicePipelinePrepared()
+        haptics.buttonTap()
+
+        if isComposerDictating {
+            finishComposerDictation()
+        } else {
+            startComposerDictation()
+        }
+    }
+
+    public func startComposerDictation() {
+        ensureVoicePipelinePrepared()
+
+        // Les deux modes audio sont exclusifs.
+        if isContinuousConversationActive {
+            stopVoiceConversation()
+        } else if voiceManager.isSpeaking {
+            voiceManager.stop()
+        }
+
+        composerDictationBaseText = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        liveTranscriptionText = ""
+        isComposerDictating = true
+        voiceStatus = .listening(level: 0.0)
+
+        AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: false)
+        isMicRunning = AppleSpeechRecognizer.shared.isListening
+    }
+
+    public func finishComposerDictation() {
+        guard isComposerDictating else { return }
+
+        let live = AppleSpeechRecognizer.shared.currentLiveText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !live.isEmpty {
+            inputText = composerText(with: live)
+        }
+
+        AppleSpeechRecognizer.shared.stopListening()
+        isComposerDictating = false
+        isMicRunning = false
+        liveTranscriptionText = ""
+        voiceStatus = .idle
+        composerDictationBaseText = ""
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -584,6 +663,11 @@ public final class ChatViewModel: ObservableObject {
     /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+
+        if isComposerDictating {
+            finishComposerDictation()
+        }
+
         shouldResumeVoiceAfterInterruption = false
         isVoiceBubbleVisible = false
 
@@ -618,6 +702,16 @@ public final class ChatViewModel: ObservableObject {
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         shouldResumeVoiceAfterInterruption = false
         isVoiceBubbleVisible = false
+
+        if isComposerDictating {
+            let live = AppleSpeechRecognizer.shared.currentLiveText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !live.isEmpty {
+                inputText = composerText(with: live)
+            }
+            isComposerDictating = false
+            composerDictationBaseText = ""
+        }
         isContinuousConversationActive = false
         pendingVoiceActionText = nil
         pendingVoiceConfirmation = nil
