@@ -701,12 +701,28 @@ public final class ChatViewModel: ObservableObject {
     }
     
     // MARK: - Envoi de Message & Orchestration Multi-Agents
+
+    public func retryUserMessage(_ message: Message) {
+        guard message.isFromUser else { return }
+
+        let text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        guard !isTyping else { return }
+
+        haptics.buttonTap()
+        sendMessage(text)
+    }
     
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
         aiService.syncHistoryFromMessages(messages)
+
+        if OpenSourceImageGenerationService.shared.isImageGenerationIntent(text).isIntent {
+            notificationService.requestPermission()
+        }
+
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         WidgetDataBridge.shared.recordQuestion()
@@ -763,6 +779,15 @@ public final class ChatViewModel: ObservableObject {
                     imageGenerationPrompt: response.imageGenerationPrompt
                 )
                 self.appendMessage(aiMessage)
+
+                if response.generatedImageData != nil || response.generatedImageURL != nil {
+                    if UIApplication.shared.applicationState != .active {
+                        self.notificationService.sendResponseNotification(
+                            message: "Votre image est prête."
+                        )
+                    }
+                }
+
                 self.isTyping = false
                 self.voiceStatus = .idle
                 
