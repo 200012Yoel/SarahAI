@@ -56,6 +56,11 @@ public final class SarahLocalMusicGenEngine {
         let isArchive: Bool
     }
 
+    public struct DownloadAssetDescriptor {
+        public let id: String
+        public let url: URL
+    }
+
     private static let sampleRate: Double = 44_100
     private static let latentChannels = 64
     private static let latentLength = 256
@@ -196,6 +201,39 @@ public final class SarahLocalMusicGenEngine {
                 isArchive: false
             )
         ]
+    }
+
+    public var backgroundDownloadManifest: [DownloadAssetDescriptor] {
+        assets.map { DownloadAssetDescriptor(id: $0.id, url: $0.url) }
+    }
+
+    public func isBackgroundAssetInstalled(_ id: String) -> Bool {
+        guard let asset = assets.first(where: { $0.id == id }) else { return false }
+
+        if let compiledName = asset.compiledName {
+            return fm.fileExists(
+                atPath: modelDirectory.appendingPathComponent(compiledName).path
+            )
+        }
+
+        return fm.fileExists(
+            atPath: modelDirectory.appendingPathComponent("t5_vocab.json").path
+        )
+    }
+
+    public func installBackgroundDownloadedAsset(
+        id: String,
+        downloadedURL: URL
+    ) throws {
+        guard let asset = assets.first(where: { $0.id == id }) else {
+            throw MusicError.invalidPackage(id)
+        }
+
+        if asset.isArchive {
+            try installCompiledModel(downloadedArchive: downloadedURL, asset: asset)
+        } else {
+            try installPlainFile(downloadedFile: downloadedURL, name: "t5_vocab.json")
+        }
     }
 
     public var isInstrumentalModelInstalled: Bool {
