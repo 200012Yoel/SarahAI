@@ -776,6 +776,8 @@ public final class ChatViewModel: ObservableObject {
                     isFromUser: false,
                     imageData: response.generatedImageData,
                     generatedImageURL: response.generatedImageURL,
+                    generatedAudioURL: response.generatedAudioURL,
+                    generatedMusicStyle: response.generatedMusicStyle,
                     imageGenerationPrompt: response.imageGenerationPrompt
                 )
                 self.appendMessage(aiMessage)
@@ -786,6 +788,13 @@ public final class ChatViewModel: ObservableObject {
                             message: "Votre image est prête."
                         )
                     }
+                }
+
+                if response.generatedAudioURL != nil,
+                   UIApplication.shared.applicationState != .active {
+                    self.notificationService.sendResponseNotification(
+                        message: "Votre musique est prête."
+                    )
                 }
 
                 self.isTyping = false
