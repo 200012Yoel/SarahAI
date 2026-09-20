@@ -131,7 +131,18 @@ public final class SarahLocalMusicGenEngine {
             || normalized.contains("j aimerais")
             || normalized.contains("je veux")
 
-        let isIntent = hasMusicNoun && (hasCreationWord || asksCapability)
+        // La dictée Apple peut parfois transformer « génère » en
+        // « m'énerve ». On ne corrige ce faux positif que lorsqu'un nom musical
+        // explicite est aussi présent.
+        let noisyDictationCreation =
+            hasMusicNoun
+            && (
+                normalized.contains("m enerve")
+                || normalized.contains("menerve")
+                || wordSet.contains("enerve")
+            )
+
+        let isIntent = hasMusicNoun && (hasCreationWord || asksCapability || noisyDictationCreation)
 
         let wantsLyrics =
             wordSet.contains("paroles")
@@ -149,7 +160,8 @@ public final class SarahLocalMusicGenEngine {
             "petite", "petit", "courte", "court",
             "musique", "morceau", "instrumental", "chanson",
             "music", "song", "track", "son", "audio",
-            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais"
+            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais",
+            "m", "enerve", "menerve", "encore"
         ])
 
         var promptWords = words.filter { word in
