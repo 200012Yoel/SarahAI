@@ -7,6 +7,7 @@ public struct MessageList: View {
     public let isTyping: Bool
     public var isKeyboardVisible: Bool = false
     public var onToggleSpeech: ((Message) -> Void)?
+    public var onRetryUserMessage: ((Message) -> Void)?
     public var onSelectSuggestion: ((String) -> Void)?
     public var onIntroduceSarah: (() -> Void)?
     public var onDismissKeyboard: (() -> Void)?
@@ -17,6 +18,7 @@ public struct MessageList: View {
         isTyping: Bool,
         isKeyboardVisible: Bool = false,
         onToggleSpeech: ((Message) -> Void)? = nil,
+        onRetryUserMessage: ((Message) -> Void)? = nil,
         onSelectSuggestion: ((String) -> Void)? = nil,
         onIntroduceSarah: (() -> Void)? = nil,
         onDismissKeyboard: (() -> Void)? = nil,
@@ -26,6 +28,7 @@ public struct MessageList: View {
         self.isTyping = isTyping
         self.isKeyboardVisible = isKeyboardVisible
         self.onToggleSpeech = onToggleSpeech
+        self.onRetryUserMessage = onRetryUserMessage
         self.onSelectSuggestion = onSelectSuggestion
         self.onIntroduceSarah = onIntroduceSarah
         self.onDismissKeyboard = onDismissKeyboard
@@ -41,13 +44,16 @@ public struct MessageList: View {
                         Spacer()
                             .frame(height: 40)
                     } else {
-                        ForEach(messages) { message in
+                        ForEach(visibleMessages) { message in
                             ChatBubbleView(
                                 message: message,
                                 isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
                                 onPlayTapped: {
                                     onToggleSpeech?(message)
                                 },
+                                onRetry: message.isFromUser ? {
+                                    onRetryUserMessage?(message)
+                                } : nil,
                                 onOpenStudio: onOpenStudio
                             )
                             .id(message.id)
@@ -99,8 +105,12 @@ public struct MessageList: View {
         }
     }
     
+    private var visibleMessages: [Message] {
+        messages.filter { !$0.isInternalEngineLeak }
+    }
+
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        if let last = messages.last {
+        if let last = visibleMessages.last {
             withAnimation(.easeOut(duration: 0.25)) {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
