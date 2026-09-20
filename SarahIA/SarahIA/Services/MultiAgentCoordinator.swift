@@ -21,6 +21,8 @@ public final class MultiAgentCoordinator {
         public let handoffSourceAgent: AgentType?
         public let generatedImageData: Data?
         public let generatedImageURL: String?
+        public let generatedAudioURL: String?
+        public let generatedMusicStyle: String?
         public let imageGenerationPrompt: String?
         
         public init(
@@ -34,6 +36,8 @@ public final class MultiAgentCoordinator {
             handoffSourceAgent: AgentType? = nil,
             generatedImageData: Data? = nil,
             generatedImageURL: String? = nil,
+            generatedAudioURL: String? = nil,
+            generatedMusicStyle: String? = nil,
             imageGenerationPrompt: String? = nil
         ) {
             self.agent = agent
@@ -46,6 +50,8 @@ public final class MultiAgentCoordinator {
             self.handoffSourceAgent = handoffSourceAgent
             self.generatedImageData = generatedImageData
             self.generatedImageURL = generatedImageURL
+            self.generatedAudioURL = generatedAudioURL
+            self.generatedMusicStyle = generatedMusicStyle
             self.imageGenerationPrompt = imageGenerationPrompt
         }
     }
@@ -81,6 +87,91 @@ public final class MultiAgentCoordinator {
             return
         }
         
+        // 1.6 Une demande musicale est interceptée avant le moteur
+        // conversationnel, exactement comme les images et les vidéos.
+        if #available(iOS 27.0, *) {
+            let musicIntent = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+
+            if musicIntent.isIntent {
+                if musicIntent.wantsLyrics {
+                    let availability = SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage()
+                    completion(AgentResponse(
+                        agent: sourceAgent,
+                        text: """
+                        🎤 **Chanson avec paroles**
+
+                        J’ai compris la demande musicale.
+
+                        \(availability)
+                        """,
+                        spokenText: availability
+                    ))
+                    return
+                }
+
+                if SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    SarahLocalMusicGenEngine.shared.generateInstrumental(
+                        prompt: musicIntent.prompt
+                    ) { result in
+                        switch result {
+                        case .success(let url):
+                            completion(AgentResponse(
+                                agent: sourceAgent,
+                                text: "🎵 **Musique générée localement.**",
+                                spokenText: "La musique est prête.",
+                                generatedAudioURL: url.absoluteString
+                            ))
+
+                        case .failure(let error):
+                            let fallback = OpenSourceMusicEngine.shared
+                                .isMusicGenerationIntent(trimmed)
+                            completion(AgentResponse(
+                                agent: sourceAgent,
+                                text: """
+                                🎵 **Stable Audio n’a pas terminé le rendu.**
+
+                                \(error.localizedDescription)
+
+                                Je te propose le moteur musical local léger à la place.
+                                """,
+                                spokenText: "Le rendu Stable Audio n'a pas terminé. Le moteur musical local léger reste disponible.",
+                                generatedMusicStyle: fallback.detectedStyle.rawValue
+                            ))
+                        }
+                    }
+                    return
+                }
+
+                let fallback = OpenSourceMusicEngine.shared
+                    .isMusicGenerationIntent(trimmed)
+
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: """
+                    🎵 **Musique locale prête**
+
+                    Stable Audio n’est pas encore installé sur cet iPhone. J’utilise donc le moteur musical local léger. Appuie sur **Play** pour écouter le morceau.
+
+                    Tu peux installer Stable Audio dans **Réglages → Création locale** pour obtenir le moteur génératif complet.
+                    """,
+                    spokenText: "Le moteur Stable Audio n'est pas encore installé. J'ai préparé le moteur musical local léger.",
+                    generatedMusicStyle: fallback.detectedStyle.rawValue
+                ))
+                return
+            }
+        } else {
+            let musicFallback = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
+            if musicFallback.isIntent {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: "🎵 **Musique locale prête.** Appuie sur Play pour l’écouter.",
+                    spokenText: "La musique locale est prête.",
+                    generatedMusicStyle: musicFallback.detectedStyle.rawValue
+                ))
+                return
+            }
+        }
+
         // 1.7 Une demande de génération vidéo doit être interceptée avant
         // le moteur conversationnel. Sinon une formulation comme
         // « génère une petite vidéo » peut tomber dans une réponse générique.
