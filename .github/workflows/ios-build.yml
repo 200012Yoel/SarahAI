@@ -81,6 +81,21 @@ jobs:
             exit 1
           }
 
+          grep -Fq 'isVoiceBubbleVisible' "$VM" || {
+            echo "❌ La réduction du mode vocal en bulle a disparu."
+            exit 1
+          }
+
+          grep -Fq 'MusicModelBackgroundDownloader' "SarahIA/SarahIA/Services/BackgroundModelDownloader.swift" || {
+            echo "❌ Le téléchargement musical de fond a disparu."
+            exit 1
+          }
+
+          grep -Fq 'SarahModelInstallerOverlay' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ L'installateur premier lancement a disparu."
+            exit 1
+          }
+
           echo "✅ Garde-fous Sarah validés."
 
       - name: Build iOS 26 App
