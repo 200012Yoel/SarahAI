@@ -10,6 +10,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public var imageData: Data?
     public var alertEvent: AlertEvent?
     public var generatedImageURL: String?
+    public var generatedAudioURL: String?
     public var generatedMusicStyle: String?
     public var isGeneratingImage: Bool?
     public var imageGenerationPrompt: String?
@@ -23,6 +24,7 @@ public struct Message: Identifiable, Equatable, Codable {
         imageData: Data? = nil,
         alertEvent: AlertEvent? = nil,
         generatedImageURL: String? = nil,
+        generatedAudioURL: String? = nil,
         generatedMusicStyle: String? = nil,
         isGeneratingImage: Bool? = nil,
         imageGenerationPrompt: String? = nil
@@ -35,6 +37,7 @@ public struct Message: Identifiable, Equatable, Codable {
         self.imageData = imageData
         self.alertEvent = alertEvent
         self.generatedImageURL = generatedImageURL
+        self.generatedAudioURL = generatedAudioURL
         self.generatedMusicStyle = generatedMusicStyle
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
