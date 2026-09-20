@@ -118,10 +118,12 @@ public struct VoiceOrbModalView: View {
         .onAppear {
             pulse = true
             drift = true
-            viewModel.startVoiceConversation()
+            if !viewModel.isContinuousConversationActive {
+                viewModel.startVoiceConversation()
+            }
         }
         .onDisappear {
-            viewModel.stopVoiceConversation()
+            // Le grand écran peut être réduit en bulle sans tuer la session.
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -134,14 +136,10 @@ public struct VoiceOrbModalView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            circleButton(systemName: "line.3.horizontal", size: 40) {
+            circleButton(systemName: "chevron.down", size: 40) {
                 HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
+                viewModel.minimizeVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                    onOpenMenu()
-                }
             }
 
             Spacer()
