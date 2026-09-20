@@ -641,20 +641,24 @@ public final class MultiAgentCoordinator {
                 
                 completion(AgentResponse(
                     agent: .ethel,
-                    text: "🎨 Image créée \(locality) avec **\(result.modelName)**.",
+                    text: locality == "localement sur l’iPhone"
+                        ? "🎨 Image créée localement."
+                        : "🎨 Image créée via le réseau.",
                     spokenText: "L'image est prête.",
                     generatedImageData: imageData,
                     generatedImageURL: result.imageURL?.absoluteString,
                     imageGenerationPrompt: prompt
                 ))
             } else {
+                let reason = result.errorMessage ?? "ressources locales indisponibles"
                 completion(AgentResponse(
                     agent: .ethel,
                     text: """
-                    🎨 **Création d’image indisponible**
-                    
-                    Le profil **\(profile.displayName)** n’a pas pu terminer le rendu :
-                    \(result.errorMessage ?? "ressources locales indisponibles").
+                    🎨 **Impossible de créer l’image**
+
+                    \(reason)
+
+                    Si le modèle n’est pas installé, ouvre **Création locale** puis **Installer tout**.
                     """,
                     spokenText: "Je n'ai pas pu terminer la génération de l'image.",
                     imageGenerationPrompt: nil
