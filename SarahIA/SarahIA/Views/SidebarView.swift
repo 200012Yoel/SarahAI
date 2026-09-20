@@ -11,6 +11,9 @@ public struct SidebarView: View {
 
     @State private var conversationPendingDeletion: Conversation?
     @State private var isShowingDeleteConfirmation = false
+    @State private var conversationPendingRename: Conversation?
+    @State private var renameText = ""
+    @State private var isShowingRenamePrompt = false
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -86,11 +89,31 @@ public struct SidebarView: View {
         } message: {
             Text("Cette action est définitive.")
         }
+        .alert("Renommer la discussion", isPresented: $isShowingRenamePrompt) {
+            TextField("Nom de la discussion", text: $renameText)
+
+            Button("Annuler", role: .cancel) {
+                conversationPendingRename = nil
+                renameText = ""
+            }
+
+            Button("Renommer") {
+                if let conversationPendingRename {
+                    viewModel.renameConversation(
+                        conversationPendingRename,
+                        newTitle: renameText
+                    )
+                }
+                conversationPendingRename = nil
+                renameText = ""
+            }
+        } message: {
+            Text("Choisis un nom court pour retrouver facilement cette discussion.")
+        }
     }
 
     private var shouldShowSearch: Bool {
-        !viewModel.searchQuery.isEmpty ||
-        viewModel.conversations.count >= 5
+        true
     }
 
     private func header(horizontal: CGFloat, topInset: CGFloat) -> some View {
@@ -189,6 +212,7 @@ public struct SidebarView: View {
                             conversation: conversation,
                             isSelected: viewModel.currentConversationId == conversation.id,
                             viewModel: viewModel,
+                            onRename: { requestRename(of: conversation) },
                             onDelete: { requestDeletion(of: conversation) }
                         )
                     }
@@ -268,6 +292,12 @@ public struct SidebarView: View {
         .buttonStyle(ScaleBounceButtonStyle())
     }
 
+    private func requestRename(of conversation: Conversation) {
+        conversationPendingRename = conversation
+        renameText = conversation.title
+        isShowingRenamePrompt = true
+    }
+
     private func requestDeletion(of conversation: Conversation) {
         conversationPendingDeletion = conversation
         isShowingDeleteConfirmation = true
@@ -280,6 +310,7 @@ private struct ConversationHistoryRow: View {
     let isSelected: Bool
 
     @ObservedObject var viewModel: ChatViewModel
+    let onRename: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -324,6 +355,12 @@ private struct ConversationHistoryRow: View {
         }
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
+            Button {
+                onRename()
+            } label: {
+                Label("Renommer", systemImage: "pencil")
+            }
+
             Button {
                 viewModel.togglePinConversation(conversation)
             } label: {
