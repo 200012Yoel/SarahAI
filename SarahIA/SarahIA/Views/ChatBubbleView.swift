@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import WebKit
 
@@ -94,6 +95,25 @@ public struct ChatBubbleView: View {
         return decoded
     }
     
+    @ViewBuilder
+    private func renderedAssistantText(_ content: String) -> some View {
+        if #available(iOS 15.0, *),
+           let attributed = try? AttributedString(
+                markdown: content,
+                options: AttributedString.MarkdownParsingOptions(
+                    interpretedSyntax: .inlineOnlyPreservingWhitespace
+                )
+           ) {
+            Text(attributed)
+        } else {
+            Text(
+                content
+                    .replacingOccurrences(of: "**", with: "")
+                    .replacingOccurrences(of: "__", with: "")
+            )
+        }
+    }
+
     // MARK: - Bulle Sarah AI (Gris Charcoal Sombre Haute Lisibilité + Bouton Écouter)
     
     private var aiBubble: some View {
@@ -133,7 +153,7 @@ public struct ChatBubbleView: View {
                     }()
                     
                     if !displayContent.isEmpty {
-                        Text(displayContent)
+                        renderedAssistantText(displayContent)
                             .font(.system(size: 16, weight: .regular, design: .rounded))
                             .foregroundColor(.white)
                             .lineSpacing(3)
@@ -159,8 +179,8 @@ public struct ChatBubbleView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 290)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .frame(maxWidth: 320)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
