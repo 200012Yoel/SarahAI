@@ -84,7 +84,7 @@ public final class SarahLocalMusicGenEngine {
 
     public func detectIntent(_ text: String) -> MusicIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean
+        let normalized = clean
             .lowercased()
             .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
             .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
@@ -92,53 +92,83 @@ public final class SarahLocalMusicGenEngine {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        // Un nom de média seul ("instrumental", "chanson", "musique") n'est
-        // jamais suffisant. Il faut une vraie intention de création explicite.
-        let creationVerbs = [
-            "genere", "compose", "cree", "fais", "fabrique", "produis",
-            "generate", "create", "make", "compose"
-        ]
-        let musicNouns = [
+        let words = normalized.split(separator: " ").map(String.init)
+        let wordSet = Set(words)
+
+        let musicNouns: Set<String> = [
             "musique", "morceau", "instrumental", "chanson", "beat",
-            "music", "song", "track"
+            "music", "song", "track", "son", "audio"
         ]
 
-        let words = Set(lower.split(separator: " ").map(String.init))
-        let hasCreationVerb = creationVerbs.contains { words.contains($0) }
-        let hasMusicNoun = musicNouns.contains { words.contains($0) }
-        let isIntent = hasCreationVerb && hasMusicNoun
+        let exactCreationWords: Set<String> = [
+            "genere", "generer",
+            "compose", "composer",
+            "cree", "creer",
+            "fais", "faire",
+            "fabrique", "fabriquer",
+            "produis", "produire",
+            "generate", "create", "make"
+        ]
+
+        let creationPrefixes = [
+            "gener", "compos", "cre", "fabri", "produ"
+        ]
+
+        let hasMusicNoun = !wordSet.isDisjoint(with: musicNouns)
+        let hasCreationWord =
+            !wordSet.isDisjoint(with: exactCreationWords)
+            || words.contains(where: { word in
+                creationPrefixes.contains(where: { word.hasPrefix($0) })
+            })
+
+        // Formulations naturelles comme « tu peux générer une petite musique »
+        // ou « est-ce que tu peux me faire un morceau » sont considérées comme
+        // des intentions explicites de création.
+        let asksCapability =
+            normalized.contains("tu peux")
+            || normalized.contains("peux tu")
+            || normalized.contains("est ce que tu peux")
+            || normalized.contains("j aimerais")
+            || normalized.contains("je veux")
+
+        let isIntent = hasMusicNoun && (hasCreationWord || asksCapability)
 
         let wantsLyrics =
-            words.contains("paroles")
-            || words.contains("lyrics")
-            || words.contains("chanson")
-            || words.contains("song")
+            wordSet.contains("paroles")
+            || wordSet.contains("lyrics")
+            || wordSet.contains("chanson")
+            || wordSet.contains("song")
 
         let language = (
-            words.contains("anglais")
-            || words.contains("english")
+            wordSet.contains("anglais")
+            || wordSet.contains("english")
         ) ? "en" : "fr"
 
-        let removableWords = Set(creationVerbs + [
-            "une", "un", "de", "du", "des", "moi", "me",
+        let removableWords: Set<String> = exactCreationWords.union([
+            "une", "un", "de", "du", "des", "moi", "me", "la", "le",
+            "petite", "petit", "courte", "court",
             "musique", "morceau", "instrumental", "chanson",
-            "music", "song", "track"
+            "music", "song", "track", "son", "audio",
+            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais"
         ])
-        
-        var prompt = lower
-            .split(separator: " ")
-            .map(String.init)
-            .filter { !removableWords.contains($0) }
-            .joined(separator: " ")
 
-        prompt = prompt.trimmingCharacters(
-            in: CharacterSet.whitespacesAndNewlines
-                .union(CharacterSet(charactersIn: ":,-"))
-        )
-
-        if prompt.isEmpty {
-            prompt = clean
+        var promptWords = words.filter { word in
+            !removableWords.contains(word)
+            && !creationPrefixes.contains(where: { word.hasPrefix($0) })
         }
+
+        if promptWords.isEmpty {
+            promptWords = wantsLyrics
+                ? ["chanson", "originale"]
+                : ["instrumental", "original"]
+        }
+
+        let prompt = promptWords
+            .joined(separator: " ")
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+                    .union(CharacterSet(charactersIn: ":,-"))
+            )
 
         return MusicIntent(
             isIntent: isIntent,
