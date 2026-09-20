@@ -136,6 +136,31 @@ jobs:
             exit 1
           }
 
+          grep -Fq 'isComposerDictating' "$VM" || {
+            echo "❌ L'état de dictée de la barre de saisie a disparu."
+            exit 1
+          }
+
+          grep -Fq 'startListening(autoFinalizeOnSilence: false)' "$VM" || {
+            echo "❌ La dictée manuelle recommence à se valider toute seule."
+            exit 1
+          }
+
+          grep -Fq 'alignment: .center' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ Le rond vocal réduit n'est plus centré."
+            exit 1
+          }
+
+          grep -Fq 'noisyDictationCreation' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ La correction des erreurs de dictée musicales a disparu."
+            exit 1
+          }
+
+          if grep -Fq 'Je n’ai pas de réponse locale suffisamment fiable pour cette demande.' "SarahIA/SarahIA/Services/LocalNeuralIntelligenceEngine.swift"; then
+            echo "❌ Le fallback conversationnel technique est revenu."
+            exit 1
+          fi
+
           echo "✅ Garde-fous Sarah validés."
 
       - name: Build iOS 26 App
