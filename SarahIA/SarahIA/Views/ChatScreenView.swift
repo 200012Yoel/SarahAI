@@ -34,6 +34,9 @@ public struct ChatScreenView: View {
                     onToggleSpeech: { message in
                         viewModel.toggleSpeechForMessage(message.content)
                     },
+                    onRetryUserMessage: { message in
+                        viewModel.retryUserMessage(message)
+                    },
                     onSelectSuggestion: { suggestionText in
                         viewModel.sendMessage(suggestionText)
                     },
