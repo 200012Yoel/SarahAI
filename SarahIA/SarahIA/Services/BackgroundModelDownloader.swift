@@ -33,6 +33,14 @@ public final class BackgroundModelDownloader: NSObject {
         config.sessionSendsLaunchEvents = true
         self.session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.resumeData = UserDefaults.standard.data(forKey: resumeDataKey)
+
+        self.session.getAllTasks { [weak self] tasks in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                self.downloadTask = tasks.compactMap { $0 as? URLSessionDownloadTask }.first
+                self.isDownloading = self.downloadTask != nil
+            }
+        }
     }
     
     /// Chemin vers le fichier GGUF local dans Application Support
@@ -186,6 +194,10 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
             }
         }
     }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.completeBackgroundSession(identifier: session.configuration.identifier)
+    }
 }
 
 
@@ -230,6 +242,24 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             delegate: self,
             delegateQueue: nil
         )
+
+        self.session.getAllTasks { [weak self] tasks in
+            guard let self,
+                  let existing = tasks.compactMap({ $0 as? URLSessionDownloadTask }).first else { return }
+
+            let parts = (existing.taskDescription ?? "").split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let kind = DownloadKind(rawValue: parts[0]) else { return }
+
+            DispatchQueue.main.async {
+                self.task = existing
+                self.activeKind = kind
+                self.activeIdentifier = parts[1]
+                self.isDownloading = true
+                self.statusText = kind == .image
+                    ? "Téléchargement du modèle image…"
+                    : "Téléchargement du modèle vidéo…"
+            }
+        }
     }
 
     public func startImageModelDownload() {
@@ -335,6 +365,7 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             : "Téléchargement du modèle vidéo…"
 
         task = session.downloadTask(with: url)
+        task?.taskDescription = "\(kind.rawValue)|\(identifier)"
         task?.resume()
     }
 
@@ -468,9 +499,16 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let kind = activeKind,
-              let identifier = activeIdentifier else {
-            publishFailure("Téléchargement terminé sans profil actif.")
+        let metadata = (downloadTask.taskDescription ?? "")
+            .split(separator: "|", maxSplits: 1)
+            .map(String.init)
+
+        let restoredKind = metadata.count == 2 ? DownloadKind(rawValue: metadata[0]) : nil
+        let restoredIdentifier = metadata.count == 2 ? metadata[1] : nil
+
+        guard let kind = activeKind ?? restoredKind,
+              let identifier = activeIdentifier ?? restoredIdentifier else {
+            publishFailure("Téléchargement terminé sans profil identifiable.")
             return
         }
 
@@ -521,5 +559,9 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
     ) {
         guard let error else { return }
         publishFailure(error.localizedDescription)
+    }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.completeBackgroundSession(identifier: session.configuration.identifier)
     }
 }
