@@ -74,7 +74,14 @@ public struct ChatScreenView: View {
             )
             .background(Color.black.opacity(0.97))
         }
-        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
+        .sheet(
+            isPresented: $viewModel.isShowingVoiceOrbModal,
+            onDismiss: {
+                if viewModel.isContinuousConversationActive {
+                    viewModel.minimizeVoiceConversation()
+                }
+            }
+        ) {
             voiceSheetContent
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
