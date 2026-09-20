@@ -60,12 +60,12 @@ public struct ChatScreenView: View {
             MessageBar(
                 text: $viewModel.inputText,
                 activeAgent: $viewModel.activeAgent,
-                isRecording: viewModel.isMicRunning,
+                isRecording: viewModel.isComposerDictating,
                 onSend: { text in
                     viewModel.sendMessage(text)
                 },
                 onToggleMic: {
-                    viewModel.toggleMicrophone()
+                    viewModel.toggleComposerDictation()
                 },
                 onOpenVoiceOrb: {
                     keyboard.dismiss()
