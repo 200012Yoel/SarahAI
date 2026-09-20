@@ -112,10 +112,8 @@ public struct ContentView: View {
 
             if viewModel.isVoiceBubbleVisible && !viewModel.isShowingVoiceOrbModal {
                 SarahFloatingVoiceBubble(viewModel: viewModel)
-                    .padding(.trailing, 18)
-                    .padding(.bottom, 86)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .transition(.scale(scale: 0.82).combined(with: .opacity))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .transition(.scale(scale: 0.84).combined(with: .opacity))
                     .zIndex(40)
             }
 
@@ -306,6 +304,7 @@ public struct ContentView: View {
 @available(iOS 15.0, *)
 private struct SarahFloatingVoiceBubble: View {
     @ObservedObject var viewModel: ChatViewModel
+    @State private var pulse = false
 
     private var accent: Color { viewModel.activeAgent.themeColor }
 
@@ -316,28 +315,44 @@ private struct SarahFloatingVoiceBubble: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(Color(red: 0.095, green: 0.10, blue: 0.12))
-                    .frame(width: 58, height: 58)
-                    .shadow(color: accent.opacity(0.38), radius: 14)
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 68, height: 68)
+                    .scaleEffect(pulse ? 1.10 : 0.92)
+                    .opacity(pulse ? 0.22 : 0.62)
 
                 Circle()
-                    .stroke(accent.opacity(0.42), lineWidth: 1)
-                    .frame(width: 58, height: 58)
+                    .fill(Color(red: 0.075, green: 0.078, blue: 0.095))
+                    .frame(width: 54, height: 54)
+                    .shadow(color: accent.opacity(0.34), radius: 14)
+
+                Circle()
+                    .stroke(accent.opacity(0.64), lineWidth: 1.2)
+                    .frame(width: 54, height: 54)
 
                 Image(systemName: viewModel.isSpeaking ? "waveform" : "mic.fill")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(accent)
-                    .scaleEffect(1.0 + CGFloat(viewModel.micInputLevel) * 0.10)
-                    .animation(.easeOut(duration: 0.12), value: viewModel.micInputLevel)
+                    .scaleEffect(
+                        1.0 + CGFloat(min(max(viewModel.micInputLevel, 0), 1)) * 0.10
+                    )
+                    .animation(.easeOut(duration: 0.10), value: viewModel.micInputLevel)
 
                 Circle()
                     .fill(viewModel.isMicRunning ? Color.green : accent)
-                    .frame(width: 8, height: 8)
-                    .offset(x: 20, y: -20)
+                    .frame(width: 7, height: 7)
+                    .offset(x: 18, y: -18)
             }
         }
         .buttonStyle(PlainButtonStyle())
         .accessibilityLabel("Rouvrir le mode vocal")
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 1.15)
+                    .repeatForever(autoreverses: true)
+            ) {
+                pulse = true
+            }
+        }
         .contextMenu {
             Button(role: .destructive) {
                 viewModel.stopVoiceConversation()
