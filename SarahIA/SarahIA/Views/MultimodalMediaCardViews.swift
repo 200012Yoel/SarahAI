@@ -482,17 +482,10 @@ public struct GeneratedAudioFileCardView: View {
             }
 
             HStack(spacing: 3) {
-                ForEach(0..<20, id: .self) { index in
+                ForEach(Array(0..<20), id: \.self) { index in
                     Capsule()
-                        .fill(
-                            isPlaying
-                                ? Color.sarahCyan.opacity(0.82)
-                                : Color.white.opacity(0.14)
-                        )
-                        .frame(
-                            width: 3,
-                            height: CGFloat(6 + ((index * 7) % 18))
-                        )
+                        .fill(waveBarColor)
+                        .frame(width: 3, height: waveBarHeight(for: index))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -522,6 +515,17 @@ public struct GeneratedAudioFileCardView: View {
             playbackTimer?.invalidate()
             player?.stop()
         }
+    }
+
+    private var waveBarColor: Color {
+        if isPlaying {
+            return Color.sarahCyan.opacity(0.82)
+        }
+        return Color.white.opacity(0.14)
+    }
+
+    private func waveBarHeight(for index: Int) -> CGFloat {
+        CGFloat(6 + ((index * 7) % 18))
     }
 
     private var resolvedURL: URL? {
