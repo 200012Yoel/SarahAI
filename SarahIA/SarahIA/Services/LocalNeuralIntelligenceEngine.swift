@@ -171,14 +171,22 @@ public final class LocalNeuralIntelligenceEngine {
     }
     
     private func synthesizeNaturalResponse(for normalized: String, raw: String) -> String {
-        // Ne jamais inventer une capacité ou un traitement qui n'a pas eu lieu.
-        // Ce moteur sert uniquement de dernier filet local quand aucun routeur
-        // spécialisé n'a pu répondre de manière fiable.
-        return """
-        Je n’ai pas de réponse locale suffisamment fiable pour cette demande.
+        // Dernier filet conversationnel : rester naturel et ne jamais afficher
+        // un diagnostic technique au milieu d'une discussion normale.
+        let clean = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = normalized
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
 
-        Reformule-la plus précisément, ou utilise l’un des modules spécialisés de Sarah quand il est disponible.
-        """
+        if words.count <= 3, !clean.isEmpty {
+            return "Tu peux préciser ce que tu veux dire par « \(clean) » ?"
+        }
+
+        if clean.hasSuffix("?") {
+            return "Je n’ai pas assez de contexte pour te répondre correctement. Tu peux préciser un peu ta question ?"
+        }
+
+        return "Je t’écoute. Précise simplement ce que tu veux faire ou savoir, et je vais utiliser le module adapté."
     }
     
     // MARK: - Utilitaires
