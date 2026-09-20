@@ -1077,9 +1077,7 @@ private struct VoiceAndSpeechSettingsView: View {
 private struct LocalGenerationSettingsView: View {
     @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
     @StateObject private var downloader = GenerativeModelDownloader.shared
-    @State private var musicDownloadProgress: Double = 0
-    @State private var musicStatus: String = ""
-    @State private var isPreparingMusic: Bool = false
+    @StateObject private var installer = SarahModelInstallCoordinator.shared
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
@@ -1092,6 +1090,8 @@ private struct LocalGenerationSettingsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
+                    installAllCard
+
                     capabilityCard(
                         icon: "photo.fill",
                         tint: .purple,
@@ -1181,6 +1181,78 @@ private struct LocalGenerationSettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    private var installAllCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(
+                    "Installer les moteurs compatibles",
+                    systemImage: "square.and.arrow.down.on.square.fill"
+                )
+                .font(.headline)
+                .foregroundColor(.white)
+
+                Spacer()
+
+                if installer.totalCount > 0 && installer.installedCount == installer.totalCount {
+                    Text("Prêt")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.green)
+                }
+            }
+
+            Text(installer.hardwareSummary)
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.45))
+
+            if installer.isInstalling {
+                ProgressView(value: installer.progress)
+                    .tint(.blue)
+
+                HStack {
+                    Text(installer.statusText)
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.58))
+
+                    Spacer()
+
+                    Text("\(Int(installer.progress * 100)) %")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(Color.white.opacity(0.58))
+                }
+            } else if installer.totalCount == 0 || installer.installedCount < installer.totalCount {
+                Button {
+                    HapticService.shared.buttonTap()
+                    installer.installAllCompatible()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Installer tout")
+                        Spacer()
+                    }
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(.blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                Label(
+                    "Tous les moteurs compatibles sont installés",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.green)
+            }
+
+            Text("Les téléchargements utilisent les sessions de fond d’iOS. Les moteurs expérimentaux sans runtime iPhone fonctionnel sont exclus.")
+                .font(.caption2)
+                .foregroundColor(Color.white.opacity(0.40))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.075))
+        )
+    }
+
     private var musicCapabilityCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -1217,44 +1289,55 @@ private struct LocalGenerationSettingsView: View {
                 .foregroundColor(Color.white.opacity(0.54))
                 .fixedSize(horizontal: false, vertical: true)
 
-            if isPreparingMusic {
-                VStack(alignment: .leading, spacing: 8) {
-                    ProgressView(value: musicDownloadProgress)
-                        .tint(.pink)
+            if #available(iOS 27.0, *) {
+                if MusicModelBackgroundDownloader.shared.isDownloading {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(value: MusicModelBackgroundDownloader.shared.progress)
+                            .tint(.pink)
 
-                    HStack {
-                        Text(musicStatus.isEmpty ? "Préparation du modèle…" : musicStatus)
-                            .font(.caption)
-                            .foregroundColor(Color.white.opacity(0.58))
-                        Spacer()
-                        Text("\(Int(musicDownloadProgress * 100)) %")
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(Color.white.opacity(0.58))
-                    }
-                }
-            } else if musicProfile.runtimeState != .unsupported {
-                Button {
-                    HapticService.shared.buttonTap()
-                    prepareMusicModel()
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Préparer le modèle musical local")
-                        Spacer()
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.pink)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
+                        HStack {
+                            Text(MusicModelBackgroundDownloader.shared.statusText)
+                                .font(.caption)
+                                .foregroundColor(Color.white.opacity(0.58))
 
-            if !musicStatus.isEmpty && !isPreparingMusic {
-                Text(musicStatus)
-                    .font(.caption)
-                    .foregroundColor(
-                        musicStatus.contains("prêt") ? .green : Color.white.opacity(0.48)
-                    )
+                            Spacer()
+
+                            Text("\(Int(MusicModelBackgroundDownloader.shared.progress * 100)) %")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(Color.white.opacity(0.58))
+                        }
+                    }
+                } else if SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    Label("Modèle musical local installé", systemImage: "checkmark.circle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.green)
+                } else if musicProfile.runtimeState != .unsupported {
+                    Button {
+                        HapticService.shared.buttonTap()
+                        MusicModelBackgroundDownloader.shared.start()
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("Télécharger le modèle musical local")
+                            Spacer()
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.pink)
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+
+                if !MusicModelBackgroundDownloader.shared.statusText.isEmpty &&
+                   !MusicModelBackgroundDownloader.shared.isDownloading {
+                    Text(MusicModelBackgroundDownloader.shared.statusText)
+                        .font(.caption)
+                        .foregroundColor(
+                            MusicModelBackgroundDownloader.shared.statusText.contains("prêt")
+                                ? .green
+                                : Color.white.opacity(0.48)
+                        )
+                }
             }
 
             if let source = URL(string: musicProfile.sourceURL), !musicProfile.sourceURL.isEmpty {
@@ -1332,34 +1415,6 @@ private struct LocalGenerationSettingsView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
-
-    private func prepareMusicModel() {
-        guard #available(iOS 27.0, *) else {
-            musicStatus = "La génération musicale locale nécessite iOS 27."
-            return
-        }
-
-        isPreparingMusic = true
-        musicDownloadProgress = 0
-        musicStatus = "Téléchargement du modèle musical…"
-
-        SarahLocalMusicGenEngine.shared.prepareInstrumentalModel(
-            progress: { value, file in
-                musicDownloadProgress = value
-                musicStatus = file.isEmpty ? "Téléchargement du modèle musical…" : file
-            },
-            completion: { result in
-                isPreparingMusic = false
-                switch result {
-                case .success:
-                    musicDownloadProgress = 1
-                    musicStatus = "Modèle musical local prêt"
-                case .failure(let error):
-                    musicStatus = error.localizedDescription
-                }
-            }
         )
     }
 
