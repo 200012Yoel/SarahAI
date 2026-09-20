@@ -49,6 +49,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 1.3 // Secondes de pause pour valider la question
     private var hasDetectedSpeechInCurrentSession: Bool = false
+    private var shouldFinalizeOnSilence: Bool = true
 
     // Limite la télémétrie du niveau micro à ~15 FPS. Le callback audio tourne
     // beaucoup plus vite et ne doit jamais inonder le thread principal.
@@ -81,8 +82,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     // MARK: - Démarrage de l'Écoute
     
-    public func startListening() {
+    public func startListening(autoFinalizeOnSilence: Bool = true) {
         guard !isListening else { return }
+        shouldFinalizeOnSilence = autoFinalizeOnSilence
 
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         if speechStatus == .notDetermined || AVAudioSession.sharedInstance().recordPermission == .undetermined {
@@ -91,7 +93,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                     self?.state = .error("Autorisation microphone ou dictée refusée")
                     return
                 }
-                self?.startListening()
+                self?.startListening(autoFinalizeOnSilence: autoFinalizeOnSilence)
             }
             return
         }
@@ -291,6 +293,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+
+        guard shouldFinalizeOnSilence else {
+            silenceTimer = nil
+            return
+        }
+
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceThreshold, repeats: false) { [weak self] _ in
             guard let self = self, self.isListening, self.hasDetectedSpeechInCurrentSession else { return }
             let finalText = self.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
