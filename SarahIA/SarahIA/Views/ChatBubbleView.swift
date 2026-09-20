@@ -242,8 +242,12 @@ public struct ChatBubbleView: View {
                     .frame(maxWidth: 290)
                 }
                 
-                // Carte Interactive Musicale Générative (DSP Synth)
-                if let musicStyle = message.detectedMusicStyle {
+                // Résultat musical : vrai fichier Stable Audio en priorité,
+                // sinon moteur musical local léger.
+                if let audioURL = message.generatedAudioURL {
+                    GeneratedAudioFileCardView(audioURLString: audioURL)
+                        .frame(maxWidth: 300)
+                } else if let musicStyle = message.detectedMusicStyle {
                     MusicTrackCardView(styleName: musicStyle)
                         .frame(maxWidth: 280)
                 }
