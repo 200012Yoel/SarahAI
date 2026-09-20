@@ -18,6 +18,16 @@ public final class OpenSourceImageGenerationService {
         public let isSuccess: Bool
         public let errorMessage: String?
     }
+
+    /// Prompt réellement envoyé au moteur local. L'original reste séparé afin
+    /// que l'interface affiche la demande de l'utilisateur, pas la recette interne.
+    public struct ImagePromptPlan {
+        public let originalPrompt: String
+        public let positivePrompt: String
+        public let isPhotographic: Bool
+        public let primarySubject: String?
+        public let requestedColors: [String]
+    }
     
     private let cache = NSCache<NSString, UIImage>()
     private let fileManager = FileManager.default
@@ -122,34 +132,298 @@ public final class OpenSourceImageGenerationService {
         return (false, "")
     }
     
+    // MARK: - Préparation du prompt visuel
+
+    /// Stable Diffusion 2.1 comprend mieux les instructions concises et
+    /// fortement hiérarchisées. Sarah place donc le sujet en premier et
+    /// transforme les détails français les plus courants en concepts visuels
+    /// anglais, sans modifier le sens de la demande.
+    public func makePromptPlan(_ original: String) -> ImagePromptPlan {
+        let clean = normalizeUserImagePrompt(original)
+        let folded = clean
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+
+        let photographicWords = [
+            "photo", "photorealiste", "realiste", "realistic", "photorealistic",
+            "camera", "dslr", "cinematic"
+        ]
+        let isPhotographic = photographicWords.contains { folded.contains($0) }
+
+        let translated = translateVisualTermsToEnglish(clean)
+        let subject = detectPrimarySubject(in: clean)
+        let colors = detectRequestedColors(in: clean)
+
+        var parts: [String] = []
+
+        if let subject {
+            if !colors.isEmpty {
+                parts.append("\(naturalList(colors)) \(subject)")
+                parts.append("the \(subject) itself is painted \(naturalList(colors))")
+            } else {
+                parts.append(subject)
+            }
+
+            parts.append("single main \(subject)")
+        }
+
+        if !translated.isEmpty {
+            parts.append(translated)
+        }
+
+        // La priorité est volontairement placée tôt dans le prompt : le modèle
+        // doit comprendre que le sujet, et non le décor, est l'image.
+        parts.append("close view")
+        parts.append("centered composition")
+        parts.append("main subject large in frame")
+        parts.append("subject fills most of the image")
+        parts.append("clear silhouette")
+        parts.append("simple secondary background")
+        parts.append("strong subject separation")
+
+        if isPhotographic {
+            parts.append("photorealistic photograph")
+            parts.append("realistic materials")
+            parts.append("natural lighting")
+            parts.append("sharp focus")
+            parts.append("detailed texture")
+            parts.append("realistic proportions")
+        } else {
+            parts.append("highly detailed")
+            parts.append("coherent lighting")
+            parts.append("clean shapes")
+            parts.append("balanced colors")
+        }
+
+        // Ces contraintes positives réduisent les défauts fréquents sans
+        // dépendre d'une API de negative prompt qui varie selon le runtime.
+        parts.append("one coherent scene")
+        parts.append("clean composition")
+        parts.append("no text")
+        parts.append("no watermark")
+        parts.append("no collage")
+        parts.append("no duplicated subject")
+
+        let positive = deduplicatePromptParts(parts)
+            .joined(separator: ", ")
+
+        return ImagePromptPlan(
+            originalPrompt: clean,
+            positivePrompt: positive,
+            isPhotographic: isPhotographic,
+            primarySubject: subject,
+            requestedColors: colors
+        )
+    }
+
+    private func normalizeUserImagePrompt(_ original: String) -> String {
+        var value = original
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "’", with: "'")
+
+        let cleanupPatterns: [(String, String)] = [
+            ("(?i)\\b(d'un\\s+){2,}", "un "),
+            ("(?i)\\b(d'une\\s+){2,}", "une "),
+            ("(?i)\\b(super\\s+){2,}", "super "),
+            ("\\s{2,}", " ")
+        ]
+
+        for (pattern, replacement) in cleanupPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                value = regex.stringByReplacingMatches(
+                    in: value,
+                    range: NSRange(location: 0, length: value.utf16.count),
+                    withTemplate: replacement
+                )
+            }
+        }
+
+        return value.trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines
+                .union(CharacterSet(charactersIn: ".,;:-"))
+        )
+    }
+
+    private func translateVisualTermsToEnglish(_ text: String) -> String {
+        var normalized = text
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "d'un ", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "d'une ", with: "", options: .caseInsensitive)
+
+        let phraseReplacements: [(String, String)] = [
+            ("sur une moto", "on a motorcycle"),
+            ("sur un moto", "on a motorcycle"),
+            ("sur une voiture", "on a car"),
+            ("sur un cheval", "on a horse"),
+            ("dans le ciel", "in the sky"),
+            ("au coucher du soleil", "at sunset"),
+            ("de nuit", "at night"),
+            ("gros plan", "close-up"),
+            ("plan rapproché", "close view")
+        ]
+
+        for (from, to) in phraseReplacements {
+            normalized = normalized.replacingOccurrences(
+                of: from,
+                with: to,
+                options: [.caseInsensitive, .diacriticInsensitive]
+            )
+        }
+
+        let dictionary: [String: String] = [
+            "avion": "airplane",
+            "aeronef": "aircraft",
+            "lapin": "rabbit",
+            "chat": "cat",
+            "chien": "dog",
+            "cheval": "horse",
+            "voiture": "car",
+            "moto": "motorcycle",
+            "train": "train",
+            "bateau": "boat",
+            "maison": "house",
+            "ville": "city",
+            "montagne": "mountain",
+            "mer": "sea",
+            "plage": "beach",
+            "ciel": "sky",
+            "femme": "woman",
+            "homme": "man",
+            "enfant": "child",
+            "robot": "robot",
+            "oiseau": "bird",
+            "dauphin": "dolphin",
+            "bleu": "blue",
+            "bleue": "blue",
+            "violet": "purple",
+            "violette": "purple",
+            "rouge": "red",
+            "vert": "green",
+            "verte": "green",
+            "jaune": "yellow",
+            "orange": "orange",
+            "rose": "pink",
+            "noir": "black",
+            "noire": "black",
+            "blanc": "white",
+            "blanche": "white",
+            "gris": "gray",
+            "grise": "gray",
+            "dore": "gold",
+            "doree": "gold",
+            "argente": "silver",
+            "argentee": "silver",
+            "realiste": "realistic",
+            "photorealiste": "photorealistic",
+            "photo": "photo",
+            "super": "high quality"
+        ]
+
+        let separators = CharacterSet.whitespacesAndNewlines
+        let tokens = normalized
+            .components(separatedBy: separators)
+            .filter { !$0.isEmpty }
+
+        let mapped = tokens.map { token -> String in
+            let stripped = token.trimmingCharacters(in: .punctuationCharacters)
+            let key = stripped
+                .lowercased()
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+
+            return dictionary[key] ?? stripped
+        }
+
+        return mapped
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private func detectPrimarySubject(in text: String) -> String? {
+        let subjectMap: [(String, String)] = [
+            ("avion", "airplane"), ("airplane", "airplane"), ("aeronef", "aircraft"),
+            ("lapin", "rabbit"), ("rabbit", "rabbit"),
+            ("chat", "cat"), ("cat", "cat"),
+            ("chien", "dog"), ("dog", "dog"),
+            ("cheval", "horse"), ("horse", "horse"),
+            ("voiture", "car"), ("car", "car"),
+            ("moto", "motorcycle"), ("motorcycle", "motorcycle"),
+            ("train", "train"), ("bateau", "boat"), ("boat", "boat"),
+            ("femme", "woman"), ("woman", "woman"),
+            ("homme", "man"), ("man", "man"),
+            ("robot", "robot"), ("oiseau", "bird"), ("bird", "bird"),
+            ("dauphin", "dolphin"), ("dolphin", "dolphin"),
+            ("maison", "house"), ("house", "house")
+        ]
+
+        let words = text
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+
+        for word in words {
+            if let match = subjectMap.first(where: { $0.0 == word }) {
+                return match.1
+            }
+        }
+
+        return nil
+    }
+
+    private func detectRequestedColors(in text: String) -> [String] {
+        let map: [(String, String)] = [
+            ("bleu", "blue"), ("bleue", "blue"), ("blue", "blue"),
+            ("violet", "purple"), ("violette", "purple"), ("purple", "purple"),
+            ("rouge", "red"), ("red", "red"),
+            ("vert", "green"), ("verte", "green"), ("green", "green"),
+            ("jaune", "yellow"), ("yellow", "yellow"),
+            ("orange", "orange"),
+            ("rose", "pink"), ("pink", "pink"),
+            ("noir", "black"), ("noire", "black"), ("black", "black"),
+            ("blanc", "white"), ("blanche", "white"), ("white", "white"),
+            ("gris", "gray"), ("grise", "gray"), ("gray", "gray"),
+            ("dore", "gold"), ("doree", "gold"), ("gold", "gold"),
+            ("argente", "silver"), ("argentee", "silver"), ("silver", "silver")
+        ]
+
+        let words = text
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+
+        var colors: [String] = []
+        for word in words {
+            if let color = map.first(where: { $0.0 == word })?.1,
+               !colors.contains(color) {
+                colors.append(color)
+            }
+        }
+        return colors
+    }
+
+    private func naturalList(_ values: [String]) -> String {
+        guard let last = values.last else { return "" }
+        if values.count == 1 { return last }
+        if values.count == 2 { return values.joined(separator: " and ") }
+        return values.dropLast().joined(separator: ", ") + " and " + last
+    }
+
+    private func deduplicatePromptParts(_ parts: [String]) -> [String] {
+        var seen = Set<String>()
+        return parts.compactMap { part in
+            let clean = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = clean.lowercased()
+            guard !clean.isEmpty, seen.insert(key).inserted else { return nil }
+            return clean
+        }
+    }
+
     // MARK: - Optimisation du Photoréalisme & Descripteurs Optiques
     
     /// Enrichit automatiquement le prompt pour obtenir un rendu photographique ultra-réaliste
     public func enhancePromptForHyperrealism(_ original: String) -> String {
-        let clean = original.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return original }
-        
-        let lower = clean.lowercased()
-        var base = clean
-        
-        // Traductions et adaptations conceptuelles pour les requêtes françaises fréquentes
-        if lower.contains("dauphin") && lower.contains("voiture") {
-            base = "a cinematic RAW photo of a real dolphin resting on top of a luxury vintage car, natural daylight, wet skin reflections"
-        } else if lower.contains("chat") && (lower.contains("astronaute") || lower.contains("espace")) {
-            base = "a detailed RAW photo of an astronaut cat wearing a high-tech NASA spacesuit in orbit, helmet glass reflection, Earth background"
-        } else if lower.contains("coucher de soleil") || lower.contains("soleil couchant") {
-            base = "a breathtaking golden hour photograph of \(clean), dramatic cloud lighting, lens flare, coastal atmosphere"
-        } else if lower.contains("portrait") || lower.contains("femme") || lower.contains("homme") || lower.contains("visage") {
-            base = "a realistic studio portrait of \(clean), soft rim lighting, natural skin pores, 85mm portrait lens, shallow depth of field"
-        }
-        
-        // Descripteurs de caméra reflex professionnelle
-        let realismTags = "RAW photo, 8k uhd, dslr, high quality, photorealistic, 35mm lens, f/1.8, natural lighting, sharp focus, hyperdetailed, film grain, Fujifilm XT3"
-        
-        if !base.lowercased().contains("raw photo") {
-            return "\(base), \(realismTags)"
-        }
-        return base
+        makePromptPlan(original).positivePrompt
     }
     
     // MARK: - Construction URL d'Image
@@ -188,8 +462,20 @@ public final class OpenSourceImageGenerationService {
         }
 
         let profile = SarahGenerativeModelCatalog.imageProfile()
+        let plan = makePromptPlan(cleanPrompt)
 
-        SarahLocalImageGenEngine.shared.generateImage(prompt: cleanPrompt) { [weak self] result in
+        let qualityConfig = SarahLocalImageGenEngine.LCMConfiguration(
+            steps: profile.identifier.contains("sdxl") ? 24 : 24,
+            guidanceScale: profile.identifier.contains("sdxl") ? 6.5 : 8.0,
+            width: 512,
+            height: 512,
+            enablePhotorealismBoost: plan.isPhotographic
+        )
+
+        SarahLocalImageGenEngine.shared.generateImage(
+            prompt: plan.positivePrompt,
+            config: qualityConfig
+        ) { [weak self] result in
             guard let self = self else { return }
 
             switch result {
