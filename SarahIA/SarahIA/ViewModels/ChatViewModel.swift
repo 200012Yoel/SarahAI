@@ -40,6 +40,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isMicRunning: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var pendingVoiceConfirmation: String? = nil
+    @Published public var isVoiceBubbleVisible: Bool = false
     
     // MARK: - Navigation, Studio VAI Coding & Voice Orb
     @Published public var isDrawerOpen: Bool = false
@@ -584,6 +585,19 @@ public final class ChatViewModel: ObservableObject {
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
         shouldResumeVoiceAfterInterruption = false
+        isVoiceBubbleVisible = false
+
+        // Réouverture depuis la bulle : conserver la réponse en cours au lieu
+        // de redémarrer toute la pile audio.
+        if isContinuousConversationActive {
+            if !voiceManager.isSpeaking && !AppleSpeechRecognizer.shared.isListening {
+                AppleSpeechRecognizer.shared.startListening()
+                isMicRunning = AppleSpeechRecognizer.shared.isListening
+                voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+            }
+            return
+        }
+
         voiceManager.stop()
         isContinuousConversationActive = true
 
@@ -603,6 +617,7 @@ public final class ChatViewModel: ObservableObject {
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         shouldResumeVoiceAfterInterruption = false
+        isVoiceBubbleVisible = false
         isContinuousConversationActive = false
         pendingVoiceActionText = nil
         pendingVoiceConfirmation = nil
@@ -620,6 +635,17 @@ public final class ChatViewModel: ObservableObject {
         micInputLevel = 0.0
         liveTranscriptionText = ""
         voiceStatus = .idle
+    }
+
+    public func minimizeVoiceConversation() {
+        guard isContinuousConversationActive else { return }
+        isVoiceBubbleVisible = true
+        isShowingVoiceOrbModal = false
+    }
+
+    public func restoreVoiceConversation() {
+        isVoiceBubbleVisible = false
+        isShowingVoiceOrbModal = true
     }
     
     public func speakMessage(_ text: String) {
