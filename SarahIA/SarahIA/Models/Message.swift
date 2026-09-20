@@ -40,6 +40,19 @@ public struct Message: Identifiable, Equatable, Codable {
         self.imageGenerationPrompt = imageGenerationPrompt
     }
     
+    /// Vrai si une ancienne réponse contient des marqueurs internes du moteur.
+    /// Ces messages ne doivent jamais être affichés comme une vraie réponse.
+    public var isInternalEngineLeak: Bool {
+        guard !isFromUser else { return false }
+
+        let decoded = content.decodingHTMLEntities()
+        return decoded.localizedCaseInsensitiveContains("<|im_start|>") ||
+            decoded.localizedCaseInsensitiveContains("<|im_end|>") ||
+            decoded.localizedCaseInsensitiveContains("RÈGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("REGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine")
+    }
+
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
     public var detectedImageURL: String? {
         if let explicit = generatedImageURL, !explicit.isEmpty { return explicit }
