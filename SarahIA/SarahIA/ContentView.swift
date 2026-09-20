@@ -9,6 +9,9 @@ public struct ContentView: View {
     @State private var isShowingSettings = false
     @State private var drawerDragStartedOpen: Bool? = nil
     @State private var isShowingLaunchAnimation = true
+    @State private var isShowingModelInstaller = false
+    @AppStorage("sarahModelInstallerPromptV1") private var modelInstallerPromptHandled = false
+    @StateObject private var modelInstaller = SarahModelInstallCoordinator.shared
 
     public init() {}
 
@@ -107,22 +110,80 @@ public struct ContentView: View {
             )
             }
 
+            if viewModel.isVoiceBubbleVisible && !viewModel.isShowingVoiceOrbModal {
+                SarahFloatingVoiceBubble(viewModel: viewModel)
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 86)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .transition(.scale(scale: 0.82).combined(with: .opacity))
+                    .zIndex(40)
+            }
+
             if isShowingLaunchAnimation {
                 SarahLaunchAnimationView()
                     .transition(.opacity)
                     .zIndex(100)
             }
+
+            if isShowingModelInstaller {
+                SarahModelInstallerOverlay(
+                    installer: modelInstaller,
+                    onInstall: {
+                        modelInstallerPromptHandled = true
+                        modelInstaller.installAllCompatible()
+                    },
+                    onContinue: {
+                        modelInstallerPromptHandled = true
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            isShowingModelInstaller = false
+                        }
+                    },
+                    onLater: {
+                        modelInstallerPromptHandled = true
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            isShowingModelInstaller = false
+                        }
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(90)
+            }
         }
         .onAppear {
-            guard isShowingLaunchAnimation else { return }
+            modelInstaller.resumeIfRequested()
+
+            guard isShowingLaunchAnimation else {
+                if !modelInstallerPromptHandled {
+                    isShowingModelInstaller = true
+                }
+                return
+            }
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.65) {
                 withAnimation(.easeOut(duration: 0.35)) {
                     isShowingLaunchAnimation = false
+                }
+
+                if !modelInstallerPromptHandled {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            isShowingModelInstaller = true
+                        }
+                    }
                 }
             }
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIApplication.willResignActiveNotification
+            )
+        ) { _ in
+            if viewModel.isContinuousConversationActive {
+                viewModel.stopVoiceConversation()
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -241,6 +302,197 @@ public struct ContentView: View {
     }
 }
 
+
+@available(iOS 15.0, *)
+private struct SarahFloatingVoiceBubble: View {
+    @ObservedObject var viewModel: ChatViewModel
+
+    private var accent: Color { viewModel.activeAgent.themeColor }
+
+    var body: some View {
+        Button {
+            HapticService.shared.buttonTap()
+            viewModel.restoreVoiceConversation()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color(red: 0.095, green: 0.10, blue: 0.12))
+                    .frame(width: 58, height: 58)
+                    .shadow(color: accent.opacity(0.38), radius: 14)
+
+                Circle()
+                    .stroke(accent.opacity(0.42), lineWidth: 1)
+                    .frame(width: 58, height: 58)
+
+                Image(systemName: viewModel.isSpeaking ? "waveform" : "mic.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(accent)
+                    .scaleEffect(1.0 + CGFloat(viewModel.micInputLevel) * 0.10)
+                    .animation(.easeOut(duration: 0.12), value: viewModel.micInputLevel)
+
+                Circle()
+                    .fill(viewModel.isMicRunning ? Color.green : accent)
+                    .frame(width: 8, height: 8)
+                    .offset(x: 20, y: -20)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("Rouvrir le mode vocal")
+        .contextMenu {
+            Button(role: .destructive) {
+                viewModel.stopVoiceConversation()
+            } label: {
+                Label("Arrêter le mode vocal", systemImage: "stop.circle")
+            }
+        }
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahModelInstallerOverlay: View {
+    @ObservedObject var installer: SarahModelInstallCoordinator
+    let onInstall: () -> Void
+    let onContinue: () -> Void
+    let onLater: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.96).ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 22) {
+                    Spacer(minLength: 42)
+
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.14))
+                            .frame(width: 94, height: 94)
+
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 46, weight: .semibold))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("Préparer Sarah sur cet iPhone")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+
+                        Text(installer.hardwareSummary)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.48))
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(installer.installableNames, id: \.self) { name in
+                            HStack(spacing: 10) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+
+                                Text(name)
+                                    .font(.system(size: 14.5, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.88))
+
+                                Spacer()
+                            }
+                        }
+
+                        Text("Les moteurs expérimentaux sans runtime iPhone validé ne sont pas téléchargés inutilement.")
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.42))
+                            .padding(.top, 4)
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.065))
+                    )
+
+                    if installer.isInstalling {
+                        VStack(alignment: .leading, spacing: 9) {
+                            ProgressView(value: installer.progress)
+                                .tint(.blue)
+
+                            HStack {
+                                Text(installer.statusText)
+                                    .font(.caption)
+                                    .foregroundColor(Color.white.opacity(0.62))
+                                Spacer()
+                                Text("\(Int(installer.progress * 100)) %")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundColor(Color.white.opacity(0.62))
+                            }
+
+                            Text("Tu peux quitter Sarah : les transferts utilisent les téléchargements de fond d’iOS et reprendront automatiquement selon le réseau et l’énergie.")
+                                .font(.caption2)
+                                .foregroundColor(Color.white.opacity(0.40))
+                        }
+                    }
+
+                    if installer.isInstalling {
+                        Button(action: onContinue) {
+                            Text("Continuer dans Sarah")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color.blue)
+                                )
+                        }
+                    } else if installer.totalCount > 0 && installer.installedCount == installer.totalCount {
+                        Button(action: onContinue) {
+                            Text("Ouvrir Sarah")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color.green.opacity(0.86))
+                                )
+                        }
+                    } else {
+                        Button(action: onInstall) {
+                            HStack(spacing: 9) {
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text("Installer tout")
+                            }
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(
+                                LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+
+                        Button("Plus tard", action: onLater)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.48))
+                    }
+
+                    Spacer(minLength: 30)
+                }
+                .padding(.horizontal, 22)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
 
 @available(iOS 15.0, *)
 private struct SarahLaunchAnimationView: View {
