@@ -121,6 +121,21 @@ jobs:
             exit 1
           }
 
+          grep -Fq 'let musicIntent = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)' "$COORD" || {
+            echo "❌ Le routage musical prioritaire a disparu."
+            exit 1
+          }
+
+          grep -Fq 'generatedAudioURL' "SarahIA/SarahIA/Models/Message.swift" || {
+            echo "❌ Les fichiers audio générés ne sont plus persistés dans les messages."
+            exit 1
+          }
+
+          grep -Fq 'GeneratedAudioFileCardView' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le lecteur Stable Audio a disparu du chat."
+            exit 1
+          }
+
           echo "✅ Garde-fous Sarah validés."
 
       - name: Build iOS 26 App
