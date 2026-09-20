@@ -1078,6 +1078,7 @@ private struct LocalGenerationSettingsView: View {
     @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
     @StateObject private var downloader = GenerativeModelDownloader.shared
     @StateObject private var installer = SarahModelInstallCoordinator.shared
+    @State private var showExperimental = false
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
@@ -1100,36 +1101,9 @@ private struct LocalGenerationSettingsView: View {
                         kind: .image
                     )
 
-                    capabilityCard(
-                        icon: "video.fill",
-                        tint: .orange,
-                        title: "Vidéo",
-                        profile: videoProfile,
-                        kind: .video
-                    )
-
                     musicCapabilityCard
 
-                    vocalSongCapabilityCard
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Sélection automatique", systemImage: "cpu")
-                            .font(.headline)
-                            .foregroundColor(.white)
-
-                        Text("Sarah choisit le profil selon la RAM et la version d’iOS. Un futur iPhone plus puissant basculera automatiquement vers un profil plus lourd sans modifier l’interface.")
-                            .font(.footnote)
-                            .foregroundColor(Color.white.opacity(0.54))
-
-                        Text(String(format: "RAM détectée : %.1f Go • iOS %d", SarahGenerativeModelCatalog.physicalRAMGB, SarahGenerativeModelCatalog.iosMajor))
-                            .font(.caption.monospaced())
-                            .foregroundColor(Color.white.opacity(0.38))
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(Color.white.opacity(0.075))
-                    )
+                    experimentalSection
 
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle(isOn: $allowCloudGeneration) {
@@ -1253,6 +1227,97 @@ private struct LocalGenerationSettingsView: View {
         )
     }
 
+    private var experimentalSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    showExperimental.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "flask.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.orange)
+                        .frame(width: 30, height: 30)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Fonctions expérimentales")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+
+                        Text("Vidéo et chanson avec voix")
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.42))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: showExperimental ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color.white.opacity(0.32))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            if showExperimental {
+                experimentalRow(
+                    icon: "video.fill",
+                    tint: .orange,
+                    title: videoProfile.displayName,
+                    detail: "Vidéo · runtime iPhone non validé"
+                )
+
+                experimentalRow(
+                    icon: "music.mic",
+                    tint: .cyan,
+                    title: vocalSongProfile.displayName,
+                    detail: "Chanson avec voix · runtime iPhone non validé"
+                )
+
+                Text("Ces fonctions restent cachées du parcours principal tant qu’elles ne sont pas réellement prêtes sur iPhone.")
+                    .font(.caption2)
+                    .foregroundColor(Color.white.opacity(0.34))
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+        )
+    }
+
+    private func experimentalRow(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.white.opacity(0.82))
+                    .lineLimit(1)
+
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(Color.white.opacity(0.38))
+            }
+
+            Spacer()
+        }
+    }
+
     private var musicCapabilityCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -1340,13 +1405,6 @@ private struct LocalGenerationSettingsView: View {
                 }
             }
 
-            if let source = URL(string: musicProfile.sourceURL), !musicProfile.sourceURL.isEmpty {
-                Link(destination: source) {
-                    Label("Source du modèle", systemImage: "arrow.up.right.square")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundColor(.pink)
-                }
-            }
         }
         .padding(16)
         .background(
@@ -1467,16 +1525,6 @@ private struct LocalGenerationSettingsView: View {
 
             modelInstallControls(profile: profile, kind: kind, tint: tint)
 
-            if let source = URL(string: profile.sourceURL), !profile.sourceURL.isEmpty {
-                Link(destination: source) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "arrow.up.right.square")
-                        Text("Source du modèle")
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(tint)
-                }
-            }
         }
         .padding(16)
         .background(
