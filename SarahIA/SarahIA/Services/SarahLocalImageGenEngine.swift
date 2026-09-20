@@ -27,8 +27,8 @@ public final class SarahLocalImageGenEngine {
         public var enablePhotorealismBoost: Bool
 
         public init(
-            steps: Int = 20,
-            guidanceScale: Float = 7.5,
+            steps: Int = 24,
+            guidanceScale: Float = 8.0,
             width: Int = 512,
             height: Int = 512,
             enablePhotorealismBoost: Bool = false
