@@ -361,34 +361,55 @@ public final class SarahLocalVideoGenEngine {
 
     public func detectVideoIntent(_ text: String) -> VideoIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean.lowercased()
+        let normalized = clean
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
 
-        let triggers = [
-            "génère une vidéo", "genere une video",
-            "génère-moi une vidéo", "genere moi une video",
-            "crée une vidéo", "cree une video",
-            "fais une vidéo", "fais une video",
-            "generate a video"
+        let words = Set(normalized.split(separator: " ").map(String.init))
+
+        let creationVerbs: Set<String> = [
+            "genere", "generer", "cree", "creer", "fais", "faire",
+            "fabrique", "fabriquer", "produis", "produire",
+            "generate", "create", "make"
         ]
 
-        guard let trigger = triggers.first(where: { lower.contains($0) }) else {
+        let videoWords: Set<String> = [
+            "video", "clip", "animation", "sequence"
+        ]
+
+        let hasCreationVerb = !words.isDisjoint(with: creationVerbs)
+        let hasVideoWord = !words.isDisjoint(with: videoWords)
+
+        guard hasCreationVerb && hasVideoWord else {
             return VideoIntent(isIntent: false, prompt: "")
         }
 
-        var prompt = clean
-        if let range = lower.range(of: trigger) {
-            let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
-            let safeOffset = min(offset, clean.count)
-            let cleanIndex = clean.index(clean.startIndex, offsetBy: safeOffset)
-            prompt = String(clean[cleanIndex...])
-                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
-        }
+        let fillerWords: Set<String> = [
+            "genere", "generer", "cree", "creer", "fais", "faire",
+            "fabrique", "fabriquer", "produis", "produire",
+            "generate", "create", "make",
+            "une", "un", "la", "le", "de", "des", "du",
+            "moi", "me", "stp", "svp",
+            "video", "clip", "animation", "sequence",
+            "petite", "petit", "courte", "court", "rapide"
+        ]
 
-        if prompt.isEmpty {
-            prompt = clean
-        }
+        let promptWords = normalized
+            .split(separator: " ")
+            .map(String.init)
+            .filter { !fillerWords.contains($0) }
 
-        return VideoIntent(isIntent: true, prompt: prompt)
+        let prompt = promptWords.joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return VideoIntent(
+            isIntent: true,
+            prompt: prompt
+        )
     }
 
     /// Indique uniquement si un ensemble de ressources locales crédible est
