@@ -81,7 +81,38 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 1.7 Une demande de création visuelle va directement au studio créatif.
+        // 1.7 Une demande de génération vidéo doit être interceptée avant
+        // le moteur conversationnel. Sinon une formulation comme
+        // « génère une petite vidéo » peut tomber dans une réponse générique.
+        let videoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        if videoIntent.isIntent {
+            let availability = SarahLocalVideoGenEngine.shared.availabilityMessage()
+
+            if videoIntent.prompt.isEmpty {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: "🎬 D’accord. **Que veux-tu voir dans la vidéo ?** Décris-moi la scène, le sujet et le style.",
+                    spokenText: "D'accord. Que veux-tu voir dans la vidéo ? Décris-moi la scène, le sujet et le style."
+                ))
+            } else {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: """
+                    🎬 **Génération vidéo**
+
+                    J’ai bien compris la demande : « \(videoIntent.prompt) ».
+
+                    \(availability)
+
+                    Je ne vais pas prétendre qu’une vidéo a été générée tant que le runtime vidéo iPhone n’est pas réellement actif.
+                    """,
+                    spokenText: availability
+                ))
+            }
+            return
+        }
+
+        // 1.8 Une demande de création visuelle va directement au studio créatif.
         // Elle doit être détectée avant la conversation générale et avant tout média.
         let visualIntent = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if visualIntent.isIntent {
