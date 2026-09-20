@@ -369,41 +369,66 @@ public final class SarahLocalVideoGenEngine {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        let words = Set(normalized.split(separator: " ").map(String.init))
+        let words = normalized.split(separator: " ").map(String.init)
+        let wordSet = Set(words)
 
-        let creationVerbs: Set<String> = [
-            "genere", "generer", "cree", "creer", "fais", "faire",
-            "fabrique", "fabriquer", "produis", "produire",
+        let videoWords: Set<String> = [
+            "video", "clip", "animation", "sequence", "film"
+        ]
+
+        let exactCreationWords: Set<String> = [
+            "genere", "generer",
+            "cree", "creer",
+            "fais", "faire",
+            "fabrique", "fabriquer",
+            "produis", "produire",
+            "anime", "animer",
             "generate", "create", "make"
         ]
 
-        let videoWords: Set<String> = [
-            "video", "clip", "animation", "sequence"
+        let creationPrefixes = [
+            "gener", "cre", "fabri", "produ", "anim"
         ]
 
-        let hasCreationVerb = !words.isDisjoint(with: creationVerbs)
-        let hasVideoWord = !words.isDisjoint(with: videoWords)
+        let hasVideoWord = !wordSet.isDisjoint(with: videoWords)
+        let hasCreationWord =
+            !wordSet.isDisjoint(with: exactCreationWords)
+            || words.contains(where: { word in
+                creationPrefixes.contains(where: { word.hasPrefix($0) })
+            })
 
-        guard hasCreationVerb && hasVideoWord else {
+        let asksCapability =
+            normalized.contains("tu peux")
+            || normalized.contains("peux tu")
+            || normalized.contains("est ce que tu peux")
+            || normalized.contains("j aimerais")
+            || normalized.contains("je veux")
+
+        // La dictée peut parfois transformer « génère-moi » en « généralement ».
+        // On ne corrige ce cas que si un mot vidéo est aussi présent, pour éviter
+        // de déclencher le moteur sur une phrase ordinaire.
+        let noisyDictationCreation =
+            hasVideoWord
+            && words.contains(where: { $0 == "generalement" || $0 == "generalement" })
+
+        guard hasVideoWord && (hasCreationWord || asksCapability || noisyDictationCreation) else {
             return VideoIntent(isIntent: false, prompt: "")
         }
 
-        let fillerWords: Set<String> = [
-            "genere", "generer", "cree", "creer", "fais", "faire",
-            "fabrique", "fabriquer", "produis", "produire",
-            "generate", "create", "make",
-            "une", "un", "la", "le", "de", "des", "du",
-            "moi", "me", "stp", "svp",
-            "video", "clip", "animation", "sequence",
-            "petite", "petit", "courte", "court", "rapide"
-        ]
+        let removableWords: Set<String> = exactCreationWords.union([
+            "une", "un", "de", "du", "des", "moi", "me", "la", "le",
+            "petite", "petit", "courte", "court", "rapide",
+            "video", "clip", "animation", "sequence", "film",
+            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais",
+            "generalement"
+        ])
 
-        let promptWords = normalized
-            .split(separator: " ")
-            .map(String.init)
-            .filter { !fillerWords.contains($0) }
-
-        let prompt = promptWords.joined(separator: " ")
+        let prompt = words
+            .filter { word in
+                !removableWords.contains(word)
+                && !creationPrefixes.contains(where: { word.hasPrefix($0) })
+            }
+            .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return VideoIntent(
