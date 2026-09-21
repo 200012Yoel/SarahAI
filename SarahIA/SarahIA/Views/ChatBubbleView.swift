@@ -248,8 +248,11 @@ public struct ChatBubbleView: View {
                     GeneratedAudioFileCardView(audioURLString: audioURL)
                         .frame(maxWidth: 300)
                 } else if let musicStyle = message.detectedMusicStyle {
-                    MusicTrackCardView(styleName: musicStyle)
-                        .frame(maxWidth: 280)
+                    MusicTrackCardView(
+                        styleName: musicStyle,
+                        variationSeed: message.musicVariationSeed
+                    )
+                    .frame(maxWidth: 280)
                 }
                 
                 // Carte de Rapport d'Analyse Visuelle Poussée (OCR & Objets)
