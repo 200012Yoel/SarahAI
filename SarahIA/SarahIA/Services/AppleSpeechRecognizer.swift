@@ -47,9 +47,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     // Détection automatique de silence pour valider la fin de la phrase
     private var silenceTimer: Timer?
-    private let silenceThreshold: TimeInterval = 1.3 // Secondes de pause pour valider la question
+    private let silenceThreshold: TimeInterval = 1.05
     private var hasDetectedSpeechInCurrentSession: Bool = false
     private var shouldFinalizeOnSilence: Bool = true
+    private var didFinalizeCurrentSession: Bool = false
 
     // Limite la télémétrie du niveau micro à ~15 FPS. Le callback audio tourne
     // beaucoup plus vite et ne doit jamais inonder le thread principal.
@@ -146,7 +147,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         request.contextualStrings = [
             "bonjour", "salut", "coucou", "bonsoir",
             "Sarah", "Tom", "Raphaël", "Yohan",
-            "nouveau chat", "mode vocal", "confirme", "annule"
+            "nouveau chat", "mode vocal", "confirme", "annule",
+            "génère", "générer", "crée", "créer",
+            "image", "photo", "vidéo", "musique", "raccourci"
         ]
         if #available(iOS 13.0, *) {
             request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
@@ -210,6 +213,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             state = .listening
             currentLiveText = ""
             hasDetectedSpeechInCurrentSession = false
+            didFinalizeCurrentSession = false
             HapticService.shared.speechStarted()
         } catch {
             state = .error("Micro indisponible")
@@ -309,12 +313,15 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     }
     
     private func finalizeTranscription(_ text: String) {
+        guard !didFinalizeCurrentSession else { return }
+
         let textToSend = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !textToSend.isEmpty else {
             stopListening()
             return
         }
-        
+
+        didFinalizeCurrentSession = true
         stopListening()
         currentLiveText = textToSend
         state = .processing
