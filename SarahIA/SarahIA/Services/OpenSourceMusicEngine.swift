@@ -120,54 +120,74 @@ public final class OpenSourceMusicEngine: NSObject {
     public func generateAndPlayTrack(
         style: MusicStyle = .lofi,
         durationSeconds: Double = 30.0,
+        variationSeed: UInt64 = UInt64.random(in: 1...UInt64.max),
         completion: @escaping (Bool, String) -> Void
     ) {
-        // Arrêter toute lecture précédente
         stopMusic()
-        
+
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            
-            guard let buffer = self.synthesizeTrackBuffer(style: style, durationSeconds: durationSeconds) else {
+
+            guard let buffer = self.synthesizeTrackBuffer(
+                style: style,
+                durationSeconds: durationSeconds,
+                variationSeed: variationSeed
+            ) else {
                 DispatchQueue.main.async {
                     completion(false, "Impossible de synthétiser le flux audio.")
                 }
                 return
             }
-            
+
             DispatchQueue.main.async {
                 guard let engine = self.audioEngine, let player = self.playerNode else {
                     completion(false, "Moteur audio indisponible.")
                     return
                 }
-                
+
                 if !engine.isRunning {
                     try? engine.start()
                 }
-                
+
                 self.currentStyle = style
                 self.isPlaying = true
-                
-                player.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: { [weak self] in
-                    DispatchQueue.main.async {
-                        self?.isPlaying = false
-                        self?.currentStyle = nil
+
+                player.scheduleBuffer(
+                    buffer,
+                    at: nil,
+                    options: .interrupts,
+                    completionHandler: { [weak self] in
+                        DispatchQueue.main.async {
+                            self?.isPlaying = false
+                            self?.currentStyle = nil
+                        }
                     }
-                })
+                )
                 player.play()
-                
+
                 NotificationCenter.default.post(
                     name: NSNotification.Name("SarahMusicPlaybackStarted"),
                     object: nil,
-                    userInfo: ["style": style.rawValue, "duration": durationSeconds]
+                    userInfo: [
+                        "style": style.rawValue,
+                        "duration": durationSeconds,
+                        "variationSeed": variationSeed
+                    ]
                 )
-                
-                let message = "🎵 **Morceau composé par Sarah Music Engine**\n• Style : **\(style.rawValue)**\n• Tempo : **\(Int(style.bpm)) BPM**\n• Éléments : \(style.description)\n\n*Lecture en cours sur votre haut-parleur...*"
+
+                let message = """
+                🎵 **Morceau composé par Sarah Music Engine**
+                • Style : **\(style.rawValue)**
+                • Variation : **\(String(variationSeed, radix: 16).suffix(6))**
+                • Éléments : \(style.description)
+
+                *Lecture en cours sur votre haut-parleur...*
+                """
                 completion(true, message)
             }
         }
     }
-    
+
     public func stopMusic() {
         playerNode?.stop()
         isPlaying = false
@@ -177,135 +197,264 @@ public final class OpenSourceMusicEngine: NSObject {
     
     // MARK: - Algorithme de Synthèse Polyphonique (AudioCraft / Math Synth)
     
-    private func synthesizeTrackBuffer(style: MusicStyle, durationSeconds: Double) -> AVAudioPCMBuffer? {
+    private func synthesizeTrackBuffer(
+        style: MusicStyle,
+        durationSeconds: Double,
+        variationSeed: UInt64
+    ) -> AVAudioPCMBuffer? {
         let frameCount = AVAudioFrameCount(sampleRate * durationSeconds)
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+        guard let format = AVAudioFormat(
+            standardFormatWithSampleRate: sampleRate,
+            channels: 2
+        ),
+        let buffer = AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: frameCount
+        ) else {
             return nil
         }
+
         buffer.frameLength = frameCount
-        
+
         guard let leftChannel = buffer.floatChannelData?[0],
               let rightChannel = buffer.floatChannelData?[1] else {
             return nil
         }
-        
-        let bpm = style.bpm
+
+        var rng = SarahMusicRandom(seed: variationSeed)
+
+        let tempoFactor = 0.90 + rng.unit() * 0.22
+        let bpm = style.bpm * tempoFactor
         let beatDuration = 60.0 / bpm
         let totalBeats = Int((durationSeconds / beatDuration).rounded(.up))
-        
-        // Gammes et Fréquences (Notes de base en Hz)
-        // Gamme Pentatonique / Mineure Dorienne / Majeure 7th
-        let scaleFreqs: [Double]
+
+        let baseScale: [Double]
         switch style {
         case .lofi, .jazz:
-            // Cmaj7 / Dm9 / G7 / Em7 (C, D, E, F, G, A, B)
-            scaleFreqs = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25]
+            baseScale = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25]
         case .synthwave:
-            // Mineur Électro (A, B, C, D, E, F, G)
-            scaleFreqs = [220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33]
+            baseScale = [220.00, 246.94, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33]
         case .classical:
-            // Gamme classique D Minor (D, E, F, G, A, Bb, C)
-            scaleFreqs = [293.66, 329.63, 349.23, 392.00, 440.00, 466.16, 523.25, 587.33, 659.25, 698.46]
+            baseScale = [293.66, 329.63, 349.23, 392.00, 440.00, 466.16, 523.25, 587.33, 659.25, 698.46]
         case .ambient:
-            // Gamme Ambiante Pentatonique F Majeure
-            scaleFreqs = [174.61, 220.00, 261.63, 329.63, 392.00, 440.00, 523.25, 659.25]
+            baseScale = [174.61, 220.00, 261.63, 329.63, 392.00, 440.00, 523.25, 659.25]
         case .cinematic:
-            // Gamme Épique C Minor
-            scaleFreqs = [130.81, 146.83, 155.56, 174.61, 196.00, 220.00, 246.94, 261.63, 311.13, 392.00]
+            baseScale = [130.81, 146.83, 155.56, 174.61, 196.00, 220.00, 246.94, 261.63, 311.13, 392.00]
         }
-        
-        // Génération de la partition algorithmique
-        var noteEvents: [(startTime: Double, duration: Double, freq: Double, amplitude: Float, isBass: Bool)] = []
-        
+
+        let semitoneShift = rng.int(in: -5...6)
+        let transposeRatio = pow(2.0, Double(semitoneShift) / 12.0)
+        let scaleFreqs = baseScale.map { $0 * transposeRatio }
+
+        let progressions = [
+            [0, 3, 4, 1],
+            [0, 4, 2, 5],
+            [0, 5, 3, 4],
+            [0, 2, 4, 1],
+            [0, 1, 4, 3]
+        ]
+        let progression = progressions[rng.int(in: 0...(progressions.count - 1))]
+        let melodyDensity = 0.45 + rng.unit() * 0.40
+        let octaveChance = 0.20 + rng.unit() * 0.35
+        let swingAmount = rng.unit() * 0.12
+        let harmonic2 = 0.12 + rng.unit() * 0.30
+        let harmonic3 = 0.04 + rng.unit() * 0.18
+
+        let stepDivision: Int
+        switch style {
+        case .synthwave:
+            stepDivision = 4
+        case .ambient:
+            stepDivision = 2
+        default:
+            let choices = [2, 3, 4]
+            stepDivision = choices[rng.int(in: 0...(choices.count - 1))]
+        }
+
+        struct NoteEvent {
+            let startTime: Double
+            let duration: Double
+            let freq: Double
+            let amplitude: Float
+            let isBass: Bool
+            let pan: Float
+        }
+
+        var noteEvents: [NoteEvent] = []
+        let rootSpan = max(1, min(scaleFreqs.count - 4, 6))
+
         for beat in 0..<totalBeats {
             let beatTime = Double(beat) * beatDuration
-            
-            // 1. Harmonie / Accord (Tous les 4 temps)
+
             if beat % 4 == 0 {
-                let rootIndex = (beat / 4) % (scaleFreqs.count / 2)
-                let rootFreq = scaleFreqs[rootIndex]
-                let thirdFreq = scaleFreqs[min(rootIndex + 2, scaleFreqs.count - 1)]
-                let fifthFreq = scaleFreqs[min(rootIndex + 4, scaleFreqs.count - 1)]
-                
-                noteEvents.append((startTime: beatTime, duration: beatDuration * 3.8, freq: rootFreq * 0.5, amplitude: 0.18, isBass: true))
-                noteEvents.append((startTime: beatTime, duration: beatDuration * 3.5, freq: thirdFreq, amplitude: 0.12, isBass: false))
-                noteEvents.append((startTime: beatTime, duration: beatDuration * 3.5, freq: fifthFreq, amplitude: 0.10, isBass: false))
+                let barIndex = beat / 4
+                let degree = progression[barIndex % progression.count] % rootSpan
+                let thirdIndex = min(degree + (rng.unit() > 0.50 ? 2 : 3), scaleFreqs.count - 1)
+                let fifthIndex = min(degree + 4, scaleFreqs.count - 1)
+
+                noteEvents.append(
+                    NoteEvent(
+                        startTime: beatTime,
+                        duration: beatDuration * (3.1 + rng.unit() * 0.75),
+                        freq: scaleFreqs[degree] * 0.5,
+                        amplitude: 0.15,
+                        isBass: true,
+                        pan: 0
+                    )
+                )
+                noteEvents.append(
+                    NoteEvent(
+                        startTime: beatTime,
+                        duration: beatDuration * (2.8 + rng.unit() * 0.8),
+                        freq: scaleFreqs[thirdIndex],
+                        amplitude: 0.09,
+                        isBass: false,
+                        pan: Float(-0.20 + rng.unit() * 0.18)
+                    )
+                )
+                noteEvents.append(
+                    NoteEvent(
+                        startTime: beatTime,
+                        duration: beatDuration * (2.8 + rng.unit() * 0.8),
+                        freq: scaleFreqs[fifthIndex],
+                        amplitude: 0.08,
+                        isBass: false,
+                        pan: Float(0.02 + rng.unit() * 0.24)
+                    )
+                )
             }
-            
-            // 2. Mélodie Principale & Arpèges
-            let stepDivision = (style == .synthwave) ? 4 : 2
+
             let stepDuration = beatDuration / Double(stepDivision)
-            
+
             for step in 0..<stepDivision {
-                let stepTime = beatTime + Double(step) * stepDuration
-                if stepTime >= durationSeconds { break }
-                
-                if (beat + step) % 2 == 0 || Double.random(in: 0...1) > 0.35 {
-                    let randomNote = scaleFreqs.randomElement() ?? 440.0
-                    let melodyFreq = (style == .ambient) ? randomNote : randomNote * (Double.random(in: 0...1) > 0.6 ? 2.0 : 1.0)
-                    let duration = (style == .ambient) ? stepDuration * 3.0 : stepDuration * 0.85
-                    let amp: Float = (style == .classical) ? Float.random(in: 0.12...0.22) : 0.16
-                    noteEvents.append((startTime: stepTime, duration: duration, freq: melodyFreq, amplitude: amp, isBass: false))
+                guard rng.unit() <= melodyDensity else { continue }
+
+                var stepTime = beatTime + Double(step) * stepDuration
+                if step % 2 == 1 {
+                    stepTime += stepDuration * swingAmount
                 }
+                if stepTime >= durationSeconds {
+                    continue
+                }
+
+                let noteIndex = rng.int(in: 0...(scaleFreqs.count - 1))
+                var melodyFreq = scaleFreqs[noteIndex]
+
+                if rng.unit() < octaveChance && style != .ambient {
+                    melodyFreq *= 2.0
+                } else if rng.unit() < 0.12 {
+                    melodyFreq *= 0.5
+                }
+
+                let durationMultiplier: Double
+                switch style {
+                case .ambient:
+                    durationMultiplier = 1.8 + rng.unit() * 1.6
+                case .classical:
+                    durationMultiplier = 0.75 + rng.unit() * 0.75
+                default:
+                    durationMultiplier = 0.48 + rng.unit() * 0.62
+                }
+
+                noteEvents.append(
+                    NoteEvent(
+                        startTime: stepTime,
+                        duration: min(
+                            durationSeconds - stepTime,
+                            stepDuration * durationMultiplier
+                        ),
+                        freq: melodyFreq,
+                        amplitude: Float(0.10 + rng.unit() * 0.10),
+                        isBass: false,
+                        pan: Float(-0.55 + rng.unit() * 1.10)
+                    )
+                )
             }
         }
-        
-        // Rendu DSP dans le buffer audio
+
         let totalSamples = Int(frameCount)
-        for i in 0..<totalSamples {
-            leftChannel[i] = 0.0
-            rightChannel[i] = 0.0
+        for index in 0..<totalSamples {
+            leftChannel[index] = 0
+            rightChannel[index] = 0
         }
-        
+
+        let twoPi = 2.0 * Double.pi
+
         for event in noteEvents {
-            let startSample = Int(event.startTime * sampleRate)
-            let durationSamples = Int(event.duration * sampleRate)
+            let startSample = max(0, Int(event.startTime * sampleRate))
+            let durationSamples = max(1, Int(event.duration * sampleRate))
             let endSample = min(startSample + durationSamples, totalSamples)
-            
-            guard startSample < totalSamples else { continue }
-            
-            let twoPi = 2.0 * Double.pi
-            let freq = event.freq
-            let amp = event.amplitude
-            let isBass = event.isBass
-            
-            for s in startSample..<endSample {
-                let t = Double(s - startSample) / sampleRate
-                let progress = Double(s - startSample) / Double(durationSamples)
-                
-                // Enveloppe ADSR simple
-                let envelope: Float
-                if progress < 0.1 {
-                    envelope = Float(progress / 0.1) // Attack
-                } else {
-                    envelope = Float(1.0 - (progress - 0.1) / 0.9) // Decay / Release
-                }
-                
-                // Synthèse d'onde (Sinus + Harmoniques pour timbre riche et chaud)
+
+            guard startSample < endSample else { continue }
+
+            for sample in startSample..<endSample {
+                let t = Double(sample - startSample) / sampleRate
+                let progress = Double(sample - startSample) / Double(durationSamples)
+
+                let attack = min(1.0, progress / 0.08)
+                let release = min(1.0, (1.0 - progress) / 0.16)
+                let envelope = Float(max(0, min(attack, release)))
+
+                let fundamental = sin(twoPi * event.freq * t)
+                let second = sin(twoPi * event.freq * 2.0 * t)
+                let third = sin(twoPi * event.freq * 3.0 * t)
+
                 let wave: Double
-                if isBass {
-                    wave = sin(twoPi * freq * t) + 0.3 * sin(twoPi * freq * 2.0 * t) // Son rond de basse
-                } else if style == .synthwave {
-                    wave = 0.7 * sin(twoPi * freq * t) + 0.3 * sin(twoPi * freq * 3.0 * t) // Son synthé brillant
+                if event.isBass {
+                    wave = fundamental + harmonic2 * 0.55 * second
                 } else {
-                    wave = 0.8 * sin(twoPi * freq * t) + 0.2 * sin(twoPi * freq * 2.0 * t) // Son piano / flûte
+                    switch style {
+                    case .synthwave:
+                        wave = 0.66 * fundamental + harmonic2 * second + harmonic3 * third
+                    case .ambient:
+                        wave = 0.86 * fundamental + harmonic2 * 0.38 * second
+                    case .classical:
+                        wave = 0.78 * fundamental + harmonic2 * 0.48 * second + harmonic3 * 0.25 * third
+                    default:
+                        wave = 0.80 * fundamental + harmonic2 * second + harmonic3 * 0.35 * third
+                    }
                 }
-                
-                let sampleValue = Float(wave) * amp * envelope
-                
-                // Léger effet stéréo panoramique
-                leftChannel[s] += sampleValue * 0.95
-                rightChannel[s] += sampleValue * 0.95
+
+                let sampleValue = Float(wave) * event.amplitude * envelope
+                let pan = max(-1, min(1, event.pan))
+                let leftGain = sqrt((1 - pan) * 0.5)
+                let rightGain = sqrt((1 + pan) * 0.5)
+
+                leftChannel[sample] += sampleValue * leftGain
+                rightChannel[sample] += sampleValue * rightGain
             }
         }
-        
-        // Limiteur / Normalisation douce pour éviter toute saturation
-        for i in 0..<totalSamples {
-            leftChannel[i] = max(-0.95, min(0.95, leftChannel[i]))
-            rightChannel[i] = max(-0.95, min(0.95, rightChannel[i]))
+
+        for index in 0..<totalSamples {
+            leftChannel[index] = tanh(leftChannel[index] * 1.35) * 0.82
+            rightChannel[index] = tanh(rightChannel[index] * 1.35) * 0.82
         }
-        
+
         return buffer
+    }
+
+}
+
+private struct SarahMusicRandom {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+    }
+
+    mutating func next() -> UInt64 {
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return state
+    }
+
+    mutating func unit() -> Double {
+        Double(next() % 1_000_000) / 1_000_000.0
+    }
+
+    mutating func int(in range: ClosedRange<Int>) -> Int {
+        let width = UInt64(range.upperBound - range.lowerBound + 1)
+        return range.lowerBound + Int(next() % width)
     }
 }
