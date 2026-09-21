@@ -70,6 +70,15 @@ public struct Message: Identifiable, Equatable, Codable {
     }
     
     /// Détecte si le message est une composition musicale de Sarah
+    public var musicVariationSeed: UInt64 {
+        var hash: UInt64 = 1469598103934665603
+        for byte in id.uuidString.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
+        return hash == 0 ? 1 : hash
+    }
+
     public var detectedMusicStyle: String? {
         if let explicit = generatedMusicStyle, !explicit.isEmpty { return explicit }
         if content.contains("Sarah Music Engine") || content.contains("Morceau composé") || content.contains("Moteur Musical Open Source") {
