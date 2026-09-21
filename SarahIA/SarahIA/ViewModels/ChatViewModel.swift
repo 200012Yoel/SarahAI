@@ -75,6 +75,9 @@ public final class ChatViewModel: ObservableObject {
     private var pendingVoiceActionText: String? = nil
     private var shouldResumeVoiceAfterInterruption = false
     private var composerDictationBaseText: String = ""
+    private var isVoiceTurnInFlight = false
+    private var lastSubmittedVoiceTranscript = ""
+    private var lastSubmittedVoiceTranscriptAt = Date.distantPast
     
     public init() {
         restorePersistedState()
@@ -158,6 +161,20 @@ public final class ChatViewModel: ObservableObject {
                 self?.micInputLevel = level
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(
+            for: NSNotification.Name("AppleSpeechRecognizerStateChanged")
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard let self = self else { return }
+            if case .error(let message) = AppleSpeechRecognizer.shared.state {
+                self.isMicRunning = false
+                self.isVoiceTurnInFlight = false
+                self.voiceStatus = .error(message)
+            }
+        }
+        .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -430,50 +447,80 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
             
-            // Ne jamais traiter le micro pendant que Sarah parle.
-            guard !self.voiceManager.isSpeaking else { return }
-            
+            // Une seule phrase vocale à la fois. Le micro ne doit jamais
+            // lancer une deuxième requête pendant le traitement ou pendant la voix de Sarah.
+            guard !self.voiceManager.isSpeaking,
+                  !self.isVoiceTurnInFlight,
+                  !self.isTyping else {
+                return
+            }
+
             guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
                 return
             }
-            
+
+            let normalizedTranscript = self.normalizeVoiceCommand(cleaned)
+            let now = Date()
+            if normalizedTranscript == self.lastSubmittedVoiceTranscript,
+               now.timeIntervalSince(self.lastSubmittedVoiceTranscriptAt) < 2.5 {
+                self.voiceStatus = .idle
+                return
+            }
+
             self.liveTranscriptionText = cleaned
-            
+            self.isMicRunning = false
+
             // Les actions qui ouvrent une app ou modifient l'iPhone ne partent
-            // jamais directement depuis une transcription vocale. Une mauvaise
-            // reconnaissance de "bonjour" ne peut donc plus ouvrir Apple Music.
+            // jamais directement depuis une transcription vocale.
             if self.handleVoiceActionSafety(cleaned) {
                 return
             }
-            
+
+            self.lastSubmittedVoiceTranscript = normalizedTranscript
+            self.lastSubmittedVoiceTranscriptAt = now
+            self.isVoiceTurnInFlight = true
             self.voiceStatus = .processing
             self.sendMessage(cleaned)
         }
         
         voiceManager.onSpeechStarted = { [weak self] in
-            self?.isSpeaking = true
-            self?.voiceStatus = .speaking
-            self?.haptics.speechStarted()
+            guard let self = self else { return }
+            AppleSpeechRecognizer.shared.stopListening()
+            self.isMicRunning = false
+            self.isSpeaking = true
+            self.voiceStatus = .speaking
+            self.haptics.speechStarted()
         }
         
         voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = false
+            self.isVoiceTurnInFlight = false
             self.voiceStatus = .idle
             self.haptics.speechFinished()
-            
-            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.10) {
+
+            let voiceUIIsAvailable =
+                self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible
+
+            if self.isContinuousConversationActive && voiceUIIsAvailable {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     guard self.isContinuousConversationActive,
-                          self.isShowingVoiceOrbModal,
-                          !self.voiceManager.isSpeaking else { return }
+                          (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible),
+                          !self.voiceManager.isSpeaking,
+                          !self.isTyping else { return }
+
                     if self.pendingVoiceActionText == nil {
                         self.liveTranscriptionText = ""
                     }
-                    AppleSpeechRecognizer.shared.startListening()
+
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true
+                    )
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
-                    self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
+                    self.voiceStatus = self.isMicRunning
+                        ? .listening(level: 0.0)
+                        : .idle
                 }
             }
         }
@@ -531,6 +578,7 @@ public final class ChatViewModel: ObservableObject {
                 pendingVoiceActionText = nil
                 pendingVoiceConfirmation = nil
                 liveTranscriptionText = pending
+                isVoiceTurnInFlight = true
                 voiceStatus = .processing
                 sendMessage(pending)
                 return true
@@ -670,6 +718,9 @@ public final class ChatViewModel: ObservableObject {
 
         shouldResumeVoiceAfterInterruption = false
         isVoiceBubbleVisible = false
+        if !isTyping && !voiceManager.isSpeaking {
+            isVoiceTurnInFlight = false
+        }
 
         // Réouverture depuis la bulle : conserver la réponse en cours au lieu
         // de redémarrer toute la pile audio.
@@ -713,6 +764,7 @@ public final class ChatViewModel: ObservableObject {
             composerDictationBaseText = ""
         }
         isContinuousConversationActive = false
+        isVoiceTurnInFlight = false
         pendingVoiceActionText = nil
         pendingVoiceConfirmation = nil
 
@@ -907,7 +959,8 @@ public final class ChatViewModel: ObservableObject {
                 // En chat texte, Sarah reste silencieuse. La lecture automatique est
                 // réservée au vrai mode vocal ; le bouton "Écouter" reste disponible
                 // manuellement sur chaque réponse.
-                if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+                if self.isContinuousConversationActive &&
+                   (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible) {
                     if let transitionPart = response.handoffSarahTransition,
                        let agentPart = response.handoffAgentGreeting {
                         let src = response.handoffSourceAgent ?? .sarah
