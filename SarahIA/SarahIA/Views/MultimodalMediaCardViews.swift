@@ -283,13 +283,18 @@ public struct FullScreenImageView: View {
 @available(iOS 14.0, *)
 public struct MusicTrackCardView: View {
     public let styleName: String
+    public let variationSeed: UInt64
     
     @State private var isPlaying: Bool = false
     @State private var animPhase: CGFloat = 0
     @State private var timer: Timer? = nil
     
-    public init(styleName: String = "Lo-Fi Chill") {
+    public init(
+        styleName: String = "Lo-Fi Chill",
+        variationSeed: UInt64 = UInt64.random(in: 1...UInt64.max)
+    ) {
         self.styleName = styleName
+        self.variationSeed = variationSeed
     }
     
     public var body: some View {
@@ -385,7 +390,10 @@ public struct MusicTrackCardView: View {
             timer?.invalidate()
         } else {
             let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(where: { styleName.contains($0.rawValue) }) ?? .lofi
-            OpenSourceMusicEngine.shared.generateAndPlayTrack(style: matchedStyle) { success, _ in
+            OpenSourceMusicEngine.shared.generateAndPlayTrack(
+                style: matchedStyle,
+                variationSeed: variationSeed
+            ) { success, _ in
                 DispatchQueue.main.async {
                     self.isPlaying = success
                     if success { self.startWaveAnimation() }
