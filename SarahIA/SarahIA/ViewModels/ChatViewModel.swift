@@ -123,7 +123,8 @@ public final class ChatViewModel: ObservableObject {
         // mais personne ne coupait puis ne restaurait la conversation vocale.
         AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
             guard let self = self else { return }
-            let shouldResume = self.isContinuousConversationActive && self.isShowingVoiceOrbModal
+            let shouldResume = self.isContinuousConversationActive &&
+                (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible)
 
             if shouldResume || AppleSpeechRecognizer.shared.isListening || self.voiceManager.isSpeaking {
                 self.stopVoiceConversation()
@@ -137,11 +138,23 @@ public final class ChatViewModel: ObservableObject {
             let shouldResume = self.shouldResumeVoiceAfterInterruption
             self.shouldResumeVoiceAfterInterruption = false
 
-            guard shouldResume, self.isShowingVoiceOrbModal else { return }
+            guard shouldResume else { return }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                guard self.isShowingVoiceOrbModal else { return }
-                self.startVoiceConversation()
+                guard self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible else { return }
+
+                if self.isVoiceBubbleVisible {
+                    self.isContinuousConversationActive = true
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true
+                    )
+                    self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+                    self.voiceStatus = self.isMicRunning
+                        ? .listening(level: 0.0)
+                        : .idle
+                } else {
+                    self.startVoiceConversation()
+                }
             }
         }
 
