@@ -283,19 +283,38 @@ public struct FullScreenImageView: View {
 @available(iOS 14.0, *)
 public struct MusicTrackCardView: View {
     public let styleName: String
-    
+    public let startsGenerating: Bool
+    public let audioURL: URL?
+    public let requestedDuration: TimeInterval?
+
     @State private var isPlaying: Bool = false
+    @State private var isGenerating: Bool
+    @State private var progress: Double
     @State private var animPhase: CGFloat = 0
     @State private var timer: Timer? = nil
-    
-    public init(styleName: String = "Lo-Fi Chill") {
+    @State private var generatedURL: URL?
+    @State private var duration: TimeInterval?
+    @State private var localPlayer: AVAudioPlayer?
+
+    public init(
+        styleName: String = "Lo-Fi Chill",
+        startsGenerating: Bool = false,
+        audioURL: URL? = nil,
+        requestedDuration: TimeInterval? = nil
+    ) {
         self.styleName = styleName
+        self.startsGenerating = startsGenerating
+        self.audioURL = audioURL
+        self.requestedDuration = requestedDuration
+        _isGenerating = State(initialValue: startsGenerating)
+        _progress = State(initialValue: audioURL == nil && startsGenerating ? 0 : 1)
+        _generatedURL = State(initialValue: audioURL)
+        _duration = State(initialValue: requestedDuration)
     }
-    
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 12) {
-                // Bouton Play/Stop rond
                 Button(action: {
                     togglePlayback()
                 }) {
@@ -304,111 +323,278 @@ public struct MusicTrackCardView: View {
                             .fill(
                                 LinearGradient(
                                     gradient: Gradient(colors: [
-                                        isPlaying ? Color.red.opacity(0.85) : Color.sarahCyan,
-                                        isPlaying ? Color.orange.opacity(0.85) : Color(red: 0.2, green: 0.5, blue: 1.0)
+                                        Color.sarahCyan,
+                                        Color(red: 0.22, green: 0.45, blue: 1.0)
                                     ]),
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 44, height: 44)
-                            .shadow(color: isPlaying ? Color.red.opacity(0.3) : Color.sarahCyan.opacity(0.3), radius: 6, x: 0, y: 2)
-                        
-                        Image(systemName: isPlaying ? "stop.fill" : "play.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .offset(x: isPlaying ? 0 : 2)
+                            .frame(width: 46, height: 46)
+                            .opacity(isGenerating ? 0.55 : 1)
+
+                        if isGenerating {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .offset(x: isPlaying ? 0 : 1.5)
+                        }
                     }
                 }
+                .disabled(isGenerating)
                 .buttonStyle(BorderlessButtonStyle())
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Sarah Music Engine")
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isGenerating ? "Musique en création…" : "Musique générée")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
-                    
-                    Text("Style : \(styleName) • 100% Local DSP")
+
+                    Text(styleName)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(.sarahCyan)
+                        .lineLimit(2)
                 }
-                
-                Spacer()
-                
-                // Onde animée DSP
-                HStack(spacing: 3) {
-                    ForEach(0..<6) { index in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(isPlaying ? Color.sarahCyan : Color.white.opacity(0.2))
-                            .frame(
-                                width: 3,
-                                height: isPlaying ? CGFloat(8 + (index * 4 + Int(animPhase * 8)) % 22) : 6
-                            )
-                            .animation(.easeInOut(duration: 0.15), value: animPhase)
+
+                Spacer(minLength: 4)
+
+                if generatedURL != nil && !isGenerating {
+                    Button(action: {
+                        shareGeneratedAudio()
+                    }) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.9))
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(Color.white.opacity(0.08)))
                     }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
-                .frame(height: 28)
             }
-            
-            // Tag statut
-            HStack {
-                Text(isPlaying ? "▶️ Lecture en cours sur haut-parleur" : "⏹️ Prêt à être joué")
+
+            // L'onde se "dessine" au fur et à mesure de la génération.
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<22, id: \.self) { index in
+                    let threshold = Double(index + 1) / 22.0
+                    let isBuilt = progress >= threshold || !isGenerating
+                    let moving = CGFloat((index * 7 + Int(animPhase * 11)) % 19)
+                    let base = CGFloat(7 + (index * 5) % 17)
+
+                    RoundedRectangle(cornerRadius: 1.8, style: .continuous)
+                        .fill(isBuilt ? Color.sarahCyan : Color.white.opacity(0.13))
+                        .frame(
+                            width: 3,
+                            height: isGenerating || isPlaying
+                                ? min(30, base + moving * 0.55)
+                                : base
+                        )
+                        .animation(.easeInOut(duration: 0.16), value: animPhase)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
+            .padding(.horizontal, 2)
+
+            if isGenerating {
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
+            }
+
+            HStack(spacing: 8) {
+                Text(statusText)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(isPlaying ? .green : .white.opacity(0.5))
-                
+                    .foregroundColor(statusColor)
+
                 Spacer()
-                
-                Text("Zéro Quota • Synthèse PCM")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.4))
+
+                Text(durationText)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.48))
             }
         }
-        .padding(12)
+        .padding(13)
         .background(Color(red: 0.10, green: 0.10, blue: 0.13))
-        .cornerRadius(14)
+        .cornerRadius(16)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isPlaying ? Color.sarahCyan.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    isGenerating || isPlaying
+                        ? Color.sarahCyan.opacity(0.42)
+                        : Color.white.opacity(0.08),
+                    lineWidth: 1
+                )
         )
         .onAppear {
-            self.isPlaying = OpenSourceMusicEngine.shared.isPlaying
-            setupNotificationObservers()
+            if isGenerating || isPlaying {
+                startWaveAnimation()
+            }
         }
         .onDisappear {
             timer?.invalidate()
+            localPlayer?.stop()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationProgress"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note) else { return }
+            isGenerating = true
+            if let value = note.userInfo?["progress"] as? Double {
+                progress = min(max(value, 0), 0.99)
+            }
+            if let seconds = note.userInfo?["duration"] as? Double {
+                duration = seconds
+            }
+            startWaveAnimation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedMusicReady"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note),
+                  let url = note.object as? URL else { return }
+
+            generatedURL = url
+            if let seconds = note.userInfo?["duration"] as? Double {
+                duration = seconds
+            }
+            progress = 1
+            isGenerating = false
+            timer?.invalidate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationCancelled"))) { _ in
+            guard startsGenerating else { return }
+            isGenerating = false
+            timer?.invalidate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationFailed"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note) else { return }
+            isGenerating = false
+            timer?.invalidate()
         }
     }
-    
+
+    private var statusText: String {
+        if isGenerating {
+            return "Création \(Int(progress * 100)) %"
+        }
+        if isPlaying {
+            return "Lecture en cours"
+        }
+        if generatedURL != nil {
+            return "Prêt à être joué"
+        }
+        return "Piste locale"
+    }
+
+    private var statusColor: Color {
+        if isGenerating { return .sarahCyan }
+        if isPlaying { return .green }
+        return .white.opacity(0.55)
+    }
+
+    private var durationText: String {
+        guard let duration else { return "Local" }
+        if duration >= 59.5 {
+            return "1:00"
+        }
+        return "0:" + String(format: "%02d", Int(duration.rounded()))
+    }
+
+    private func matchesCurrentPrompt(_ note: Notification) -> Bool {
+        guard let eventPrompt = note.userInfo?["prompt"] as? String else {
+            return true
+        }
+
+        let lhs = styleName
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = eventPrompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return lhs == rhs || lhs.contains(rhs) || rhs.contains(lhs)
+    }
+
     private func togglePlayback() {
+        guard !isGenerating else { return }
+
+        if let url = generatedURL {
+            do {
+                if localPlayer == nil || localPlayer?.url != url {
+                    localPlayer = try AVAudioPlayer(contentsOf: url)
+                    localPlayer?.prepareToPlay()
+                }
+
+                guard let player = localPlayer else { return }
+
+                if player.isPlaying {
+                    player.pause()
+                    isPlaying = false
+                    timer?.invalidate()
+                } else {
+                    player.play()
+                    isPlaying = true
+                    startWaveAnimation()
+                }
+            } catch {
+                isPlaying = false
+            }
+            return
+        }
+
+        // Compatibilité avec les anciennes cartes DSP déjà présentes dans l'historique.
         if isPlaying {
             OpenSourceMusicEngine.shared.stopMusic()
             isPlaying = false
             timer?.invalidate()
         } else {
-            let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(where: { styleName.contains($0.rawValue) }) ?? .lofi
+            let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(
+                where: { styleName.contains($0.rawValue) }
+            ) ?? .lofi
+
             OpenSourceMusicEngine.shared.generateAndPlayTrack(style: matchedStyle) { success, _ in
                 DispatchQueue.main.async {
                     self.isPlaying = success
-                    if success { self.startWaveAnimation() }
+                    if success {
+                        self.startWaveAnimation()
+                    }
                 }
             }
         }
     }
-    
+
     private func startWaveAnimation() {
-        timer?.invalidate()
+        guard timer == nil else { return }
+
         timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
             animPhase = (animPhase + 1).truncatingRemainder(dividingBy: 10)
+
+            if let player = localPlayer,
+               isPlaying,
+               !player.isPlaying {
+                isPlaying = false
+                timer?.invalidate()
+                timer = nil
+            }
         }
     }
-    
-    private func setupNotificationObservers() {
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStarted"), object: nil, queue: .main) { _ in
-            self.isPlaying = true
-            self.startWaveAnimation()
-        }
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStopped"), object: nil, queue: .main) { _ in
-            self.isPlaying = false
-            self.timer?.invalidate()
+
+    private func shareGeneratedAudio() {
+        guard let url = generatedURL else { return }
+
+        let controller = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+
+        if #available(iOS 13.0, *) {
+            let root = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+            root?.present(controller, animated: true)
+        } else {
+            UIApplication.shared.keyWindow?
+                .rootViewController?
+                .present(controller, animated: true)
         }
     }
 }
