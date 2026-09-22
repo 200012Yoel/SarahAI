@@ -186,6 +186,56 @@ public final class ChatViewModel: ObservableObject {
                 self.persistCurrentState()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedVideoReady"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let url = notif.object as? URL,
+                      let index = self.messages.lastIndex(where: { $0.isVideoGenerationPlaceholder }) else {
+                    return
+                }
+
+                let old = self.messages[index]
+                let duration = (notif.userInfo?["duration"] as? Double)
+                    ?? old.audioDuration
+                    ?? 6
+
+                self.messages[index] = Message(
+                    id: old.id,
+                    content: "🎬 **Vidéo générée.**",
+                    isFromUser: false,
+                    timestamp: old.timestamp,
+                    audioDuration: duration,
+                    generatedVideoURL: url.absoluteString,
+                    videoGenerationPrompt: old.videoGenerationPrompt,
+                    isGeneratingVideo: false
+                )
+                self.persistCurrentState()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationFailed"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let index = self.messages.lastIndex(where: { $0.isVideoGenerationPlaceholder }) else {
+                    return
+                }
+
+                let old = self.messages[index]
+                let error = (notif.userInfo?["error"] as? String)
+                    ?? "La génération vidéo a échoué."
+
+                self.messages[index] = Message(
+                    id: old.id,
+                    content: "🎬 **Génération vidéo interrompue**\n\(error)",
+                    isFromUser: false,
+                    timestamp: old.timestamp
+                )
+                self.persistCurrentState()
+            }
+            .store(in: &cancellables)
     }
 
     private func ensureVoicePipelinePrepared() {
@@ -612,8 +662,10 @@ public final class ChatViewModel: ObservableObject {
         AIProgressiveScheduler.shared.cancelAllTasks()
 
         // Retire la carte provisoire si l'utilisateur touche le carré Stop.
-        if messages.contains(where: { $0.isMusicGenerationPlaceholder }) {
-            messages.removeAll(where: { $0.isMusicGenerationPlaceholder })
+        if messages.contains(where: { $0.isMusicGenerationPlaceholder || $0.isVideoGenerationPlaceholder }) {
+            messages.removeAll(where: {
+                $0.isMusicGenerationPlaceholder || $0.isVideoGenerationPlaceholder
+            })
             persistCurrentState()
         }
 
@@ -748,6 +800,19 @@ public final class ChatViewModel: ObservableObject {
                     )
                 )
             }
+        }
+
+        let videoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(routedText)
+        if videoIntent.isIntent {
+            appendMessage(
+                Message(
+                    content: "🎬 **Génération vidéo en cours**",
+                    isFromUser: false,
+                    audioDuration: videoIntent.duration,
+                    videoGenerationPrompt: videoIntent.prompt,
+                    isGeneratingVideo: true
+                )
+            )
         }
 
         isTyping = true
