@@ -132,7 +132,7 @@ public final class OpenSourceImageGenerationService {
     // MARK: - Construction URL d'Image
     
     /// Génère l'URL publique de génération pour le modèle Flux / Pollinations avec photoréalisme maximal
-    public func buildImageURL(for prompt: String, width: Int = 768, height: Int = 768, model: String = "flux") -> String {
+    public func buildImageURL(for prompt: String, width: Int = 1024, height: Int = 1024, model: String = "flux") -> String {
         let enhanced = enhancePromptForHyperrealism(prompt)
         var allowedSet = CharacterSet.urlPathAllowed
         allowedSet.remove(charactersIn: "/?#&=+[]@!$'*,;")
@@ -146,8 +146,8 @@ public final class OpenSourceImageGenerationService {
     /// Le fallback distant n'est utilisé que si l'utilisateur l'a activé.
     public func generateImage(
         prompt: String,
-        width: Int = 768,
-        height: Int = 768,
+        width: Int = 1024,
+        height: Int = 1024,
         model: String = "flux",
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
@@ -237,8 +237,8 @@ public final class OpenSourceImageGenerationService {
     /// Télécharge et traite directement l'image avec système de secours multi-serveurs
     public func fetchDirectImage(
         prompt: String,
-        width: Int = 768,
-        height: Int = 768,
+        width: Int = 1024,
+        height: Int = 1024,
         model: String = "flux",
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
@@ -274,8 +274,12 @@ public final class OpenSourceImageGenerationService {
         let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: allowedSet) ?? cleanPrompt.replacingOccurrences(of: "/", with: "-")
         
         let candidateURLs = [
+            // Qualité d'abord : Flux en 1024² lorsque le fallback réseau a
+            // été explicitement autorisé. Les essais suivants privilégient
+            // ensuite la vitesse et la compatibilité.
             "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=flux&nologo=true&enhance=true",
-            "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=turbo&nologo=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=flux&nologo=true&enhance=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=turbo&nologo=true",
             "https://image.pollinations.ai/prompt/\(encoded)?width=512&height=512&nologo=true"
         ]
         
