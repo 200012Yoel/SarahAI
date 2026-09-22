@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Barre de saisie native SwiftUI.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct MessageBar: View {
     @Binding var text: String
     @Binding var activeAgent: AgentType
@@ -59,8 +59,11 @@ public struct MessageBar: View {
             }
             .padding(.horizontal, 16)
             .frame(height: 48)
-            .background(Color(white: 0.15))
-            .cornerRadius(24)
+            .sarahLiquidGlass(
+                cornerRadius: 24,
+                tint: activeAgent.themeColor,
+                intensity: 0.08
+            )
 
             let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
@@ -93,9 +96,20 @@ public struct MessageBar: View {
             }
             .frame(width: 44, height: 44)
             .background(
-                isProcessing || hasText
-                    ? Color(red: 1.0, green: 0.43, blue: 0.13)
-                    : Color(white: 0.15)
+                ZStack {
+                    Circle().fill(.ultraThinMaterial)
+                    Circle().fill(
+                        (isProcessing || hasText)
+                            ? activeAgent.themeColor.opacity(0.92)
+                            : Color.white.opacity(0.06)
+                    )
+                    Circle().stroke(
+                        (isProcessing || hasText)
+                            ? Color.white.opacity(0.26)
+                            : Color.white.opacity(0.12),
+                        lineWidth: 0.8
+                    )
+                }
             )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
