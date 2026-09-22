@@ -13,8 +13,7 @@ public struct ChatBubbleView: View {
     public var onRetry: (() -> Void)?
     public var onOpenStudio: (() -> Void)?
 
-    @State private var isShowingImageViewer = false
-    @State private var selectedImage: UIImage?
+    @State private var fullscreenImageItem: SarahFullscreenImageItem?
     
     public init(
         message: Message,
@@ -50,13 +49,11 @@ public struct ChatBubbleView: View {
                 .padding(.vertical, 2)
             }
         }
-        .fullScreenCover(isPresented: $isShowingImageViewer) {
-            if let selectedImage {
-                SarahFullscreenImageViewer(
-                    image: selectedImage,
-                    prompt: message.imageGenerationPrompt ?? message.content
-                )
-            }
+        .fullScreenCover(item: $fullscreenImageItem) { item in
+            SarahFullscreenImageViewer(
+                image: item.image,
+                prompt: item.prompt
+            )
         }
     }
     
@@ -218,8 +215,10 @@ public struct ChatBubbleView: View {
                 // Image locale : afficher directement les octets du rendu.
                 if let data = message.imageData, let uiImage = UIImage(data: data) {
                     Button {
-                        selectedImage = uiImage
-                        isShowingImageViewer = true
+                        fullscreenImageItem = SarahFullscreenImageItem(
+                            image: uiImage,
+                            prompt: message.imageGenerationPrompt ?? message.content
+                        )
                         HapticService.shared.buttonTap()
                     } label: {
                         Image(uiImage: uiImage)
@@ -248,11 +247,8 @@ public struct ChatBubbleView: View {
                     GeneratedAudioFileCardView(audioURLString: audioURL)
                         .frame(maxWidth: 300)
                 } else if let musicStyle = message.detectedMusicStyle {
-                    MusicTrackCardView(
-                        styleName: musicStyle,
-                        variationSeed: message.musicVariationSeed
-                    )
-                    .frame(maxWidth: 280)
+                    MusicTrackCardView(styleName: musicStyle)
+                        .frame(maxWidth: 280)
                 }
                 
                 // Carte de Rapport d'Analyse Visuelle Poussée (OCR & Objets)
@@ -328,6 +324,12 @@ public struct ChatBubbleView: View {
 }
 
 // MARK: - Viewer d'image plein écran
+
+private struct SarahFullscreenImageItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    let prompt: String
+}
 
 @available(iOS 15.0, *)
 private struct SarahFullscreenImageViewer: View {
