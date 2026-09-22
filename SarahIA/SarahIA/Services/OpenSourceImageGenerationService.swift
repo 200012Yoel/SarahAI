@@ -149,6 +149,7 @@ public final class OpenSourceImageGenerationService {
         width: Int = 1024,
         height: Int = 1024,
         model: String = "flux",
+        notifyChat: Bool = true,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -177,17 +178,19 @@ public final class OpenSourceImageGenerationService {
                 }
 
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("SarahGeneratedImageReady"),
-                        object: nil,
-                        userInfo: [
-                            "image": image,
-                            "prompt": cleanPrompt,
-                            "fileURL": localURL as Any,
-                            "modelName": profile.displayName,
-                            "isLocal": true
-                        ]
-                    )
+                    if notifyChat {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahGeneratedImageReady"),
+                            object: nil,
+                            userInfo: [
+                                "image": image,
+                                "prompt": cleanPrompt,
+                                "fileURL": localURL as Any,
+                                "modelName": profile.displayName,
+                                "isLocal": true
+                            ]
+                        )
+                    }
 
                     completion(GeneratedImageResult(
                         prompt: cleanPrompt,
@@ -218,7 +221,8 @@ public final class OpenSourceImageGenerationService {
                     prompt: cleanPrompt,
                     width: width,
                     height: height,
-                    model: model
+                    model: model,
+                    notifyChat: notifyChat
                 ) { remote in
                     let result = GeneratedImageResult(
                         prompt: remote.prompt,
@@ -240,6 +244,7 @@ public final class OpenSourceImageGenerationService {
         width: Int = 1024,
         height: Int = 1024,
         model: String = "flux",
+        notifyChat: Bool = true,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -283,7 +288,15 @@ public final class OpenSourceImageGenerationService {
             "https://image.pollinations.ai/prompt/\(encoded)?width=512&height=512&nologo=true"
         ]
         
-        tryFetchCandidates(urls: candidateURLs, index: 0, prompt: cleanPrompt, cacheKey: cacheKey, model: model, completion: completion)
+        tryFetchCandidates(
+            urls: candidateURLs,
+            index: 0,
+            prompt: cleanPrompt,
+            cacheKey: cacheKey,
+            model: model,
+            notifyChat: notifyChat,
+            completion: completion
+        )
     }
     
     private func tryFetchCandidates(
@@ -292,6 +305,7 @@ public final class OpenSourceImageGenerationService {
         prompt: String,
         cacheKey: NSString,
         model: String,
+        notifyChat: Bool,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         guard index < urls.count, let requestURL = URL(string: urls[index]) else {
@@ -323,11 +337,13 @@ public final class OpenSourceImageGenerationService {
                 let localFileURL = self.saveImageLocally(data: data, prompt: prompt)
                 
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("SarahGeneratedImageReady"),
-                        object: nil,
-                        userInfo: ["image": image, "prompt": prompt, "fileURL": localFileURL as Any]
-                    )
+                    if notifyChat {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahGeneratedImageReady"),
+                            object: nil,
+                            userInfo: ["image": image, "prompt": prompt, "fileURL": localFileURL as Any]
+                        )
+                    }
                     
                     completion(GeneratedImageResult(
                         prompt: prompt,
@@ -341,7 +357,15 @@ public final class OpenSourceImageGenerationService {
             } else {
                 // Tentative avec le serveur/modèle de secours suivant
                 print("⚠️ [ImageGenService] Tentative sur URL candidate \(index + 1) échouée -> Bascule sur secours...")
-                self.tryFetchCandidates(urls: urls, index: index + 1, prompt: prompt, cacheKey: cacheKey, model: model, completion: completion)
+                self.tryFetchCandidates(
+                    urls: urls,
+                    index: index + 1,
+                    prompt: prompt,
+                    cacheKey: cacheKey,
+                    model: model,
+                    notifyChat: notifyChat,
+                    completion: completion
+                )
             }
         }.resume()
     }
