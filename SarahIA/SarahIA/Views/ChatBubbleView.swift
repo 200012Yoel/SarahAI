@@ -162,6 +162,17 @@ public struct ChatBubbleView: View {
                     .frame(maxWidth: 290)
                 }
                 
+                // Carte vidéo : progression en direct puis lecture du MP4 final.
+                if message.isVideoGenerationPlaceholder || message.detectedGeneratedVideoURL != nil {
+                    GeneratedVideoCardView(
+                        prompt: message.videoGenerationPrompt ?? message.content,
+                        startsGenerating: message.isVideoGenerationPlaceholder,
+                        videoURL: message.detectedGeneratedVideoURL,
+                        requestedDuration: message.audioDuration
+                    )
+                    .frame(maxWidth: 300)
+                }
+
                 // Carte Raccourcis Apple : vrais noms de blocs + copie + ouverture
                 // directe d'un raccourci vierge dans l'app Raccourcis.
                 if let shortcutPlan = message.detectedShortcutPlan {
