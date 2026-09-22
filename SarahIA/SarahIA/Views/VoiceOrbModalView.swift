@@ -3,7 +3,7 @@ import UIKit
 
 /// Interface vocale Sarah.
 /// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.presentationMode) private var presentationMode
@@ -93,9 +93,6 @@ public struct VoiceOrbModalView: View {
             drift = true
             viewModel.startVoiceConversation()
         }
-        .onDisappear {
-            viewModel.stopVoiceConversation()
-        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             // Sarah ne doit jamais conserver une route audio active quand
             // l'utilisateur quitte l'app ou ouvre Siri / un appel.
@@ -174,7 +171,6 @@ public struct VoiceOrbModalView: View {
         HStack(spacing: 14) {
             circleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                     onOpenMenu()
@@ -195,12 +191,19 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            circleButton(systemName: "slider.horizontal.3") {
-                HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                presentationMode.wrappedValue.dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    onOpenSettings()
+            HStack(spacing: 8) {
+                circleButton(systemName: "slider.horizontal.3", size: 44) {
+                    HapticService.shared.buttonTap()
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onOpenSettings()
+                    }
+                }
+
+                circleButton(systemName: "xmark", size: 44, highlighted: true) {
+                    HapticService.shared.buttonTap()
+                    viewModel.endVoiceConversation()
+                    presentationMode.wrappedValue.dismiss()
                 }
             }
         }
@@ -349,22 +352,29 @@ public struct VoiceOrbModalView: View {
             .padding(.leading, 14)
             .padding(.trailing, 7)
             .frame(height: 52)
-            .background(
-                RoundedRectangle(cornerRadius: 26)
-                    .fill(Color.white.opacity(0.09))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 26)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            .sarahLiquidGlass(
+                cornerRadius: 26,
+                tint: accent,
+                intensity: 0.10
             )
 
             circleButton(
-                systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
+                systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill",
                 size: 50,
-                highlighted: viewModel.isMicRunning
+                highlighted: !viewModel.isVoiceMicrophoneMuted
             ) {
                 HapticService.shared.buttonTap()
                 viewModel.toggleMicrophone()
+            }
+
+            circleButton(
+                systemName: "xmark",
+                size: 50,
+                highlighted: true
+            ) {
+                HapticService.shared.buttonTap()
+                viewModel.endVoiceConversation()
+                presentationMode.wrappedValue.dismiss()
             }
         }
     }
@@ -384,13 +394,17 @@ public struct VoiceOrbModalView: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(highlighted ? accent.opacity(0.24) : Color.white.opacity(0.10))
+                    .fill(.ultraThinMaterial)
+                    .frame(width: size, height: size)
+
+                Circle()
+                    .fill(highlighted ? accent.opacity(0.28) : Color.white.opacity(0.04))
                     .frame(width: size, height: size)
 
                 Circle()
                     .stroke(
-                        highlighted ? accent.opacity(0.44) : Color.white.opacity(0.08),
-                        lineWidth: 1
+                        highlighted ? accent.opacity(0.52) : Color.white.opacity(0.18),
+                        lineWidth: 0.8
                     )
                     .frame(width: size, height: size)
 
