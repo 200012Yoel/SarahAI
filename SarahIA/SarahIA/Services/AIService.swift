@@ -205,19 +205,41 @@ public final class AIService {
             }
         }
 
-        // 0.4 GÉNÉRATION VIDÉO LOCALE
+        // 0.4 GÉNÉRATION VIDÉO
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
         if videoCheck.isIntent {
-            let profile = SarahLocalVideoGenEngine.shared.profile
-            let reply = """
-            🎬 **Création vidéo — \(profile.displayName)**
+            SarahLocalVideoGenEngine.shared.generateVideo(
+                prompt: videoCheck.prompt,
+                duration: videoCheck.duration,
+                vertical: videoCheck.isVertical
+            ) { [weak self] result in
+                guard let self = self else { return }
 
-            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
+                let reply: String
+                switch result {
+                case .success(let url):
+                    let format = videoCheck.isVertical ? "vertical 9:16" : "paysage 16:9"
+                    reply = """
+                    🎬 **Vidéo générée**
 
-            Profil sélectionné automatiquement pour cet appareil : **\(profile.displayName)** · \(profile.licenseName).
-            """
-            recordExchange(userText: trimmed, assistantResponse: reply)
-            completion(reply.decodingHTMLEntities())
+                    Sarah a créé un MP4 **\(format)** de **\(Int(videoCheck.duration)) secondes** avec **Sarah Motion Video**.
+                    Fichier : \(url.lastPathComponent)
+
+                    Le rendu utilise une image clé générée par Sarah puis une animation locale. Le moteur de diffusion vidéo dédié reste séparé tant que son runtime iPhone n'est pas validé.
+                    """
+                case .failure(let error):
+                    reply = """
+                    🎬 **Génération vidéo interrompue**
+
+                    \(error.localizedDescription)
+                    """
+                }
+
+                self.recordExchange(userText: trimmed, assistantResponse: reply)
+                DispatchQueue.main.async {
+                    completion(reply.decodingHTMLEntities())
+                }
+            }
             return
         }
 
