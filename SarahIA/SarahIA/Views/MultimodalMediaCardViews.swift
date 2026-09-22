@@ -194,6 +194,97 @@ public struct GeneratedImageCardView: View {
     }
 }
 
+@available(iOS 14.0, *)
+public struct GeneratedInlineImageCardView: View {
+    public let image: UIImage
+    public let promptDescription: String?
+
+    @State private var isShowingFullScreen = false
+
+    public init(image: UIImage, promptDescription: String? = nil) {
+        self.image = image
+        self.promptDescription = promptDescription
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, minHeight: 250, maxHeight: 290)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isShowingFullScreen = true
+                    }
+
+                Text("✨ HD")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.66))
+                    .cornerRadius(7)
+                    .padding(8)
+            }
+
+            HStack(spacing: 7) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.sarahCyan)
+
+                Text("Image générée par Sarah")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.82))
+
+                Spacer()
+
+                Button(action: shareImage) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 28)
+                        .background(Color.white.opacity(0.10))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+        }
+        .padding(10)
+        .background(Color(red: 0.10, green: 0.10, blue: 0.12))
+        .cornerRadius(18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .sheet(isPresented: $isShowingFullScreen) {
+            FullScreenImageView(image: image, prompt: promptDescription)
+        }
+    }
+
+    private func shareImage() {
+        let controller = UIActivityViewController(
+            activityItems: [image],
+            applicationActivities: nil
+        )
+
+        if #available(iOS 13.0, *) {
+            let root = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+            root?.present(controller, animated: true)
+        } else {
+            UIApplication.shared.keyWindow?
+                .rootViewController?
+                .present(controller, animated: true)
+        }
+    }
+}
+
 // MARK: - Indicateur Standard & Épuré de Génération d'Image
 
 @available(iOS 14.0, *)
