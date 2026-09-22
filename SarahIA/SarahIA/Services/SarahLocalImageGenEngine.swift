@@ -340,6 +340,7 @@ public final class SarahLocalVideoGenEngine {
         case writerCreationFailed
         case pixelBufferFailed
         case exportFailed(String)
+        case cancelled
 
         public var errorDescription: String? {
             switch self {
@@ -355,6 +356,8 @@ public final class SarahLocalVideoGenEngine {
                 return "Impossible de créer une image vidéo."
             case .exportFailed(let reason):
                 return "Échec de l'export vidéo : \(reason)"
+            case .cancelled:
+                return "La génération vidéo a été arrêtée."
             }
         }
     }
@@ -367,6 +370,8 @@ public final class SarahLocalVideoGenEngine {
     private let ciContext = CIContext(options: [
         .cacheIntermediates: false
     ])
+    private let generationLock = NSLock()
+    private var activeGenerationID: UUID?
 
     private init() {}
 
@@ -522,6 +527,7 @@ public final class SarahLocalVideoGenEngine {
         }
 
         let safeDuration = min(max(duration, 3), 12)
+        let generationID = beginGeneration()
 
         DispatchQueue.main.async {
             NotificationCenter.default.post(
@@ -545,6 +551,11 @@ public final class SarahLocalVideoGenEngine {
             notifyChat: false
         ) { [weak self] result in
             guard let self = self else { return }
+
+            guard self.isGenerationCurrent(generationID) else {
+                completion(.failure(VideoError.cancelled))
+                return
+            }
 
             guard result.isSuccess, let image = result.image else {
                 let error = VideoError.keyframeGenerationFailed(
@@ -584,8 +595,11 @@ public final class SarahLocalVideoGenEngine {
                         image: image,
                         prompt: clean,
                         duration: safeDuration,
-                        vertical: vertical
+                        vertical: vertical,
+                        generationID: generationID
                     )
+
+                    self.finishGeneration(generationID)
 
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(
@@ -602,15 +616,33 @@ public final class SarahLocalVideoGenEngine {
                         completion(.success(url))
                     }
                 } catch {
+                    self.finishGeneration(generationID)
+
+                    let wasCancelled: Bool
+                    if let videoError = error as? VideoError,
+                       case .cancelled = videoError {
+                        wasCancelled = true
+                    } else {
+                        wasCancelled = false
+                    }
+
                     DispatchQueue.main.async {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("SarahVideoGenerationFailed"),
-                            object: nil,
-                            userInfo: [
-                                "prompt": clean,
-                                "error": error.localizedDescription
-                            ]
-                        )
+                        if wasCancelled {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahVideoGenerationCancelled"),
+                                object: nil,
+                                userInfo: ["prompt": clean]
+                            )
+                        } else {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahVideoGenerationFailed"),
+                                object: nil,
+                                userInfo: [
+                                    "prompt": clean,
+                                    "error": error.localizedDescription
+                                ]
+                            )
+                        }
                         completion(.failure(error))
                     }
                 }
@@ -622,8 +654,12 @@ public final class SarahLocalVideoGenEngine {
         image: UIImage,
         prompt: String,
         duration: TimeInterval,
-        vertical: Bool
+        vertical: Bool,
+        generationID: UUID
     ) throws -> URL {
+        guard isGenerationCurrent(generationID) else {
+            throw VideoError.cancelled
+        }
         guard let ciImage = CIImage(image: image) else {
             throw VideoError.imageConversionFailed
         }
@@ -690,6 +726,11 @@ public final class SarahLocalVideoGenEngine {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
 
         for frameIndex in 0..<totalFrames {
+            guard isGenerationCurrent(generationID) else {
+                writer.cancelWriting()
+                throw VideoError.cancelled
+            }
+
             while !input.isReadyForMoreMediaData {
                 if writer.status == .failed {
                     throw VideoError.exportFailed(
@@ -829,6 +870,42 @@ public final class SarahLocalVideoGenEngine {
             + String(UUID().uuidString.prefix(8))
             + ".mp4"
         )
+    }
+
+    public func cancelCurrentGeneration() {
+        generationLock.lock()
+        activeGenerationID = nil
+        generationLock.unlock()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahVideoGenerationCancelled"),
+                object: nil
+            )
+        }
+    }
+
+    private func beginGeneration() -> UUID {
+        let id = UUID()
+        generationLock.lock()
+        activeGenerationID = id
+        generationLock.unlock()
+        return id
+    }
+
+    private func isGenerationCurrent(_ id: UUID) -> Bool {
+        generationLock.lock()
+        let current = activeGenerationID == id
+        generationLock.unlock()
+        return current
+    }
+
+    private func finishGeneration(_ id: UUID) {
+        generationLock.lock()
+        if activeGenerationID == id {
+            activeGenerationID = nil
+        }
+        generationLock.unlock()
     }
 
     /// Vrai uniquement pour les runtimes de diffusion vidéo dédiés.
