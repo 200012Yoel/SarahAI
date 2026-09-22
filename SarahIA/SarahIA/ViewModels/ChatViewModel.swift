@@ -240,6 +240,9 @@ public final class ChatViewModel: ObservableObject {
                 let duration = (notif.userInfo?["duration"] as? Double)
                     ?? old.audioDuration
                     ?? 6
+                let isVertical = (notif.userInfo?["vertical"] as? Bool)
+                    ?? old.videoIsVertical
+                    ?? false
 
                 self.messages[index] = Message(
                     id: old.id,
@@ -249,6 +252,7 @@ public final class ChatViewModel: ObservableObject {
                     audioDuration: duration,
                     generatedVideoURL: url.absoluteString,
                     videoGenerationPrompt: old.videoGenerationPrompt,
+                    videoIsVertical: isVertical,
                     isGeneratingVideo: false
                 )
                 self.persistCurrentState()
@@ -878,6 +882,7 @@ public final class ChatViewModel: ObservableObject {
                     isFromUser: false,
                     audioDuration: videoIntent.duration,
                     videoGenerationPrompt: videoIntent.prompt,
+                    videoIsVertical: videoIntent.isVertical,
                     isGeneratingVideo: true
                 )
             )
