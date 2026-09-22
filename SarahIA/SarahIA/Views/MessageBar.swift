@@ -7,17 +7,21 @@ public struct MessageBar: View {
     @Binding var activeAgent: AgentType
     var isRecording: Bool
     var isProcessing: Bool
+    var onOpenActions: () -> Void
     var onSend: (String) -> Void
     var onCancel: () -> Void
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
 
+    @FocusState private var isComposerFocused: Bool
+
     public init(
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
         isRecording: Bool,
         isProcessing: Bool = false,
+        onOpenActions: @escaping () -> Void = {},
         onSend: @escaping (String) -> Void,
         onCancel: @escaping () -> Void = {},
         onToggleMic: @escaping () -> Void,
@@ -28,6 +32,7 @@ public struct MessageBar: View {
         self._activeAgent = activeAgent
         self.isRecording = isRecording
         self.isProcessing = isProcessing
+        self.onOpenActions = onOpenActions
         self.onSend = onSend
         self.onCancel = onCancel
         self.onToggleMic = onToggleMic
@@ -36,14 +41,32 @@ public struct MessageBar: View {
     }
 
     public var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
+            Button(action: {
+                HapticService.shared.buttonTap()
+                onOpenActions()
+            }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .sarahLiquidGlass(
+                        cornerRadius: 22,
+                        tint: activeAgent.themeColor,
+                        intensity: 0.08
+                    )
+            }
+            .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel("Ouvrir les outils")
+
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
                     guard !isProcessing else { return }
                     submitMessage()
                 })
+                .focused($isComposerFocused)
                 .foregroundColor(.white)
-                .accentColor(.blue)
+                .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
 
                 Button(action: {
@@ -51,13 +74,14 @@ public struct MessageBar: View {
                     onToggleMic()
                 }) {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .foregroundColor(isProcessing ? .gray.opacity(0.45) : (isRecording ? .red : .gray))
+                        .foregroundColor(isProcessing ? .gray.opacity(0.45) : (isRecording ? activeAgent.themeColor : .gray))
                         .font(.system(size: 18))
                 }
                 .buttonStyle(PlainButtonStyle())
                 .disabled(isProcessing)
             }
-            .padding(.horizontal, 16)
+            .padding(.leading, 15)
+            .padding(.trailing, 9)
             .frame(height: 48)
             .sarahLiquidGlass(
                 cornerRadius: 24,
@@ -80,8 +104,6 @@ public struct MessageBar: View {
             }) {
                 ZStack {
                     if isProcessing {
-                        // Même logique visuelle que le bouton Stop de ChatGPT :
-                        // carré blanc dans la couleur active de Sarah pendant le traitement.
                         RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(Color.white)
                             .frame(width: 11, height: 11)
@@ -115,8 +137,15 @@ public struct MessageBar: View {
             .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-keyboard") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    isComposerFocused = true
+                }
+            }
+        }
     }
 
     private func submitMessage() {
