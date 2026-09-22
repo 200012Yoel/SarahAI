@@ -69,6 +69,11 @@ public final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var isVoicePipelinePrepared = false
+
+    // Identifie la réponse encore autorisée à écrire dans le chat.
+    // Changer cet UUID invalide proprement un callback tardif après Stop / Nouveau chat.
+    private var responseGenerationID = UUID()
+    private var pendingMusicPrompt: String? = nil
     
     public init() {
         restorePersistedState()
@@ -99,6 +104,27 @@ public final class ChatViewModel: ObservableObject {
                 if let agent = notif.object as? AgentType {
                     self?.activeAgent = agent
                 }
+            }
+            .store(in: &cancellables)
+
+        // Les moteurs d'image renvoient maintenant le vrai rendu au chat au lieu
+        // de laisser seulement un texte "image générée".
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedImageReady"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let image = notif.userInfo?["image"] as? UIImage,
+                      let data = image.jpegData(compressionQuality: 0.94) else { return }
+
+                let prompt = (notif.userInfo?["prompt"] as? String) ?? "Image générée"
+                var mediaMessage = Message(
+                    content: "🎨 Image générée",
+                    isFromUser: false,
+                    imageData: data,
+                    imageGenerationPrompt: prompt
+                )
+                mediaMessage.generatedImageURL = (notif.userInfo?["fileURL"] as? URL)?.absoluteString
+                self.appendMessage(mediaMessage)
             }
             .store(in: &cancellables)
     }
@@ -197,6 +223,13 @@ public final class ChatViewModel: ObservableObject {
         if !silently { haptics.buttonTap() }
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        responseGenerationID = UUID()
+        pendingMusicPrompt = nil
+        isTyping = false
+        voiceStatus = .idle
+        if #available(iOS 27.0, *) {
+            SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
+        }
         let newSessionId = UUID()
         currentConversationId = newSessionId
         messages = []
@@ -217,6 +250,13 @@ public final class ChatViewModel: ObservableObject {
         haptics.buttonTap()
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        responseGenerationID = UUID()
+        pendingMusicPrompt = nil
+        isTyping = false
+        voiceStatus = .idle
+        if #available(iOS 27.0, *) {
+            SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
+        }
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -451,17 +491,30 @@ public final class ChatViewModel: ObservableObject {
     
     // MARK: - Envoi de Message & Orchestration Multi-Agents
     
+    /// Arrête la réponse en cours, comme le bouton carré de ChatGPT.
+    /// Les moteurs qui ne savent pas être interrompus n'ont plus le droit de réinjecter
+    /// leur callback dans la conversation après cette action.
+    public func cancelCurrentGeneration() {
+        haptics.buttonTap()
+        responseGenerationID = UUID()
+        isTyping = false
+        voiceStatus = .idle
+        AIProgressiveScheduler.shared.cancelAllTasks()
+        if #available(iOS 27.0, *) {
+            SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
+        }
+    }
+
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        
+
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         inputText = ""
 
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
-        // Le même parcours sert aussi à reprendre et améliorer la dernière maquette créée.
         if WebsiteBrief.shouldOpenBuilder(for: text) {
             let isRefinement = WebsiteBrief.isRefinementRequest(text) && websiteDraft != nil
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -476,48 +529,99 @@ public final class ChatViewModel: ObservableObject {
             isShowingWebsiteBuilder = true
             return
         }
-        
+
+        var routedText = text
+
+        // Conversation musicale en deux temps : "fais-moi une petite musique"
+        // -> Sarah demande 20 s / 30 s / 1 min, puis la réponse courte de l'utilisateur
+        // reprend automatiquement le prompt précédent.
+        if #available(iOS 27.0, *) {
+            let engine = SarahLocalMusicGenEngine.shared
+            let initialMusic = engine.detectIntent(text)
+
+            if let pending = pendingMusicPrompt,
+               let seconds = engine.extractRequestedSeconds(from: text) {
+                routedText = "Génère une musique \(pending) de \(Int(seconds)) secondes"
+                pendingMusicPrompt = nil
+            } else if initialMusic.isIntent && !initialMusic.wantsLyrics && initialMusic.requestedSeconds == nil {
+                pendingMusicPrompt = initialMusic.prompt
+                let question = """
+                🎵 **Combien de temps pour la musique ?**
+
+                Choisis **20 secondes**, **30 secondes** ou **1 minute**.
+                Je garde ton style en mémoire pendant que tu choisis.
+                """
+                appendMessage(Message(content: question, isFromUser: false))
+                isTyping = false
+                voiceStatus = .idle
+                return
+            } else if pendingMusicPrompt != nil && !initialMusic.isIntent {
+                // Un autre sujet annule silencieusement la question de durée précédente.
+                pendingMusicPrompt = nil
+            }
+
+            let routedMusic = engine.detectIntent(routedText)
+            if routedMusic.isIntent,
+               !routedMusic.wantsLyrics,
+               let seconds = routedMusic.requestedSeconds,
+               engine.isInstrumentalModelInstalled {
+                let durationText = seconds >= 60 ? "1 min" : "\(Int(seconds)) s"
+                let style = routedMusic.prompt.isEmpty ? "Instrumental" : routedMusic.prompt
+                appendMessage(
+                    Message(
+                        content: "🎵 **Génération musicale en cours**\nDurée : **\(durationText)**",
+                        isFromUser: false,
+                        generatedMusicStyle: style
+                    )
+                )
+            }
+        }
+
         isTyping = true
         voiceStatus = .processing
-        
-        // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
+
         let currentSelectedAgent = activeAgent
         let responseConversationID = currentConversationId
-        multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
+        let requestID = UUID()
+        responseGenerationID = requestID
+
+        multiAgentCoordinator.routeAndProcess(query: routedText, currentAgent: currentSelectedAgent) { [weak self] response in
             guard let self = self else { return }
-            
+
             DispatchQueue.main.async {
-                // Une réponse calculée pour une ancienne discussion ne doit jamais réapparaître
-                // dans un nouveau chat après un redémarrage, un archivage ou un changement de fil.
-                guard self.currentConversationId == responseConversationID else { return }
-                // Basculer l'agent actif selon la décision de routage / passation de main
+                guard self.currentConversationId == responseConversationID,
+                      self.responseGenerationID == requestID else { return }
+
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     self.activeAgent = response.agent
                 }
-                
+
                 let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
                 var responseContent = rawText.decodingHTMLEntities()
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
+
                 let aiMessage = Message(content: responseContent, isFromUser: false)
                 self.appendMessage(aiMessage)
                 self.isTyping = false
                 self.voiceStatus = .idle
-                
-                // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
+
                 self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
                 SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: responseContent, topicType: response.agent.rawValue)
-                
-                // Si Raphaël a généré du code, il prépare le studio mais ne l'ouvre jamais
-                // de force. L'utilisateur reste dans le chat et choisit lui-même d'ouvrir le rendu.
+
                 if let code = response.generatedCode {
                     self.vaiCurrentCode = code
                 }
-                
+
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
                     let src = response.handoffSourceAgent ?? .sarah
-                    self.voiceManager.speakHandoff(transitionText: transitionPart.decodingHTMLEntities(), sourceAgent: src, agentGreeting: agentPart.decodingHTMLEntities(), targetAgent: response.agent)
+                    self.voiceManager.speakHandoff(
+                        transitionText: transitionPart.decodingHTMLEntities(),
+                        sourceAgent: src,
+                        agentGreeting: agentPart.decodingHTMLEntities(),
+                        targetAgent: response.agent
+                    )
                 } else {
                     let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText).decodingHTMLEntities()
                     self.voiceManager.speak(text: spoken, for: response.agent)
