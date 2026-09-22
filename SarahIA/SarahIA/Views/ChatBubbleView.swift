@@ -104,7 +104,7 @@ public struct ChatBubbleView: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Contenu du message
                 if !message.isVisionReport {
-                    let rawContent = message.content
+                    let rawContent = message.displayContentWithoutEmbeddedPayloads
                     let displayContent: String = {
                         if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
                             let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -162,6 +162,13 @@ public struct ChatBubbleView: View {
                     .frame(maxWidth: 290)
                 }
                 
+                // Carte Raccourcis Apple : vrais noms de blocs + copie + ouverture
+                // directe d'un raccourci vierge dans l'app Raccourcis.
+                if let shortcutPlan = message.detectedShortcutPlan {
+                    ShortcutPlanCardView(plan: shortcutPlan)
+                        .frame(maxWidth: 300)
+                }
+
                 // Carte de Rapport d'Analyse Visuelle Poussée (OCR & Objets)
                 if message.isVisionReport {
                     VisionReportCardView(messageContent: message.content)
