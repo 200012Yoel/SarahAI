@@ -12,9 +12,12 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
+  push:
+    branches:
+      - feature/chatgpt-ui-media-shortcuts-20260922
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -81,7 +84,7 @@ jobs:
             exit 1
           fi
 
-      - name: Simulator Launch Smoke Test
+      - name: Simulator UI Smoke Tests
         run: |
           set -eo pipefail
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
@@ -103,7 +106,17 @@ jobs:
           xcrun simctl bootstatus "$SIM_UDID" -b
 
           cd "$PROJECT_DIR"
-          xcodebuild             -project "$PROJECT_NAME"             -scheme "SarahIA"             -configuration Debug             -sdk iphonesimulator             -destination "id=$SIM_UDID"             -derivedDataPath "$GITHUB_WORKSPACE/SimDerivedData"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             COMPILER_INDEX_STORE_ENABLE=NO             build
+          xcodebuild \
+            -project "$PROJECT_NAME" \
+            -scheme "SarahIA" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath "$GITHUB_WORKSPACE/SimDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
 
           SIM_APP=$(find "$GITHUB_WORKSPACE/SimDerivedData" -path "*Debug-iphonesimulator/SarahIA.app" -type d | head -n 1)
           if [ -z "$SIM_APP" ]; then
@@ -111,22 +124,54 @@ jobs:
             exit 1
           fi
 
+          mkdir -p "$GITHUB_WORKSPACE/ui-smoke"
           xcrun simctl install "$SIM_UDID" "$SIM_APP"
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app || true
-          sleep 7
 
-          echo "=== Sarah IA process check ==="
-          if xcrun simctl spawn "$SIM_UDID" launchctl list | grep -q "com.sarahia.app"; then
-            echo "✅ Sarah IA remained alive after launch"
-          else
-            echo "❌ Sarah IA is not alive after launch"
-            echo "=== Recent Sarah IA simulator logs ==="
-            xcrun simctl spawn "$SIM_UDID" log show --last 2m --style compact               --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "com.sarahia.app"'               | tail -n 400 | tee "$GITHUB_WORKSPACE/simulator_crash.log" || true
-            exit 1
-          fi
+          check_alive() {
+            LABEL="$1"
+            if xcrun simctl spawn "$SIM_UDID" launchctl list | grep -q "com.sarahia.app"; then
+              echo "✅ $LABEL: Sarah IA is alive"
+            else
+              echo "❌ $LABEL: Sarah IA is not alive"
+              xcrun simctl spawn "$SIM_UDID" log show --last 2m --style compact \
+                --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "com.sarahia.app"' \
+                | tail -n 500 | tee "$GITHUB_WORKSPACE/simulator_crash.log" || true
+              exit 1
+            fi
+          }
 
+          echo "=== Scenario 1: normal launch ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app
+          sleep 6
+          check_alive "Normal launch"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/01-normal.png"
           xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
+
+          echo "=== Scenario 2: composer + keyboard ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-keyboard
+          sleep 6
+          check_alive "Keyboard launch"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/02-keyboard.png"
+          xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
+
+          echo "=== Scenario 3: voice mode ==="
+          xcrun simctl privacy "$SIM_UDID" grant microphone com.sarahia.app || true
+          xcrun simctl privacy "$SIM_UDID" grant speech-recognition com.sarahia.app || true
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-voice
+          sleep 7
+          check_alive "Voice launch"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/03-voice.png"
+          xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
+
           xcrun simctl shutdown "$SIM_UDID" || true
+
+      - name: Upload UI Smoke Screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-UI-Smoke
+          path: ui-smoke/*.png
+          retention-days: 3
+          if-no-files-found: error
 
       - name: Package Universal IPA
         run: |
