@@ -148,6 +148,10 @@ jobs:
           xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
 
           echo "=== Scenario 2: composer + keyboard ==="
+          # Éviter que le tutoriel système QuickPath recouvre l'interface pendant
+          # la capture. Ces préférences ne concernent que le simulateur de test.
+          xcrun simctl spawn "$SIM_UDID" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true || true
+          xcrun simctl spawn "$SIM_UDID" defaults write com.apple.keyboard.preferences KeyboardContinuousPathEnabled -bool true || true
           xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-keyboard
           sleep 6
           check_alive "Keyboard launch"
@@ -161,6 +165,13 @@ jobs:
           sleep 7
           check_alive "Voice launch"
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/03-voice.png"
+          xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
+
+          echo "=== Scenario 4: guided developer skill ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-developer
+          sleep 8
+          check_alive "Developer skill"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/04-developer.png"
           xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
 
           xcrun simctl shutdown "$SIM_UDID" || true
