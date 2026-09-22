@@ -687,14 +687,24 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
+            let plan = ShortcutGenerator.shared.makePlan(prompt: prompt)
+            let embeddedPlan = ShortcutGenerator.shared.marker(for: plan)
+
+            let responseText = """
+            💻 **Raphaël [Raccourci Apple]**
+
+            J’ai préparé **\(plan.title)** avec les vrais noms de blocs à placer dans Raccourcis.
+            Tu peux copier toute la recette ou ouvrir directement un raccourci vierge avec le bouton de la carte ci-dessous.
+
+            \(embeddedPlan)
+            """
+
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
+                spokenText: "Le plan du raccourci est prêt. Les blocs sont affichés dans le chat et peuvent être copiés avant d'ouvrir Raccourcis.",
+                openStudio: false,
+                generatedCode: nil
             ))
         }
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
