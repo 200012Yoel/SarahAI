@@ -53,6 +53,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var vaiCurrentCode: String? = nil
     @Published public var websiteDraft: WebsiteBrief? = nil
     @Published public var websiteRevisionCount: Int = 0
+    @Published public var agentTransitionBanner: String? = nil
     
     public var isGeneratingResponse: Bool {
         get { isTyping }
@@ -78,6 +79,30 @@ public final class ChatViewModel: ObservableObject {
     private var responseGenerationID = UUID()
     private var pendingMusicPrompt: String? = nil
     private var cancelledImagePrompts = Set<String>()
+
+    private enum DeveloperSkillStep {
+        case projectType
+        case websiteCategory
+        case websiteName
+        case websitePurpose
+        case websiteAudience
+        case websiteStyle
+        case websiteAccent
+        case websiteSections
+    }
+
+    private struct DeveloperSkillSession {
+        var step: DeveloperSkillStep = .projectType
+        var category = ""
+        var name = ""
+        var purpose = ""
+        var audience = ""
+        var visualStyle = ""
+        var accent = "Bleu"
+        var sections: [String] = ["Accueil", "À propos", "Contact"]
+    }
+
+    private var developerSkillSession: DeveloperSkillSession?
 
     private struct PersistedWebsiteContext: Codable {
         var brief: WebsiteBrief
@@ -458,6 +483,8 @@ public final class ChatViewModel: ObservableObject {
         AIProgressiveScheduler.shared.cancelAllTasks()
         responseGenerationID = UUID()
         pendingMusicPrompt = nil
+        developerSkillSession = nil
+        agentTransitionBanner = nil
         isTyping = false
         voiceStatus = .idle
         if #available(iOS 27.0, *) {
@@ -489,6 +516,8 @@ public final class ChatViewModel: ObservableObject {
         AIProgressiveScheduler.shared.cancelAllTasks()
         responseGenerationID = UUID()
         pendingMusicPrompt = nil
+        developerSkillSession = nil
+        agentTransitionBanner = nil
         isTyping = false
         voiceStatus = .idle
         if #available(iOS 27.0, *) {
@@ -620,6 +649,191 @@ public final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // MARK: - Transition d'agents & Skill développeur
+
+    private func normalizedIntent(_ text: String) -> String {
+        text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func transitionToAgent(_ agent: AgentType, source: AgentType? = nil) {
+        let previous = source ?? activeAgent
+        guard previous != agent else {
+            activeAgent = agent
+            return
+        }
+
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            activeAgent = agent
+            agentTransitionBanner = "\(previous.displayName) → \(agent.displayName)"
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+            guard let self = self else { return }
+            withAnimation(.easeOut(duration: 0.22)) {
+                self.agentTransitionBanner = nil
+            }
+        }
+    }
+
+    private func looksLikeDeveloperHandoff(_ text: String) -> Bool {
+        let n = normalizedIntent(text)
+        let names = ["agent developpeur", "developpeur", "raphael", "rafael", "agent code", "agent de code"]
+        let switches = ["donne moi", "passe moi", "je veux", "parler a", "parler avec", "mets moi", "bascule", "ouvre"]
+        return names.contains(where: { n.contains($0) })
+            && switches.contains(where: { n.contains($0) })
+    }
+
+    private func developerQuestion(_ text: String, spoken: String? = nil) {
+        appendMessage(Message(content: "💻 **Raphaël**\n\n\(text)", isFromUser: false))
+        if isContinuousConversationActive {
+            ensureVoicePipelinePrepared()
+            voiceManager.speak(text: spoken ?? text, for: .esther)
+        }
+    }
+
+    private func beginDeveloperSkill() {
+        transitionToAgent(.esther)
+        developerSkillSession = DeveloperSkillSession()
+        developerQuestion(
+            "Tu veux développer quoi ?\n\n**Site internet**, **app iPhone**, **raccourci Apple**, **script** ou **autre projet** ?",
+            spoken: "Tu veux développer quoi ? Un site internet, une application iPhone, un raccourci Apple, un script, ou un autre projet ?"
+        )
+    }
+
+    /// Retourne true lorsque le message a été consommé par le parcours guidé de Raphaël.
+    private func handleDeveloperSkillAnswer(_ text: String) -> Bool {
+        guard var session = developerSkillSession else { return false }
+        let n = normalizedIntent(text)
+
+        switch session.step {
+        case .projectType:
+            if n.contains("site") || n.contains("web") || n.contains("e commerce") || n.contains("ecommerce") {
+                if n.contains("e commerce") || n.contains("ecommerce") {
+                    session.category = "E-commerce"
+                    session.step = .websiteName
+                    developerSkillSession = session
+                    developerQuestion("Parfait, un **site e-commerce**. Quel est le **nom de la boutique ou de la marque** ?")
+                } else {
+                    session.step = .websiteCategory
+                    developerSkillSession = session
+                    developerQuestion(
+                        "Quel type de site veux-tu ?\n\n**E-commerce**, **portfolio**, **voyage**, **restaurant**, **entreprise** ou **événement** ?",
+                        spoken: "Quel type de site veux-tu ? E-commerce, portfolio, voyage, restaurant, entreprise ou événement ?"
+                    )
+                }
+                return true
+            }
+
+            developerSkillSession = nil
+            transitionToAgent(.esther)
+            if n.contains("app") || n.contains("iphone") || n.contains("ios") {
+                developerQuestion("Très bien. Décris-moi l’**application iPhone** que tu veux créer et ses fonctions principales.")
+            } else if n.contains("raccourci") || n.contains("shortcut") {
+                developerQuestion("Très bien. Dis-moi ce que le **Raccourci Apple** doit faire, étape par étape.")
+            } else if n.contains("script") || n.contains("python") {
+                developerQuestion("Très bien. Dis-moi ce que le **script** doit automatiser et sur quelle plateforme il doit tourner.")
+            } else {
+                developerQuestion("Décris-moi ton projet. Je choisirai ensuite le meilleur format technique.")
+            }
+            return true
+
+        case .websiteCategory:
+            let mapping: [(String, String)] = [
+                ("e commerce", "E-commerce"),
+                ("ecommerce", "E-commerce"),
+                ("portfolio", "Portfolio"),
+                ("voyage", "Voyage"),
+                ("restaurant", "Restaurant"),
+                ("entreprise", "Entreprise"),
+                ("evenement", "Événement")
+            ]
+            session.category = mapping.first(where: { n.contains($0.0) })?.1 ?? text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.step = .websiteName
+            developerSkillSession = session
+            developerQuestion("Quel est le **nom du site, de la marque ou du projet** ?")
+            return true
+
+        case .websiteName:
+            session.name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.step = .websitePurpose
+            developerSkillSession = session
+            developerQuestion("Quel est son **objectif principal** ? Par exemple vendre, présenter un projet, prendre des réservations ou informer.")
+            return true
+
+        case .websitePurpose:
+            session.purpose = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.step = .websiteAudience
+            developerSkillSession = session
+            developerQuestion("À qui s’adresse le site ? **Grand public**, **professionnels**, **familles**, **jeunes**, **clients locaux** ou **international** ?")
+            return true
+
+        case .websiteAudience:
+            session.audience = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.step = .websiteStyle
+            developerSkillSession = session
+            developerQuestion(
+                "Quel style veux-tu ?\n\n**Apple / Liquid Glass**, **minimaliste**, **élégant**, **luxe**, **tech**, **naturel** ou **énergique** ?",
+                spoken: "Quel style veux-tu ? Apple Liquid Glass, minimaliste, élégant, luxe, tech, naturel ou énergique ?"
+            )
+            return true
+
+        case .websiteStyle:
+            if n.contains("apple") || n.contains("liquid") {
+                session.visualStyle = "Apple / Liquid Glass"
+            } else {
+                session.visualStyle = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            session.step = .websiteAccent
+            developerSkillSession = session
+            developerQuestion("Quelle **couleur principale** veux-tu ? Bleu, violet, rose, orange, vert ou noir et blanc ?")
+            return true
+
+        case .websiteAccent:
+            session.accent = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            session.step = .websiteSections
+            developerSkillSession = session
+            developerQuestion(
+                "Quelles sections veux-tu ? Tu peux dire par exemple : **Accueil, Produits, À propos, Galerie, Avis, FAQ, Contact**.",
+                spoken: "Quelles sections veux-tu ? Par exemple accueil, produits, à propos, galerie, avis, FAQ et contact."
+            )
+            return true
+
+        case .websiteSections:
+            let choices: [(String, String)] = [
+                ("accueil", "Accueil"),
+                ("a propos", "À propos"),
+                ("produit", "Produits / services"),
+                ("service", "Produits / services"),
+                ("galerie", "Galerie"),
+                ("avis", "Avis clients"),
+                ("faq", "FAQ"),
+                ("contact", "Contact")
+            ]
+            var selected = choices.compactMap { n.contains($0.0) ? $0.1 : nil }
+            if selected.count < 3 {
+                selected = ["Accueil", "Produits / services", "À propos", "Contact"]
+            }
+            session.sections = Array(Set(selected)).sorted()
+            developerSkillSession = nil
+
+            let brief = WebsiteBrief(
+                category: session.category.isEmpty ? "Site web" : session.category,
+                name: session.name.isEmpty ? "Nouveau projet" : session.name,
+                purpose: session.purpose,
+                audience: session.audience.isEmpty ? "Grand public" : session.audience,
+                visualStyle: session.visualStyle.isEmpty ? "Apple / Liquid Glass" : session.visualStyle,
+                accent: session.accent.isEmpty ? "Bleu" : session.accent,
+                sections: session.sections
+            )
+            completeWebsiteBrief(brief)
+            return true
+        }
+    }
+
     // MARK: - Pipeline Vocale Apple Speech & Multi-Agents
     
     private func setupVoicePipeline() {
@@ -837,6 +1051,18 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(userMessage)
         inputText = ""
 
+        if handleDeveloperSkillAnswer(text) {
+            isTyping = false
+            voiceStatus = isContinuousConversationActive ? voiceStatus : .idle
+            return
+        }
+
+        if looksLikeDeveloperHandoff(text) {
+            beginDeveloperSkill()
+            isTyping = false
+            return
+        }
+
         // Une demande de suivi peut arriver après un changement d'agent,
         // un retour dans la discussion ou une relance de l'app. On restaure
         // d'abord le contexte web de CETTE conversation avant de décider quoi faire.
@@ -1007,9 +1233,10 @@ public final class ChatViewModel: ObservableObject {
                 guard self.currentConversationId == responseConversationID,
                       self.responseGenerationID == requestID else { return }
 
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    self.activeAgent = response.agent
-                }
+                self.transitionToAgent(
+                    response.agent,
+                    source: self.activeAgent
+                )
 
                 let rawText = response.text.isEmpty ? "Sarah n’a pas pu produire de réponse. Réessaie dans un instant." : response.text
                 var responseContent = rawText.decodingHTMLEntities()
@@ -1090,7 +1317,13 @@ public final class ChatViewModel: ObservableObject {
 
         let response = "💻 **Raphaël — première version prête**\n\nJ’ai créé la maquette locale de **\(brief.name)** : \(brief.category). Tu peux ensuite me dire ce que tu veux améliorer : les couleurs, les sections, les textes ou la mise en page.\n\n🧩 Ouvrir le Studio"
         appendMessage(Message(content: response, isFromUser: false))
-        voiceManager.speak(text: "La première version de \(brief.name) est prête. Dis-moi ensuite ce que tu veux améliorer.", for: .esther)
+        if isContinuousConversationActive {
+            ensureVoicePipelinePrepared()
+            voiceManager.speak(
+                text: "La première version de \(brief.name) est prête. Dis-moi ensuite ce que tu veux améliorer.",
+                for: .esther
+            )
+        }
     }
     
     private func saveWebsiteContext() {
