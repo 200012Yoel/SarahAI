@@ -1046,13 +1046,7 @@ private struct LocalGenerationSettingsView: View {
                         kind: .image
                     )
 
-                    capabilityCard(
-                        icon: "video.fill",
-                        tint: .orange,
-                        title: "Vidéo",
-                        profile: videoProfile,
-                        kind: .video
-                    )
+                    videoCapabilityCard
 
                     musicCapabilityCard
 
@@ -1125,6 +1119,89 @@ private struct LocalGenerationSettingsView: View {
         .navigationTitle("Création locale")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+    }
+
+    private var videoCapabilityCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.sarahCyan)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.sarahCyan.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Vidéo")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.46))
+
+                    Text("Sarah Motion Video")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+
+                Spacer(minLength: 8)
+
+                Text("Prêt")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.green.opacity(0.12)))
+            }
+
+            HStack(spacing: 8) {
+                capsule("MP4 720p")
+                capsule("3–12 s")
+                capsule("16:9 / 9:16")
+            }
+
+            Text(SarahLocalVideoGenEngine.shared.availabilityMessage())
+                .font(.footnote)
+                .foregroundColor(Color.white.opacity(0.58))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Le mode immédiatement disponible anime localement une image clé générée par Sarah. Le profil de diffusion dédié « \(videoProfile.displayName) » reste affiché séparément ci-dessous tant que son runtime iPhone n’est pas validé.")
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.42))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if videoProfile.runtimeState != .unsupported {
+                Divider().background(Color.white.opacity(0.10))
+
+                HStack {
+                    Text("Diffusion vidéo expérimentale")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.62))
+                    Spacer()
+                    statusBadge(videoProfile.runtimeState)
+                }
+
+                modelInstallControls(
+                    profile: videoProfile,
+                    kind: .video,
+                    tint: .sarahCyan
+                )
+
+                if let source = URL(string: videoProfile.sourceURL),
+                   !videoProfile.sourceURL.isEmpty {
+                    Link(destination: source) {
+                        Label("Source du modèle expérimental", systemImage: "arrow.up.right.square")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(.sarahCyan)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .sarahLiquidGlass(
+            cornerRadius: 22,
+            tint: .sarahCyan,
+            intensity: 0.09
+        )
     }
 
     private var musicCapabilityCard: some View {
@@ -1370,13 +1447,10 @@ private struct LocalGenerationSettingsView: View {
             }
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.085))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .sarahLiquidGlass(
+            cornerRadius: 22,
+            tint: tint,
+            intensity: 0.075
         )
     }
 
