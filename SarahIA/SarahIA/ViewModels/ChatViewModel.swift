@@ -76,6 +76,7 @@ public final class ChatViewModel: ObservableObject {
     // Changer cet UUID invalide proprement un callback tardif après Stop / Nouveau chat.
     private var responseGenerationID = UUID()
     private var pendingMusicPrompt: String? = nil
+    private var cancelledImagePrompts = Set<String>()
 
     private struct PersistedWebsiteContext: Codable {
         var brief: WebsiteBrief
@@ -92,6 +93,39 @@ public final class ChatViewModel: ObservableObject {
     }
     
     // MARK: - Liaison des Services
+
+    private func normalizedMediaPrompt(_ value: String) -> String {
+        value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func imagePlaceholderIndex(matching prompt: String?) -> Int? {
+        let normalized = prompt.map(normalizedMediaPrompt)
+        return messages.lastIndex(where: { message in
+            guard message.isImageGenerationPlaceholder else { return false }
+            guard let normalized else { return true }
+            return normalizedMediaPrompt(message.imageGenerationPrompt ?? "") == normalized
+        })
+    }
+
+    private func musicPlaceholderIndex(matching prompt: String?) -> Int? {
+        let normalized = prompt.map(normalizedMediaPrompt)
+        return messages.lastIndex(where: { message in
+            guard message.isMusicGenerationPlaceholder else { return false }
+            guard let normalized else { return true }
+            return normalizedMediaPrompt(message.generatedMusicStyle ?? "") == normalized
+        })
+    }
+
+    private func videoPlaceholderIndex(matching prompt: String?) -> Int? {
+        let normalized = prompt.map(normalizedMediaPrompt)
+        return messages.lastIndex(where: { message in
+            guard message.isVideoGenerationPlaceholder else { return false }
+            guard let normalized else { return true }
+            return normalizedMediaPrompt(message.videoGenerationPrompt ?? "") == normalized
+        })
+    }
 
     private func bindCoreServices() {
         NotificationCenter.default.publisher(for: .sarahStartNewChat)
@@ -127,8 +161,13 @@ public final class ChatViewModel: ObservableObject {
 
                 let prompt = (notif.userInfo?["prompt"] as? String) ?? "Image générée"
                 let fileURL = (notif.userInfo?["fileURL"] as? URL)?.absoluteString
+                let normalizedPrompt = self.normalizedMediaPrompt(prompt)
 
-                if let index = self.messages.lastIndex(where: { $0.isImageGenerationPlaceholder }) {
+                if self.cancelledImagePrompts.remove(normalizedPrompt) != nil {
+                    return
+                }
+
+                if let index = self.imagePlaceholderIndex(matching: prompt) {
                     let old = self.messages[index]
                     self.messages[index] = Message(
                         id: old.id,
@@ -159,8 +198,10 @@ public final class ChatViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: NSNotification.Name("SarahImageGenerationFailed"))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
-                guard let self = self,
-                      let index = self.messages.lastIndex(where: { $0.isImageGenerationPlaceholder }) else {
+                guard let self = self else { return }
+
+                let prompt = notif.userInfo?["prompt"] as? String
+                guard let index = self.imagePlaceholderIndex(matching: prompt) else {
                     return
                 }
 
@@ -184,8 +225,12 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
                 guard let self = self,
-                      let url = notif.object as? URL,
-                      let index = self.messages.lastIndex(where: { $0.isMusicGenerationPlaceholder }) else {
+                      let url = notif.object as? URL else {
+                    return
+                }
+
+                let prompt = notif.userInfo?["prompt"] as? String
+                guard let index = self.musicPlaceholderIndex(matching: prompt) else {
                     return
                 }
 
@@ -210,8 +255,10 @@ public final class ChatViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationFailed"))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
-                guard let self = self,
-                      let index = self.messages.lastIndex(where: { $0.isMusicGenerationPlaceholder }) else {
+                guard let self = self else { return }
+
+                let prompt = notif.userInfo?["prompt"] as? String
+                guard let index = self.musicPlaceholderIndex(matching: prompt) else {
                     return
                 }
 
@@ -231,8 +278,12 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
                 guard let self = self,
-                      let url = notif.object as? URL,
-                      let index = self.messages.lastIndex(where: { $0.isVideoGenerationPlaceholder }) else {
+                      let url = notif.object as? URL else {
+                    return
+                }
+
+                let prompt = notif.userInfo?["prompt"] as? String
+                guard let index = self.videoPlaceholderIndex(matching: prompt) else {
                     return
                 }
 
@@ -262,8 +313,10 @@ public final class ChatViewModel: ObservableObject {
         NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationFailed"))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
-                guard let self = self,
-                      let index = self.messages.lastIndex(where: { $0.isVideoGenerationPlaceholder }) else {
+                guard let self = self else { return }
+
+                let prompt = notif.userInfo?["prompt"] as? String
+                guard let index = self.videoPlaceholderIndex(matching: prompt) else {
                     return
                 }
 
@@ -384,6 +437,7 @@ public final class ChatViewModel: ObservableObject {
         if #available(iOS 27.0, *) {
             SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
         }
+        SarahLocalVideoGenEngine.shared.cancelCurrentGeneration()
         let newSessionId = UUID()
         currentConversationId = newSessionId
         messages = []
@@ -414,6 +468,7 @@ public final class ChatViewModel: ObservableObject {
         if #available(iOS 27.0, *) {
             SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
         }
+        SarahLocalVideoGenEngine.shared.cancelCurrentGeneration()
         currentConversationId = conv.id
         messages = conv.messages
         restoreWebsiteContext(for: conv.id)
@@ -543,40 +598,48 @@ public final class ChatViewModel: ObservableObject {
     
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
-            self?.liveTranscriptionText = partial
+            DispatchQueue.main.async {
+                self?.liveTranscriptionText = partial
+            }
         }
         
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
-            guard let self = self else { return }
-            let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else {
-                self.voiceStatus = .idle
-                return
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty else {
+                    self.voiceStatus = .idle
+                    return
+                }
+                self.liveTranscriptionText = ""
+                self.sendMessage(cleaned)
             }
-            self.liveTranscriptionText = ""
-            self.sendMessage(cleaned)
         }
         
         voiceManager.onSpeechStarted = { [weak self] in
-            self?.isSpeaking = true
-            self?.voiceStatus = .speaking
-            self?.haptics.speechStarted()
+            DispatchQueue.main.async {
+                self?.isSpeaking = true
+                self?.voiceStatus = .speaking
+                self?.haptics.speechStarted()
+            }
         }
         
         voiceManager.onSpeechFinished = { [weak self] in
-            guard let self = self else { return }
-            self.isSpeaking = false
-            self.voiceStatus = .idle
-            self.haptics.speechFinished()
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isSpeaking = false
+                self.voiceStatus = .idle
+                self.haptics.speechFinished()
             
-            if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     guard self.isContinuousConversationActive,
                           !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
                     AppleSpeechRecognizer.shared.startListening()
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
+                    }
                 }
             }
         }
@@ -706,6 +769,14 @@ public final class ChatViewModel: ObservableObject {
         AIProgressiveScheduler.shared.cancelAllTasks()
 
         // Retire la carte provisoire si l'utilisateur touche le carré Stop.
+        // Les résultats image arrivés trop tard sont également ignorés.
+        let imagePromptsToIgnore = messages.compactMap { message -> String? in
+            guard message.isImageGenerationPlaceholder,
+                  let prompt = message.imageGenerationPrompt else { return nil }
+            return normalizedMediaPrompt(prompt)
+        }
+        cancelledImagePrompts.formUnion(imagePromptsToIgnore)
+
         if messages.contains(where: {
             $0.isMusicGenerationPlaceholder
             || $0.isVideoGenerationPlaceholder
@@ -864,6 +935,7 @@ public final class ChatViewModel: ObservableObject {
 
         let imageIntent = OpenSourceImageGenerationService.shared.isImageGenerationIntent(routedText)
         if imageIntent.isIntent {
+            cancelledImagePrompts.remove(normalizedMediaPrompt(imageIntent.cleanedPrompt))
             appendMessage(
                 Message(
                     content: "🎨 **Génération d’image en cours**",
@@ -907,7 +979,7 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let rawText = response.text.isEmpty ? "Sarah n’a pas pu produire de réponse. Réessaie dans un instant." : response.text
                 var responseContent = rawText.decodingHTMLEntities()
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
