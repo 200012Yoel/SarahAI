@@ -696,12 +696,27 @@ public final class ChatViewModel: ObservableObject {
     }
 
     private func beginDeveloperSkill() {
-        transitionToAgent(.esther)
+        let sourceAgent = activeAgent
+        transitionToAgent(.esther, source: sourceAgent)
         developerSkillSession = DeveloperSkillSession()
-        developerQuestion(
-            "Tu veux développer quoi ?\n\n**Site internet**, **app iPhone**, **raccourci Apple**, **script** ou **autre projet** ?",
-            spoken: "Tu veux développer quoi ? Un site internet, une application iPhone, un raccourci Apple, un script, ou un autre projet ?"
+
+        let question = "Tu veux développer quoi ?\n\n**Site internet**, **app iPhone**, **raccourci Apple**, **script** ou **autre projet** ?"
+        appendMessage(
+            Message(
+                content: "💻 **Raphaël**\n\n\(question)",
+                isFromUser: false
+            )
         )
+
+        if isContinuousConversationActive {
+            ensureVoicePipelinePrepared()
+            voiceManager.speakHandoff(
+                transitionText: "Je te passe Raphaël.",
+                sourceAgent: sourceAgent,
+                agentGreeting: "Bonjour, je suis Raphaël. Tu veux développer quoi ? Un site internet, une application iPhone, un raccourci Apple, un script, ou un autre projet ?",
+                targetAgent: .esther
+            )
+        }
     }
 
     /// Retourne true lorsque le message a été consommé par le parcours guidé de Raphaël.
