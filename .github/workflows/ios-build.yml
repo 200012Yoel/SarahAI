@@ -146,8 +146,8 @@ jobs:
             exit 1
           }
 
-          grep -Fq 'alignment: .center' "SarahIA/SarahIA/ContentView.swift" || {
-            echo "❌ Le rond vocal réduit n'est plus centré."
+          grep -Fq 'padding(.bottom, 92)' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ Le rond vocal réduit n'est plus centré au-dessus de la barre de saisie."
             exit 1
           }
 
