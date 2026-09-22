@@ -18,6 +18,7 @@ public final class SarahLocalMusicGenEngine {
         public let wantsLyrics: Bool
         public let prompt: String
         public let language: String
+        public let requestedSeconds: Float?
     }
 
     public enum MusicError: LocalizedError {
@@ -28,6 +29,7 @@ public final class SarahLocalMusicGenEngine {
         case predictionFailed(String)
         case audioWriteFailed
         case vocalSongRuntimeUnavailable
+        case cancelled
 
         public var errorDescription: String? {
             switch self {
@@ -45,6 +47,8 @@ public final class SarahLocalMusicGenEngine {
                 return "Impossible d'enregistrer le fichier audio généré."
             case .vocalSongRuntimeUnavailable:
                 return "Le moteur de chanson chantée n'a pas encore de runtime iPhone validé."
+            case .cancelled:
+                return "La génération musicale a été arrêtée."
             }
         }
     }
@@ -73,6 +77,9 @@ public final class SarahLocalMusicGenEngine {
     private let eosToken: Int32 = 1
     private let padToken: Int32 = 0
 
+    private let generationLock = NSLock()
+    private var activeGenerationID: UUID? = nil
+
     private init() {}
 
     // MARK: - Intents
@@ -83,15 +90,37 @@ public final class SarahLocalMusicGenEngine {
 
         let triggers = [
             "génère une musique", "genere une musique",
+            "générer une musique", "generer une musique",
+            "génère une petite musique", "genere une petite musique",
+            "générer une petite musique", "generer une petite musique",
             "génère un morceau", "genere un morceau",
+            "générer un morceau", "generer un morceau",
             "compose une musique", "compose un morceau",
             "crée une musique", "cree une musique",
             "fais une musique", "fais un morceau",
-            "generate music", "generate a song",
+            "petite musique", "generate music", "generate a song",
             "instrumental", "chanson avec paroles"
         ]
 
-        let isIntent = triggers.contains { lower.contains($0) }
+        let hasMusicNoun =
+            lower.contains("musique")
+            || lower.contains("morceau")
+            || lower.contains("instrumental")
+            || lower.contains("song")
+
+        let hasCreationVerb =
+            lower.contains("génèr")
+            || lower.contains("gener")
+            || lower.contains("compose")
+            || lower.contains("crée")
+            || lower.contains("cree")
+            || lower.contains("fais")
+            || lower.contains("generate")
+
+        let isIntent =
+            triggers.contains { lower.contains($0) }
+            || (hasMusicNoun && hasCreationVerb)
+
         let wantsLyrics =
             lower.contains("paroles")
             || lower.contains("lyrics")
@@ -103,8 +132,10 @@ public final class SarahLocalMusicGenEngine {
             || lower.contains("english")
         ) ? "en" : "fr"
 
+        let requestedSeconds = extractRequestedSeconds(from: clean)
+
         var prompt = clean
-        for trigger in triggers {
+        for trigger in triggers.sorted(by: { $0.count > $1.count }) {
             prompt = prompt.replacingOccurrences(
                 of: trigger,
                 with: "",
@@ -112,21 +143,130 @@ public final class SarahLocalMusicGenEngine {
             )
         }
 
-        prompt = prompt.trimmingCharacters(
-            in: CharacterSet.whitespacesAndNewlines
-                .union(CharacterSet(charactersIn: ":,-"))
-        )
+        prompt = removingDurationExpression(from: prompt)
 
-        if prompt.isEmpty {
-            prompt = clean
+        let conversationalFillers = [
+            "tu peux me", "peux-tu me", "peux tu me",
+            "est-ce que tu peux me", "est ce que tu peux me",
+            "s'il te plaît", "s’il te plaît", "sil te plait", "stp",
+            "une petite", "un petit", "de", "d'une", "d’un"
+        ]
+        for filler in conversationalFillers {
+            prompt = prompt.replacingOccurrences(
+                of: filler,
+                with: " ",
+                options: .caseInsensitive
+            )
+        }
+
+        prompt = prompt
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+                    .union(CharacterSet(charactersIn: ":,-."))
+            )
+
+        if prompt.count < 3 {
+            prompt = "instrumental doux et mélodique"
         }
 
         return MusicIntent(
             isIntent: isIntent,
             wantsLyrics: wantsLyrics,
             prompt: prompt,
-            language: language
+            language: language,
+            requestedSeconds: requestedSeconds
         )
+    }
+
+    /// Lit naturellement « 20 secondes », « 30 s », « 1 min » ou « une minute ».
+    /// Le moteur accepte jusqu'à 60 secondes ; au-delà, Sarah borne proprement la demande.
+    public func extractRequestedSeconds(from text: String) -> Float? {
+        let normalized = text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+
+        if normalized.contains("une minute") || normalized.contains("1 minute") || normalized.contains("1 min") {
+            return 60
+        }
+
+        let patterns: [(String, Float)] = [
+            ("([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:minutes?|mins?|mn)\\b", 60),
+            ("([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:secondes?|secs?|sec|s)\\b", 1)
+        ]
+
+        for (pattern, multiplier) in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+            let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+            guard let match = regex.firstMatch(in: normalized, options: [], range: range),
+                  let valueRange = Range(match.range(at: 1), in: normalized) else {
+                continue
+            }
+
+            let raw = String(normalized[valueRange]).replacingOccurrences(of: ",", with: ".")
+            if let value = Float(raw) {
+                return min(max(value * multiplier, 5), 60)
+            }
+        }
+
+        return nil
+    }
+
+    private func removingDurationExpression(from text: String) -> String {
+        var result = text
+        let patterns = [
+            "(?i)\\b(?:de\\s+)?(?:une|1)\\s*(?:minute|min|mn)\\b",
+            "(?i)\\b(?:de\\s+)?[0-9]+(?:[\\.,][0-9]+)?\\s*(?:minutes?|mins?|mn|secondes?|secs?|sec|s)\\b"
+        ]
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                result = regex.stringByReplacingMatches(
+                    in: result,
+                    options: [],
+                    range: NSRange(result.startIndex..<result.endIndex, in: result),
+                    withTemplate: " "
+                )
+            }
+        }
+        return result
+    }
+
+    public func cancelCurrentGeneration() {
+        generationLock.lock()
+        activeGenerationID = nil
+        generationLock.unlock()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahMusicGenerationCancelled"),
+                object: nil
+            )
+        }
+    }
+
+    private func beginGeneration() -> UUID {
+        let id = UUID()
+        generationLock.lock()
+        activeGenerationID = id
+        generationLock.unlock()
+        return id
+    }
+
+    private func isGenerationCurrent(_ id: UUID) -> Bool {
+        generationLock.lock()
+        let isCurrent = activeGenerationID == id
+        generationLock.unlock()
+        return isCurrent
+    }
+
+    private func finishGeneration(_ id: UUID) {
+        generationLock.lock()
+        if activeGenerationID == id {
+            activeGenerationID = nil
+        }
+        generationLock.unlock()
     }
 
     // MARK: - Installation
@@ -492,7 +632,7 @@ public final class SarahLocalMusicGenEngine {
 
     public func generateInstrumental(
         prompt: String,
-        seconds: Float = 10,
+        seconds: Float = 20,
         steps: Int = 8,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
@@ -503,8 +643,28 @@ public final class SarahLocalMusicGenEngine {
             return
         }
 
+        let requestedDuration = min(max(seconds, 5), 60)
+        let generationID = beginGeneration()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahMusicGenerationProgress"),
+                object: nil,
+                userInfo: [
+                    "prompt": clean,
+                    "progress": 0.0,
+                    "duration": Double(requestedDuration),
+                    "phase": "Préparation"
+                ]
+            )
+        }
+
         Task.detached(priority: .userInitiated) {
             do {
+                guard self.isGenerationCurrent(generationID) else {
+                    throw MusicError.cancelled
+                }
+
                 if !self.isInstrumentalModelInstalled {
                     throw MusicError.modelsMissing
                 }
@@ -513,27 +673,88 @@ public final class SarahLocalMusicGenEngine {
                     try self.loadRuntime()
                 }
 
-                let url = try await self.render(
-                    prompt: clean,
-                    seconds: min(max(seconds, 1), 11.5),
-                    steps: min(max(steps, 4), 16),
-                    seed: UInt64.random(in: 1...UInt64.max)
-                )
+                // Stable Audio Open Small produit environ 11,5 s par passe avec
+                // ce port Core ML. Pour 20/30/60 s, on fabrique donc plusieurs
+                // segments locaux puis on les assemble dans un seul WAV.
+                let maxSegmentSeconds: Float = 11.0
+                let segmentCount = max(1, Int(ceil(requestedDuration / maxSegmentSeconds)))
+                var remaining = requestedDuration
+                var segmentURLs: [URL] = []
+
+                for segmentIndex in 0..<segmentCount {
+                    guard self.isGenerationCurrent(generationID) else {
+                        throw MusicError.cancelled
+                    }
+
+                    let segmentSeconds = min(maxSegmentSeconds, remaining)
+                    let segmentPrompt = segmentIndex == 0
+                        ? clean
+                        : clean + ", seamless continuation, same tempo, same instruments and mood"
+
+                    let base = Double(segmentIndex) / Double(segmentCount)
+                    let span = 1.0 / Double(segmentCount)
+
+                    let url = try await self.render(
+                        prompt: segmentPrompt,
+                        seconds: segmentSeconds,
+                        steps: min(max(steps, 4), 16),
+                        seed: UInt64.random(in: 1...UInt64.max),
+                        generationID: generationID,
+                        progressBase: base,
+                        progressSpan: span
+                    )
+                    segmentURLs.append(url)
+                    remaining -= segmentSeconds
+                }
+
+                guard self.isGenerationCurrent(generationID) else {
+                    throw MusicError.cancelled
+                }
+
+                let finalURL: URL
+                if segmentURLs.count == 1, let only = segmentURLs.first {
+                    finalURL = only
+                } else {
+                    finalURL = try self.concatenateAudioSegments(
+                        segmentURLs,
+                        prompt: clean
+                    )
+                    for url in segmentURLs {
+                        try? self.fm.removeItem(at: url)
+                    }
+                }
+
+                self.finishGeneration(generationID)
 
                 await MainActor.run {
                     NotificationCenter.default.post(
                         name: NSNotification.Name("SarahGeneratedMusicReady"),
-                        object: url,
+                        object: finalURL,
                         userInfo: [
                             "prompt": clean,
                             "modelName": "Stable Audio Open Small · Core ML",
-                            "isLocal": true
+                            "isLocal": true,
+                            "duration": Double(requestedDuration),
+                            "progress": 1.0
                         ]
                     )
-                    completion(.success(url))
+                    completion(.success(finalURL))
                 }
             } catch {
+                let wasCancelled = (error as? MusicError) == .cancelled
+                self.finishGeneration(generationID)
+
                 await MainActor.run {
+                    if !wasCancelled {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahMusicGenerationFailed"),
+                            object: nil,
+                            userInfo: [
+                                "prompt": clean,
+                                "error": error.localizedDescription
+                            ]
+                        )
+                    }
                     completion(.failure(error))
                 }
             }
@@ -544,8 +765,15 @@ public final class SarahLocalMusicGenEngine {
         prompt: String,
         seconds: Float,
         steps: Int,
-        seed: UInt64
+        seed: UInt64,
+        generationID: UUID,
+        progressBase: Double,
+        progressSpan: Double
     ) async throws -> URL {
+        guard isGenerationCurrent(generationID) else {
+            throw MusicError.cancelled
+        }
+
         guard let t5Encoder,
               let numberEmbedder,
               let diffusionTransformer,
@@ -567,6 +795,10 @@ public final class SarahLocalMusicGenEngine {
             dictionary: ["input_ids": inputIDs]
         )
         let textResult = try await t5Encoder.prediction(from: textProvider)
+
+        guard isGenerationCurrent(generationID) else {
+            throw MusicError.cancelled
+        }
 
         guard let textEmbeddings = textResult
             .featureValue(for: "text_embeddings")?
@@ -642,6 +874,10 @@ public final class SarahLocalMusicGenEngine {
         let times = makeSchedule(steps: steps)
 
         for step in 0..<steps {
+            guard isGenerationCurrent(generationID) else {
+                throw MusicError.cancelled
+            }
+
             let current = times[step]
             let next = times[step + 1]
 
@@ -676,6 +912,25 @@ public final class SarahLocalMusicGenEngine {
                 velocity: velocity,
                 delta: next - current
             )
+
+            let localProgress = Double(step + 1) / Double(steps)
+            let totalProgress = min(0.97, progressBase + localProgress * progressSpan * 0.92)
+
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SarahMusicGenerationProgress"),
+                    object: nil,
+                    userInfo: [
+                        "prompt": prompt,
+                        "progress": totalProgress,
+                        "phase": "Création audio"
+                    ]
+                )
+            }
+        }
+
+        guard isGenerationCurrent(generationID) else {
+            throw MusicError.cancelled
         }
 
         let decoderProvider = try MLDictionaryFeatureProvider(
@@ -695,6 +950,73 @@ public final class SarahLocalMusicGenEngine {
             audio,
             seconds: seconds,
             prompt: prompt
+        )
+    }
+
+    private func concatenateAudioSegments(
+        _ urls: [URL],
+        prompt: String
+    ) throws -> URL {
+        guard let firstURL = urls.first else {
+            throw MusicError.audioWriteFailed
+        }
+
+        let first = try AVAudioFile(forReading: firstURL)
+        let outputURL = uniqueOutputURL(prompt: prompt)
+        let output = try AVAudioFile(
+            forWriting: outputURL,
+            settings: first.processingFormat.settings
+        )
+
+        for url in urls {
+            let input = try AVAudioFile(forReading: url)
+
+            while input.framePosition < input.length {
+                let remaining = input.length - input.framePosition
+                let chunkFrames = AVAudioFrameCount(min(Int64(32_768), remaining))
+                guard let buffer = AVAudioPCMBuffer(
+                    pcmFormat: input.processingFormat,
+                    frameCapacity: chunkFrames
+                ) else {
+                    throw MusicError.audioWriteFailed
+                }
+
+                try input.read(into: buffer, frameCount: chunkFrames)
+                if buffer.frameLength > 0 {
+                    try output.write(from: buffer)
+                }
+            }
+        }
+
+        return outputURL
+    }
+
+    private func uniqueOutputURL(prompt: String) -> URL {
+        let outputDir = fm.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first?
+            .appendingPathComponent(
+                "SarahIA/GeneratedMusic",
+                isDirectory: true
+            )
+            ?? fm.temporaryDirectory
+
+        try? fm.createDirectory(
+            at: outputDir,
+            withIntermediateDirectories: true
+        )
+
+        let safe = prompt
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .prefix(4)
+            .joined(separator: "-")
+            .lowercased()
+
+        return outputDir.appendingPathComponent(
+            "sarah-" + (safe.isEmpty ? "music" : safe)
+            + "-" + UUID().uuidString.prefix(8) + ".wav"
         )
     }
 
@@ -861,41 +1183,7 @@ public final class SarahLocalMusicGenEngine {
             ].floatValue
         }
 
-        let outputDir = fm.urls(
-            for: .documentDirectory,
-            in: .userDomainMask
-        ).first?
-            .appendingPathComponent(
-                "SarahIA/GeneratedMusic",
-                isDirectory: true
-            )
-            ?? fm.temporaryDirectory
-
-        try fm.createDirectory(
-            at: outputDir,
-            withIntermediateDirectories: true
-        )
-
-        let safe = prompt
-            .components(
-                separatedBy: CharacterSet
-                    .alphanumerics
-                    .inverted
-            )
-            .filter { !$0.isEmpty }
-            .prefix(4)
-            .joined(separator: "-")
-            .lowercased()
-
-        let filename =
-            "sarah-"
-            + (safe.isEmpty ? "music" : safe)
-            + "-"
-            + String(Int(Date().timeIntervalSince1970))
-            + ".wav"
-
-        let url = outputDir
-            .appendingPathComponent(filename)
+        let url = uniqueOutputURL(prompt: prompt)
 
         let file = try AVAudioFile(
             forWriting: url,
