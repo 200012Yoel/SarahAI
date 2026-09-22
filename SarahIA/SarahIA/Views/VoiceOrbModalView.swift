@@ -34,6 +34,8 @@ public struct VoiceOrbModalView: View {
 
     private var statusTitle: String {
         switch viewModel.voiceStatus {
+        case .starting:
+            return "Activation du micro…"
         case .processing:
             return "Je réfléchis…"
         case .speaking:
@@ -52,6 +54,8 @@ public struct VoiceOrbModalView: View {
         switch viewModel.voiceStatus {
         case .error:
             return "Touchez le micro pour réessayer"
+        case .starting:
+            return "Autorisez le micro si iOS vous le demande"
         case .processing:
             return "Un instant…"
         case .speaking:
@@ -95,9 +99,10 @@ public struct VoiceOrbModalView: View {
                 viewModel.startVoiceConversation()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            // Sarah ne doit jamais conserver une route audio active quand
-            // l'utilisateur quitte l'app ou ouvre Siri / un appel.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            // Ne pas couper la session sur willResignActive : l'alerte système
+            // d'autorisation micro provoque elle-même cet événement. On arrête
+            // uniquement lorsque l'application passe réellement en arrière-plan.
             viewModel.stopVoiceConversation()
         }
     }
