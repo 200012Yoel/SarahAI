@@ -92,8 +92,12 @@ public struct ChatScreenView: View {
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
                     isRecording: viewModel.isMicRunning,
+                    isProcessing: viewModel.isGeneratingResponse,
                     onSend: { text in
                         viewModel.sendMessage(text)
+                    },
+                    onCancel: {
+                        viewModel.cancelCurrentGeneration()
                     },
                     onToggleMic: {
                         viewModel.toggleMicrophone()
@@ -263,19 +267,28 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Bouton Paramètres — Roue crantée ⚙️
+            // Nouveau chat, au même emplacement que le bouton rapide de ChatGPT.
             Button(action: {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
-                isShowingSettings = true
+                viewModel.startNewChat(silently: true)
             }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
+                ZStack {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                        .background(Circle().fill(Color(white: 0.16)))
+                        .offset(x: 8, y: -8)
+                }
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(Color(white: 0.16)))
             }
             .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel("Nouveau chat")
         }
         .padding(.horizontal, 16)
     }
