@@ -14,6 +14,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public var generatedAudioURL: String?
     public var generatedVideoURL: String?
     public var videoGenerationPrompt: String?
+    public var videoIsVertical: Bool?
     public var isGeneratingVideo: Bool?
     public var isGeneratingImage: Bool?
     public var imageGenerationPrompt: String?
@@ -31,6 +32,7 @@ public struct Message: Identifiable, Equatable, Codable {
         generatedAudioURL: String? = nil,
         generatedVideoURL: String? = nil,
         videoGenerationPrompt: String? = nil,
+        videoIsVertical: Bool? = nil,
         isGeneratingVideo: Bool? = nil,
         isGeneratingImage: Bool? = nil,
         imageGenerationPrompt: String? = nil
@@ -47,6 +49,7 @@ public struct Message: Identifiable, Equatable, Codable {
         self.generatedAudioURL = generatedAudioURL
         self.generatedVideoURL = generatedVideoURL
         self.videoGenerationPrompt = videoGenerationPrompt
+        self.videoIsVertical = videoIsVertical
         self.isGeneratingVideo = isGeneratingVideo
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
