@@ -13,8 +13,6 @@ public struct MessageBar: View {
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
 
-    @State private var processingRotation: Double = 0
-
     public init(
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
@@ -79,27 +77,11 @@ public struct MessageBar: View {
             }) {
                 ZStack {
                     if isProcessing {
-                        Circle()
-                            .stroke(Color.white.opacity(0.14), lineWidth: 2.5)
-
-                        Circle()
-                            .trim(from: 0.08, to: 0.72)
-                            .stroke(
-                                AngularGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.sarahCyan,
-                                        Color.purple,
-                                        Color.sarahCyan.opacity(0.18)
-                                    ]),
-                                    center: .center
-                                ),
-                                style: StrokeStyle(lineWidth: 2.7, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(processingRotation))
-
+                        // Même logique visuelle que le bouton Stop de ChatGPT :
+                        // cercle orange et carré blanc pendant le traitement.
                         RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(Color.white)
-                            .frame(width: 10, height: 10)
+                            .frame(width: 11, height: 11)
                     } else {
                         Image(systemName: hasText ? "arrow.up" : "waveform")
                             .font(.system(size: 18, weight: hasText ? .bold : .regular))
@@ -111,33 +93,16 @@ public struct MessageBar: View {
             }
             .frame(width: 44, height: 44)
             .background(
-                isProcessing
-                    ? Color(white: 0.13)
-                    : (hasText ? Color.blue : Color(white: 0.15))
+                isProcessing || hasText
+                    ? Color(red: 1.0, green: 0.43, blue: 0.13)
+                    : Color(white: 0.15)
             )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
-            .onAppear {
-                updateProcessingAnimation()
-            }
-            .onChange(of: isProcessing) { _ in
-                updateProcessingAnimation()
-            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
-    }
-
-    private func updateProcessingAnimation() {
-        if isProcessing {
-            processingRotation = 0
-            withAnimation(Animation.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                processingRotation = 360
-            }
-        } else {
-            processingRotation = 0
-        }
     }
 
     private func submitMessage() {
