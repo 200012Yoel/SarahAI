@@ -45,7 +45,9 @@ public final class YouTubePlayerViewController: UIViewController, UISearchBarDel
     
     public override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        webView.load(URLRequest(url: URL(string: "about:blank")!))
+        if let blankURL = URL(string: "about:blank") {
+            webView.load(URLRequest(url: blankURL))
+        }
     }
     
     // MARK: - Configuration UI
@@ -169,13 +171,15 @@ public final class YouTubePlayerViewController: UIViewController, UISearchBarDel
         loadingIndicator.startAnimating()
         
         YouTubeService.shared.searchVideos(query: query) { [weak self] results in
-            guard let self = self else { return }
-            self.loadingIndicator.stopAnimating()
-            self.videoResults = results
-            self.tableView.reloadData()
-            
-            if let first = results.first, self.currentVideo == nil {
-                self.loadVideo(first)
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.loadingIndicator.stopAnimating()
+                self.videoResults = results
+                self.tableView.reloadData()
+                
+                if let first = results.first, self.currentVideo == nil {
+                    self.loadVideo(first)
+                }
             }
         }
     }
@@ -222,7 +226,12 @@ public final class YouTubePlayerViewController: UIViewController, UISearchBarDel
     }
     
     public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "YouTubeCell", for: indexPath) as! YouTubeVideoCell
+        guard let cell = tableView.dequeueReusableCell(
+            withIdentifier: "YouTubeCell",
+            for: indexPath
+        ) as? YouTubeVideoCell else {
+            return UITableViewCell(style: .default, reuseIdentifier: nil)
+        }
         let video = videoResults[indexPath.row]
         let isSelected = video.videoId == currentVideo?.videoId
         cell.configure(with: video, isSelected: isSelected)
