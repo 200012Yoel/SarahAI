@@ -581,18 +581,40 @@ public final class MultiAgentCoordinator {
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+            let responseText: String
+            let spoken: String
 
-        let responseText = """
-        ✨ **Ethel [Studio Créatif]**
+            if result.isSuccess {
+                let locality = result.modelName.hasPrefix("Cloud ·")
+                    ? "via le réseau"
+                    : "localement sur l’iPhone"
 
-        🎨 Création lancée pour : « **\(prompt)** »
-        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+                responseText = """
+                ✨ **Ethel [Studio Créatif]**
 
-        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
-        """
-        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+                🎨 Image terminée pour : « **\(prompt)** »
+                Rendu créé **\(locality)** avec **\(result.modelName)**.
+                """
+                spoken = "L’image est prête."
+            } else {
+                responseText = """
+                ✨ **Ethel [Studio Créatif]**
+
+                La création n’a pas pu se terminer avec **\(profile.displayName)** :
+                \(result.errorMessage ?? "ressources indisponibles").
+                """
+                spoken = "La génération de l’image n’a pas pu se terminer."
+            }
+
+            completion(
+                AgentResponse(
+                    agent: .ethel,
+                    text: responseText,
+                    spokenText: spoken
+                )
+            )
+        }
     }
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
@@ -1102,19 +1124,41 @@ public final class MultiAgentCoordinator {
             if imageCheck.isIntent {
                 let prompt = imageCheck.cleanedPrompt
                 let profile = SarahGenerativeModelCatalog.imageProfile()
-                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
 
-                let responseText = """
-                🎨 **Sarah & Nathan [Création visuelle]**
+                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+                    let responseText: String
+                    let spoken: String
 
-                Création lancée pour : « **\(prompt)** »
-                Profil : **\(profile.displayName)** · \(profile.licenseName).
-                """
-                completion(AgentResponse(
-                    agent: .nathan,
-                    text: responseText,
-                    spokenText: "Je lance la création de votre image avec le modèle adapté à cet iPhone."
-                ))
+                    if result.isSuccess {
+                        let locality = result.modelName.hasPrefix("Cloud ·")
+                            ? "via le réseau"
+                            : "localement sur l’iPhone"
+
+                        responseText = """
+                        🎨 **Sarah & Nathan [Création visuelle]**
+
+                        Image terminée pour : « **\(prompt)** »
+                        Rendu créé **\(locality)** avec **\(result.modelName)**.
+                        """
+                        spoken = "L’image est prête."
+                    } else {
+                        responseText = """
+                        🎨 **Sarah & Nathan [Création visuelle]**
+
+                        La création n’a pas pu se terminer avec **\(profile.displayName)** :
+                        \(result.errorMessage ?? "ressources indisponibles").
+                        """
+                        spoken = "La génération de l’image n’a pas pu se terminer."
+                    }
+
+                    completion(
+                        AgentResponse(
+                            agent: .nathan,
+                            text: responseText,
+                            spokenText: spoken
+                        )
+                    )
+                }
                 return
             }
         }
