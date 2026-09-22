@@ -922,22 +922,44 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 4. Génération vidéo locale : prioritaire sur le flux de publication.
+        // 4. Génération vidéo : prioritaire sur le flux de publication.
         let localVideoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
         if localVideoIntent.isIntent {
-            let profile = SarahLocalVideoGenEngine.shared.profile
-            let responseText = """
-            🎬 **Sarah & Nathan [Création vidéo]**
+            SarahLocalVideoGenEngine.shared.generateVideo(
+                prompt: localVideoIntent.prompt,
+                duration: localVideoIntent.duration,
+                vertical: localVideoIntent.isVertical
+            ) { result in
+                let responseText: String
+                let spoken: String
 
-            Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+                switch result {
+                case .success(let url):
+                    let format = localVideoIntent.isVertical ? "vertical" : "paysage"
+                    responseText = """
+                    🎬 **Sarah & Nathan [Création vidéo]**
 
-            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
-            """
-            completion(AgentResponse(
-                agent: .nathan,
-                text: responseText,
-                spokenText: SarahLocalVideoGenEngine.shared.availabilityMessage()
-            ))
+                    Vidéo **\(format)** de **\(Int(localVideoIntent.duration)) secondes** prête avec **Sarah Motion Video**.
+                    Fichier : \(url.lastPathComponent)
+                    """
+                    spoken = "La vidéo est prête."
+                case .failure(let error):
+                    responseText = """
+                    🎬 **Sarah & Nathan [Création vidéo]**
+
+                    La génération s'est arrêtée : \(error.localizedDescription)
+                    """
+                    spoken = "La génération vidéo n'a pas pu se terminer."
+                }
+
+                completion(
+                    AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: spoken
+                    )
+                )
+            }
             return
         }
 
