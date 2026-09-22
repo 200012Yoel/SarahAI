@@ -58,34 +58,29 @@ public struct ChatBubbleView: View {
             }
             .padding(.horizontal, message.imageData != nil ? 6 : 16)
             .padding(.vertical, message.imageData != nil ? 6 : 10)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.12, green: 0.53, blue: 0.98), // Apple iMessage Blue
-                        Color(red: 0.05, green: 0.45, blue: 0.90)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+            .sarahLiquidGlass(
+                cornerRadius: 19,
+                tint: Color(red: 0.10, green: 0.53, blue: 0.98),
+                intensity: 0.42
             )
-            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 19, style: .continuous)
-                    .stroke(Color.white.opacity(0.20), lineWidth: 0.7)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.10, green: 0.53, blue: 0.98).opacity(0.48),
+                                Color(red: 0.05, green: 0.40, blue: 0.92).opacity(0.24)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .allowsHitTesting(false)
             )
             .overlay(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.white.opacity(0.16),
-                        Color.clear
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .center
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                .allowsHitTesting(false)
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
             )
-            .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
             
             Text(message.formattedTime)
                 .font(.system(size: 11, weight: .regular, design: .rounded))
@@ -234,8 +229,11 @@ public struct ChatBubbleView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color(red: 0.15, green: 0.52, blue: 0.96))
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            .sarahLiquidGlass(
+                                cornerRadius: 13,
+                                tint: Color(red: 0.10, green: 0.53, blue: 0.98),
+                                intensity: 0.34
+                            )
                     }
                     .buttonStyle(BorderlessButtonStyle())
                     .accessibilityLabel("Ouvrir le Studio Raphaël")
