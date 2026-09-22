@@ -156,6 +156,16 @@ jobs:
             exit 1
           }
 
+          grep -Fq 'CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ Le tokenizer Stable Audio pointe vers la mauvaise branche."
+            exit 1
+          }
+
+          grep -Fq 'parseVocabularyData' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ L'auto-réparation du tokenizer Stable Audio a disparu."
+            exit 1
+          }
+
           if grep -Fq 'Je n’ai pas de réponse locale suffisamment fiable pour cette demande.' "SarahIA/SarahIA/Services/LocalNeuralIntelligenceEngine.swift"; then
             echo "❌ Le fallback conversationnel technique est revenu."
             exit 1
