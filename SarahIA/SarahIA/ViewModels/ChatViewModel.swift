@@ -571,6 +571,7 @@ public final class ChatViewModel: ObservableObject {
                     Message(
                         content: "🎵 **Génération musicale en cours**\nDurée : **\(durationText)**",
                         isFromUser: false,
+                        audioDuration: TimeInterval(seconds),
                         generatedMusicStyle: style
                     )
                 )
