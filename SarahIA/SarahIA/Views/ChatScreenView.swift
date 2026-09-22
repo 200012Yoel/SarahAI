@@ -29,39 +29,16 @@ public struct ChatScreenView: View {
         return 20
     }
     
-    private var bottomSafeArea: CGFloat {
-        if #available(iOS 13.0, *) {
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                .first
-            if let insets = window?.safeAreaInsets {
-                return insets.bottom
-            }
-        }
-        return 0
-    }
-    
-    private var currentBottomPadding: CGFloat {
-        if keyboard.isVisible && keyboard.keyboardHeight > 0 {
-            // Collé au millimètre près sur le dessus du clavier
-            return keyboard.keyboardHeight
-        }
-        return bottomSafeArea > 0 ? bottomSafeArea : 8
-    }
-    
     public var body: some View {
         ZStack {
-            // Fond noir plein écran
             Color.black
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
-                // 1. En-tête (TopBar calée sous l'encoche / Dynamic Island)
                 topBar
                     .padding(.top, topSafeArea)
                     .padding(.bottom, 6)
-                
-                // 2. Liste des messages (ScrollView)
+
                 MessageList(
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
@@ -82,13 +59,17 @@ public struct ChatScreenView: View {
                         viewModel.isShowingVAICodingStudio = true
                     }
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     keyboard.dismiss()
                 }
-                
-                // 3. Mode vocal réduit : la session continue même lorsque la feuille
-                // vocale a été refermée. La capsule reste juste au-dessus du composer.
+            }
+        }
+        // Laisser SwiftUI gérer le clavier évite le double décalage observé sur iOS 27.
+        // Le dock reste toujours juste au-dessus du clavier, quel que soit l'iPhone.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
                 if viewModel.isContinuousConversationActive && !viewModel.isShowingVoiceOrbModal {
                     HStack {
                         Spacer(minLength: 18)
@@ -96,16 +77,19 @@ public struct ChatScreenView: View {
                             .frame(maxWidth: 286)
                         Spacer(minLength: 18)
                     }
-                    .padding(.bottom, 7)
+                    .padding(.bottom, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // 4. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
                     isRecording: viewModel.isMicRunning,
                     isProcessing: viewModel.isGeneratingResponse,
+                    onOpenActions: {
+                        keyboard.dismiss()
+                        isShowingActionSheet = true
+                    },
                     onSend: { text in
                         viewModel.sendMessage(text)
                     },
@@ -116,6 +100,7 @@ public struct ChatScreenView: View {
                         viewModel.toggleMicrophone()
                     },
                     onOpenVoiceOrb: {
+                        keyboard.dismiss()
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     onOpenVAICoding: {
@@ -123,9 +108,25 @@ public struct ChatScreenView: View {
                     }
                 )
             }
-            .padding(.bottom, currentBottomPadding)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.black.opacity(0.02),
+                        Color.black.opacity(0.68)
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+            )
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-voice") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    viewModel.isShowingVoiceOrbModal = true
+                }
+            }
+        }
         .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
         }
