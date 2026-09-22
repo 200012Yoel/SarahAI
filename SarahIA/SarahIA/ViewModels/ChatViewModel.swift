@@ -39,6 +39,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
+    @Published public var isVoiceMicrophoneMuted: Bool = false
     
     // MARK: - Navigation, Studio VAI Coding & Voice Orb
     @Published public var isDrawerOpen: Bool = false
@@ -474,10 +475,10 @@ public final class ChatViewModel: ObservableObject {
             self.voiceStatus = .idle
             self.haptics.speechFinished()
             
-            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+            if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     guard self.isContinuousConversationActive,
-                          self.isShowingVoiceOrbModal,
+                          !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
                     AppleSpeechRecognizer.shared.startListening()
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
@@ -490,19 +491,30 @@ public final class ChatViewModel: ObservableObject {
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        if isMicRunning || AppleSpeechRecognizer.shared.isListening {
-            stopVoiceConversation(stopSpeech: false)
-        } else {
-            startVoiceConversation()
+
+        if isContinuousConversationActive {
+            if isVoiceMicrophoneMuted || !AppleSpeechRecognizer.shared.isListening {
+                resumeVoiceMicrophone()
+            } else {
+                pauseVoiceMicrophone()
+            }
+            return
         }
+
+        startVoiceConversation()
     }
 
-    /// Démarre explicitement une session vocale continue.
-    /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
+    /// Démarre une session vocale continue. La session appartient au chat,
+    /// pas à la feuille visuelle : fermer l'interface vocale ne l'arrête donc plus.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
-        voiceManager.stop()
         isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
+
+        if voiceManager.isSpeaking {
+            voiceStatus = .speaking
+            return
+        }
 
         guard !AppleSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -515,14 +527,49 @@ public final class ChatViewModel: ObservableObject {
         voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
     }
 
-    /// Coupe complètement le mode vocal et rend la session audio à iOS.
-    /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
-    /// même si Sarah est en train de parler et que le micro est déjà arrêté.
+    /// Coupe seulement le micro tout en gardant le mode vocal actif.
+    public func pauseVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        isVoiceMicrophoneMuted = true
+        AppleSpeechRecognizer.shared.stopListening()
+        isMicRunning = false
+        micInputLevel = 0
+        liveTranscriptionText = ""
+
+        if voiceManager.isSpeaking {
+            voiceStatus = .speaking
+        } else {
+            voiceStatus = .idle
+        }
+    }
+
+    /// Réactive le micro sans recréer la session vocale.
+    public func resumeVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
+
+        guard !voiceManager.isSpeaking else {
+            voiceStatus = .speaking
+            return
+        }
+
+        AppleSpeechRecognizer.shared.startListening()
+        isMicRunning = AppleSpeechRecognizer.shared.isListening
+        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+    }
+
+    /// Arrête réellement le mode vocal. C'est la seule action UI qui doit
+    /// faire disparaître la mini-barre vocale du chat.
+    public func endVoiceConversation() {
+        stopVoiceConversation(stopSpeech: true)
+        isShowingVoiceOrbModal = false
+    }
+
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
+        isVoiceMicrophoneMuted = false
 
-        // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
-        // la session AVAudioSession pouvait rester active si Sarah parlait encore.
         if stopSpeech {
             voiceManager.stop()
         }
