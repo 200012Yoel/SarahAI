@@ -42,6 +42,9 @@ public struct Message: Identifiable, Equatable, Codable {
     
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
     public var detectedImageURL: String? {
+        // Une image déjà reçue en Data doit rester locale et ne pas être rechargée
+        // via URLSession (notamment lorsque generatedImageURL est un file://).
+        if imageData != nil { return nil }
         if let explicit = generatedImageURL, !explicit.isEmpty { return explicit }
         if content.contains("https://image.pollinations.ai/prompt/") {
             let parts = content.components(separatedBy: "https://image.pollinations.ai/prompt/")
@@ -58,16 +61,57 @@ public struct Message: Identifiable, Equatable, Codable {
         return nil
     }
     
-    /// Détecte si le message est une composition musicale de Sarah
+    /// Détecte si le message est une composition musicale de Sarah.
     public var detectedMusicStyle: String? {
         if let explicit = generatedMusicStyle, !explicit.isEmpty { return explicit }
-        if content.contains("Sarah Music Engine") || content.contains("Morceau composé") || content.contains("Moteur Musical Open Source") {
+
+        let markers = [
+            "Sarah Music Engine",
+            "Morceau composé",
+            "Moteur Musical Open Source",
+            "Génération musicale en cours",
+            "Musique générée localement",
+            "[Musique locale]"
+        ]
+
+        if markers.contains(where: { content.contains($0) }) {
             for style in ["Lo-Fi Chill", "Synthwave Électro", "Piano Classique", "Ambiance Méditation", "Épique Cinématique", "Jazz Bossa"] {
                 if content.contains(style) { return style }
             }
-            return "Lo-Fi Chill"
+            return "Instrumental"
         }
         return nil
+    }
+
+    public var isMusicGenerationPlaceholder: Bool {
+        content.contains("Génération musicale en cours")
+    }
+
+    public var detectedMusicDuration: TimeInterval? {
+        if let audioDuration, audioDuration > 0 {
+            return audioDuration
+        }
+
+        let normalized = content
+            .replacingOccurrences(of: "**", with: "")
+            .lowercased()
+
+        if normalized.contains("1 minute") || normalized.contains("1 min") {
+            return 60
+        }
+
+        let pattern = "([0-9]+(?:[\\.,][0-9]+)?)\\s*(secondes?|secs?|sec|s)\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                in: normalized,
+                range: NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+              ),
+              let range = Range(match.range(at: 1), in: normalized) else {
+            return nil
+        }
+
+        let value = String(normalized[range]).replacingOccurrences(of: ",", with: ".")
+        return Double(value)
     }
     
     /// Détecte si le message est un rapport d'analyse de vision
