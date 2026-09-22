@@ -165,9 +165,10 @@ public struct SidebarView: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 48)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.10))
+        .sarahLiquidGlass(
+            cornerRadius: 18,
+            tint: viewModel.activeAgent.themeColor,
+            intensity: 0.07
         )
         .padding(.horizontal, horizontal)
     }
@@ -338,12 +339,13 @@ public struct SidebarView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 22)
                 .frame(height: circleSize)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(viewModel.activeAgent.themeColor)
+                .sarahLiquidGlass(
+                    cornerRadius: circleSize / 2,
+                    tint: viewModel.activeAgent.themeColor,
+                    intensity: 0.34
                 )
                 .shadow(
-                    color: viewModel.activeAgent.themeColor.opacity(0.22),
+                    color: viewModel.activeAgent.themeColor.opacity(0.20),
                     radius: 14,
                     y: 5
                 )
@@ -367,16 +369,20 @@ public struct SidebarView: View {
         .padding(.top, 10)
         .padding(.bottom, max(10, bottomInset + 4))
         .background(
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.0),
-                    Color.black.opacity(0.90),
-                    Color.black
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            viewModel.activeAgent.themeColor.opacity(0.05),
+                            Color.black.opacity(0.24)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .ignoresSafeArea()
         )
     }
 
@@ -388,10 +394,13 @@ public struct SidebarView: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.10))
+                    .fill(.ultraThinMaterial)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                    .fill(viewModel.activeAgent.themeColor.opacity(0.07))
+
+                Circle()
+                    .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
 
                 Image(systemName: systemName)
                     .font(.system(size: size * 0.37, weight: .medium))
