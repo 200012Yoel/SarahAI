@@ -741,7 +741,13 @@ public final class SarahLocalMusicGenEngine {
                     completion(.success(finalURL))
                 }
             } catch {
-                let wasCancelled = (error as? MusicError) == .cancelled
+                let wasCancelled: Bool
+                if let musicError = error as? MusicError,
+                   case .cancelled = musicError {
+                    wasCancelled = true
+                } else {
+                    wasCancelled = false
+                }
                 self.finishGeneration(generationID)
 
                 await MainActor.run {
@@ -1016,7 +1022,7 @@ public final class SarahLocalMusicGenEngine {
 
         return outputDir.appendingPathComponent(
             "sarah-" + (safe.isEmpty ? "music" : safe)
-            + "-" + UUID().uuidString.prefix(8) + ".wav"
+            + "-" + String(UUID().uuidString.prefix(8)) + ".wav"
         )
     }
 
