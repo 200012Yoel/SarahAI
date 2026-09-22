@@ -135,16 +135,31 @@ public struct ChatBubbleView: View {
                     }
                 }
                 
-                // Carte Interactive d'Image Générée (Flux / SDXL / CoreML)
-                if let imageURL = message.detectedImageURL {
-                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.imageGenerationPrompt ?? message.content)
-                        .frame(maxWidth: 290)
+                // Carte d'image locale : afficher directement les octets reçus du moteur
+                // Core ML, sans tentative réseau parasite.
+                if let data = message.imageData, let localImage = UIImage(data: data) {
+                    GeneratedInlineImageCardView(
+                        image: localImage,
+                        promptDescription: message.imageGenerationPrompt
+                    )
+                    .frame(maxWidth: 290)
+                } else if let imageURL = message.detectedImageURL {
+                    GeneratedImageCardView(
+                        imageURLString: imageURL,
+                        promptDescription: message.imageGenerationPrompt ?? message.content
+                    )
+                    .frame(maxWidth: 290)
                 }
                 
-                // Carte Interactive Musicale Générative (DSP Synth)
+                // Carte musicale : la même carte passe de "création" au vrai WAV jouable.
                 if let musicStyle = message.detectedMusicStyle {
-                    MusicTrackCardView(styleName: musicStyle)
-                        .frame(maxWidth: 280)
+                    MusicTrackCardView(
+                        styleName: musicStyle,
+                        startsGenerating: message.isMusicGenerationPlaceholder,
+                        audioURL: message.detectedGeneratedAudioURL,
+                        requestedDuration: message.detectedMusicDuration
+                    )
+                    .frame(maxWidth: 290)
                 }
                 
                 // Carte de Rapport d'Analyse Visuelle Poussée (OCR & Objets)
