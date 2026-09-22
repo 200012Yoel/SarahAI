@@ -91,7 +91,9 @@ public struct VoiceOrbModalView: View {
         .onAppear {
             pulse = true
             drift = true
-            viewModel.startVoiceConversation()
+            if !viewModel.isContinuousConversationActive {
+                viewModel.startVoiceConversation()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             // Sarah ne doit jamais conserver une route audio active quand
