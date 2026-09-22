@@ -12,12 +12,9 @@ on:
           - 'no'
           - 'yes'
         default: 'no'
-  push:
-    branches:
-      - feature/chatgpt-ui-media-shortcuts-20260922
 jobs:
   build:
-    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    if: inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
