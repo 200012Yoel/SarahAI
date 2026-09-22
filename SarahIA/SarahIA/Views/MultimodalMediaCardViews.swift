@@ -745,7 +745,8 @@ public struct ShortcutPlanCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 7) {
-                ForEach(Array(plan.blocks.enumerated()), id: \.element.id) { index, block in
+                ForEach(0..<plan.blocks.count, id: \.self) { index in
+                    let block = plan.blocks[index]
                     HStack(alignment: .top, spacing: 9) {
                         ZStack {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
