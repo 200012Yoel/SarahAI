@@ -111,10 +111,15 @@ public struct ContentView: View {
             }
 
             if viewModel.isVoiceBubbleVisible && !viewModel.isShowingVoiceOrbModal {
-                SarahFloatingVoiceBubble(viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .transition(.scale(scale: 0.84).combined(with: .opacity))
-                    .zIndex(40)
+                VStack {
+                    Spacer()
+
+                    SarahFloatingVoiceBubble(viewModel: viewModel)
+                        .padding(.bottom, 92)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.scale(scale: 0.76).combined(with: .opacity))
+                .zIndex(40)
             }
 
             if isShowingLaunchAnimation {
