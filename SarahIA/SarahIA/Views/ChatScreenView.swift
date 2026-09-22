@@ -87,7 +87,16 @@ public struct ChatScreenView: View {
                     keyboard.dismiss()
                 }
                 
-                // 3. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
+                // 3. Mode vocal réduit : la session continue même lorsque la feuille
+                // vocale a été refermée. La capsule reste juste au-dessus du composer.
+                if viewModel.isContinuousConversationActive && !viewModel.isShowingVoiceOrbModal {
+                    CollapsedVoiceSessionBar(viewModel: viewModel)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // 4. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
@@ -236,10 +245,16 @@ public struct ChatScreenView: View {
                 viewModel.openDrawer()
             }) {
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
+                    .frame(width: 42, height: 42)
+                    .background(
+                        ZStack {
+                            Circle().fill(.ultraThinMaterial)
+                            Circle().fill(viewModel.activeAgent.themeColor.opacity(0.08))
+                            Circle().stroke(Color.white.opacity(0.16), lineWidth: 0.8)
+                        }
+                    )
             }
             .buttonStyle(ScaleBounceButtonStyle())
             
@@ -249,19 +264,26 @@ public struct ChatScreenView: View {
             Button(action: {
                 viewModel.isShowingVoiceOrbModal = true
             }) {
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     Circle()
                         .fill(viewModel.activeAgent.themeColor)
                         .frame(width: 8, height: 8)
-                    
+
                     Text(viewModel.activeAgent.displayName)
                         .font(.headline)
                         .foregroundColor(.white)
-                    
+
                     Image(systemName: "chevron.down")
                         .font(.caption2)
-                        .foregroundColor(.gray)
+                        .foregroundColor(.white.opacity(0.55))
                 }
+                .padding(.horizontal, 13)
+                .frame(height: 40)
+                .sarahLiquidGlass(
+                    cornerRadius: 20,
+                    tint: viewModel.activeAgent.themeColor,
+                    intensity: 0.08
+                )
             }
             .buttonStyle(PlainButtonStyle())
             
@@ -283,15 +305,119 @@ public struct ChatScreenView: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 13)
                 .frame(height: 42)
-                .background(
-                    Capsule()
-                        .fill(Color(white: 0.16))
+                .sarahLiquidGlass(
+                    cornerRadius: 21,
+                    tint: viewModel.activeAgent.themeColor,
+                    intensity: 0.08
                 )
             }
             .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel("Nouveau chat")
         }
         .padding(.horizontal, 16)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct CollapsedVoiceSessionBar: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @State private var pulse = false
+
+    private var accent: Color {
+        viewModel.activeAgent.themeColor
+    }
+
+    private var status: String {
+        switch viewModel.voiceStatus {
+        case .processing:
+            return "Réflexion en cours"
+        case .speaking:
+            return "\(viewModel.activeAgent.displayName) parle"
+        case .error:
+            return "Micro indisponible"
+        default:
+            return viewModel.isVoiceMicrophoneMuted ? "Micro coupé" : "À l’écoute"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.isShowingVoiceOrbModal = true
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(accent.opacity(0.20))
+                        .frame(width: 34, height: 34)
+
+                    Circle()
+                        .stroke(accent.opacity(0.55), lineWidth: 1)
+                        .frame(width: 34, height: 34)
+                        .scaleEffect(pulse ? 1.08 : 0.92)
+                        .opacity(pulse ? 0.30 : 0.80)
+
+                    Image(systemName: "waveform")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Mode vocal")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.55))
+
+                Text(status)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.toggleMicrophone()
+            } label: {
+                Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(viewModel.isVoiceMicrophoneMuted ? .white.opacity(0.60) : .white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel(viewModel.isVoiceMicrophoneMuted ? "Réactiver le micro" : "Couper le micro")
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.endVoiceConversation()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(accent.opacity(0.32)))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Arrêter le mode vocal")
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: 360, minHeight: 54)
+        .sarahLiquidGlass(
+            cornerRadius: 27,
+            tint: accent,
+            intensity: 0.16
+        )
+        .frame(maxWidth: .infinity)
+        .onAppear {
+            withAnimation(
+                Animation.easeInOut(duration: 1.05)
+                    .repeatForever(autoreverses: true)
+            ) {
+                pulse = true
+            }
+        }
     }
 }
 
