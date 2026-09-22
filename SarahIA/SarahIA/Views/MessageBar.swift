@@ -81,7 +81,7 @@ public struct MessageBar: View {
                 ZStack {
                     if isProcessing {
                         // Même logique visuelle que le bouton Stop de ChatGPT :
-                        // cercle orange et carré blanc pendant le traitement.
+                        // carré blanc dans la couleur active de Sarah pendant le traitement.
                         RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(Color.white)
                             .frame(width: 11, height: 11)
