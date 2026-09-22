@@ -127,6 +127,55 @@ public final class ChatViewModel: ObservableObject {
                 self.appendMessage(mediaMessage)
             }
             .store(in: &cancellables)
+
+        // Le fichier WAV final remplace la carte de génération sans créer une
+        // seconde "fausse" piste. L'URL locale reste persistée dans le fil.
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedMusicReady"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let url = notif.object as? URL,
+                      let index = self.messages.lastIndex(where: { $0.isMusicGenerationPlaceholder }) else {
+                    return
+                }
+
+                let old = self.messages[index]
+                let duration = (notif.userInfo?["duration"] as? Double)
+                    ?? old.detectedMusicDuration
+                    ?? 20
+
+                self.messages[index] = Message(
+                    id: old.id,
+                    content: "🎵 **Musique générée localement.**",
+                    isFromUser: false,
+                    timestamp: old.timestamp,
+                    audioDuration: duration,
+                    generatedMusicStyle: old.generatedMusicStyle,
+                    generatedAudioURL: url.absoluteString
+                )
+                self.persistCurrentState()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationFailed"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let index = self.messages.lastIndex(where: { $0.isMusicGenerationPlaceholder }) else {
+                    return
+                }
+
+                let old = self.messages[index]
+                let error = (notif.userInfo?["error"] as? String) ?? "La génération a échoué."
+                self.messages[index] = Message(
+                    id: old.id,
+                    content: "🎵 **Génération musicale interrompue**\n\(error)",
+                    isFromUser: false,
+                    timestamp: old.timestamp
+                )
+                self.persistCurrentState()
+            }
+            .store(in: &cancellables)
     }
 
     private func ensureVoicePipelinePrepared() {
@@ -500,6 +549,13 @@ public final class ChatViewModel: ObservableObject {
         isTyping = false
         voiceStatus = .idle
         AIProgressiveScheduler.shared.cancelAllTasks()
+
+        // Retire la carte provisoire si l'utilisateur touche le carré Stop.
+        if messages.contains(where: { $0.isMusicGenerationPlaceholder }) {
+            messages.removeAll(where: { $0.isMusicGenerationPlaceholder })
+            persistCurrentState()
+        }
+
         if #available(iOS 27.0, *) {
             SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
         }
