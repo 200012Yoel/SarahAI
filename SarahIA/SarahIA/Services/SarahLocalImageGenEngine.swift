@@ -547,13 +547,20 @@ public final class SarahLocalVideoGenEngine {
             guard let self = self else { return }
 
             guard result.isSuccess, let image = result.image else {
-                completion(
-                    .failure(
-                        VideoError.keyframeGenerationFailed(
-                            result.errorMessage ?? "moteur image indisponible"
-                        )
-                    )
+                let error = VideoError.keyframeGenerationFailed(
+                    result.errorMessage ?? "moteur image indisponible"
                 )
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahVideoGenerationFailed"),
+                        object: nil,
+                        userInfo: [
+                            "prompt": clean,
+                            "error": error.localizedDescription
+                        ]
+                    )
+                    completion(.failure(error))
+                }
                 return
             }
 
@@ -677,7 +684,9 @@ public final class SarahLocalVideoGenEngine {
             width: width,
             height: height
         )
-        let background = CIImage(color: .black).cropped(to: target)
+        let background = CIImage(
+            color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)
+        ).cropped(to: target)
         let colorSpace = CGColorSpaceCreateDeviceRGB()
 
         for frameIndex in 0..<totalFrames {
@@ -744,7 +753,7 @@ public final class SarahLocalVideoGenEngine {
             )
 
             let time = CMTime(
-                value: CMTimeValue(frameIndex),
+                value: Int64(frameIndex),
                 timescale: fps
             )
 
