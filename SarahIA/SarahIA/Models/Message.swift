@@ -53,7 +53,13 @@ public struct Message: Identifiable, Equatable, Codable {
     }
     
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
+    public var isImageGenerationPlaceholder: Bool {
+        isGeneratingImage == true
+    }
+
     public var detectedImageURL: String? {
+        if isImageGenerationPlaceholder { return nil }
+
         // Une image déjà reçue en Data doit rester locale et ne pas être rechargée
         // via URLSession (notamment lorsque generatedImageURL est un file://).
         if imageData != nil { return nil }
