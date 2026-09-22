@@ -338,6 +338,8 @@ private struct CollapsedVoiceSessionBar: View {
 
     private var status: String {
         switch viewModel.voiceStatus {
+        case .starting:
+            return "Activation du micro…"
         case .processing:
             return "Réflexion…"
         case .speaking:
