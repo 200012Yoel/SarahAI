@@ -50,6 +50,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isShowingWebsiteBuilder: Bool = false
     @Published public var vaiCurrentCode: String? = nil
     @Published public var websiteDraft: WebsiteBrief? = nil
+    @Published public var websiteRevisionCount: Int = 0
     
     public var isGeneratingResponse: Bool {
         get { isTyping }
@@ -74,6 +75,14 @@ public final class ChatViewModel: ObservableObject {
     // Changer cet UUID invalide proprement un callback tardif après Stop / Nouveau chat.
     private var responseGenerationID = UUID()
     private var pendingMusicPrompt: String? = nil
+
+    private struct PersistedWebsiteContext: Codable {
+        var brief: WebsiteBrief
+        var html: String
+        var revisionCount: Int
+    }
+
+    private let websiteContextDefaultsKey = "SarahIA.WebsiteContexts.v1"
     
     public init() {
         restorePersistedState()
@@ -235,6 +244,7 @@ public final class ChatViewModel: ObservableObject {
             activeAgent = .sarah
             return
         }
+        restoreWebsiteContext(for: currentConversationId)
         // Le moteur IA est synchronisé au premier envoi, pas au lancement.
     }
     
@@ -283,6 +293,9 @@ public final class ChatViewModel: ObservableObject {
         currentConversationId = newSessionId
         messages = []
         inputText = ""
+        websiteDraft = nil
+        vaiCurrentCode = nil
+        websiteRevisionCount = 0
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
@@ -308,6 +321,7 @@ public final class ChatViewModel: ObservableObject {
         }
         currentConversationId = conv.id
         messages = conv.messages
+        restoreWebsiteContext(for: conv.id)
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
@@ -570,16 +584,71 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(userMessage)
         inputText = ""
 
-        // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
-        if WebsiteBrief.shouldOpenBuilder(for: text) {
-            let isRefinement = WebsiteBrief.isRefinementRequest(text) && websiteDraft != nil
+        // Compétence web de Raphaël : il garde le site courant comme contexte,
+        // au lieu de repartir de zéro quand l'utilisateur dit simplement
+        // « améliore le site que tu as créé ».
+        if WebsiteBrief.isAppleInspiredCreationRequest(text) {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 activeAgent = .esther
             }
-            let guidance = isRefinement
-                ? "💻 **Raphaël** — On reprend ta maquette. Je vais te poser quelques questions pour préparer une version améliorée."
-                : "💻 **Raphaël** — Parfait. Je vais te poser quelques questions rapides, puis je génère une première maquette de site que tu pourras améliorer."
-            appendMessage(Message(content: guidance, isFromUser: false))
+
+            let brief = WebsiteBrief.appleInspired(from: text)
+            let html = VAICodeEngine.shared.generateAppleInspiredWebsite(prompt: text)
+            websiteDraft = brief
+            vaiCurrentCode = html
+            websiteRevisionCount = 0
+            _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
+            saveWebsiteContext()
+
+            appendMessage(
+                Message(
+                    content: "💻 **Raphaël — site premium prêt**\n\nJ’ai créé une première version inspirée des principes visuels d’Apple : grande typographie, espaces nets, surfaces Liquid Glass et animations discrètes. Tu peux maintenant me dire simplement « améliore le site », « ajoute une section », « rends-le plus animé », etc.\n\n🧩 Ouvrir le Studio",
+                    isFromUser: false
+                )
+            )
+            voiceStatus = .idle
+            isTyping = false
+            return
+        }
+
+        if WebsiteBrief.isRefinementRequest(text),
+           let currentHTML = vaiCurrentCode,
+           !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                activeAgent = .esther
+            }
+
+            let improved = VAICodeEngine.shared.refineWebsite(
+                currentHTML: currentHTML,
+                brief: websiteDraft,
+                instruction: text
+            )
+            vaiCurrentCode = improved
+            websiteRevisionCount += 1
+            _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: improved)
+            saveWebsiteContext()
+
+            appendMessage(
+                Message(
+                    content: "💻 **Raphaël — site amélioré**\n\nJ’ai repris **le site de cette discussion**, sans repartir de zéro, et appliqué ta demande. Révision **#\(websiteRevisionCount)** prête.\n\n🧩 Ouvrir le Studio",
+                    isFromUser: false
+                )
+            )
+            voiceStatus = .idle
+            isTyping = false
+            return
+        }
+
+        if WebsiteBrief.shouldOpenBuilder(for: text) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                activeAgent = .esther
+            }
+            appendMessage(
+                Message(
+                    content: "💻 **Raphaël** — Parfait. Je vais te poser quelques questions rapides, puis je génère une première maquette que je garderai en mémoire dans cette discussion.",
+                    isFromUser: false
+                )
+            )
             voiceStatus = .idle
             isTyping = false
             isShowingWebsiteBuilder = true
@@ -695,6 +764,8 @@ public final class ChatViewModel: ObservableObject {
         _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
         vaiCurrentCode = html
         websiteDraft = brief
+        websiteRevisionCount = 0
+        saveWebsiteContext()
         isShowingWebsiteBuilder = false
 
         let response = "💻 **Raphaël — première version prête**\n\nJ’ai créé la maquette locale de **\(brief.name)** : \(brief.category). Tu peux ensuite me dire ce que tu veux améliorer : les couleurs, les sections, les textes ou la mise en page.\n\n🧩 Ouvrir le Studio"
@@ -702,6 +773,55 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.speak(text: "La première version de \(brief.name) est prête. Dis-moi ensuite ce que tu veux améliorer.", for: .esther)
     }
     
+    private func saveWebsiteContext() {
+        guard let conversationID = currentConversationId,
+              let brief = websiteDraft,
+              let html = vaiCurrentCode,
+              !html.isEmpty else { return }
+
+        var contexts = loadWebsiteContexts()
+        contexts[conversationID.uuidString] = PersistedWebsiteContext(
+            brief: brief,
+            html: html,
+            revisionCount: websiteRevisionCount
+        )
+
+        if let data = try? JSONEncoder().encode(contexts) {
+            UserDefaults.standard.set(data, forKey: websiteContextDefaultsKey)
+        }
+    }
+
+    private func restoreWebsiteContext(for conversationID: UUID?) {
+        guard let conversationID else {
+            websiteDraft = nil
+            vaiCurrentCode = nil
+            websiteRevisionCount = 0
+            return
+        }
+
+        let contexts = loadWebsiteContexts()
+        if let context = contexts[conversationID.uuidString] {
+            websiteDraft = context.brief
+            vaiCurrentCode = context.html
+            websiteRevisionCount = context.revisionCount
+        } else {
+            websiteDraft = nil
+            vaiCurrentCode = nil
+            websiteRevisionCount = 0
+        }
+    }
+
+    private func loadWebsiteContexts() -> [String: PersistedWebsiteContext] {
+        guard let data = UserDefaults.standard.data(forKey: websiteContextDefaultsKey),
+              let contexts = try? JSONDecoder().decode(
+                [String: PersistedWebsiteContext].self,
+                from: data
+              ) else {
+            return [:]
+        }
+        return contexts
+    }
+
     private func appendMessage(_ msg: Message) {
         ensureConversation(withFirstMessage: msg.content)
         messages.append(msg)
