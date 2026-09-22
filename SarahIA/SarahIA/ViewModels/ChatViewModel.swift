@@ -11,6 +11,7 @@ public enum AppMode: String, Codable {
 /// État de la boucle vocale en direct
 public enum VoiceInteractionStatus: Equatable {
     case idle
+    case starting
     case listening(level: Float)
     case processing
     case speaking
@@ -357,6 +358,31 @@ public final class ChatViewModel: ObservableObject {
                 self?.micInputLevel = level
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+
+                switch AppleSpeechRecognizer.shared.state {
+                case .idle:
+                    if self.isContinuousConversationActive,
+                       !self.isVoiceMicrophoneMuted,
+                       !self.voiceManager.isSpeaking,
+                       !AppleSpeechRecognizer.shared.isListening {
+                        self.voiceStatus = .idle
+                    }
+                case .listening:
+                    self.isMicRunning = true
+                    self.voiceStatus = .listening(level: self.micInputLevel)
+                case .processing:
+                    self.voiceStatus = .processing
+                case .error(let message):
+                    self.isMicRunning = false
+                    self.voiceStatus = .error(message)
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -679,9 +705,12 @@ public final class ChatViewModel: ObservableObject {
             return
         }
 
+        voiceStatus = .starting
         AppleSpeechRecognizer.shared.startListening()
         isMicRunning = AppleSpeechRecognizer.shared.isListening
-        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+        if isMicRunning {
+            voiceStatus = .listening(level: 0.0)
+        }
     }
 
     /// Coupe seulement le micro tout en gardant le mode vocal actif.
@@ -711,9 +740,12 @@ public final class ChatViewModel: ObservableObject {
             return
         }
 
+        voiceStatus = .starting
         AppleSpeechRecognizer.shared.startListening()
         isMicRunning = AppleSpeechRecognizer.shared.isListening
-        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+        if isMicRunning {
+            voiceStatus = .listening(level: 0.0)
+        }
     }
 
     /// Arrête réellement le mode vocal. C'est la seule action UI qui doit
