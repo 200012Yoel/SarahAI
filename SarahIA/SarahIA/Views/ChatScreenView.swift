@@ -146,6 +146,26 @@ public struct ChatScreenView: View {
                     viewModel.isShowingVoiceOrbModal = true
                 }
             }
+
+            if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-developer") {
+                let answers = [
+                    "Donne-moi l'agent développeur",
+                    "site internet",
+                    "e-commerce",
+                    "Atelier Nova",
+                    "Vendre des accessoires",
+                    "Grand public",
+                    "Apple / Liquid Glass",
+                    "Bleu",
+                    "Accueil, Produits, À propos, FAQ, Contact"
+                ]
+
+                for (index, answer) in answers.enumerated() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + Double(index) * 0.45) {
+                        viewModel.sendMessage(answer)
+                    }
+                }
+            }
         }
         .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
