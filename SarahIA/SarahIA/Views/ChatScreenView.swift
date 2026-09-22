@@ -496,6 +496,22 @@ public struct WebsiteBrief: Codable, Equatable {
         return creationWords.contains { normalized.contains($0) } || isRefinementRequest(text)
     }
 
+    public static func isContextualRefinementRequest(_ text: String) -> Bool {
+        let normalized = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+
+        let actions = [
+            "ameliore", "modifie", "change", "ajoute", "rajoute",
+            "retire", "enleve", "supprime", "remplace", "rends le",
+            "rends-le", "plus anime", "plus moderne", "plus beau",
+            "plus premium", "mets le bouton", "mets la couleur"
+        ]
+
+        return actions.contains { normalized.contains($0) }
+    }
+
     public static func isRefinementRequest(_ text: String) -> Bool {
         let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
         return ["ameliore le site", "ameliorer le site", "modifie le site", "modifier le site", "refais le site", "maquette"].contains {
