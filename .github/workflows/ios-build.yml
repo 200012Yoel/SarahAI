@@ -76,8 +76,8 @@ jobs:
             exit 1
           }
 
-          grep -Fq 'isContinuousConversationActive && self.isShowingVoiceOrbModal' "$VM" || {
-            echo "❌ La lecture vocale automatique n'est plus limitée au mode vocal."
+          grep -Fq '(self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible)' "$VM" || {
+            echo "❌ La lecture vocale automatique n'est plus limitée au mode vocal ou à sa bulle réduite."
             exit 1
           }
 
