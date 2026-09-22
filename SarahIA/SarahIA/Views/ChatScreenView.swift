@@ -297,7 +297,7 @@ public struct ChatScreenView: View {
 
 /// Brief conservé entre une première maquette et ses améliorations.
 /// Il ne représente jamais un site déjà publié : le rendu est d'abord local dans le Studio VAI.
-public struct WebsiteBrief {
+public struct WebsiteBrief: Codable, Equatable {
     public var category: String
     public var name: String
     public var purpose: String
@@ -322,6 +322,42 @@ public struct WebsiteBrief {
         self.visualStyle = visualStyle
         self.accent = accent
         self.sections = sections
+    }
+
+    public static func isAppleInspiredCreationRequest(_ text: String) -> Bool {
+        let normalized = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+
+        let wantsSite = [
+            "site", "page web", "landing page", "site internet", "site web"
+        ].contains { normalized.contains($0) }
+
+        let wantsAppleStyle = [
+            "comme apple", "style apple", "inspire d apple", "inspire de apple",
+            "a la apple", "apple-like", "apple like"
+        ].contains { normalized.contains($0) }
+
+        return wantsSite && wantsAppleStyle
+    }
+
+    public static func appleInspired(from prompt: String) -> WebsiteBrief {
+        WebsiteBrief(
+            category: "Site premium",
+            name: "Nouveau projet",
+            purpose: prompt,
+            audience: "Grand public",
+            visualStyle: "Apple / Liquid Glass",
+            accent: "Bleu",
+            sections: [
+                "Accueil",
+                "Produits / services",
+                "À propos",
+                "Galerie",
+                "Contact"
+            ]
+        )
     }
 
     public static func shouldOpenBuilder(for text: String) -> Bool {
