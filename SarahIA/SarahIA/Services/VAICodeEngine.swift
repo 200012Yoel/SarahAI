@@ -555,25 +555,62 @@ public final class VAICodeEngine {
         instruction: String
     ) -> String {
         guard !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            if let brief {
+            if let brief = brief {
                 return generateWebsite(brief: brief)
             }
             return generateAppleInspiredWebsite(prompt: instruction)
         }
 
         let normalized = instruction
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .folding(
+                options: [.diacriticInsensitive, .caseInsensitive],
+                locale: Locale(identifier: "fr_FR")
+            )
             .lowercased()
 
-        let appleStyle = normalized.contains("apple")
+        let appleStyle =
+            normalized.contains("apple")
             || normalized.contains("premium")
             || normalized.contains("liquid glass")
             || normalized.contains("liquidglass")
 
-        let strongerMotion = normalized.contains("animation")
+        let strongerMotion =
+            normalized.contains("animation")
             || normalized.contains("anime")
             || normalized.contains("dynamique")
             || normalized.contains("fluide")
+
+        var extraCSS = ""
+
+        if appleStyle {
+            extraCSS += """
+            body { letter-spacing:-.012em; }
+            nav, section, .card {
+              border-color:rgba(255,255,255,.12)!important;
+              backdrop-filter:blur(24px) saturate(170%);
+              -webkit-backdrop-filter:blur(24px) saturate(170%);
+            }
+            .hero {
+              border-radius:38px!important;
+              box-shadow:0 35px 90px rgba(0,0,0,.22)!important;
+            }
+            h1, h2 { letter-spacing:-.045em!important; }
+            """
+        }
+
+        if strongerMotion {
+            extraCSS += """
+            [data-sarah-reveal] {
+              opacity:0;
+              transform:translateY(18px);
+              transition:opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+            }
+            [data-sarah-reveal].visible {
+              opacity:1;
+              transform:none;
+            }
+            """
+        }
 
         let css = """
         <style id="sarah-raphael-refinement">
@@ -590,7 +627,7 @@ public final class VAICodeEngine {
             -webkit-backdrop-filter:blur(24px) saturate(170%);
           }
           section, .card, .hero {
-            transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease;
+            transition:transform .35s ease, box-shadow .35s ease, border-color .35s ease;
           }
           .card:hover {
             transform:translateY(-4px);
@@ -600,48 +637,42 @@ public final class VAICodeEngine {
             h1 { font-size:clamp(38px,13vw,58px)!important; }
             .shell { padding-left:16px!important; padding-right:16px!important; }
           }
-          (appleStyle ? """
-          body { letter-spacing:-.012em; }
-          nav, section, .card {
-            border-color:rgba(255,255,255,.12)!important;
-            backdrop-filter:blur(24px) saturate(170%);
-            -webkit-backdrop-filter:blur(24px) saturate(170%);
-          }
-          .hero {
-            border-radius:38px!important;
-            box-shadow:0 35px 90px rgba(0,0,0,.22)!important;
-          }
-          h1, h2 { letter-spacing:-.045em!important; }
-          """ : "")
-          (strongerMotion ? """
-          [data-sarah-reveal] {
-            opacity:0;
-            transform:translateY(18px);
-            transition:opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
-          }
-          [data-sarah-reveal].visible { opacity:1; transform:none; }
-          """ : "")
+          \(extraCSS)
         </style>
         """
 
-        let js = strongerMotion ? """
-        <script id="sarah-raphael-refinement-js">
-          document.querySelectorAll('section,.card').forEach(el => el.setAttribute('data-sarah-reveal',''));
-          const sarahObserver = new IntersectionObserver(entries => {
-            entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
-          }, {threshold:.12});
-          document.querySelectorAll('[data-sarah-reveal]').forEach(el => sarahObserver.observe(el));
-        </script>
-        """ : ""
+        let js: String
+        if strongerMotion {
+            js = """
+            <script id="sarah-raphael-refinement-js">
+              document.querySelectorAll('section,.card').forEach(el => {
+                el.setAttribute('data-sarah-reveal','');
+              });
+              const sarahObserver = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                  if (entry.isIntersecting) entry.target.classList.add('visible');
+                });
+              }, { threshold: .12 });
+              document.querySelectorAll('[data-sarah-reveal]').forEach(el => {
+                sarahObserver.observe(el);
+              });
+            </script>
+            """
+        } else {
+            js = ""
+        }
 
         var result = currentHTML
 
         if let oldStyle = result.range(
-            of: "<style id="sarah-raphael-refinement">.*?</style>",
-            options: [.regularExpression, .dotMatchesLineSeparators]
+            of: #"(?s)<style id="sarah-raphael-refinement">.*?</style>"#,
+            options: .regularExpression
         ) {
             result.replaceSubrange(oldStyle, with: css)
-        } else if let headClose = result.range(of: "</head>", options: .caseInsensitive) {
+        } else if let headClose = result.range(
+            of: "</head>",
+            options: .caseInsensitive
+        ) {
             result.insert(contentsOf: css + "\n", at: headClose.lowerBound)
         } else {
             result = css + result
@@ -649,11 +680,14 @@ public final class VAICodeEngine {
 
         if !js.isEmpty {
             if let oldScript = result.range(
-                of: "<script id="sarah-raphael-refinement-js">.*?</script>",
-                options: [.regularExpression, .dotMatchesLineSeparators]
+                of: #"(?s)<script id="sarah-raphael-refinement-js">.*?</script>"#,
+                options: .regularExpression
             ) {
                 result.replaceSubrange(oldScript, with: js)
-            } else if let bodyClose = result.range(of: "</body>", options: .caseInsensitive) {
+            } else if let bodyClose = result.range(
+                of: "</body>",
+                options: .caseInsensitive
+            ) {
                 result.insert(contentsOf: js + "\n", at: bodyClose.lowerBound)
             } else {
                 result += js
