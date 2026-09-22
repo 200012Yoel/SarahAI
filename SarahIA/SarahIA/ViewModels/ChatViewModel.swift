@@ -718,6 +718,7 @@ public final class ChatViewModel: ObservableObject {
         if #available(iOS 27.0, *) {
             SarahLocalMusicGenEngine.shared.cancelCurrentGeneration()
         }
+        SarahLocalVideoGenEngine.shared.cancelCurrentGeneration()
     }
 
     public func sendMessage(_ explicitText: String? = nil) {
