@@ -798,12 +798,23 @@ public final class ChatViewModel: ObservableObject {
 
     public func minimizeVoiceConversation() {
         guard isContinuousConversationActive else { return }
-        isVoiceBubbleVisible = true
+
+        withAnimation(
+            .spring(response: 0.32, dampingFraction: 0.82)
+        ) {
+            isVoiceBubbleVisible = true
+        }
+
         isShowingVoiceOrbModal = false
     }
 
     public func restoreVoiceConversation() {
-        isVoiceBubbleVisible = false
+        withAnimation(
+            .spring(response: 0.30, dampingFraction: 0.84)
+        ) {
+            isVoiceBubbleVisible = false
+        }
+
         isShowingVoiceOrbModal = true
     }
     
