@@ -200,9 +200,16 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .nathan
                         viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
                     },
+                    .default(Text("🌐 Raphaël — Créer un site guidé")) {
+                        viewModel.sendMessage("Donne-moi l'agent développeur")
+                    },
                     .default(Text("💻 Studio Raphaël — Code & prototypes")) {
                         viewModel.activeAgent = .esther
                         viewModel.isShowingVAICodingStudio = true
+                    },
+                    .default(Text("✍️ Rédiger du texte avec Sarah")) {
+                        viewModel.activeAgent = .sarah
+                        viewModel.inputText = "Aide-moi à rédiger "
                     },
                     .default(Text("🐙 Se Connecter à GitHub")) {
                         viewModel.activeAgent = .esther
