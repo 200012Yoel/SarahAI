@@ -561,6 +561,7 @@ public final class SarahLocalVideoGenEngine {
                 let error = VideoError.keyframeGenerationFailed(
                     result.errorMessage ?? "moteur image indisponible"
                 )
+                self.finishGeneration(generationID)
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: NSNotification.Name("SarahVideoGenerationFailed"),
