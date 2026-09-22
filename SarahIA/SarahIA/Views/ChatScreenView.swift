@@ -150,6 +150,10 @@ public struct ChatScreenView: View {
                     .default(Text("🎨 Générer une Image HD (Local CoreML / Metal)")) {
                         viewModel.inputText = "Génère une photo de "
                     },
+                    .default(Text("🎬 Générer une Vidéo / Short")) {
+                        viewModel.activeAgent = .nathan
+                        viewModel.inputText = "Génère une vidéo de 6 secondes "
+                    },
                     .default(Text("🎵 Composer une Musique 100% Locale (DSP)")) {
                         viewModel.inputText = "Génère une musique lo-fi"
                     },
