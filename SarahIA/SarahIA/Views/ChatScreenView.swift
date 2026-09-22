@@ -90,10 +90,14 @@ public struct ChatScreenView: View {
                 // 3. Mode vocal réduit : la session continue même lorsque la feuille
                 // vocale a été refermée. La capsule reste juste au-dessus du composer.
                 if viewModel.isContinuousConversationActive && !viewModel.isShowingVoiceOrbModal {
-                    CollapsedVoiceSessionBar(viewModel: viewModel)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    HStack {
+                        Spacer(minLength: 18)
+                        CollapsedVoiceSessionBar(viewModel: viewModel)
+                            .frame(maxWidth: 286)
+                        Spacer(minLength: 18)
+                    }
+                    .padding(.bottom, 7)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
                 // 4. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
@@ -334,9 +338,9 @@ private struct CollapsedVoiceSessionBar: View {
     private var status: String {
         switch viewModel.voiceStatus {
         case .processing:
-            return "Réflexion en cours"
+            return "Réflexion…"
         case .speaking:
-            return "\(viewModel.activeAgent.displayName) parle"
+            return "Sarah parle"
         case .error:
             return "Micro indisponible"
         default:
@@ -345,21 +349,21 @@ private struct CollapsedVoiceSessionBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 8) {
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.isShowingVoiceOrbModal = true
             } label: {
                 ZStack {
                     Circle()
-                        .fill(accent.opacity(0.20))
+                        .fill(accent.opacity(0.22))
                         .frame(width: 34, height: 34)
 
                     Circle()
-                        .stroke(accent.opacity(0.55), lineWidth: 1)
+                        .stroke(accent.opacity(0.62), lineWidth: 1)
                         .frame(width: 34, height: 34)
-                        .scaleEffect(pulse ? 1.08 : 0.92)
-                        .opacity(pulse ? 0.30 : 0.80)
+                        .scaleEffect(pulse ? 1.08 : 0.94)
+                        .opacity(pulse ? 0.28 : 0.82)
 
                     Image(systemName: "waveform")
                         .font(.system(size: 13, weight: .bold))
@@ -367,28 +371,31 @@ private struct CollapsedVoiceSessionBar: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Rouvrir le mode vocal")
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Mode vocal")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.55))
+            Text(status)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
 
-                Text(status)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-            }
-
-            Spacer(minLength: 8)
+            Spacer(minLength: 2)
 
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.toggleMicrophone()
             } label: {
                 Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(viewModel.isVoiceMicrophoneMuted ? .white.opacity(0.60) : .white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.white.opacity(0.08)))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(viewModel.isVoiceMicrophoneMuted ? .white.opacity(0.62) : .white)
+                    .frame(width: 34, height: 34)
+                    .background(
+                        ZStack {
+                            Circle().fill(.ultraThinMaterial)
+                            Circle().fill(accent.opacity(viewModel.isVoiceMicrophoneMuted ? 0.06 : 0.14))
+                            Circle().stroke(Color.white.opacity(0.16), lineWidth: 0.7)
+                        }
+                    )
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel(viewModel.isVoiceMicrophoneMuted ? "Réactiver le micro" : "Couper le micro")
@@ -398,22 +405,28 @@ private struct CollapsedVoiceSessionBar: View {
                 viewModel.endVoiceConversation()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(accent.opacity(0.32)))
+                    .frame(width: 34, height: 34)
+                    .background(
+                        ZStack {
+                            Circle().fill(.ultraThinMaterial)
+                            Circle().fill(accent.opacity(0.22))
+                            Circle().stroke(accent.opacity(0.38), lineWidth: 0.8)
+                        }
+                    )
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("Arrêter le mode vocal")
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: 360, minHeight: 54)
+        .padding(.leading, 10)
+        .padding(.trailing, 8)
+        .frame(height: 50)
         .sarahLiquidGlass(
-            cornerRadius: 27,
+            cornerRadius: 25,
             tint: accent,
-            intensity: 0.16
+            intensity: 0.15
         )
-        .frame(maxWidth: .infinity)
         .onAppear {
             withAnimation(
                 Animation.easeInOut(duration: 1.05)
