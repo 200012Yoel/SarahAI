@@ -205,6 +205,17 @@ public final class OpenSourceImageGenerationService {
             case .failure(let localError):
                 guard self.cloudFallbackEnabled else {
                     DispatchQueue.main.async {
+                        if notifyChat {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahImageGenerationFailed"),
+                                object: nil,
+                                userInfo: [
+                                    "prompt": cleanPrompt,
+                                    "error": localError.localizedDescription
+                                ]
+                            )
+                        }
+
                         completion(GeneratedImageResult(
                             prompt: cleanPrompt,
                             image: nil,
@@ -262,13 +273,21 @@ public final class OpenSourceImageGenerationService {
         }
         
         guard NetworkMonitor.shared.isOnline else {
+            let message = "Mode hors-ligne actif (génération distante suspendue)."
+            if notifyChat {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SarahImageGenerationFailed"),
+                    object: nil,
+                    userInfo: ["prompt": cleanPrompt, "error": message]
+                )
+            }
             completion(GeneratedImageResult(
                 prompt: cleanPrompt,
                 image: nil,
                 imageURL: nil,
                 modelName: model,
                 isSuccess: false,
-                errorMessage: "Mode hors-ligne actif (génération distante suspendue)."
+                errorMessage: message
             ))
             return
         }
@@ -310,13 +329,21 @@ public final class OpenSourceImageGenerationService {
     ) {
         guard index < urls.count, let requestURL = URL(string: urls[index]) else {
             DispatchQueue.main.async {
+                let message = "Échec de génération sur tous les serveurs d'images."
+                if notifyChat {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahImageGenerationFailed"),
+                        object: nil,
+                        userInfo: ["prompt": prompt, "error": message]
+                    )
+                }
                 completion(GeneratedImageResult(
                     prompt: prompt,
                     image: nil,
                     imageURL: nil,
                     modelName: model,
                     isSuccess: false,
-                    errorMessage: "Échec de génération sur tous les serveurs d'images."
+                    errorMessage: message
                 ))
             }
             return
