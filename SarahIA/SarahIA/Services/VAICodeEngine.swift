@@ -490,7 +490,7 @@ public final class VAICodeEngine {
               <div class="hero-inner">
                 <div class="kicker">Conçu pour être évident.</div>
                 <h1>Plus simple.<br>Plus vivant.</h1>
-                <p class="lead">(safePrompt.isEmpty ? "Une expérience premium, rapide et pensée pour chaque écran." : safePrompt)</p>
+                <p class="lead">\(safePrompt.isEmpty ? "Une expérience premium, rapide et pensée pour chaque écran." : safePrompt)</p>
                 <div class="actions">
                   <a class="button primary" href="#experience">Découvrir</a>
                   <a class="button secondary" href="#contact">En savoir plus</a>
