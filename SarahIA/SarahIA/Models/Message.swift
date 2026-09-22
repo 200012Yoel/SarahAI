@@ -11,6 +11,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public var alertEvent: AlertEvent?
     public var generatedImageURL: String?
     public var generatedMusicStyle: String?
+    public var generatedAudioURL: String?
     public var isGeneratingImage: Bool?
     public var imageGenerationPrompt: String?
     
@@ -24,6 +25,7 @@ public struct Message: Identifiable, Equatable, Codable {
         alertEvent: AlertEvent? = nil,
         generatedImageURL: String? = nil,
         generatedMusicStyle: String? = nil,
+        generatedAudioURL: String? = nil,
         isGeneratingImage: Bool? = nil,
         imageGenerationPrompt: String? = nil
     ) {
@@ -36,6 +38,7 @@ public struct Message: Identifiable, Equatable, Codable {
         self.alertEvent = alertEvent
         self.generatedImageURL = generatedImageURL
         self.generatedMusicStyle = generatedMusicStyle
+        self.generatedAudioURL = generatedAudioURL
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
     }
@@ -85,6 +88,11 @@ public struct Message: Identifiable, Equatable, Codable {
 
     public var isMusicGenerationPlaceholder: Bool {
         content.contains("Génération musicale en cours")
+    }
+
+    public var detectedGeneratedAudioURL: URL? {
+        guard let value = generatedAudioURL, !value.isEmpty else { return nil }
+        return URL(string: value)
     }
 
     public var detectedMusicDuration: TimeInterval? {
