@@ -120,13 +120,10 @@ public struct SettingsView: View {
                                 detail: "Version, licences et notices"
                             )
                         }
-                        .background(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .fill(Color.white.opacity(0.085))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        .sarahLiquidGlass(
+                            cornerRadius: 22,
+                            tint: viewModel.activeAgent.themeColor,
+                            intensity: 0.07
                         )
                     }
                     .padding(.horizontal, 18)
@@ -178,13 +175,10 @@ public struct SettingsView: View {
                 .foregroundColor(.green)
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.085))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .sarahLiquidGlass(
+            cornerRadius: 22,
+            tint: viewModel.activeAgent.themeColor,
+            intensity: 0.09
         )
     }
 
