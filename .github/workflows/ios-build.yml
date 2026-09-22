@@ -158,20 +158,20 @@ jobs:
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/02-keyboard.png"
           xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
 
-          echo "=== Scenario 3: voice mode ==="
+          echo "=== Scenario 3: guided developer skill ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-developer
+          sleep 8
+          check_alive "Developer skill"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/03-developer.png"
+          xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
+
+          echo "=== Scenario 4: voice mode ==="
           xcrun simctl privacy "$SIM_UDID" grant microphone com.sarahia.app || true
           xcrun simctl privacy "$SIM_UDID" grant speech-recognition com.sarahia.app || true
           xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-voice
           sleep 7
           check_alive "Voice launch"
-          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/03-voice.png"
-          xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
-
-          echo "=== Scenario 4: guided developer skill ==="
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-developer
-          sleep 8
-          check_alive "Developer skill"
-          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/04-developer.png"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/04-voice.png"
           xcrun simctl terminate "$SIM_UDID" com.sarahia.app || true
 
           xcrun simctl shutdown "$SIM_UDID" || true
