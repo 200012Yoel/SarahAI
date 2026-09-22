@@ -580,7 +580,71 @@ public final class VAICodeEngine {
             || normalized.contains("dynamique")
             || normalized.contains("fluide")
 
+        let generalUpgrade =
+            normalized.contains("ameliore")
+            || normalized.contains("modernise")
+            || normalized.contains("plus beau")
+            || normalized.contains("plus propre")
+            || normalized.contains("plus premium")
+            || normalized.contains("refais")
+            || normalized.contains("corrige")
+
+        let requestedAccent: String? = {
+            let palette: [(String, String)] = [
+                ("bleu", "#0A84FF"),
+                ("violet", "#7D5CFF"),
+                ("rose", "#FF4FA3"),
+                ("orange", "#FF8A2A"),
+                ("vert", "#31C48D"),
+                ("rouge", "#FF453A"),
+                ("turquoise", "#22D3EE")
+            ]
+            return palette.first(where: { normalized.contains($0.0) })?.1
+        }()
+
         var extraCSS = ""
+
+        if generalUpgrade {
+            extraCSS += """
+            :root {
+              --sarah-surface: rgba(255,255,255,.075);
+              --sarah-line: rgba(255,255,255,.13);
+            }
+            body {
+              background:
+                radial-gradient(circle at 82% -8%, rgba(10,132,255,.16), transparent 34%),
+                radial-gradient(circle at 4% 34%, rgba(94,92,230,.11), transparent 28%),
+                #000!important;
+            }
+            nav, .card, section, .hero, .showcase {
+              border-color: var(--sarah-line)!important;
+            }
+            .card, .showcase {
+              backdrop-filter: blur(24px) saturate(165%);
+              -webkit-backdrop-filter: blur(24px) saturate(165%);
+              box-shadow: inset 0 1px rgba(255,255,255,.13), 0 22px 60px rgba(0,0,0,.20);
+            }
+            button, .button, .cta, a[class*="button"] {
+              transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+            }
+            button:active, .button:active, .cta:active {
+              transform: scale(.975);
+            }
+            """
+        }
+
+        if let requestedAccent {
+            extraCSS += """
+            :root {
+              --blue: \(requestedAccent)!important;
+              --primary: \(requestedAccent)!important;
+              --accent: \(requestedAccent)!important;
+            }
+            .primary, .cta {
+              background: \(requestedAccent)!important;
+            }
+            """
+        }
 
         if appleStyle {
             extraCSS += """
@@ -694,7 +758,60 @@ public final class VAICodeEngine {
             }
         }
 
+        // Ajout de section demandé en langage naturel. Le HTML courant reste
+        // intact et la nouvelle section est injectée juste avant le footer.
+        if let sectionTitle = requestedSectionTitle(from: instruction) {
+            let safeTitle = htmlEscaped(sectionTitle)
+            let section = """
+            <section class="sarah-added-section" data-sarah-added="true">
+              <h2>\(safeTitle)</h2>
+              <p>Cette section a été ajoutée à partir de ta dernière demande. Tu peux maintenant préciser son texte, ses boutons ou ses éléments.</p>
+            </section>
+            """
+
+            if let footer = result.range(of: "<footer", options: .caseInsensitive) {
+                result.insert(contentsOf: section + "\n", at: footer.lowerBound)
+            } else if let bodyClose = result.range(of: "</body>", options: .caseInsensitive) {
+                result.insert(contentsOf: section + "\n", at: bodyClose.lowerBound)
+            } else {
+                result += section
+            }
+        }
+
         return result
+    }
+
+    private func requestedSectionTitle(from instruction: String) -> String? {
+        let normalized = instruction.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: Locale(identifier: "fr_FR")
+        )
+
+        let triggers = [
+            "ajoute une section ",
+            "rajoute une section ",
+            "ajoute la section ",
+            "rajoute la section "
+        ]
+
+        for trigger in triggers {
+            if let range = normalized.range(of: trigger) {
+                let distance = normalized.distance(from: normalized.startIndex, to: range.upperBound)
+                let safeDistance = min(distance, instruction.count)
+                let originalIndex = instruction.index(instruction.startIndex, offsetBy: safeDistance)
+                let tail = instruction[originalIndex...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .components(separatedBy: CharacterSet(charactersIn: ".!?;\n"))
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                if !tail.isEmpty {
+                    return String(tail.prefix(70))
+                }
+            }
+        }
+
+        return nil
     }
 
     private func websiteColors(for accent: String) -> (primary: String, secondary: String) {
