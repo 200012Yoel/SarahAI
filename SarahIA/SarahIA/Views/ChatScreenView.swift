@@ -39,6 +39,25 @@ public struct ChatScreenView: View {
                     .padding(.top, topSafeArea)
                     .padding(.bottom, 6)
 
+                if let transition = viewModel.agentTransitionBanner {
+                    HStack(spacing: 7) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(transition)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .sarahLiquidGlass(
+                        cornerRadius: 17,
+                        tint: viewModel.activeAgent.themeColor,
+                        intensity: 0.12
+                    )
+                    .padding(.bottom, 5)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 MessageList(
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
@@ -626,7 +645,7 @@ private struct WebsiteBuilderFlowView: View {
     ]
 
     private let audiences = ["Grand public", "Professionnels", "Familles", "Jeunes adultes", "Clients locaux", "International"]
-    private let styles = ["Minimaliste", "Élégant", "Énergique", "Luxe", "Naturel", "Tech"]
+    private let styles = ["Apple / Liquid Glass", "Minimaliste", "Élégant", "Énergique", "Luxe", "Naturel", "Tech"]
     private let accentOptions = ["Bleu", "Violet", "Rose", "Orange", "Vert", "Noir & blanc"]
     private let sectionOptions = ["Accueil", "À propos", "Produits / services", "Galerie", "Avis clients", "FAQ", "Contact"]
 
@@ -743,8 +762,11 @@ private struct WebsiteBuilderFlowView: View {
                         }
                         .foregroundColor(sections.contains(section) ? .white : .gray)
                         .padding(13)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(sections.contains(section) ? Color.purple.opacity(0.72) : Color.white.opacity(0.08)))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(sections.contains(section) ? Color.purple : Color.white.opacity(0.12), lineWidth: 1))
+                        .sarahLiquidGlass(
+                            cornerRadius: 14,
+                            tint: sections.contains(section) ? viewModel.activeAgent.themeColor : .white,
+                            intensity: sections.contains(section) ? 0.22 : 0.05
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -803,8 +825,11 @@ private struct WebsiteBuilderFlowView: View {
             .disableAutocorrection(false)
             .foregroundColor(.white)
             .padding(15)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.09)))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.13), lineWidth: 1))
+            .sarahLiquidGlass(
+                cornerRadius: 14,
+                tint: viewModel.activeAgent.themeColor,
+                intensity: 0.06
+            )
     }
 
     private func chipSection(title: String, options: [String], selection: Binding<String>) -> some View {
@@ -836,8 +861,11 @@ private struct WebsiteBuilderFlowView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 18).fill(selected ? Color.purple.opacity(0.72) : Color.white.opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? Color.purple : Color.white.opacity(0.12), lineWidth: 1))
+            .sarahLiquidGlass(
+                cornerRadius: 18,
+                tint: selected ? viewModel.activeAgent.themeColor : .white,
+                intensity: selected ? 0.22 : 0.05
+            )
         }
         .buttonStyle(.plain)
     }
