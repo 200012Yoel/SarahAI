@@ -267,25 +267,26 @@ public struct ChatScreenView: View {
             
             Spacer()
             
-            // Nouveau chat, au même emplacement que le bouton rapide de ChatGPT.
+            // Bouton Chat : crée immédiatement une nouvelle discussion.
             Button(action: {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 viewModel.startNewChat(silently: true)
             }) {
-                ZStack {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundColor(.white)
+                HStack(spacing: 7) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 16, weight: .semibold))
 
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white)
-                        .background(Circle().fill(Color(white: 0.16)))
-                        .offset(x: 8, y: -8)
+                    Text("Chat")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                 }
-                .frame(width: 42, height: 42)
-                .background(Circle().fill(Color(white: 0.16)))
+                .foregroundColor(.white)
+                .padding(.horizontal, 13)
+                .frame(height: 42)
+                .background(
+                    Capsule()
+                        .fill(Color(white: 0.16))
+                )
             }
             .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel("Nouveau chat")
