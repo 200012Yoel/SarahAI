@@ -146,8 +146,8 @@ jobs:
             exit 1
           }
 
-          grep -Fq 'padding(.bottom, 92)' "SarahIA/SarahIA/ContentView.swift" || {
-            echo "❌ Le rond vocal réduit n'est plus centré au-dessus de la barre de saisie."
+          grep -Fq 'frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ Le mini-orbe vocal n'est plus centré à l'écran."
             exit 1
           }
 
@@ -158,6 +158,16 @@ jobs:
 
           grep -Fq 'noisyDictationCreation' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
             echo "❌ La correction des erreurs de dictée musicales a disparu."
+            exit 1
+          }
+
+          grep -Fq 'CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ Le tokenizer Stable Audio pointe à nouveau vers la mauvaise branche."
+            exit 1
+          }
+
+          grep -Fq 'parseVocabularyData' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ L'auto-réparation du tokenizer Stable Audio a disparu."
             exit 1
           }
 
