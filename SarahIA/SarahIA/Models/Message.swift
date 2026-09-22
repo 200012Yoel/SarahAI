@@ -95,6 +95,14 @@ public struct Message: Identifiable, Equatable, Codable {
         return URL(string: value)
     }
 
+    public var detectedShortcutPlan: ShortcutGenerator.ShortcutPlan? {
+        ShortcutGenerator.shared.decodePlan(from: content)
+    }
+
+    public var displayContentWithoutEmbeddedPayloads: String {
+        ShortcutGenerator.shared.stripMarker(from: content)
+    }
+
     public var detectedMusicDuration: TimeInterval? {
         if let audioDuration, audioDuration > 0 {
             return audioDuration
