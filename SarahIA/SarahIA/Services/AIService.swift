@@ -147,6 +147,17 @@ public final class AIService {
                     return
                 }
 
+                guard let requestedSeconds = musicCheck.requestedSeconds else {
+                    let reply = """
+                    🎵 **Combien de temps pour la musique ?**
+
+                    Choisis **20 secondes**, **30 secondes** ou **1 minute**.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    completion(reply.decodingHTMLEntities())
+                    return
+                }
+
                 if !SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
                     let reply = """
                     🎵 **Modèle musical à installer**
@@ -159,10 +170,16 @@ public final class AIService {
                     return
                 }
 
+                let profile = SarahGenerativeModelCatalog.musicProfile()
                 SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
+                    prompt: musicCheck.prompt,
+                    seconds: requestedSeconds
                 ) { [weak self] result in
                     guard let self = self else { return }
+
+                    let durationText = requestedSeconds >= 60
+                        ? "1 minute"
+                        : "\(Int(requestedSeconds)) secondes"
 
                     let reply: String
                     switch result {
@@ -170,7 +187,7 @@ public final class AIService {
                         reply = """
                         🎵 **Musique générée localement**
 
-                        Création terminée avec **Stable Audio Open Small · Core ML**.
+                        Création **\(durationText)** terminée avec **\(profile.displayName)**.
                         Fichier : \(url.lastPathComponent)
                         """
                     case .failure(let error):
