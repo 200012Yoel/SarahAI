@@ -264,6 +264,10 @@ public final class VAICodeEngine {
         let category = htmlEscaped(brief.category)
         let audience = htmlEscaped(brief.audience.isEmpty ? "vos visiteurs" : brief.audience)
         let style = htmlEscaped(brief.visualStyle.isEmpty ? "Moderne" : brief.visualStyle)
+        let normalizedStyle = brief.visualStyle
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+        let isAppleLiquidGlass = normalizedStyle.contains("apple") || normalizedStyle.contains("liquid glass")
         let colors = websiteColors(for: brief.accent)
         let sections = brief.sections.isEmpty ? ["Accueil", "À propos", "Produits / services", "Contact"] : brief.sections
 
@@ -277,6 +281,67 @@ public final class VAICodeEngine {
                 accent: colors.primary
             )
         }.joined(separator: "\n")
+
+        let appleLiquidGlassCSS = isAppleLiquidGlass ? """
+            body {
+              background:
+                radial-gradient(circle at 78% -8%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 34%),
+                radial-gradient(circle at -8% 34%, rgba(94,92,230,.16), transparent 30%),
+                #000 !important;
+              color:#f5f5f7 !important;
+              letter-spacing:-.012em;
+            }
+            nav {
+              position:sticky; top:12px; z-index:40;
+              margin-top:12px; padding:13px 16px !important;
+              border:1px solid rgba(255,255,255,.14);
+              border-radius:22px;
+              background:rgba(25,25,28,.58);
+              backdrop-filter:blur(28px) saturate(180%);
+              -webkit-backdrop-filter:blur(28px) saturate(180%);
+              box-shadow:inset 0 1px rgba(255,255,255,.14), 0 18px 55px rgba(0,0,0,.28);
+            }
+            .brand { color:#fff; }
+            .links a { color:#b7b7bd !important; }
+            .hero {
+              margin-top:18px;
+              min-height:58vh;
+              display:flex; flex-direction:column; justify-content:center;
+              border:1px solid rgba(255,255,255,.16);
+              border-radius:40px !important;
+              background:
+                radial-gradient(circle at 80% 12%, rgba(255,255,255,.20), transparent 26%),
+                linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, #111), #111 70%) !important;
+              box-shadow:inset 0 1px rgba(255,255,255,.20), 0 36px 95px rgba(0,0,0,.42) !important;
+            }
+            h1 { font-size:clamp(46px,9vw,92px) !important; letter-spacing:-.065em !important; }
+            h2 { letter-spacing:-.04em; }
+            section {
+              color:#f5f5f7;
+              border:1px solid rgba(255,255,255,.12) !important;
+              background:rgba(255,255,255,.072) !important;
+              backdrop-filter:blur(26px) saturate(165%);
+              -webkit-backdrop-filter:blur(26px) saturate(165%);
+              box-shadow:inset 0 1px rgba(255,255,255,.12);
+            }
+            .intro, .card p, footer { color:#a1a1a6 !important; }
+            .card {
+              color:#fff;
+              background:rgba(255,255,255,.065) !important;
+              border:1px solid rgba(255,255,255,.09);
+              box-shadow:inset 0 1px rgba(255,255,255,.08);
+            }
+            .contact { background:rgba(255,255,255,.085) !important; }
+            .cta {
+              border-radius:999px !important;
+              background:#fff !important;
+              color:#111 !important;
+              box-shadow:0 10px 30px rgba(0,0,0,.22);
+            }
+            @media(max-width:640px) {
+              .hero { min-height:48vh; border-radius:30px !important; }
+            }
+        """ : ""
 
         return """
         <!doctype html>
@@ -316,6 +381,7 @@ public final class VAICodeEngine {
             .status { margin-top: 16px; color: #fff; font-weight: 650; }
             footer { padding: 12px 0 38px; text-align: center; color: #8890a6; font-size: 13px; }
             @media (max-width: 640px) { nav { align-items: flex-start; flex-direction: column; } .links { justify-content: flex-start; } .hero { padding: 48px 24px; } section { padding: 24px; } .cards { grid-template-columns: 1fr; } .contact { align-items: flex-start; flex-direction: column; } }
+            \(appleLiquidGlassCSS)
           </style>
         </head>
         <body>
