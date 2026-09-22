@@ -157,9 +157,20 @@ public struct ChatBubbleView: View {
                     }
                 }
                 
-                // Carte d'image locale : afficher directement les octets reçus du moteur
-                // Core ML, sans tentative réseau parasite.
-                if let data = message.imageData, let localImage = UIImage(data: data) {
+                // Carte d'image : placeholder immédiat façon ChatGPT, puis le
+                // même emplacement devient le rendu final lorsque le moteur termine.
+                if message.isImageGenerationPlaceholder {
+                    ImageGeneratingSquareAnimationView(
+                        prompt: message.imageGenerationPrompt
+                    )
+                    .frame(maxWidth: 290, minHeight: 250, maxHeight: 270)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .sarahLiquidGlass(
+                        cornerRadius: 18,
+                        tint: .sarahCyan,
+                        intensity: 0.08
+                    )
+                } else if let data = message.imageData, let localImage = UIImage(data: data) {
                     GeneratedInlineImageCardView(
                         image: localImage,
                         promptDescription: message.imageGenerationPrompt
