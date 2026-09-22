@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 /// Bulle de message stylisée au format natif iMessage Dark Mode avec bouton de lecture vocale TTS.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct ChatBubbleView: View {
     public let message: Message
     public var isSpeaking: Bool
@@ -69,7 +69,23 @@ public struct ChatBubbleView: View {
                 )
             )
             .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-            .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(Color.white.opacity(0.20), lineWidth: 0.7)
+            )
+            .overlay(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.white.opacity(0.16),
+                        Color.clear
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .center
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+                .allowsHitTesting(false)
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
             
             Text(message.formattedTime)
                 .font(.system(size: 11, weight: .regular, design: .rounded))
@@ -120,18 +136,24 @@ public struct ChatBubbleView: View {
                             .lineSpacing(3)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
-                            .background(
-                                Color(red: 0.16, green: 0.16, blue: 0.18) // Apple Dark Bubble Gray
+                            .sarahLiquidGlass(
+                                cornerRadius: 19,
+                                tint: .sarahCyan,
+                                intensity: isSpeaking ? 0.14 : 0.055
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 19, style: .continuous)
                                     .stroke(
-                                        isSpeaking ? Color.sarahCyan.opacity(0.6) : Color.white.opacity(0.08),
-                                        lineWidth: isSpeaking ? 1.5 : 0.5
+                                        isSpeaking ? Color.sarahCyan.opacity(0.65) : Color.clear,
+                                        lineWidth: isSpeaking ? 1.2 : 0
                                     )
                             )
-                            .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
+                            .shadow(
+                                color: isSpeaking ? Color.sarahCyan.opacity(0.20) : Color.clear,
+                                radius: 8,
+                                x: 0,
+                                y: 0
+                            )
                     }
                 }
                 
