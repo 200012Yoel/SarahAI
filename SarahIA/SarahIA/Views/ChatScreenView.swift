@@ -467,6 +467,60 @@ public struct WebsiteBrief: Codable, Equatable {
         self.sections = sections
     }
 
+    public static func inferred(from prompt: String) -> WebsiteBrief {
+        let normalized = prompt.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+
+        let category: String
+        if normalized.contains("boutique") || normalized.contains("e-commerce") || normalized.contains("ecommerce") {
+            category = "E-commerce"
+        } else if normalized.contains("restaurant") {
+            category = "Restaurant"
+        } else if normalized.contains("portfolio") {
+            category = "Portfolio"
+        } else {
+            category = "Site web"
+        }
+
+        let style = normalized.contains("apple") || normalized.contains("liquid glass")
+            ? "Apple / Liquid Glass"
+            : "Moderne"
+
+        return WebsiteBrief(
+            category: category,
+            name: "Projet de cette discussion",
+            purpose: prompt,
+            audience: "Grand public",
+            visualStyle: style,
+            accent: "Bleu",
+            sections: ["Accueil", "Produits / services", "À propos", "Contact"]
+        )
+    }
+
+    public static func looksLikeWebsiteFollowUp(_ text: String) -> Bool {
+        let normalized = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+
+        let referencesWebsite = [
+            "le site", "ce site", "mon site", "ton site", "le site que tu as cree",
+            "la page", "cette page", "la maquette", "le projet web", "landing page"
+        ].contains { normalized.contains($0) }
+
+        let continuationWords = [
+            "ameliore", "modifie", "change", "ajoute", "rajoute", "retire",
+            "enleve", "supprime", "remplace", "rends", "refais", "continue",
+            "mets", "augmente", "reduis", "anime", "corrige"
+        ].contains { normalized.contains($0) }
+
+        return isRefinementRequest(text)
+            || referencesWebsite
+            || (continuationWords && normalized.count < 180)
+    }
+
     public static func isAppleInspiredCreationRequest(_ text: String) -> Bool {
         let normalized = text.folding(
             options: [.diacriticInsensitive, .caseInsensitive],
@@ -520,10 +574,11 @@ public struct WebsiteBrief: Codable, Equatable {
         )
 
         let actions = [
-            "ameliore", "modifie", "change", "ajoute", "rajoute",
-            "retire", "enleve", "supprime", "remplace", "rends le",
-            "rends-le", "plus anime", "plus moderne", "plus beau",
-            "plus premium", "mets le bouton", "mets la couleur"
+            "ameliore", "améliore", "modifie", "change", "ajoute", "rajoute",
+            "retire", "enleve", "supprime", "remplace", "rends", "refais",
+            "plus anime", "plus moderne", "plus beau", "plus premium",
+            "mets le bouton", "mets la couleur", "change la couleur",
+            "agrandis", "reduis", "corrige", "continue"
         ]
 
         return actions.contains { normalized.contains($0) }
@@ -531,7 +586,12 @@ public struct WebsiteBrief: Codable, Equatable {
 
     public static func isRefinementRequest(_ text: String) -> Bool {
         let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return ["ameliore le site", "ameliorer le site", "modifie le site", "modifier le site", "refais le site", "maquette"].contains {
+        return [
+            "ameliore le site", "ameliorer le site", "ameliore ce site",
+            "ameliore le site que tu as cree", "ameliore celui que tu as cree",
+            "modifie le site", "modifier le site", "refais le site",
+            "continue le site", "reprends le site", "maquette"
+        ].contains {
             normalized.contains($0)
         }
     }
