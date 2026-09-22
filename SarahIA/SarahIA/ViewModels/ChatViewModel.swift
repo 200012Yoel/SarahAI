@@ -117,8 +117,7 @@ public final class ChatViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // Les moteurs d'image renvoient maintenant le vrai rendu au chat au lieu
-        // de laisser seulement un texte "image générée".
+        // Le placeholder image devient le rendu final dans le même emplacement.
         NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedImageReady"))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
@@ -127,14 +126,55 @@ public final class ChatViewModel: ObservableObject {
                       let data = image.jpegData(compressionQuality: 0.94) else { return }
 
                 let prompt = (notif.userInfo?["prompt"] as? String) ?? "Image générée"
-                var mediaMessage = Message(
-                    content: "🎨 Image générée",
+                let fileURL = (notif.userInfo?["fileURL"] as? URL)?.absoluteString
+
+                if let index = self.messages.lastIndex(where: { $0.isImageGenerationPlaceholder }) {
+                    let old = self.messages[index]
+                    self.messages[index] = Message(
+                        id: old.id,
+                        content: "🎨 **Image générée**",
+                        isFromUser: false,
+                        timestamp: old.timestamp,
+                        imageData: data,
+                        generatedImageURL: fileURL,
+                        isGeneratingImage: false,
+                        imageGenerationPrompt: prompt
+                    )
+                    self.persistCurrentState()
+                } else {
+                    self.appendMessage(
+                        Message(
+                            content: "🎨 **Image générée**",
+                            isFromUser: false,
+                            imageData: data,
+                            generatedImageURL: fileURL,
+                            isGeneratingImage: false,
+                            imageGenerationPrompt: prompt
+                        )
+                    )
+                }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahImageGenerationFailed"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notif in
+                guard let self = self,
+                      let index = self.messages.lastIndex(where: { $0.isImageGenerationPlaceholder }) else {
+                    return
+                }
+
+                let old = self.messages[index]
+                let error = (notif.userInfo?["error"] as? String)
+                    ?? "La génération d'image a échoué."
+
+                self.messages[index] = Message(
+                    id: old.id,
+                    content: "🎨 **Génération d’image interrompue**\n\(error)",
                     isFromUser: false,
-                    imageData: data,
-                    imageGenerationPrompt: prompt
+                    timestamp: old.timestamp
                 )
-                mediaMessage.generatedImageURL = (notif.userInfo?["fileURL"] as? URL)?.absoluteString
-                self.appendMessage(mediaMessage)
+                self.persistCurrentState()
             }
             .store(in: &cancellables)
 
@@ -662,9 +702,15 @@ public final class ChatViewModel: ObservableObject {
         AIProgressiveScheduler.shared.cancelAllTasks()
 
         // Retire la carte provisoire si l'utilisateur touche le carré Stop.
-        if messages.contains(where: { $0.isMusicGenerationPlaceholder || $0.isVideoGenerationPlaceholder }) {
+        if messages.contains(where: {
+            $0.isMusicGenerationPlaceholder
+            || $0.isVideoGenerationPlaceholder
+            || $0.isImageGenerationPlaceholder
+        }) {
             messages.removeAll(where: {
-                $0.isMusicGenerationPlaceholder || $0.isVideoGenerationPlaceholder
+                $0.isMusicGenerationPlaceholder
+                || $0.isVideoGenerationPlaceholder
+                || $0.isImageGenerationPlaceholder
             })
             persistCurrentState()
         }
@@ -801,6 +847,18 @@ public final class ChatViewModel: ObservableObject {
                     )
                 )
             }
+        }
+
+        let imageIntent = OpenSourceImageGenerationService.shared.isImageGenerationIntent(routedText)
+        if imageIntent.isIntent {
+            appendMessage(
+                Message(
+                    content: "🎨 **Génération d’image en cours**",
+                    isFromUser: false,
+                    isGeneratingImage: true,
+                    imageGenerationPrompt: imageIntent.cleanedPrompt
+                )
+            )
         }
 
         let videoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(routedText)
