@@ -919,7 +919,7 @@ public struct GeneratedVideoCardView: View {
                         .fill(Color.sarahCyan.opacity(0.12))
                         .frame(width: 66, height: 66)
 
-                    Image(systemName: isVertical ? "iphone.gen3.radiowaves.left.and.right" : "video.fill")
+                    Image(systemName: isVertical ? "iphone" : "video.fill")
                         .font(.system(size: 23, weight: .semibold))
                         .foregroundColor(.sarahCyan)
                 }
