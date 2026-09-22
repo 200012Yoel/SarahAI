@@ -543,7 +543,7 @@ public final class ChatViewModel: ObservableObject {
         haptics.buttonTap()
 
         if isContinuousConversationActive {
-            if isVoiceMicrophoneMuted || !AppleSpeechRecognizer.shared.isListening {
+            if isVoiceMicrophoneMuted {
                 resumeVoiceMicrophone()
             } else {
                 pauseVoiceMicrophone()
