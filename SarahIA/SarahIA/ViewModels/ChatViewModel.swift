@@ -710,7 +710,8 @@ public final class ChatViewModel: ObservableObject {
             return
         }
 
-        if WebsiteBrief.isRefinementRequest(text),
+        if (WebsiteBrief.isRefinementRequest(text)
+            || (activeAgent == .esther && WebsiteBrief.isContextualRefinementRequest(text))),
            let currentHTML = vaiCurrentCode,
            !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
