@@ -12,6 +12,9 @@ public struct Message: Identifiable, Equatable, Codable {
     public var generatedImageURL: String?
     public var generatedMusicStyle: String?
     public var generatedAudioURL: String?
+    public var generatedVideoURL: String?
+    public var videoGenerationPrompt: String?
+    public var isGeneratingVideo: Bool?
     public var isGeneratingImage: Bool?
     public var imageGenerationPrompt: String?
     
@@ -26,6 +29,9 @@ public struct Message: Identifiable, Equatable, Codable {
         generatedImageURL: String? = nil,
         generatedMusicStyle: String? = nil,
         generatedAudioURL: String? = nil,
+        generatedVideoURL: String? = nil,
+        videoGenerationPrompt: String? = nil,
+        isGeneratingVideo: Bool? = nil,
         isGeneratingImage: Bool? = nil,
         imageGenerationPrompt: String? = nil
     ) {
@@ -39,6 +45,9 @@ public struct Message: Identifiable, Equatable, Codable {
         self.generatedImageURL = generatedImageURL
         self.generatedMusicStyle = generatedMusicStyle
         self.generatedAudioURL = generatedAudioURL
+        self.generatedVideoURL = generatedVideoURL
+        self.videoGenerationPrompt = videoGenerationPrompt
+        self.isGeneratingVideo = isGeneratingVideo
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
     }
@@ -92,6 +101,15 @@ public struct Message: Identifiable, Equatable, Codable {
 
     public var detectedGeneratedAudioURL: URL? {
         guard let value = generatedAudioURL, !value.isEmpty else { return nil }
+        return URL(string: value)
+    }
+
+    public var isVideoGenerationPlaceholder: Bool {
+        isGeneratingVideo == true || content.contains("Génération vidéo en cours")
+    }
+
+    public var detectedGeneratedVideoURL: URL? {
+        guard let value = generatedVideoURL, !value.isEmpty else { return nil }
         return URL(string: value)
     }
 
