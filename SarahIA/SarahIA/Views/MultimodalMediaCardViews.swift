@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 import WebKit
 
 // MARK: - 1. Carte Interactive d'Image Générée (Flux / SDXL Open Source)
@@ -687,6 +688,184 @@ public struct MusicTrackCardView: View {
                 .rootViewController?
                 .present(controller, animated: true)
         }
+    }
+}
+
+// MARK: - Carte de génération vidéo
+
+@available(iOS 15.0, *)
+public struct GeneratedVideoCardView: View {
+    public let prompt: String
+    public let startsGenerating: Bool
+    public let videoURL: URL?
+    public let requestedDuration: TimeInterval?
+
+    @State private var progress: Double
+    @State private var phase: String
+    @State private var resolvedURL: URL?
+    @State private var player: AVPlayer?
+    @State private var isSharing = false
+
+    public init(
+        prompt: String,
+        startsGenerating: Bool,
+        videoURL: URL?,
+        requestedDuration: TimeInterval?
+    ) {
+        self.prompt = prompt
+        self.startsGenerating = startsGenerating
+        self.videoURL = videoURL
+        self.requestedDuration = requestedDuration
+        _progress = State(initialValue: videoURL == nil && startsGenerating ? 0.02 : 1)
+        _phase = State(initialValue: startsGenerating ? "Préparation de la scène" : "Vidéo prête")
+        _resolvedURL = State(initialValue: videoURL)
+        _player = State(initialValue: videoURL.map { AVPlayer(url: $0) })
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.black.opacity(0.42))
+
+                if let player, resolvedURL != nil {
+                    VideoPlayer(player: player)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                } else {
+                    VStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.sarahCyan.opacity(0.13))
+                                .frame(width: 64, height: 64)
+
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.sarahCyan)
+                        }
+
+                        Text("Génération vidéo")
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+
+                        Text(phase)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.58))
+
+                        ProgressView(value: progress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
+                            .frame(maxWidth: 210)
+
+                        Text("\(Int(progress * 100)) %")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.sarahCyan)
+                    }
+                    .padding(22)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 270)
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(resolvedURL == nil ? "Sarah Motion Video" : "Vidéo générée")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text(prompt)
+                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                        .foregroundColor(.white.opacity(0.48))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if let duration = requestedDuration {
+                    Text(duration >= 59.5 ? "1:00" : "0:" + String(format: "%02d", Int(duration.rounded())))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.48))
+                }
+
+                if resolvedURL != nil {
+                    Button(action: shareVideo) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(Color.white.opacity(0.08)))
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                }
+            }
+
+            if resolvedURL != nil {
+                Text("MP4 créé localement à partir d’une image clé générée par Sarah. Le moteur de diffusion vidéo dédié reste séparé tant que son runtime iPhone n’est pas validé.")
+                    .font(.system(size: 9, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.35))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(11)
+        .sarahLiquidGlass(
+            cornerRadius: 20,
+            tint: .sarahCyan,
+            intensity: 0.10
+        )
+        .onAppear {
+            if let url = resolvedURL, player == nil {
+                player = AVPlayer(url: url)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationProgress"))) { note in
+            guard matchesPrompt(note) else { return }
+            if let value = note.userInfo?["progress"] as? Double {
+                progress = min(max(value, 0), 0.99)
+            }
+            if let value = note.userInfo?["phase"] as? String {
+                phase = value
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedVideoReady"))) { note in
+            guard matchesPrompt(note), let url = note.object as? URL else { return }
+            resolvedURL = url
+            player = AVPlayer(url: url)
+            progress = 1
+            phase = "Vidéo prête"
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationFailed"))) { note in
+            guard matchesPrompt(note) else { return }
+            progress = 0
+            phase = (note.userInfo?["error"] as? String) ?? "La génération a échoué"
+        }
+    }
+
+    private func matchesPrompt(_ note: Notification) -> Bool {
+        guard let eventPrompt = note.userInfo?["prompt"] as? String else {
+            return true
+        }
+
+        let lhs = prompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = eventPrompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return lhs == rhs || lhs.contains(rhs) || rhs.contains(lhs)
+    }
+
+    private func shareVideo() {
+        guard let url = resolvedURL else { return }
+        let controller = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .rootViewController
+
+        root?.present(controller, animated: true)
     }
 }
 
