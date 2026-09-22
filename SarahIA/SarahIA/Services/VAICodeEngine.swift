@@ -341,6 +341,328 @@ public final class VAICodeEngine {
         """
     }
 
+    /// Compétence de création de site premium inspirée des principes d'Apple :
+    /// hiérarchie typographique nette, grands espaces, surfaces vitrées,
+    /// animations discrètes et forte adaptation mobile. Aucun logo ni contenu
+    /// propriétaire d'Apple n'est copié.
+    public func generateAppleInspiredWebsite(prompt: String) -> String {
+        let safePrompt = htmlEscaped(
+            prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        return """
+        <!doctype html>
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <meta name="color-scheme" content="dark light">
+          <title>Projet premium</title>
+          <style>
+            :root {
+              --blue: #0a84ff;
+              --ink: #f5f5f7;
+              --muted: #a1a1a6;
+              --panel: rgba(255,255,255,.075);
+              --line: rgba(255,255,255,.14);
+              --bg: #000;
+            }
+            * { box-sizing: border-box; }
+            html { scroll-behavior: smooth; }
+            body {
+              margin: 0;
+              background:
+                radial-gradient(circle at 80% -10%, rgba(10,132,255,.22), transparent 34%),
+                radial-gradient(circle at -10% 28%, rgba(94,92,230,.18), transparent 30%),
+                var(--bg);
+              color: var(--ink);
+              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+              -webkit-font-smoothing: antialiased;
+            }
+            .wrap { width: min(1180px, calc(100% - 32px)); margin: auto; }
+            nav {
+              position: sticky; top: 12px; z-index: 20;
+              display: flex; align-items: center; justify-content: space-between;
+              margin-top: 12px; padding: 11px 15px;
+              border: 1px solid var(--line);
+              border-radius: 22px;
+              background: rgba(20,20,22,.62);
+              backdrop-filter: blur(28px) saturate(180%);
+              -webkit-backdrop-filter: blur(28px) saturate(180%);
+              box-shadow: inset 0 1px rgba(255,255,255,.15), 0 16px 50px rgba(0,0,0,.26);
+            }
+            .brand { font-weight: 700; letter-spacing: -.02em; }
+            .links { display: flex; gap: 18px; }
+            .links a { color: var(--muted); text-decoration: none; font-size: 13px; }
+            .hero {
+              min-height: 76vh; display: grid; place-items: center; text-align: center;
+              padding: 88px 0 54px;
+            }
+            .hero-inner { max-width: 920px; }
+            .kicker { color: var(--blue); font-weight: 700; margin-bottom: 12px; }
+            h1 {
+              margin: 0;
+              font-size: clamp(48px, 9vw, 108px);
+              line-height: .92;
+              letter-spacing: -.065em;
+              background: linear-gradient(180deg,#fff,#9b9ba1);
+              -webkit-background-clip: text; color: transparent;
+            }
+            .lead {
+              max-width: 720px; margin: 28px auto 0;
+              color: var(--muted); font-size: clamp(18px,2.6vw,28px); line-height: 1.18;
+            }
+            .actions { display: flex; justify-content: center; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+            .button {
+              appearance: none; border: 0; cursor: pointer; text-decoration: none;
+              padding: 12px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
+            }
+            .primary { background: var(--blue); color: white; }
+            .secondary {
+              color: white; border: 1px solid var(--line); background: var(--panel);
+              backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            }
+            .showcase {
+              position: relative; overflow: hidden; min-height: 470px;
+              border-radius: 42px; border: 1px solid var(--line);
+              background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.035));
+              box-shadow: inset 0 1px rgba(255,255,255,.16), 0 35px 90px rgba(0,0,0,.42);
+            }
+            .glow {
+              position:absolute; width:540px; height:540px; border-radius:50%;
+              background:radial-gradient(circle,rgba(10,132,255,.55),transparent 64%);
+              filter: blur(15px); right:-150px; top:-180px;
+            }
+            .product {
+              position:absolute; inset:70px 8% 0; border-radius:34px 34px 0 0;
+              border:1px solid rgba(255,255,255,.18);
+              background:linear-gradient(160deg,#2a2a2f,#101014 48%,#070708);
+              box-shadow:0 35px 90px rgba(0,0,0,.58), inset 0 1px rgba(255,255,255,.14);
+              display:grid; place-items:center; text-align:center; padding:30px;
+            }
+            .product strong { font-size: clamp(30px,6vw,72px); letter-spacing:-.05em; }
+            .grid {
+              display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+              gap:16px; padding:72px 0;
+            }
+            .card {
+              min-height:270px; padding:26px; border-radius:30px;
+              border:1px solid var(--line); background:var(--panel);
+              backdrop-filter: blur(28px) saturate(150%);
+              -webkit-backdrop-filter: blur(28px) saturate(150%);
+              box-shadow: inset 0 1px rgba(255,255,255,.14);
+              transform: translateY(18px); opacity: 0;
+              transition: transform .65s cubic-bezier(.2,.8,.2,1), opacity .65s ease;
+            }
+            .card.visible { transform: translateY(0); opacity: 1; }
+            .card h2 { margin:0 0 10px; font-size:28px; letter-spacing:-.035em; }
+            .card p { color:var(--muted); margin:0; }
+            .wide { grid-column:span 2; }
+            .statement {
+              padding:100px 0; text-align:center;
+              font-size:clamp(34px,6vw,76px); line-height:1; letter-spacing:-.055em; font-weight:750;
+            }
+            .statement span { color:var(--muted); }
+            footer { padding:34px 0 54px; color:#74747a; font-size:12px; border-top:1px solid rgba(255,255,255,.08); }
+            @media(max-width:760px) {
+              .links { display:none; }
+              .hero { min-height:68vh; padding-top:70px; }
+              .showcase { min-height:390px; border-radius:30px; }
+              .product { inset:58px 6% 0; }
+              .grid { grid-template-columns:1fr; padding:50px 0; }
+              .wide { grid-column:auto; }
+              .statement { padding:70px 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <nav>
+              <div class="brand">Projet</div>
+              <div class="links">
+                <a href="#experience">Expérience</a>
+                <a href="#details">Détails</a>
+                <a href="#contact">Contact</a>
+              </div>
+            </nav>
+
+            <section class="hero">
+              <div class="hero-inner">
+                <div class="kicker">Conçu pour être évident.</div>
+                <h1>Plus simple.<br>Plus vivant.</h1>
+                <p class="lead">(safePrompt.isEmpty ? "Une expérience premium, rapide et pensée pour chaque écran." : safePrompt)</p>
+                <div class="actions">
+                  <a class="button primary" href="#experience">Découvrir</a>
+                  <a class="button secondary" href="#contact">En savoir plus</a>
+                </div>
+              </div>
+            </section>
+
+            <section class="showcase" id="experience">
+              <div class="glow"></div>
+              <div class="product">
+                <div>
+                  <strong>Votre produit.<br>Mis en lumière.</strong>
+                  <p class="lead">Remplace ce bloc par la présentation centrale de ton projet.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="grid" id="details">
+              <article class="card wide">
+                <h2>Une interface qui respire.</h2>
+                <p>Grands espaces, hiérarchie claire, animations discrètes et détails visuels précis.</p>
+              </article>
+              <article class="card">
+                <h2>Rapide.</h2>
+                <p>Structure légère, responsive et sans dépendances lourdes.</p>
+              </article>
+              <article class="card">
+                <h2>Liquid Glass.</h2>
+                <p>Surfaces translucides, profondeur et contraste adaptés au contenu.</p>
+              </article>
+              <article class="card wide">
+                <h2>Mobile d’abord.</h2>
+                <p>La mise en page se replie proprement sur iPhone sans perdre son caractère premium.</p>
+              </article>
+            </section>
+
+            <section class="statement">
+              Pensé pour disparaître.<br><span>Et laisser le contenu parler.</span>
+            </section>
+
+            <footer id="contact">Prototype local créé par Raphaël dans Sarah IA.</footer>
+          </div>
+          <script>
+            const observer = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+              });
+            }, { threshold: .18 });
+            document.querySelectorAll('.card').forEach(card => observer.observe(card));
+          </script>
+        </body>
+        </html>
+        """
+    }
+
+    /// Améliore le site actuellement ouvert sans repartir de zéro.
+    /// Le HTML existant reste la source de vérité, puis Raphaël injecte une
+    /// couche d'amélioration correspondant à la demande.
+    public func refineWebsite(
+        currentHTML: String,
+        brief: WebsiteBrief?,
+        instruction: String
+    ) -> String {
+        guard !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            if let brief {
+                return generateWebsite(brief: brief)
+            }
+            return generateAppleInspiredWebsite(prompt: instruction)
+        }
+
+        let normalized = instruction
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+
+        let appleStyle = normalized.contains("apple")
+            || normalized.contains("premium")
+            || normalized.contains("liquid glass")
+            || normalized.contains("liquidglass")
+
+        let strongerMotion = normalized.contains("animation")
+            || normalized.contains("anime")
+            || normalized.contains("dynamique")
+            || normalized.contains("fluide")
+
+        let css = """
+        <style id="sarah-raphael-refinement">
+          html { scroll-behavior:smooth; }
+          body {
+            -webkit-font-smoothing:antialiased;
+            text-rendering:optimizeLegibility;
+          }
+          nav {
+            position:sticky;
+            top:10px;
+            z-index:50;
+            backdrop-filter:blur(24px) saturate(170%);
+            -webkit-backdrop-filter:blur(24px) saturate(170%);
+          }
+          section, .card, .hero {
+            transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease;
+          }
+          .card:hover {
+            transform:translateY(-4px);
+            box-shadow:0 18px 45px rgba(0,0,0,.14);
+          }
+          @media(max-width:640px) {
+            h1 { font-size:clamp(38px,13vw,58px)!important; }
+            .shell { padding-left:16px!important; padding-right:16px!important; }
+          }
+          (appleStyle ? """
+          body { letter-spacing:-.012em; }
+          nav, section, .card {
+            border-color:rgba(255,255,255,.12)!important;
+            backdrop-filter:blur(24px) saturate(170%);
+            -webkit-backdrop-filter:blur(24px) saturate(170%);
+          }
+          .hero {
+            border-radius:38px!important;
+            box-shadow:0 35px 90px rgba(0,0,0,.22)!important;
+          }
+          h1, h2 { letter-spacing:-.045em!important; }
+          """ : "")
+          (strongerMotion ? """
+          [data-sarah-reveal] {
+            opacity:0;
+            transform:translateY(18px);
+            transition:opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+          }
+          [data-sarah-reveal].visible { opacity:1; transform:none; }
+          """ : "")
+        </style>
+        """
+
+        let js = strongerMotion ? """
+        <script id="sarah-raphael-refinement-js">
+          document.querySelectorAll('section,.card').forEach(el => el.setAttribute('data-sarah-reveal',''));
+          const sarahObserver = new IntersectionObserver(entries => {
+            entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+          }, {threshold:.12});
+          document.querySelectorAll('[data-sarah-reveal]').forEach(el => sarahObserver.observe(el));
+        </script>
+        """ : ""
+
+        var result = currentHTML
+
+        if let oldStyle = result.range(
+            of: "<style id="sarah-raphael-refinement">.*?</style>",
+            options: [.regularExpression, .dotMatchesLineSeparators]
+        ) {
+            result.replaceSubrange(oldStyle, with: css)
+        } else if let headClose = result.range(of: "</head>", options: .caseInsensitive) {
+            result.insert(contentsOf: css + "\n", at: headClose.lowerBound)
+        } else {
+            result = css + result
+        }
+
+        if !js.isEmpty {
+            if let oldScript = result.range(
+                of: "<script id="sarah-raphael-refinement-js">.*?</script>",
+                options: [.regularExpression, .dotMatchesLineSeparators]
+            ) {
+                result.replaceSubrange(oldScript, with: js)
+            } else if let bodyClose = result.range(of: "</body>", options: .caseInsensitive) {
+                result.insert(contentsOf: js + "\n", at: bodyClose.lowerBound)
+            } else {
+                result += js
+            }
+        }
+
+        return result
+    }
+
     private func websiteColors(for accent: String) -> (primary: String, secondary: String) {
         switch accent.lowercased() {
         case "bleu": return ("#176BFF", "#00B9E8")
