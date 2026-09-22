@@ -699,23 +699,26 @@ public struct GeneratedVideoCardView: View {
     public let startsGenerating: Bool
     public let videoURL: URL?
     public let requestedDuration: TimeInterval?
+    public let isVertical: Bool
 
     @State private var progress: Double
     @State private var phase: String
     @State private var resolvedURL: URL?
     @State private var player: AVPlayer?
-    @State private var isSharing = false
+    @State private var shimmerOffset: CGFloat = -1
 
     public init(
         prompt: String,
         startsGenerating: Bool,
         videoURL: URL?,
-        requestedDuration: TimeInterval?
+        requestedDuration: TimeInterval?,
+        isVertical: Bool = false
     ) {
         self.prompt = prompt
         self.startsGenerating = startsGenerating
         self.videoURL = videoURL
         self.requestedDuration = requestedDuration
+        self.isVertical = isVertical
         _progress = State(initialValue: videoURL == nil && startsGenerating ? 0.02 : 1)
         _phase = State(initialValue: startsGenerating ? "Préparation de la scène" : "Vidéo prête")
         _resolvedURL = State(initialValue: videoURL)
@@ -723,65 +726,82 @@ public struct GeneratedVideoCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.black.opacity(0.42))
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.black.opacity(0.48))
 
                 if let player, resolvedURL != nil {
                     VideoPlayer(player: player)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 } else {
-                    VStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.sarahCyan.opacity(0.13))
-                                .frame(width: 64, height: 64)
-
-                            Image(systemName: "video.fill")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(.sarahCyan)
-                        }
-
-                        Text("Génération vidéo")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-
-                        Text(phase)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.58))
-
-                        ProgressView(value: progress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
-                            .frame(maxWidth: 210)
-
-                        Text("\(Int(progress * 100)) %")
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.sarahCyan)
-                    }
-                    .padding(22)
+                    generationCanvas
                 }
-            }
-            .frame(maxWidth: .infinity, minHeight: 220, maxHeight: 270)
 
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    HStack(spacing: 5) {
+                        Image(systemName: isVertical ? "iphone" : "rectangle")
+                            .font(.system(size: 9, weight: .bold))
+                        Text(isVertical ? "SHORT 9:16" : "VIDÉO 16:9")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                Capsule()
+                                    .fill(Color.sarahCyan.opacity(0.13))
+                            )
+                    )
+
+                    Spacer()
+
+                    if resolvedURL == nil {
+                        Text("\(Int(progress * 100)) %")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Capsule()
+                                            .fill(Color.sarahCyan.opacity(0.13))
+                                    )
+                            )
+                    }
+                }
+                .padding(10)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: isVertical ? 330 : 190)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.13), lineWidth: 0.8)
+            )
+
+            HStack(alignment: .center, spacing: 9) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(resolvedURL == nil ? "Sarah Motion Video" : "Vidéo générée")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
 
-                    Text(prompt)
-                        .font(.system(size: 10, weight: .regular, design: .rounded))
-                        .foregroundColor(.white.opacity(0.48))
+                    Text(resolvedURL == nil ? phase : prompt)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.52))
                         .lineLimit(1)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 if let duration = requestedDuration {
                     Text(duration >= 59.5 ? "1:00" : "0:" + String(format: "%02d", Int(duration.rounded())))
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.48))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.56))
                 }
 
                 if resolvedURL != nil {
@@ -790,28 +810,46 @@ public struct GeneratedVideoCardView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(width: 34, height: 34)
-                            .background(Circle().fill(Color.white.opacity(0.08)))
+                            .background(
+                                ZStack {
+                                    Circle().fill(.ultraThinMaterial)
+                                    Circle().fill(Color.sarahCyan.opacity(0.10))
+                                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.7)
+                                }
+                            )
                     }
                     .buttonStyle(BorderlessButtonStyle())
                 }
             }
 
-            if resolvedURL != nil {
-                Text("MP4 créé localement à partir d’une image clé générée par Sarah. Le moteur de diffusion vidéo dédié reste séparé tant que son runtime iPhone n’est pas validé.")
+            if resolvedURL == nil {
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
+            } else {
+                Text("MP4 créé dans Sarah. Le rendu Motion Video fonctionne dès maintenant ; un moteur de diffusion vidéo dédié peut prendre la relève lorsqu’un runtime iPhone validé est disponible.")
                     .font(.system(size: 9, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(.white.opacity(0.34))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(11)
         .sarahLiquidGlass(
-            cornerRadius: 20,
+            cornerRadius: 22,
             tint: .sarahCyan,
-            intensity: 0.10
+            intensity: 0.11
         )
         .onAppear {
             if let url = resolvedURL, player == nil {
                 player = AVPlayer(url: url)
+            }
+
+            if resolvedURL == nil {
+                withAnimation(
+                    Animation.linear(duration: 1.7)
+                        .repeatForever(autoreverses: false)
+                ) {
+                    shimmerOffset = 1
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationProgress"))) { note in
@@ -830,11 +868,76 @@ public struct GeneratedVideoCardView: View {
             progress = 1
             phase = "Vidéo prête"
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationCancelled"))) { note in
+            guard matchesPrompt(note) else { return }
+            progress = 0
+            phase = "Génération arrêtée"
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationFailed"))) { note in
             guard matchesPrompt(note) else { return }
             progress = 0
             phase = (note.userInfo?["error"] as? String) ?? "La génération a échoué"
         }
+    }
+
+    private var generationCanvas: some View {
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.sarahCyan.opacity(0.12),
+                    Color.black.opacity(0.72),
+                    Color.sarahIndigo.opacity(0.10)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            GeometryReader { proxy in
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.clear,
+                        Color.white.opacity(0.11),
+                        Color.clear
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .rotationEffect(.degrees(18))
+                .frame(width: proxy.size.width * 0.32)
+                .offset(x: shimmerOffset * proxy.size.width * 1.35)
+            }
+            .clipped()
+            .allowsHitTesting(false)
+
+            VStack(spacing: 13) {
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 66, height: 66)
+
+                    Circle()
+                        .fill(Color.sarahCyan.opacity(0.12))
+                        .frame(width: 66, height: 66)
+
+                    Image(systemName: isVertical ? "iphone.gen3.radiowaves.left.and.right" : "video.fill")
+                        .font(.system(size: 23, weight: .semibold))
+                        .foregroundColor(.sarahCyan)
+                }
+
+                Text(phase)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.78))
+                    .multilineTextAlignment(.center)
+
+                Text(prompt)
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.42))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func matchesPrompt(_ note: Notification) -> Bool {
@@ -854,6 +957,7 @@ public struct GeneratedVideoCardView: View {
 
     private func shareVideo() {
         guard let url = resolvedURL else { return }
+
         let controller = UIActivityViewController(
             activityItems: [url],
             applicationActivities: nil
