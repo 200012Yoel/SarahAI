@@ -267,9 +267,10 @@ public struct ChatScreenView: View {
                     isShowingSettings = true
                 }
             )
-            // Grand mode + mode réduit. Un glissement vers le bas garde le chat
-            // visible derrière, comme dans les assistants vocaux modernes.
-            .presentationDetents([.height(255), .large])
+            // Le mode vocal s'ouvre en grand. Un glissement vers le bas le
+            // ferme visuellement sans arrêter la session : la mini-barre vocale
+            // reste ensuite au-dessus du composer.
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         } else {
             VoiceOrbModalView(
