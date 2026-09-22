@@ -11,6 +11,7 @@ public struct ChatScreenView: View {
     
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingVoiceCallScreen: Bool = false
+    @State private var isShowingAgentPicker: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -161,6 +162,20 @@ public struct ChatScreenView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentVoiceCallModal"))) { _ in
             isShowingVoiceCallScreen = true
         }
+        .confirmationDialog(
+            "Choisir un agent",
+            isPresented: $isShowingAgentPicker,
+            titleVisibility: .visible
+        ) {
+            ForEach(AgentType.allCases) { agent in
+                Button("\(agent.displayName) · \(agent.specialtySubtitle)") {
+                    viewModel.selectAgent(agent)
+                }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Le changement est instantané et la conversation reste la même.")
+        }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("Écosystème Développeur & Multi-Agents"),
@@ -297,7 +312,9 @@ public struct ChatScreenView: View {
             
             // Titre de l'agent actif (centre)
             Button(action: {
-                viewModel.isShowingVoiceOrbModal = true
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                isShowingAgentPicker = true
             }) {
                 HStack(spacing: 7) {
                     Circle()
