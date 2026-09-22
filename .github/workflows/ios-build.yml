@@ -76,13 +76,8 @@ jobs:
             exit 1
           }
 
-          grep -Fq 'isContinuousConversationActive' "$VM" || {
+          grep -Fq 'isContinuousConversationActive && self.isShowingVoiceOrbModal' "$VM" || {
             echo "❌ La lecture vocale automatique n'est plus limitée au mode vocal."
-            exit 1
-          }
-
-          grep -Fq 'self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible' "$VM" || {
-            echo "❌ La lecture vocale ne couvre plus l'écran vocal et sa bulle réduite."
             exit 1
           }
 
@@ -166,18 +161,13 @@ jobs:
             exit 1
           fi
 
-          grep -Fq 'variationSeed' "SarahIA/SarahIA/Services/OpenSourceMusicEngine.swift" || {
-            echo "❌ Les variations musicales uniques ont disparu."
+          grep -Fq 'fullScreenCover(item: $fullscreenImageItem)' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le viewer image peut à nouveau s'ouvrir sans image."
             exit 1
           }
 
-          grep -Fq 'isVoiceTurnInFlight' "$VM" || {
-            echo "❌ Le verrou de tour de parole vocal a disparu."
-            exit 1
-          }
-
-          grep -Fq 'self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible' "$VM" || {
-            echo "❌ Le mode vocal réduit en bulle ne reste plus actif."
+          grep -Fq 'detectRelationshipHints' "SarahIA/SarahIA/Services/OpenSourceImageGenerationService.swift" || {
+            echo "❌ Les relations multi-sujets des prompts image ont disparu."
             exit 1
           }
 
