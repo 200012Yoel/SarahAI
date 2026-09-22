@@ -116,6 +116,10 @@ public final class ChatViewModel: ObservableObject {
         restorePersistedState()
         setupModeObserver()
         bindCoreServices()
+
+        if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-voice") {
+            isShowingVoiceOrbModal = true
+        }
     }
     
     // MARK: - Liaison des Services
