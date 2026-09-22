@@ -238,7 +238,7 @@ public final class SarahLocalMusicGenEngine {
             ),
             Asset(
                 id: "t5_vocab",
-                url: URL(string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/main/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json")!,
+                url: URL(string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json")!,
                 compiledName: nil,
                 isArchive: false
             )
@@ -258,9 +258,8 @@ public final class SarahLocalMusicGenEngine {
             )
         }
 
-        return fm.fileExists(
-            atPath: modelDirectory.appendingPathComponent("t5_vocab.json").path
-        )
+        let vocabURL = modelDirectory.appendingPathComponent("t5_vocab.json")
+        return isValidVocabularyFile(at: vocabURL)
     }
 
     public func installBackgroundDownloadedAsset(
@@ -279,15 +278,14 @@ public final class SarahLocalMusicGenEngine {
     }
 
     public var isInstrumentalModelInstalled: Bool {
-        let required = [
+        let requiredCoreModels = [
             "T5Encoder.mlmodelc",
             "NumberEmbedder.mlmodelc",
             "DiT.mlmodelc",
-            "VAEDecoder.mlmodelc",
-            "t5_vocab.json"
+            "VAEDecoder.mlmodelc"
         ]
 
-        return required.allSatisfy {
+        return requiredCoreModels.allSatisfy {
             fm.fileExists(
                 atPath: modelDirectory.appendingPathComponent($0).path
             )
@@ -501,12 +499,16 @@ public final class SarahLocalMusicGenEngine {
         )
     }
 
-    private func loadVocabulary() throws {
-        let url = modelDirectory.appendingPathComponent("t5_vocab.json")
-        guard let data = try? Data(contentsOf: url),
-              let raw = try? JSONSerialization.jsonObject(with: data),
+    private var tokenizerRemoteURL: URL {
+        URL(
+            string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json"
+        )!
+    }
+
+    private func parseVocabularyData(_ data: Data) -> [String: Int32]? {
+        guard let raw = try? JSONSerialization.jsonObject(with: data),
               let mapping = raw as? [String: String] else {
-            throw MusicError.tokenizerMissing
+            return nil
         }
 
         var parsed: [String: Int32] = [:]
@@ -518,11 +520,56 @@ public final class SarahLocalMusicGenEngine {
             }
         }
 
-        guard !parsed.isEmpty else {
+        return parsed.isEmpty ? nil : parsed
+    }
+
+    private func isValidVocabularyFile(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let parsed = parseVocabularyData(data) else {
+            return false
+        }
+
+        // T5-base possède des dizaines de milliers de tokens. Ce seuil évite
+        // qu'une réponse 404 ou un fichier tronqué soit considéré comme valide.
+        return parsed.count > 10_000
+    }
+
+    private func loadVocabulary() throws {
+        let localURL = modelDirectory.appendingPathComponent("t5_vocab.json")
+
+        if let data = try? Data(contentsOf: localURL),
+           let parsed = parseVocabularyData(data),
+           parsed.count > 10_000 {
+            vocabulary = parsed
+            return
+        }
+
+        // Auto-réparation : les anciennes builds téléchargeaient par erreur
+        // depuis la branche "main" alors que le dépôt utilise "master".
+        // Si le fichier local est un 404 ou est absent, on récupère la vraie
+        // ressource puis on remplace la copie cassée.
+        let repairedData: Data
+        do {
+            repairedData = try Data(contentsOf: tokenizerRemoteURL)
+        } catch {
             throw MusicError.tokenizerMissing
         }
 
-        vocabulary = parsed
+        guard let repaired = parseVocabularyData(repairedData),
+              repaired.count > 10_000 else {
+            throw MusicError.tokenizerMissing
+        }
+
+        do {
+            if fm.fileExists(atPath: localURL.path) {
+                try fm.removeItem(at: localURL)
+            }
+            try repairedData.write(to: localURL, options: .atomic)
+        } catch {
+            throw MusicError.tokenizerMissing
+        }
+
+        vocabulary = repaired
     }
 
     private func tokenize(_ prompt: String) -> [Int32] {
