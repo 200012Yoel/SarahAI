@@ -386,6 +386,22 @@ public final class MultiAgentCoordinator {
             return .tom
         }
         
+        // Création multimédia : une nouvelle intention explicite doit pouvoir
+        // quitter l'agent courant. Cela évite qu'une demande vidéo ou musicale
+        // reste coincée chez Raphaël après une session de création de site.
+        if (normalized.contains("genere une video")
+            || normalized.contains("cree une video")
+            || normalized.contains("fais une video")
+            || normalized.contains("genere un short")
+            || normalized.contains("cree un short")
+            || normalized.contains("genere un reel")
+            || normalized.contains("cree un reel")
+            || normalized.contains("genere une musique")
+            || normalized.contains("compose une musique")
+            || normalized.contains("fais une musique")) {
+            return .nathan
+        }
+
         // Nathan (Réseaux Sociaux, Instagram, TikTok, YouTube, Partage)
         if normalized.contains("nathan") ||
            normalized.contains("reseaux sociaux") || normalized.contains("reseau social") ||
