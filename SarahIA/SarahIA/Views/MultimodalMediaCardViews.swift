@@ -690,6 +690,194 @@ public struct MusicTrackCardView: View {
     }
 }
 
+// MARK: - Carte Raccourcis Apple
+
+@available(iOS 14.0, *)
+public struct ShortcutPlanCardView: View {
+    public let plan: ShortcutGenerator.ShortcutPlan
+
+    @State private var isCopied = false
+    @State private var openedShortcuts = false
+
+    public init(plan: ShortcutGenerator.ShortcutPlan) {
+        self.plan = plan
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.36, green: 0.23, blue: 0.96),
+                                    Color(red: 0.78, green: 0.22, blue: 0.72)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: "square.stack.3d.up.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan.title)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+
+                    Text("\(plan.blocks.count) blocs Raccourcis")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.55))
+                }
+
+                Spacer()
+            }
+
+            Text(plan.summary)
+                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 7) {
+                ForEach(Array(plan.blocks.enumerated()), id: \.element.id) { index, block in
+                    HStack(alignment: .top, spacing: 9) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.white.opacity(0.09))
+                                .frame(width: 32, height: 32)
+
+                            Image(systemName: block.systemImage)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.92))
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Text("\(index + 1).")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundColor(.sarahCyan)
+
+                                Text(block.title)
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+
+                            if let subtitle = block.subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.58))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if !block.parameters.isEmpty {
+                                Text(
+                                    block.parameters.keys.sorted().compactMap { key in
+                                        guard let value = block.parameters[key] else { return nil }
+                                        return "\(key): \(value)"
+                                    }.joined(separator: "  •  ")
+                                )
+                                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                                .foregroundColor(.sarahCyan.opacity(0.82))
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Text(block.category)
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.62))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.white.opacity(0.07)))
+                    }
+                    .padding(9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.045))
+                    )
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(action: copyBlocks) {
+                    HStack(spacing: 6) {
+                        Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        Text(isCopied ? "Blocs copiés" : "Copier les blocs")
+                    }
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.10))
+                    )
+                }
+                .buttonStyle(BorderlessButtonStyle())
+
+                Button(action: copyAndOpenShortcuts) {
+                    HStack(spacing: 6) {
+                        Image(systemName: openedShortcuts ? "checkmark.circle.fill" : "arrow.up.forward.app.fill")
+                        Text("Ouvrir Raccourcis")
+                    }
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(red: 0.43, green: 0.27, blue: 0.95))
+                    )
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+
+            Text("Sarah copie la recette et ouvre un raccourci vierge. iOS ne permet pas à une app tierce de coller automatiquement une pile arbitraire de blocs dans l’éditeur.")
+                .font(.system(size: 9, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.38))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(Color(red: 0.09, green: 0.09, blue: 0.12))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.purple.opacity(0.30), lineWidth: 1)
+        )
+    }
+
+    private func copyBlocks() {
+        UIPasteboard.general.string = plan.copyText
+        HapticService.shared.notificationSuccess()
+        isCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            isCopied = false
+        }
+    }
+
+    private func copyAndOpenShortcuts() {
+        UIPasteboard.general.string = plan.copyText
+        HapticService.shared.buttonTap()
+
+        guard let url = ShortcutGenerator.shared.createShortcutURL else {
+            return
+        }
+
+        UIApplication.shared.open(url, options: [:]) { success in
+            DispatchQueue.main.async {
+                openedShortcuts = success
+            }
+        }
+    }
+}
+
 // MARK: - 3. Carte de Rapport Visuel Enrichi (AdvancedVisionEngine)
 
 @available(iOS 14.0, *)
