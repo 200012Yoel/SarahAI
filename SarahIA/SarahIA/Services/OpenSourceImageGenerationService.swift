@@ -151,8 +151,10 @@ public final class OpenSourceImageGenerationService {
         let isPhotographic = photographicWords.contains { folded.contains($0) }
 
         let translated = translateVisualTermsToEnglish(clean)
-        let subject = detectPrimarySubject(in: clean)
+        let subjects = detectAllSubjects(in: clean)
+        let subject = subjects.first
         let colors = detectRequestedColors(in: clean)
+        let relations = detectRelationshipHints(in: clean, subjects: subjects)
 
         var parts: [String] = []
 
@@ -164,8 +166,16 @@ public final class OpenSourceImageGenerationService {
                 parts.append(subject)
             }
 
-            parts.append("single main \(subject)")
+            if subjects.count == 1 {
+                parts.append("single main \(subject)")
+            } else {
+                parts.append("main subject: \(subject)")
+                parts.append("scene contains all requested subjects: \(naturalList(subjects))")
+                parts.append("all requested subjects clearly visible and recognizable")
+            }
         }
+
+        parts.append(contentsOf: relations)
 
         if !translated.isEmpty {
             parts.append(translated)
@@ -251,6 +261,11 @@ public final class OpenSourceImageGenerationService {
             .replacingOccurrences(of: "d'une ", with: "", options: .caseInsensitive)
 
         let phraseReplacements: [(String, String)] = [
+            ("un petit lapin en train de le grimper", "a small rabbit visibly climbing onto the airplane fuselage"),
+            ("petit lapin en train de le grimper", "small rabbit visibly climbing onto the airplane fuselage"),
+            ("lapin en train de le grimper", "rabbit visibly climbing onto the airplane fuselage"),
+            ("lapin en train de grimper sur l'avion", "rabbit visibly climbing onto the airplane fuselage"),
+            ("lapin qui grimpe sur l'avion", "rabbit visibly climbing onto the airplane fuselage"),
             ("sur une moto", "on a motorcycle"),
             ("sur un moto", "on a motorcycle"),
             ("sur une voiture", "on a car"),
@@ -339,6 +354,10 @@ public final class OpenSourceImageGenerationService {
     }
 
     private func detectPrimarySubject(in text: String) -> String? {
+        detectAllSubjects(in: text).first
+    }
+
+    private func detectAllSubjects(in text: String) -> [String] {
         let subjectMap: [(String, String)] = [
             ("avion", "airplane"), ("airplane", "airplane"), ("aeronef", "aircraft"),
             ("lapin", "rabbit"), ("rabbit", "rabbit"),
@@ -350,6 +369,7 @@ public final class OpenSourceImageGenerationService {
             ("train", "train"), ("bateau", "boat"), ("boat", "boat"),
             ("femme", "woman"), ("woman", "woman"),
             ("homme", "man"), ("man", "man"),
+            ("enfant", "child"), ("child", "child"),
             ("robot", "robot"), ("oiseau", "bird"), ("bird", "bird"),
             ("dauphin", "dolphin"), ("dolphin", "dolphin"),
             ("maison", "house"), ("house", "house")
@@ -361,13 +381,38 @@ public final class OpenSourceImageGenerationService {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
 
+        var subjects: [String] = []
         for word in words {
-            if let match = subjectMap.first(where: { $0.0 == word }) {
-                return match.1
+            if let match = subjectMap.first(where: { $0.0 == word })?.1,
+               !subjects.contains(match) {
+                subjects.append(match)
             }
         }
+        return subjects
+    }
 
-        return nil
+    private func detectRelationshipHints(
+        in text: String,
+        subjects: [String]
+    ) -> [String] {
+        let folded = text
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "’", with: "'")
+
+        var hints: [String] = []
+
+        let hasAirplane = subjects.contains("airplane") || subjects.contains("aircraft")
+        let hasRabbit = subjects.contains("rabbit")
+        let climbing = folded.contains("grimp") || folded.contains("escalad") || folded.contains("monte sur")
+
+        if hasAirplane && hasRabbit && climbing {
+            hints.append("a small rabbit is visibly climbing onto the outside of the airplane fuselage")
+            hints.append("the rabbit is touching the airplane and is easy to see")
+            hints.append("show both the airplane and the rabbit in the same coherent scene")
+        }
+
+        return hints
     }
 
     private func detectRequestedColors(in text: String) -> [String] {
