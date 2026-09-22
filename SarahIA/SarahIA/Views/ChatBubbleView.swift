@@ -196,7 +196,8 @@ public struct ChatBubbleView: View {
                         prompt: message.videoGenerationPrompt ?? message.content,
                         startsGenerating: message.isVideoGenerationPlaceholder,
                         videoURL: message.detectedGeneratedVideoURL,
-                        requestedDuration: message.audioDuration
+                        requestedDuration: message.audioDuration,
+                        isVertical: message.videoIsVertical ?? false
                     )
                     .frame(maxWidth: 300)
                 }
