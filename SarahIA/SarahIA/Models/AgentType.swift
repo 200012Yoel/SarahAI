@@ -45,7 +45,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     
     public var roleDescription: String {
         switch self {
-        case .sarah:  return "Voix système principale (Rose néon)"
+        case .sarah:  return "Voix système principale (Bleu Sarah)"
         case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
         case .esther: return "Développeur : sites, apps iOS & code (Bleu ciel)"
         case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
@@ -184,7 +184,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var themeColor: Color {
         switch self {
         case .sarah:
-            return Color(red: 1.0, green: 0.18, blue: 0.65)   // Rose Néon / Magenta
+            return Color(red: 0.10, green: 0.53, blue: 0.98)   // Bleu Sarah / iMessage
         case .tom:
             return Color(red: 0.05, green: 0.85, blue: 0.45)  // Vert Émeraude
         case .esther:
@@ -202,7 +202,11 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var gradientColors: [Color] {
         switch self {
         case .sarah:
-            return [Color.white, Color(red: 1.0, green: 0.25, blue: 0.70), Color(red: 0.95, green: 0.05, blue: 0.55)]
+            return [
+                Color.white,
+                Color(red: 0.20, green: 0.66, blue: 1.0),
+                Color(red: 0.04, green: 0.42, blue: 0.96)
+            ]
         case .tom:
             return [Color.white, Color(red: 0.20, green: 0.90, blue: 0.55), Color(red: 0.02, green: 0.75, blue: 0.38)]
         case .esther:
@@ -231,7 +235,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     #if canImport(UIKit)
     public var uiColor: UIColor {
         switch self {
-        case .sarah:   return UIColor(red: 1.0, green: 0.18, blue: 0.65, alpha: 1.0)
+        case .sarah:   return UIColor(red: 0.10, green: 0.53, blue: 0.98, alpha: 1.0)
         case .tom:     return UIColor(red: 0.05, green: 0.85, blue: 0.45, alpha: 1.0)
         case .esther:  return UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
         case .yohan:   return UIColor(red: 0.0, green: 0.45, blue: 0.90, alpha: 1.0)
