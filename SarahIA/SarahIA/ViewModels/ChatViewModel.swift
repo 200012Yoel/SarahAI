@@ -729,6 +729,14 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(userMessage)
         inputText = ""
 
+        // Une demande de suivi peut arriver après un changement d'agent,
+        // un retour dans la discussion ou une relance de l'app. On restaure
+        // d'abord le contexte web de CETTE conversation avant de décider quoi faire.
+        if WebsiteBrief.looksLikeWebsiteFollowUp(text),
+           (vaiCurrentCode == nil || vaiCurrentCode?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true) {
+            restoreWebsiteContext(for: currentConversationId)
+        }
+
         // Compétence web de Raphaël : il garde le site courant comme contexte,
         // au lieu de repartir de zéro quand l'utilisateur dit simplement
         // « améliore le site que tu as créé ».
@@ -757,7 +765,7 @@ public final class ChatViewModel: ObservableObject {
         }
 
         if (WebsiteBrief.isRefinementRequest(text)
-            || (activeAgent == .esther && WebsiteBrief.isContextualRefinementRequest(text))),
+            || (vaiCurrentCode != nil && WebsiteBrief.isContextualRefinementRequest(text))),
            let currentHTML = vaiCurrentCode,
            !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
@@ -909,6 +917,10 @@ public final class ChatViewModel: ObservableObject {
 
                 if let code = response.generatedCode {
                     self.vaiCurrentCode = code
+                    self.captureWebsiteContextIfNeeded(
+                        generatedCode: code,
+                        userRequest: text
+                    )
                 }
 
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
@@ -925,6 +937,33 @@ public final class ChatViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Enregistre aussi les sites produits par la voie générale de Raphaël.
+    /// Avant, seuls les sites créés par le questionnaire étaient persistés, ce
+    /// qui expliquait qu'un « améliore le site que tu as créé » puisse perdre le fil.
+    private func captureWebsiteContextIfNeeded(
+        generatedCode: String,
+        userRequest: String
+    ) {
+        let lower = generatedCode.lowercased()
+        let looksLikeWebsite =
+            lower.contains("<!doctype html")
+            || (lower.contains("<html") && lower.contains("</html>"))
+            || (lower.contains("<body") && lower.contains("</body>"))
+
+        guard looksLikeWebsite else { return }
+
+        if websiteDraft == nil {
+            websiteDraft = WebsiteBrief.inferred(from: userRequest)
+        }
+
+        vaiCurrentCode = generatedCode
+        _ = VAICodeEngine.shared.saveFile(
+            filename: "index.html",
+            content: generatedCode
+        )
+        saveWebsiteContext()
     }
 
     /// Construit une première version HTML locale depuis le brief rempli avec Raphaël.
