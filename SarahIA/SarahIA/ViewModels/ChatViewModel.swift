@@ -686,6 +686,20 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
+    public func selectAgent(_ agent: AgentType) {
+        haptics.buttonTap()
+        let previous = activeAgent
+        transitionToAgent(agent, source: previous)
+
+        if isContinuousConversationActive, previous != agent {
+            ensureVoicePipelinePrepared()
+            voiceManager.speak(
+                text: "\(agent.displayName) est prêt. Que veux-tu faire ?",
+                for: agent
+            )
+        }
+    }
+
     private func looksLikeDeveloperHandoff(_ text: String) -> Bool {
         let n = normalizedIntent(text)
         let names = ["agent developpeur", "developpeur", "raphael", "rafael", "agent code", "agent de code"]
