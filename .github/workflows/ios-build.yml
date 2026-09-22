@@ -161,6 +161,16 @@ jobs:
             exit 1
           fi
 
+          grep -Fq 'fullScreenCover(item: $fullscreenImageItem)' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le viewer image peut à nouveau s'ouvrir sans image."
+            exit 1
+          }
+
+          grep -Fq 'detectRelationshipHints' "SarahIA/SarahIA/Services/OpenSourceImageGenerationService.swift" || {
+            echo "❌ Les relations multi-sujets des prompts image ont disparu."
+            exit 1
+          }
+
           echo "✅ Garde-fous Sarah validés."
 
       - name: Build iOS 26 App
