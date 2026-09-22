@@ -1005,6 +1005,20 @@ public final class MultiAgentCoordinator {
 
                 let profile = SarahGenerativeModelCatalog.musicProfile()
 
+                guard let requestedSeconds = musicCheck.requestedSeconds else {
+                    let responseText = """
+                    🎵 **Combien de temps ?**
+
+                    Choisis **20 secondes**, **30 secondes** ou **1 minute**.
+                    """
+                    completion(AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: "Combien de temps veux-tu pour la musique ? Vingt secondes, trente secondes ou une minute ?"
+                    ))
+                    return
+                }
+
                 guard SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled else {
                     let responseText = """
                     🎵 **Sarah & Nathan [Musique locale]**
@@ -1021,19 +1035,24 @@ public final class MultiAgentCoordinator {
                 }
 
                 SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
+                    prompt: musicCheck.prompt,
+                    seconds: requestedSeconds
                 ) { _ in }
+
+                let durationText = requestedSeconds >= 60
+                    ? "1 minute"
+                    : "\(Int(requestedSeconds)) secondes"
 
                 let responseText = """
                 🎵 **Sarah & Nathan [Musique locale]**
 
-                Génération lancée avec **\(profile.displayName)**.
+                Génération **\(durationText)** lancée avec **\(profile.displayName)**.
                 L'inférence s'exécute localement sur l'iPhone.
                 """
                 completion(AgentResponse(
                     agent: .nathan,
                     text: responseText,
-                    spokenText: "Je lance la génération musicale locale."
+                    spokenText: "Je lance la génération musicale pour \(durationText)."
                 ))
                 return
             }
