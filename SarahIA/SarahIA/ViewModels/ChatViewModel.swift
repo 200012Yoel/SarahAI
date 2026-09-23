@@ -118,9 +118,6 @@ public final class ChatViewModel: ObservableObject {
         setupModeObserver()
         bindCoreServices()
 
-        if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-voice") {
-            isShowingVoiceOrbModal = true
-        }
     }
     
     public func appendVisionAnalysis(
@@ -1477,7 +1474,12 @@ public final class ChatViewModel: ObservableObject {
     
     private func ensureConversation(withFirstMessage text: String) {
         if currentConversationId == nil || !conversations.contains(where: { $0.id == currentConversationId }) {
-            let title = aiService.generateSmartTitle(from: text)
+            let compact = text
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "**", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let fallback = "Nouvelle discussion"
+            let title = compact.isEmpty ? fallback : String(compact.prefix(44))
             let newConv = Conversation(title: title)
             conversations.insert(newConv, at: 0)
             currentConversationId = newConv.id
