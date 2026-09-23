@@ -43,8 +43,22 @@ public struct MessageBar: View {
     public var body: some View {
         HStack(spacing: 10) {
             Menu {
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenActions()
+                }) {
+                    Label("Ajouter une photo ou vidéo", systemImage: "photo.on.rectangle.angled")
+                }
+
+                Divider()
+
                 Button(action: openRaphaelStudio) {
                     Label("Studio Raphaël · Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+
+                Button(action: prepare3DStudioPrompt) {
+                    Label("Studio Raphaël · 3D", systemImage: "cube.transparent")
                 }
 
                 Button(action: startGuidedWebsite) {
@@ -87,7 +101,7 @@ public struct MessageBar: View {
                         intensity: 0.10
                     )
             }
-            .accessibilityLabel("Ouvrir les outils rapides")
+            .accessibilityLabel("Ajouter un média ou ouvrir les outils rapides")
 
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
@@ -207,6 +221,14 @@ public struct MessageBar: View {
         activeAgent = .esther
         isComposerFocused = false
         onSend("Donne-moi l'agent développeur")
+    }
+
+    private func prepare3DStudioPrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Crée-moi une scène 3D éditable. Commence par extraire les dimensions, les étages, la hauteur sous plafond, les pièces, les ouvertures, les matériaux, l'éclairage et le style, puis prépare la scène paramétrique. "
+        isComposerFocused = true
     }
 
     private func prepareDebugPrompt() {
