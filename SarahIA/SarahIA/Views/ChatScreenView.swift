@@ -190,7 +190,7 @@ public struct ChatScreenView: View {
             // trop proche du bord inférieur. On le remonte légèrement au repos,
             // tout en gardant un écart minimal quand le clavier est affiché pour
             // éviter le double décalage clavier corrigé précédemment.
-            .padding(.bottom, keyboard.isVisible ? 6 : 24)
+            .padding(.bottom, keyboard.isVisible ? 8 : 38)
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [
