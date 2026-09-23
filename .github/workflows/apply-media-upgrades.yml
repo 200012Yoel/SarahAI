@@ -1,0 +1,55 @@
+name: Apply Sarah Media Upgrades
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/chatgpt-ui-media-shortcuts-20260922
+    paths:
+      - tools/apply_media_prompt_upgrade.py
+      - .github/workflows/apply-media-upgrades.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: feature/chatgpt-ui-media-shortcuts-20260922
+
+      - name: Validate migration script
+        run: python3 -m py_compile tools/apply_media_prompt_upgrade.py
+
+      - name: Apply media and 3D upgrade
+        run: python3 tools/apply_media_prompt_upgrade.py
+
+      - name: Validate resulting diff
+        run: git diff --check
+
+      - name: Commit upgrade
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@github.com"
+
+          git add \
+            SarahIA/SarahIA/Services/AIService.swift \
+            SarahIA/SarahIA/Services/MultiAgentCoordinator.swift \
+            SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift \
+            SarahIA/SarahIA/Services/SarahLocalImageGenEngine.swift \
+            SarahIA/SarahIA/Services/OpenSourceImageGenerationService.swift \
+            SarahIA/SarahIA/Views/SettingsView.swift \
+            SarahIA/SarahIA/Views/VAICodingStudioView.swift
+
+          git commit -m "Wire adaptive media prompts and native 3D studio"
+          git push origin HEAD:feature/chatgpt-ui-media-shortcuts-20260922
