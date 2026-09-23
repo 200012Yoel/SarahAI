@@ -43,13 +43,23 @@ public struct MessageBar: View {
     public var body: some View {
         HStack(spacing: 10) {
             Menu {
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    isComposerFocused = false
-                    onOpenVAICoding()
-                }) {
+                Button(action: openRaphaelStudio) {
                     Label("Studio Raphaël · Code", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
+
+                Button(action: startGuidedWebsite) {
+                    Label("Créer un site guidé", systemImage: "safari")
+                }
+
+                Button(action: prepareDebugPrompt) {
+                    Label("Déboguer / améliorer du code", systemImage: "wrench.and.screwdriver")
+                }
+
+                Button(action: prepareAppleWebsitePrompt) {
+                    Label("Site Apple · Liquid Glass", systemImage: "sparkles.rectangle.stack")
+                }
+
+                Divider()
 
                 Button(action: {
                     HapticService.shared.buttonTap()
@@ -58,8 +68,6 @@ public struct MessageBar: View {
                 }) {
                     Label("Mode vocal", systemImage: "waveform.circle.fill")
                 }
-
-                Divider()
 
                 Button(action: {
                     HapticService.shared.buttonTap()
@@ -92,12 +100,7 @@ public struct MessageBar: View {
                 .font(.system(size: 15))
 
                 if activeAgent == .esther {
-                    Button(action: {
-                        guard !isProcessing else { return }
-                        HapticService.shared.buttonTap()
-                        isComposerFocused = false
-                        onOpenVAICoding()
-                    }) {
+                    Button(action: openRaphaelStudio) {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
                             .foregroundColor(activeAgent.themeColor)
                             .font(.system(size: 17, weight: .semibold))
@@ -188,6 +191,38 @@ public struct MessageBar: View {
                 }
             }
         }
+    }
+
+    private func openRaphaelStudio() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        isComposerFocused = false
+        onOpenVAICoding()
+    }
+
+    private func startGuidedWebsite() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        isComposerFocused = false
+        onSend("Donne-moi l'agent développeur")
+    }
+
+    private func prepareDebugPrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Analyse ce code, trouve les bugs et propose une version corrigée : "
+        isComposerFocused = true
+    }
+
+    private func prepareAppleWebsitePrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Je veux créer un site internet avec un style Apple / Liquid Glass. "
+        isComposerFocused = true
     }
 
     private func submitMessage() {
