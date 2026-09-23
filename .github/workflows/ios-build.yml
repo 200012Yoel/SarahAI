@@ -115,14 +115,6 @@ jobs:
 
           check_alive() {
             LABEL="$1"
-            # Simulator app processes run as normal host processes. `launchctl list`
-            # is not a reliable liveness source after opening a UIScene/deep link:
-            # the app can remain RunningBoard-active while its launchctl label is
-            # absent. Check the actual SarahIA process instead so a live voice UI
-            # is not reported as a crash.
-            # Xcode 27's simulator can briefly make host-side pgrep return a
-            # false negative while a UIScene/deep link is being handed over.
-            # Retry against the executable path before declaring a crash.
             ALIVE=0
             for ATTEMPT in 1 2 3 4 5; do
               if ps -ax -o command= | grep -F "/SarahIA.app/SarahIA" | grep -v grep >/dev/null 2>&1; then
@@ -182,6 +174,13 @@ jobs:
           sleep 8
           check_alive "Voice interface"
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/05-voice.png"
+          terminate_app
+
+          echo "=== 6. 3D environment studio ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-3d
+          sleep 8
+          check_alive "3D environment studio"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/06-3d-studio.png"
           terminate_app
 
           stop_recording
@@ -262,7 +261,7 @@ jobs:
         with:
           tag_name: latest
           name: "Sarah IA - iOS 27 / Local AI"
-          body: "Build #${{ github.run_number }}. Sarah IA avec tests simulateur clavier, voix et parcours développeur avant emballage de l'IPA."
+          body: "Build #${{ github.run_number }}. Sarah IA avec tests simulateur clavier, voix, studio 3D et parcours développeur avant emballage de l'IPA."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
