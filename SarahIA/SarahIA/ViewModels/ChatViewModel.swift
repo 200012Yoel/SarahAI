@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 import AVFoundation
+import UIKit
 
 /// Mode d'affichage actif de l'application Sarah AI
 public enum AppMode: String, Codable {
@@ -122,6 +123,37 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    public func appendVisionAnalysis(
+        image: UIImage,
+        result: LocalVisionEngine.VisionAnalysisResult
+    ) {
+        let imageData = image.jpegData(compressionQuality: 0.88)
+        let textSuffix = result.detectedText.isEmpty
+            ? ""
+            : "\n\n📝 **Texte détecté** : \(result.detectedText)"
+
+        appendMessage(
+            Message(
+                content: "👁️ **Vision locale**\n\n\(result.naturalSpokenResponse)\(textSuffix)",
+                isFromUser: false,
+                imageData: imageData
+            )
+        )
+    }
+
+    public func appendEditedVideo(url: URL, title: String, vertical: Bool) {
+        appendMessage(
+            Message(
+                content: "✂️ **Montage Nathan exporté**\n\n\(title)",
+                isFromUser: false,
+                generatedVideoURL: url.absoluteString,
+                videoGenerationPrompt: "Montage vidéo local Nathan",
+                videoIsVertical: vertical,
+                isGeneratingVideo: false
+            )
+        )
+    }
+
     // MARK: - Liaison des Services
 
     private func normalizedMediaPrompt(_ value: String) -> String {
