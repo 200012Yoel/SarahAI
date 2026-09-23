@@ -1674,7 +1674,7 @@ private struct SarahSceneKitPreview: UIViewRepresentable {
         camera.camera = SCNCamera()
         camera.camera?.fieldOfView = 58
         camera.position = SCNVector3(0, 5.2, 11.5)
-        camera.eulerAngles.x = -.35
+        camera.eulerAngles.x = -0.35
         scene.rootNode.addChildNode(camera)
 
         let ambient = SCNNode()
