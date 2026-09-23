@@ -149,18 +149,14 @@ jobs:
           terminate_app
 
           echo "=== 3. Developer handoff ==="
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app
-          sleep 2
-          xcrun simctl openurl "$SIM_UDID" "sarahia://developer"
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-developer
           sleep 4
           check_alive "Developer handoff"
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/03-developer.png"
           terminate_app
 
           echo "=== 4. Complete guided website skill ==="
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app
-          sleep 2
-          xcrun simctl openurl "$SIM_UDID" "sarahia://developer-demo"
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-developer
           sleep 8
           check_alive "Developer guided flow"
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/04-developer-complete.png"
@@ -169,10 +165,8 @@ jobs:
           echo "=== 5. Voice interface ==="
           xcrun simctl privacy "$SIM_UDID" grant microphone com.sarahia.app || true
           xcrun simctl privacy "$SIM_UDID" grant speech-recognition com.sarahia.app || true
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app
-          sleep 2
-          xcrun simctl openurl "$SIM_UDID" "sarahia://voice"
-          sleep 6
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-voice
+          sleep 8
           check_alive "Voice interface"
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/05-voice.png"
           terminate_app
