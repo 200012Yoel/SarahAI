@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 /// Interface vocale Sarah.
-/// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
+/// La feuille peut être fermée sans interrompre la session vocale : la mini-barre
+/// reste alors visible dans le chat jusqu'à ce que l'utilisateur touche X.
 @available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -39,7 +40,7 @@ public struct VoiceOrbModalView: View {
         case .processing:
             return "Je réfléchis…"
         case .speaking:
-            return "Sarah parle"
+            return "\(viewModel.activeAgent.displayName) parle"
         case .error:
             return "Micro indisponible"
         default:
@@ -52,14 +53,14 @@ public struct VoiceOrbModalView: View {
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .error:
-            return "Touchez le micro pour réessayer"
+        case .error(let message):
+            return message.isEmpty ? "Touchez le micro pour réessayer" : message
         case .starting:
-            return "Autorisez le micro si iOS vous le demande"
+            return "Autorisez le micro et la reconnaissance vocale si iOS vous le demande"
         case .processing:
             return "Un instant…"
         case .speaking:
-            return "Tu peux interrompre Sarah en touchant le micro"
+            return "Tu peux couper le micro ou interrompre la session avec X"
         default:
             return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
         }
@@ -74,13 +75,13 @@ public struct VoiceOrbModalView: View {
                     .ignoresSafeArea()
 
                 RadialGradient(
-                    gradient: Gradient(colors: [
-                        accent.opacity(compact ? 0.08 : 0.14),
-                        accent.opacity(0.025),
+                    colors: [
+                        accent.opacity(compact ? 0.07 : 0.12),
+                        accent.opacity(0.018),
                         Color.clear
-                    ]),
+                    ],
                     center: compact ? .bottom : .center,
-                    startRadius: 40,
+                    startRadius: 36,
                     endRadius: compact ? 260 : 430
                 )
                 .ignoresSafeArea()
@@ -92,17 +93,24 @@ public struct VoiceOrbModalView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             pulse = true
             drift = true
+
             if !viewModel.isContinuousConversationActive {
                 viewModel.startVoiceConversation()
+            } else if !viewModel.isVoiceMicrophoneMuted,
+                      !viewModel.isMicRunning,
+                      !viewModel.isSpeaking {
+                // Réouvrir la feuille doit aussi réarmer le micro si la session
+                // est encore active mais que la reconnaissance s'est arrêtée.
+                viewModel.resumeVoiceMicrophone()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-            // Ne pas couper la session sur willResignActive : l'alerte système
-            // d'autorisation micro provoque elle-même cet événement. On arrête
-            // uniquement lorsque l'application passe réellement en arrière-plan.
+            // On coupe uniquement si l'application entière passe en arrière-plan.
+            // Fermer la feuille ou revenir au chat ne coupe jamais la session.
             viewModel.stopVoiceConversation()
         }
     }
@@ -138,8 +146,9 @@ public struct VoiceOrbModalView: View {
                 } else {
                     Text(statusSubtitle)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.46))
+                        .foregroundColor(Color.white.opacity(0.48))
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 22)
                 }
             }
             .frame(minHeight: 76)
@@ -152,7 +161,7 @@ public struct VoiceOrbModalView: View {
         }
     }
 
-    // MARK: - Mode réduit quand la feuille est baissée
+    // MARK: - Mode réduit
 
     private var compactLayout: some View {
         VStack(spacing: 10) {
@@ -226,11 +235,11 @@ public struct VoiceOrbModalView: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        gradient: Gradient(colors: [
-                            accent.opacity(0.30),
-                            accent.opacity(0.08),
+                        colors: [
+                            accent.opacity(0.28),
+                            accent.opacity(0.07),
                             Color.clear
-                        ]),
+                        ],
                         center: .center,
                         startRadius: core * 0.20,
                         endRadius: size * 0.52
@@ -242,7 +251,7 @@ public struct VoiceOrbModalView: View {
             ForEach(0..<2) { index in
                 Circle()
                     .stroke(
-                        accent.opacity(index == 0 ? 0.40 : 0.18),
+                        accent.opacity(index == 0 ? 0.38 : 0.16),
                         lineWidth: 1
                     )
                     .frame(
@@ -264,18 +273,18 @@ public struct VoiceOrbModalView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.96),
-                                accent.opacity(0.94),
+                            colors: [
+                                Color.white.opacity(0.95),
+                                accent.opacity(0.88),
                                 accent
-                            ]),
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
 
                 Circle()
-                    .fill(Color.white.opacity(0.54))
+                    .fill(Color.white.opacity(0.48))
                     .frame(width: core * 0.48, height: core * 0.48)
                     .blur(radius: size > 150 ? 17 : 8)
                     .offset(
@@ -296,9 +305,9 @@ public struct VoiceOrbModalView: View {
             .clipShape(Circle())
             .overlay(
                 Circle()
-                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
+                    .stroke(Color.white.opacity(0.44), lineWidth: 1.3)
             )
-            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
+            .shadow(color: accent.opacity(0.50), radius: size > 150 ? 18 : 10)
             .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
             .animation(
                 Animation.spring(response: 0.26, dampingFraction: 0.76),
@@ -309,9 +318,9 @@ public struct VoiceOrbModalView: View {
         .onTapGesture {
             HapticService.shared.buttonTap()
             if viewModel.isMicRunning {
-                viewModel.toggleMicrophone()
+                viewModel.pauseVoiceMicrophone()
             } else {
-                viewModel.startVoiceConversation()
+                viewModel.resumeVoiceMicrophone()
             }
         }
     }
@@ -326,7 +335,7 @@ public struct VoiceOrbModalView: View {
 
             HStack(spacing: 10) {
                 TextField(
-                    "Demander à Sarah…",
+                    "Demander à \(viewModel.activeAgent.displayName)…",
                     text: $viewModel.inputText,
                     onCommit: {
                         sendTextIfNeeded()
@@ -340,9 +349,9 @@ public struct VoiceOrbModalView: View {
                     HapticService.shared.buttonTap()
                     if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if viewModel.isMicRunning {
-                            viewModel.toggleMicrophone()
+                            viewModel.pauseVoiceMicrophone()
                         } else {
-                            viewModel.startVoiceConversation()
+                            viewModel.resumeVoiceMicrophone()
                         }
                     } else {
                         sendTextIfNeeded()
@@ -352,7 +361,7 @@ public struct VoiceOrbModalView: View {
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(accent)
                         .frame(width: 36, height: 36)
-                        .background(Circle().fill(accent.opacity(0.11)))
+                        .background(Circle().fill(accent.opacity(0.10)))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -362,7 +371,7 @@ public struct VoiceOrbModalView: View {
             .sarahLiquidGlass(
                 cornerRadius: 26,
                 tint: accent,
-                intensity: 0.10
+                intensity: 0.08
             )
 
             circleButton(
@@ -405,13 +414,13 @@ public struct VoiceOrbModalView: View {
                     .frame(width: size, height: size)
 
                 Circle()
-                    .fill(highlighted ? accent.opacity(0.28) : Color.white.opacity(0.04))
+                    .fill(highlighted ? accent.opacity(0.12) : Color.white.opacity(0.025))
                     .frame(width: size, height: size)
 
                 Circle()
                     .stroke(
-                        highlighted ? accent.opacity(0.52) : Color.white.opacity(0.18),
-                        lineWidth: 0.8
+                        highlighted ? accent.opacity(0.34) : Color.white.opacity(0.16),
+                        lineWidth: 0.75
                     )
                     .frame(width: size, height: size)
 
