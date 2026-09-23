@@ -4,6 +4,10 @@ import CoreML
 import AVFoundation
 import CoreImage
 
+#if canImport(CoreAI)
+import CoreAI
+#endif
+
 #if canImport(StableDiffusion)
 import StableDiffusion
 #endif
@@ -312,16 +316,106 @@ public final class SarahLocalImageGenEngine {
     }
 }
 
+
+#if canImport(CoreAI)
+/// Pont Core AI iOS 27. Il ne fabrique pas un faux modèle : il ne s'active que
+/// lorsqu'un vrai paquet .aimodel/.aimodelc est installé sur l'appareil.
+@available(iOS 27.0, *)
+public actor SarahCoreAIVideoRuntime {
+    public static let shared = SarahCoreAIVideoRuntime()
+
+    public struct PreparedModelInfo: Sendable {
+        public let modelURL: URL
+        public let deviceArchitecture: String
+        public let functionName: String
+    }
+
+    private var loadedModel: AIModel?
+    private var mainFunction: InferenceFunction?
+
+    private init() {}
+
+    public static var deviceArchitectureName: String {
+        AIModel.deviceArchitectureName
+    }
+
+    public static func discoverInstalledModelURL() -> URL? {
+        let fileManager = FileManager.default
+        let architecture = AIModel.deviceArchitectureName
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        let directory = base
+            .appendingPathComponent("SarahAI", isDirectory: true)
+            .appendingPathComponent("GenerativeModels", isDirectory: true)
+            .appendingPathComponent("wan21-coreai-1.3b-4bit", isDirectory: true)
+
+        let candidates = [
+            directory.appendingPathComponent("Wan21Sarah.\(architecture).aimodelc"),
+            directory.appendingPathComponent("Wan21Sarah.aimodel")
+        ]
+
+        for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+
+        if let compiled = Bundle.main.url(
+            forResource: "Wan21Sarah.\(architecture)",
+            withExtension: "aimodelc"
+        ) {
+            return compiled
+        }
+
+        return Bundle.main.url(forResource: "Wan21Sarah", withExtension: "aimodel")
+    }
+
+    public static var isInstalled: Bool {
+        discoverInstalledModelURL() != nil
+    }
+
+    /// Spécialise et charge le modèle pour l'iPhone courant. La signature de
+    /// génération vidéo reste volontairement séparée : elle dépend du paquet
+    /// Wan converti et de ses fonctions exportées.
+    public func prepare() async throws -> PreparedModelInfo {
+        guard let modelURL = Self.discoverInstalledModelURL() else {
+            throw NSError(
+                domain: "SarahCoreAIVideoRuntime",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Paquet vidéo Core AI Wan 2.1 absent."]
+            )
+        }
+
+        let model = try await AIModel(contentsOf: modelURL)
+        guard let function = try model.loadFunction(named: "main") else {
+            throw NSError(
+                domain: "SarahCoreAIVideoRuntime",
+                code: 422,
+                userInfo: [NSLocalizedDescriptionKey: "Le paquet Core AI ne contient pas de fonction main exploitable."]
+            )
+        }
+
+        loadedModel = model
+        mainFunction = function
+
+        return PreparedModelInfo(
+            modelURL: modelURL,
+            deviceArchitecture: AIModel.deviceArchitectureName,
+            functionName: "main"
+        )
+    }
+}
+#endif
+
 // MARK: - Génération vidéo locale
 
 /// Routage vidéo local de Sarah.
 ///
-/// MobileI2V est sélectionné sur les appareils de classe iPhone 14 comme
-/// candidat expérimental. MOVD est sélectionné sur les appareils plus puissants
-/// lorsque la configuration publiée (iOS 18+, ~8 Go de RAM) est satisfaite.
+/// Le catalogue sélectionne automatiquement un backend selon la RAM et iOS :
+/// Wan 2.1/Core AI sur les appareils iOS 27 compatibles, MOVD/MobileI2V sur
+/// les profils intermédiaires, et Sarah Motion Video sur les appareils anciens.
 ///
-/// Cette classe ne prétend pas qu'un portage est actif tant que les modèles
-/// Core ML nécessaires ne sont pas réellement présents dans l'app.
+/// Cette classe ne prétend jamais qu'un runtime de diffusion est actif tant que
+/// son vrai paquet converti n'est pas présent. Le fallback vidéo local reste
+/// disponible pour éviter un échec complet sur les iPhone moins puissants.
 public final class SarahLocalVideoGenEngine {
 
     public static let shared = SarahLocalVideoGenEngine()
@@ -377,6 +471,28 @@ public final class SarahLocalVideoGenEngine {
 
     public var profile: SarahGenerativeModelProfile {
         SarahGenerativeModelCatalog.videoProfile()
+    }
+
+    public var adaptiveBackendSummary: String {
+        let selected = profile
+        switch selected.identifier {
+        case "wan21-coreai-1.3b-4bit":
+            #if canImport(CoreAI)
+            if #available(iOS 27.0, *) {
+                let installed = SarahCoreAIVideoRuntime.isInstalled
+                return installed
+                    ? "Wan 2.1 / Core AI installé pour \(SarahCoreAIVideoRuntime.deviceArchitectureName)"
+                    : "Wan 2.1 / Core AI sélectionné, paquet absent : fallback Sarah Motion Video"
+            }
+            #endif
+            return "Core AI indisponible : fallback Sarah Motion Video"
+        case "movd-coreml":
+            return "MOVD Core ML sélectionné, fallback local tant que les MLPackage ne sont pas installés"
+        case "mobilei2v-027b":
+            return "MobileI2V sélectionné, fallback local tant que le runtime converti n'est pas installé"
+        default:
+            return "Sarah Motion Video actif"
+        }
     }
 
     public var localModelDirectory: URL {

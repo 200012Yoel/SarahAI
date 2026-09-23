@@ -266,8 +266,23 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
     public func startVideoModelDownload() {
         let profile = SarahGenerativeModelCatalog.videoProfile()
 
+        if profile.identifier == "wan21-coreai-1.3b-4bit" {
+            publishFailure("Le runtime Core AI iOS 27 est intégré. Il attend un paquet Wan21Sarah .aimodel/.aimodelc converti pour l'architecture de cet iPhone ; les poids PyTorch bruts ne sont pas installés comme s'ils étaient exécutables.")
+            return
+        }
+
+        if profile.identifier == "movd-coreml" {
+            publishFailure("MOVD nécessite les MLPackage convertis publiés par le projet. Sarah conserve le moteur vidéo local tant que ces paquets ne sont pas installés.")
+            return
+        }
+
+        if profile.identifier == "sarah-motion-video" {
+            publishFailure("Cet iPhone utilise Sarah Motion Video : aucun gros modèle vidéo supplémentaire n'est nécessaire.")
+            return
+        }
+
         guard profile.identifier == "mobilei2v-027b" else {
-            publishFailure("Le profil vidéo de cet appareil nécessite un paquet Core ML spécifique qui n'est pas distribué automatiquement.")
+            publishFailure("Aucun paquet vidéo téléchargeable n'est configuré pour ce profil.")
             return
         }
 

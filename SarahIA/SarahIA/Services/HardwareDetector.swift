@@ -265,7 +265,7 @@ public struct SarahGenerativeModelProfile: Codable, Equatable {
 
     public var isCommerciallyDistributableWithConditions: Bool {
         switch licenseName {
-        case "MIT", "Apache-2.0", "MIT (weights) / Apache-2.0 (code)":
+        case "MIT", "Apache-2.0", "MIT (weights) / Apache-2.0 (code)", "Code SarahIA":
             return true
         default:
             return licenseName.contains("OpenRAIL") || licenseName.contains("Stability AI Community")
@@ -409,57 +409,75 @@ public struct SarahGenerativeModelCatalog {
         let ram = physicalRAMGB
         let os = iosMajor
 
-        // Gros appareils : MOVD Core ML est la cible spécialisée locale.
+        // iOS 27 + appareils à forte mémoire : voie Core AI.
+        // Le paquet Wan doit être converti en .aimodel/.aimodelc avant exécution.
+        // Core AI choisit ensuite automatiquement l'artefact adapté à l'architecture.
+        if os >= 27 && ram >= 7.5 {
+            return SarahGenerativeModelProfile(
+                kind: .video,
+                identifier: "wan21-coreai-1.3b-4bit",
+                displayName: "Wan 2.1 1.3B · Core AI 4-bit",
+                resolution: "480p adaptatif",
+                licenseName: "Apache-2.0",
+                licenseURL: "https://github.com/Wan-Video/Wan2.1/blob/main/LICENSE.txt",
+                sourceURL: "https://github.com/Wan-Video/Wan2.1",
+                minimumRAMGB: 7.5,
+                minimumIOSMajor: 27,
+                runtimeState: .experimental,
+                note: "Runtime Core AI intégré. Sarah recherche un paquet Wan21Sarah.<architecture>.aimodelc ou Wan21Sarah.aimodel converti. Si le paquet n'est pas présent, elle garde le moteur vidéo local de secours au lieu de planter."
+            )
+        }
+
+        // iPhone 15 Pro / classe 8 Go sous iOS 18+ : MOVD Core ML est le
+        // candidat mobile natif le plus réaliste actuellement publié.
         if os >= 18 && ram >= 7.5 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "movd-coreml",
-                displayName: "MOVD Core ML",
-                resolution: "Texte → vidéo",
+                displayName: "MOVD · Core ML",
+                resolution: "profil mobile adaptatif",
                 licenseName: "MIT",
                 licenseURL: "https://github.com/eai-lab/MOVD/blob/main/LICENSE",
                 sourceURL: "https://github.com/eai-lab/MOVD",
                 minimumRAMGB: 7.5,
                 minimumIOSMajor: 18,
-                runtimeState: .requiresDownload,
-                note: "Profil vidéo dédié aux appareils à forte mémoire. Les poids réellement distribués doivent rester accompagnés de leur licence et de leurs notices."
+                runtimeState: .experimental,
+                note: "Voie Core ML publiée pour iPhone 15 Pro et appareils supérieurs. Les MLPackage convertis restent nécessaires."
             )
         }
 
-        // iPhone XR/XS/11 jusqu'aux modèles récents : une même famille de poids
-        // MobileI2V, avec paramètres de rendu adaptés à la mémoire du téléphone.
-        if os >= 16 && ram >= 3.0 {
+        // Appareils intermédiaires : MobileI2V est très compact mais son
+        // checkpoint PyTorch doit encore être converti pour une vraie inférence iOS.
+        if os >= 16 && ram >= 4.0 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "mobilei2v-027b",
-                displayName: ram < 4.5 ? "MobileI2V 0.27B · Low Memory" : "MobileI2V 0.27B",
-                resolution: ram < 4.5 ? "Image → vidéo · profil mémoire réduite" : "Image → vidéo",
-                licenseName: "MIT (weights) / Apache-2.0 (code)",
-                licenseURL: "https://huggingface.co/hustvl/MobileI2V",
+                displayName: "MobileI2V 0.27B",
+                resolution: ram >= 5.5 ? "960p / 17 images (profil cible)" : "512p / mémoire réduite",
+                licenseName: "Apache-2.0",
+                licenseURL: "https://github.com/hustvl/MobileI2V/blob/main/LICENSE.txt",
                 sourceURL: "https://github.com/hustvl/MobileI2V",
-                minimumRAMGB: 3.0,
+                minimumRAMGB: 4.0,
                 minimumIOSMajor: 16,
                 runtimeState: .experimental,
-                note: ram < 4.5
-                    ? "Profil prévu pour iPhone XR/XS/11 : checkpoint mobile partagé, nombre d'images et résolution à réduire au runtime. Le checkpoint peut être téléchargé, mais Sarah ne doit annoncer une vraie diffusion locale qu'après validation du port iOS."
-                    : "Modèle mobile compact. Le checkpoint peut être téléchargé ; le port iOS dédié reste signalé expérimental tant que l'inférence native n'est pas validée."
+                note: "Profil compact pour iPhone intermédiaires. Sarah ne prétend pas exécuter le checkpoint tant qu'un runtime mobile converti n'est pas installé."
             )
         }
 
-        // Les appareils sous le seuil mémoire conservent Sarah Motion Video pour
-        // pouvoir exporter un MP4 sans faire croire qu'un modèle de diffusion tient en RAM.
+        // XR / XS / anciens appareils : aucun gros modèle n'est téléchargé.
+        // Le moteur de mouvement local reste utilisable et évite les crashs mémoire.
         return SarahGenerativeModelProfile(
             kind: .video,
             identifier: "sarah-motion-video",
-            displayName: "Sarah Motion Video · Legacy",
-            resolution: "Animation locale à partir d'une image clé",
-            licenseName: "Code interne Sarah IA",
+            displayName: "Sarah Motion Video",
+            resolution: ram >= 3.0 ? "720p adaptatif" : "540p mémoire réduite",
+            licenseName: "Code SarahIA",
             licenseURL: "",
             sourceURL: "",
             minimumRAMGB: 0,
             minimumIOSMajor: 16,
             runtimeState: .ready,
-            note: "Fallback pour mémoire très contrainte : montage animé local, pas de fausse revendication de diffusion vidéo IA."
+            note: "Moteur vidéo local de compatibilité pour les iPhone anciens. Il anime une image clé localement et reste disponible quand les modèles de diffusion sont trop lourds."
         )
     }
 }
