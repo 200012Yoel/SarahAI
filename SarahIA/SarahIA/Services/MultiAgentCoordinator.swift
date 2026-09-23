@@ -1133,6 +1133,7 @@ public final class MultiAgentCoordinator {
             let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
             if imageCheck.isIntent {
                 let prompt = imageCheck.cleanedPrompt
+                let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
                 let profile = SarahGenerativeModelCatalog.imageProfile()
 
                 OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { result in
