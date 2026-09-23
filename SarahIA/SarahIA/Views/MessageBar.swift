@@ -42,10 +42,33 @@ public struct MessageBar: View {
 
     public var body: some View {
         HStack(spacing: 10) {
-            Button(action: {
-                HapticService.shared.buttonTap()
-                onOpenActions()
-            }) {
+            Menu {
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenVAICoding()
+                }) {
+                    Label("Studio Raphaël · Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenVoiceOrb()
+                }) {
+                    Label("Mode vocal", systemImage: "waveform.circle.fill")
+                }
+
+                Divider()
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenActions()
+                }) {
+                    Label("Tous les outils", systemImage: "square.grid.2x2")
+                }
+            } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(.white)
@@ -53,11 +76,10 @@ public struct MessageBar: View {
                     .sarahLiquidGlass(
                         cornerRadius: 22,
                         tint: activeAgent.themeColor,
-                        intensity: 0.08
+                        intensity: 0.10
                     )
             }
-            .buttonStyle(ScaleBounceButtonStyle())
-            .accessibilityLabel("Ouvrir les outils")
+            .accessibilityLabel("Ouvrir les outils rapides")
 
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
@@ -68,6 +90,25 @@ public struct MessageBar: View {
                 .foregroundColor(.white)
                 .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
+
+                if activeAgent == .esther {
+                    Button(action: {
+                        guard !isProcessing else { return }
+                        HapticService.shared.buttonTap()
+                        isComposerFocused = false
+                        onOpenVAICoding()
+                    }) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .foregroundColor(activeAgent.themeColor)
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(width: 30, height: 30)
+                            .background(activeAgent.themeColor.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(isProcessing)
+                    .accessibilityLabel("Ouvrir le Studio Raphaël")
+                }
 
                 Button(action: {
                     guard !isProcessing else { return }
@@ -86,7 +127,7 @@ public struct MessageBar: View {
             .sarahLiquidGlass(
                 cornerRadius: 24,
                 tint: activeAgent.themeColor,
-                intensity: 0.08
+                intensity: activeAgent == .esther ? 0.12 : 0.08
             )
 
             let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -99,6 +140,7 @@ public struct MessageBar: View {
                     submitMessage()
                 } else {
                     HapticService.shared.buttonTap()
+                    isComposerFocused = false
                     onOpenVoiceOrb()
                 }
             }) {
@@ -153,6 +195,7 @@ public struct MessageBar: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             HapticService.shared.buttonTap()
+            isComposerFocused = false
             onSend(trimmed)
             text = ""
         } else {
