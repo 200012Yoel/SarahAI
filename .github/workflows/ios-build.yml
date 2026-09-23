@@ -167,20 +167,20 @@ jobs:
           xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/04-developer-complete.png"
           terminate_app
 
-          echo "=== 5. Voice interface ==="
+          echo "=== 5. 3D environment studio ==="
+          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-3d
+          sleep 8
+          check_alive "3D environment studio"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/05-3d-studio.png"
+          terminate_app
+
+          echo "=== 6. Voice interface ==="
           xcrun simctl privacy "$SIM_UDID" grant microphone com.sarahia.app || true
           xcrun simctl privacy "$SIM_UDID" grant speech-recognition com.sarahia.app || true
           xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-voice
           sleep 8
           check_alive "Voice interface"
-          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/05-voice.png"
-          terminate_app
-
-          echo "=== 6. 3D environment studio ==="
-          xcrun simctl launch "$SIM_UDID" com.sarahia.app --sarah-ui-smoke-3d
-          sleep 8
-          check_alive "3D environment studio"
-          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/06-3d-studio.png"
+          xcrun simctl io "$SIM_UDID" screenshot "$GITHUB_WORKSPACE/ui-smoke/06-voice.png"
           terminate_app
 
           stop_recording
