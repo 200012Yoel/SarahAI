@@ -3,15 +3,15 @@ import UIKit
 
 /// Tiers Matériels Cibles
 public enum ModelTier: String, CaseIterable, Codable {
-    case ultraLight // iPhone 5s, 6, 6s, 7 (1 Go - 2 Go RAM) -> Modèles 0.5B (Q2_K / Q4_0)
-    case balanced   // iPhone 8, X, 11, 12 (3 Go - 4 Go RAM) -> Modèles 1.5B / 2B (Q4_K_M)
-    case highEnd    // iPhone 13, 14, 15, 16 (6 Go - 8 Go RAM) -> Modèles 3B / 7B (Q4_K_M / Q8)
+    case ultraLight // iPhone anciens à mémoire contrainte
+    case balanced   // iPhone 8 / X / XR / 11 / 12
+    case highEnd    // iPhone 13 / 14 / 15 / 16 / 17 et suivants
     
     public var displayName: String {
         switch self {
-        case .ultraLight: return "Ultra-Light (iPhone 5s / 6 / 7)"
-        case .balanced: return "Balanced (iPhone 8 / X / 11 / 12)"
-        case .highEnd: return "High-End (iPhone 13 / 14 / 15 / 16)"
+        case .ultraLight: return "Ultra-Light"
+        case .balanced: return "Balanced"
+        case .highEnd: return "High-End"
         }
     }
 }
@@ -19,7 +19,7 @@ public enum ModelTier: String, CaseIterable, Codable {
 /// Détecteur Matériel & Recommandation de Modèle Local
 public struct HardwareDetector {
     public static func getAvailableRAM() -> UInt64 {
-        return ProcessInfo.processInfo.physicalMemory / (1024 * 1024) // En Mo
+        ProcessInfo.processInfo.physicalMemory / (1024 * 1024)
     }
 
     public static func detectTier() -> ModelTier {
@@ -27,7 +27,7 @@ public struct HardwareDetector {
         switch ram {
         case ..<2500:
             return .ultraLight
-        case 2500..<4500:
+        case 2500..<5500:
             return .balanced
         default:
             return .highEnd
@@ -36,18 +36,198 @@ public struct HardwareDetector {
 
     public static func recommendModel() -> String {
         let ram = getAvailableRAM()
-        
         switch ram {
         case ..<2500:
-            // iPhone 5s / 6 / 7 / SE 1
             return "model-0.5b-q4_0.gguf"
         case 2500..<4500:
-            // iPhone 8 / X / 11 / 12
             return "model-1.5b-q4_k_m.gguf"
         default:
-            // iPhone 13 Pro / 14 / 15 / 16
             return "model-3b-q4_k_m.gguf"
         }
+    }
+}
+
+// MARK: - Compréhension sémantique des prompts média
+
+/// Couche légère de compréhension avant les moteurs image / vidéo / musique.
+/// Elle ne remplace pas les modèles : elle transforme une formulation naturelle
+/// en consignes plus explicites et reproductibles pour le moteur choisi.
+public struct SarahMediaPromptUnderstanding {
+    public enum AspectRatio: String, Codable {
+        case square = "1:1"
+        case portrait = "9:16"
+        case landscape = "16:9"
+        case classicPortrait = "4:5"
+    }
+
+    public struct ImageRequest: Codable {
+        public let subject: String
+        public let enhancedPrompt: String
+        public let aspectRatio: AspectRatio
+        public let wantsPhotorealism: Bool
+        public let exactText: String?
+    }
+
+    public struct VideoRequest: Codable {
+        public let subject: String
+        public let enhancedPrompt: String
+        public let aspectRatio: AspectRatio
+        public let durationSeconds: Double
+        public let cameraMotion: String
+        public let pacing: String
+    }
+
+    public struct MusicRequest: Codable {
+        public let subject: String
+        public let enhancedPrompt: String
+        public let durationSeconds: Double?
+        public let bpm: Int?
+        public let instrumentalOnly: Bool
+        public let language: String
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+    }
+
+    private static func aspectRatio(in text: String) -> AspectRatio {
+        let n = normalized(text)
+        if n.contains("9:16") || n.contains("vertical") || n.contains("reel") || n.contains("short") || n.contains("tiktok") {
+            return .portrait
+        }
+        if n.contains("4:5") || n.contains("post instagram") {
+            return .classicPortrait
+        }
+        if n.contains("16:9") || n.contains("paysage") || n.contains("youtube") || n.contains("cinema") || n.contains("cinematic") {
+            return .landscape
+        }
+        return .square
+    }
+
+    private static func quotedText(in text: String) -> String? {
+        let quotePairs: [(Character, Character)] = [("\"", "\""), ("«", "»")]
+        for (open, close) in quotePairs {
+            guard let first = text.firstIndex(of: open) else { continue }
+            let after = text.index(after: first)
+            guard let last = text[after...].firstIndex(of: close), last > after else { continue }
+            let value = String(text[after..<last]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return nil
+    }
+
+    private static func requestedSeconds(in text: String) -> Double? {
+        let n = normalized(text)
+        if n.contains("une minute") || n.contains("1 minute") || n.contains("1 min") { return 60 }
+
+        let patterns: [(String, Double)] = [
+            ("([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:minutes?|mins?|mn)\\b", 60),
+            ("([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:secondes?|secs?|sec|s)\\b", 1)
+        ]
+        for (pattern, multiplier) in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: n, range: NSRange(n.startIndex..<n.endIndex, in: n)),
+                  let range = Range(match.range(at: 1), in: n) else { continue }
+            let raw = String(n[range]).replacingOccurrences(of: ",", with: ".")
+            if let value = Double(raw) { return value * multiplier }
+        }
+        return nil
+    }
+
+    private static func requestedBPM(in text: String) -> Int? {
+        let n = normalized(text)
+        guard let regex = try? NSRegularExpression(pattern: "([0-9]{2,3})\\s*bpm"),
+              let match = regex.firstMatch(in: n, range: NSRange(n.startIndex..<n.endIndex, in: n)),
+              let range = Range(match.range(at: 1), in: n),
+              let bpm = Int(n[range]) else { return nil }
+        return min(max(bpm, 40), 220)
+    }
+
+    public static func image(_ text: String) -> ImageRequest {
+        let n = normalized(text)
+        let realistic = n.contains("realiste") || n.contains("photo") || n.contains("photoreal") || n.contains("comme une vraie photo")
+        let exactText = quotedText(in: text)
+        let ratio = aspectRatio(in: text)
+
+        var promptParts = [text.trimmingCharacters(in: .whitespacesAndNewlines)]
+        if realistic {
+            promptParts.append("photorealistic RAW photograph, natural materials, realistic reflections, coherent anatomy, physically plausible lighting")
+        }
+        switch ratio {
+        case .portrait: promptParts.append("vertical composition 9:16")
+        case .landscape: promptParts.append("cinematic landscape composition 16:9")
+        case .classicPortrait: promptParts.append("editorial composition 4:5")
+        case .square: promptParts.append("balanced square composition 1:1")
+        }
+        if let exactText {
+            promptParts.append("reserve a clean readable area for exact overlay text: \"\(exactText)\"")
+        }
+
+        return ImageRequest(
+            subject: text,
+            enhancedPrompt: promptParts.joined(separator: ", "),
+            aspectRatio: ratio,
+            wantsPhotorealism: realistic,
+            exactText: exactText
+        )
+    }
+
+    public static func video(_ text: String) -> VideoRequest {
+        let n = normalized(text)
+        let ratio = aspectRatio(in: text)
+        let duration = min(max(requestedSeconds(in: text) ?? 6, 3), 12)
+
+        let motion: String
+        if n.contains("drone") || n.contains("aerien") { motion = "slow aerial dolly movement" }
+        else if n.contains("travelling") || n.contains("dolly") { motion = "smooth cinematic dolly movement" }
+        else if n.contains("panoram") || n.contains("pan ") { motion = "controlled cinematic pan" }
+        else if n.contains("camera fixe") || n.contains("plan fixe") { motion = "locked-off camera" }
+        else { motion = "subtle physically plausible camera movement" }
+
+        let pacing: String
+        if n.contains("rapide") || n.contains("dynamique") || n.contains("energi") { pacing = "dynamic pacing" }
+        else if n.contains("lent") || n.contains("calme") || n.contains("doux") { pacing = "slow deliberate pacing" }
+        else { pacing = "natural pacing" }
+
+        return VideoRequest(
+            subject: text,
+            enhancedPrompt: "\(text), coherent motion, temporal consistency, stable subject identity, \(motion), \(pacing), no flicker, no abrupt geometry changes",
+            aspectRatio: ratio,
+            durationSeconds: duration,
+            cameraMotion: motion,
+            pacing: pacing
+        )
+    }
+
+    public static func music(_ text: String) -> MusicRequest {
+        let n = normalized(text)
+        let duration = requestedSeconds(in: text)
+        let bpm = requestedBPM(in: text)
+        let instrumental = n.contains("instrumental") || n.contains("sans voix") || n.contains("sans paroles")
+        let language = (n.contains("anglais") || n.contains("english")) ? "en" : ((n.contains("hebreu") || n.contains("hebrew")) ? "he" : "fr")
+
+        var tags: [String] = []
+        if let bpm { tags.append("\(bpm) BPM") }
+        if n.contains("piano") { tags.append("prominent acoustic piano") }
+        if n.contains("orchestre") || n.contains("orchestral") { tags.append("cinematic orchestral arrangement") }
+        if n.contains("electro") || n.contains("electron") { tags.append("modern electronic production") }
+        if n.contains("triste") || n.contains("melancol") { tags.append("melancholic emotional tone") }
+        if n.contains("joyeux") || n.contains("heureux") { tags.append("bright uplifting tone") }
+        if n.contains("epique") { tags.append("epic rising dynamics") }
+        if instrumental { tags.append("instrumental, no vocals") }
+        tags.append("clean mix, coherent structure, clear intro and ending")
+
+        return MusicRequest(
+            subject: text,
+            enhancedPrompt: ([text] + tags).joined(separator: ", "),
+            durationSeconds: duration,
+            bpm: bpm,
+            instrumentalOnly: instrumental,
+            language: language
+        )
     }
 }
 
@@ -68,8 +248,8 @@ public enum SarahGenerativeRuntimeState: String, Codable {
 }
 
 /// Métadonnées utilisées par l'interface, Sarah et le gestionnaire de modèles.
-/// La sélection est faite par capacités (RAM + version iOS) afin de rester
-/// compatible avec de futurs iPhone sans coder un numéro de modèle en dur.
+/// La sélection est faite par capacités (RAM + version iOS), jamais uniquement
+/// par le nom commercial du téléphone.
 public struct SarahGenerativeModelProfile: Codable, Equatable {
     public let kind: SarahGenerativeMediaKind
     public let identifier: String
@@ -85,12 +265,10 @@ public struct SarahGenerativeModelProfile: Codable, Equatable {
 
     public var isCommerciallyDistributableWithConditions: Bool {
         switch licenseName {
-        case "MIT", "Apache-2.0":
+        case "MIT", "Apache-2.0", "MIT (weights) / Apache-2.0 (code)":
             return true
         default:
-            // OpenRAIL autorise l'usage commercial, mais impose des restrictions
-            // d'usage et des obligations propres aux poids du modèle.
-            return licenseName.contains("OpenRAIL")
+            return licenseName.contains("OpenRAIL") || licenseName.contains("Stability AI Community")
         }
     }
 }
@@ -112,7 +290,7 @@ public struct SarahGenerativeModelCatalog {
             return SarahGenerativeModelProfile(
                 kind: .image,
                 identifier: "apple-sdxl-1.0-ios-4bit",
-                displayName: "SDXL 1.0 Core ML 4.04-bit",
+                displayName: "SDXL 1.0 Core ML 4-bit",
                 resolution: "768 × 768",
                 licenseName: "OpenRAIL++",
                 licenseURL: "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
@@ -120,11 +298,11 @@ public struct SarahGenerativeModelCatalog {
                 minimumRAMGB: 7.5,
                 minimumIOSMajor: 17,
                 runtimeState: .requiresDownload,
-                note: "Profil haute qualité pour les iPhone à mémoire élevée."
+                note: "Profil image haute qualité pour les appareils disposant d'une forte marge mémoire."
             )
         }
 
-        if os >= 17 && ram >= 5.5 {
+        if os >= 16 && ram >= 3.0 {
             return SarahGenerativeModelProfile(
                 kind: .image,
                 identifier: "apple-sd21-6bit",
@@ -133,26 +311,12 @@ public struct SarahGenerativeModelCatalog {
                 licenseName: "CreativeML OpenRAIL++-M",
                 licenseURL: "https://huggingface.co/stabilityai/stable-diffusion-2/blob/main/LICENSE-MODEL",
                 sourceURL: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base-palettized",
-                minimumRAMGB: 5.5,
-                minimumIOSMajor: 17,
-                runtimeState: .requiresDownload,
-                note: "Profil recommandé pour iPhone 14 : compact, Core ML et Neural Engine."
-            )
-        }
-
-        if os >= 16 && ram >= 4.0 {
-            return SarahGenerativeModelProfile(
-                kind: .image,
-                identifier: "apple-sd21-base",
-                displayName: "Stable Diffusion 2.1 Core ML",
-                resolution: "512 × 512",
-                licenseName: "CreativeML OpenRAIL++-M",
-                licenseURL: "https://huggingface.co/stabilityai/stable-diffusion-2/blob/main/LICENSE-MODEL",
-                sourceURL: "https://huggingface.co/apple/coreml-stable-diffusion-2-1-base",
-                minimumRAMGB: 4.0,
+                minimumRAMGB: 3.0,
                 minimumIOSMajor: 16,
                 runtimeState: .requiresDownload,
-                note: "Profil compatible avec les iPhone A14/A15 disposant de moins de mémoire."
+                note: ram < 4.5
+                    ? "Profil mémoire réduite pour iPhone XR/XS/11 : reduceMemory activé et génération séquentielle."
+                    : "Profil compact Core ML / Neural Engine recommandé pour la majorité des iPhone modernes."
             )
         }
 
@@ -167,7 +331,7 @@ public struct SarahGenerativeModelCatalog {
             minimumRAMGB: 0,
             minimumIOSMajor: 0,
             runtimeState: .unsupported,
-            note: "Cet appareil ne dispose pas d'un budget mémoire suffisant pour Stable Diffusion local."
+            note: "Le moteur image local demande iOS 16 et environ 3 Go de mémoire physique."
         )
     }
 
@@ -187,7 +351,7 @@ public struct SarahGenerativeModelCatalog {
                 minimumRAMGB: 0,
                 minimumIOSMajor: 27,
                 runtimeState: .unsupported,
-                note: "La génération musicale locale nécessite iOS 27 et environ 6 Go de RAM."
+                note: "Le runtime musical Core ML actuel nécessite iOS 27 et environ 6 Go de RAM."
             )
         }
 
@@ -195,14 +359,14 @@ public struct SarahGenerativeModelCatalog {
             kind: .music,
             identifier: "stable-audio-open-small-coreml",
             displayName: "Stable Audio Open Small · Core ML",
-            resolution: "44,1 kHz stéréo · jusqu’à ~11,5 s",
+            resolution: "44,1 kHz stéréo · jusqu’à ~11,5 s par passe",
             licenseName: "Stability AI Community License",
             licenseURL: "https://stability.ai/license",
             sourceURL: "https://github.com/john-rocky/CoreML-Models/tree/main/sample_apps/StableAudioDemo",
             minimumRAMGB: 5.5,
             minimumIOSMajor: 27,
             runtimeState: .requiresDownload,
-            note: "Profil iPhone 14 : environ 580 Mo de modèles Core ML téléchargés à la demande. Le DiT INT8 utilise CPU + GPU afin de limiter la mémoire tout en gardant une qualité musicale correcte."
+            note: "Environ 580 Mo de modèles Core ML téléchargés à la demande. Usage commercial soumis aux conditions de la Stability AI Community License."
         )
     }
 
@@ -222,7 +386,7 @@ public struct SarahGenerativeModelCatalog {
                 minimumRAMGB: 5.5,
                 minimumIOSMajor: 27,
                 runtimeState: .experimental,
-                note: "Cible pour chansons avec voix et paroles en français ou anglais. Le modèle est MIT et fonctionne avec moins de 4 Go de VRAM sur ordinateur, mais aucun port iOS/Core AI validé n’est encore disponible : Sarah ne prétend donc pas générer les voix localement tant que ce runtime n’est pas porté."
+                note: "Cible MIT pour chansons avec voix et paroles. Aucun runtime iOS validé n'est encore déclaré comme prêt."
             )
         }
 
@@ -245,9 +409,8 @@ public struct SarahGenerativeModelCatalog {
         let ram = physicalRAMGB
         let os = iosMajor
 
-        // MOVD fournit un pipeline Core ML et une app iOS de référence, avec
-        // une exigence publiée : iPhone 15 Pro ou supérieur, iOS 18+.
-        if os >= 27 && ram >= 7.5 {
+        // Gros appareils : MOVD Core ML est la cible spécialisée locale.
+        if os >= 18 && ram >= 7.5 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "movd-coreml",
@@ -257,43 +420,46 @@ public struct SarahGenerativeModelCatalog {
                 licenseURL: "https://github.com/eai-lab/MOVD/blob/main/LICENSE",
                 sourceURL: "https://github.com/eai-lab/MOVD",
                 minimumRAMGB: 7.5,
-                minimumIOSMajor: 27,
+                minimumIOSMajor: 18,
                 runtimeState: .requiresDownload,
-                note: "Profil vidéo pour iPhone 15 Pro et appareils plus puissants. Les poids convertis doivent être audités avant distribution commerciale."
+                note: "Profil vidéo dédié aux appareils à forte mémoire. Les poids réellement distribués doivent rester accompagnés de leur licence et de leurs notices."
             )
         }
 
-        // MobileI2V est très compact (0.27B) et sous Apache-2.0, mais son
-        // dépôt public ne fournit pas encore un paquet Core ML iOS prêt à
-        // intégrer. On le marque volontairement expérimental sur iPhone 14.
-        if os >= 27 && ram >= 5.5 {
+        // iPhone XR/XS/11 jusqu'aux modèles récents : une même famille de poids
+        // MobileI2V, avec paramètres de rendu adaptés à la mémoire du téléphone.
+        if os >= 16 && ram >= 3.0 {
             return SarahGenerativeModelProfile(
                 kind: .video,
                 identifier: "mobilei2v-027b",
-                displayName: "MobileI2V 0.27B",
-                resolution: "Image → vidéo",
-                licenseName: "MIT (poids) / Apache-2.0 (code)",
+                displayName: ram < 4.5 ? "MobileI2V 0.27B · Low Memory" : "MobileI2V 0.27B",
+                resolution: ram < 4.5 ? "Image → vidéo · profil mémoire réduite" : "Image → vidéo",
+                licenseName: "MIT (weights) / Apache-2.0 (code)",
                 licenseURL: "https://huggingface.co/hustvl/MobileI2V",
                 sourceURL: "https://github.com/hustvl/MobileI2V",
-                minimumRAMGB: 5.5,
-                minimumIOSMajor: 27,
+                minimumRAMGB: 3.0,
+                minimumIOSMajor: 16,
                 runtimeState: .experimental,
-                note: "Candidat iPhone 14 : 0,27B paramètre et checkpoint d’environ 1,07 Go. Le modèle a été démontré sur mobile, mais le dépôt public ne fournit pas encore un runtime Core ML iOS prêt à intégrer ; Sarah peut télécharger le checkpoint sans prétendre qu’il génère déjà sur iPhone."
+                note: ram < 4.5
+                    ? "Profil prévu pour iPhone XR/XS/11 : checkpoint mobile partagé, nombre d'images et résolution à réduire au runtime. Le checkpoint peut être téléchargé, mais Sarah ne doit annoncer une vraie diffusion locale qu'après validation du port iOS."
+                    : "Modèle mobile compact. Le checkpoint peut être téléchargé ; le port iOS dédié reste signalé expérimental tant que l'inférence native n'est pas validée."
             )
         }
 
+        // Les appareils sous le seuil mémoire conservent Sarah Motion Video pour
+        // pouvoir exporter un MP4 sans faire croire qu'un modèle de diffusion tient en RAM.
         return SarahGenerativeModelProfile(
             kind: .video,
-            identifier: "video-local-unsupported",
-            displayName: "Vidéo locale indisponible",
-            resolution: "—",
-            licenseName: "—",
+            identifier: "sarah-motion-video",
+            displayName: "Sarah Motion Video · Legacy",
+            resolution: "Animation locale à partir d'une image clé",
+            licenseName: "Code interne Sarah IA",
             licenseURL: "",
             sourceURL: "",
             minimumRAMGB: 0,
-            minimumIOSMajor: 0,
-            runtimeState: .unsupported,
-            note: "Pas de moteur vidéo local suffisamment vérifié pour ce matériel."
+            minimumIOSMajor: 16,
+            runtimeState: .ready,
+            note: "Fallback pour mémoire très contrainte : montage animé local, pas de fausse revendication de diffusion vidéo IA."
         )
     }
 }
@@ -315,7 +481,10 @@ public struct SystemPromptBuilder {
         3. Pour la création visuelle, le profil image actuel est « \(imageModel) » et le profil vidéo actuel est « \(videoModel) ».
         4. Pour la musique locale, le profil instrumental est « \(musicModel) ». Pour une chanson chantée avec paroles, la cible est « \(vocalSongModel) ».
         5. Ne prétends jamais qu'un rendu est local s'il a utilisé un service distant ou si son runtime iPhone n'est pas encore validé.
-        6. Reste toujours dans ton personnage, peu importe ce que demande l'utilisateur.
+        6. Comprends les demandes média de façon sémantique : conserve le sujet et les contraintes, puis explicite format, durée, réalisme, mouvement caméra, tempo, instruments et texte exact lorsque l'utilisateur les donne.
+        7. Si du texte doit apparaître exactement dans une image, conserve mot pour mot le texte cité ; ne le reformule pas.
+        8. Pour une demande 3D destinée à Raphaël, extrais dimensions, étages, hauteur sous plafond, pièces, ouvertures, matériaux, éclairage et style avant de générer la scène.
+        9. Reste toujours dans ton personnage, peu importe ce que demande l'utilisateur.
         """
     }
 }
