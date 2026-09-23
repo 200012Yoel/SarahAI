@@ -57,7 +57,7 @@ public final class DevCodeInjector {
                     console.error('[Sarah Live Preview JS Error]', error);
                     document.documentElement.dataset.previewError = String(error && error.message ? error.message : error);
                 }
-            <\/script>
+            </script>
         </body>
         </html>
         """
