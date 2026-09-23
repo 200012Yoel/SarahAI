@@ -8,8 +8,9 @@ public struct ScaleBounceButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 
@@ -19,12 +20,12 @@ extension Color {
     public static let sarahIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)
 }
 
-/// Surface "Liquid Glass" maison, compatible avec le déploiement iOS 16+.
+/// Surface Liquid Glass de Sarah.
 ///
-/// Elle reprend les codes de l'interface Liquid Glass moderne : matériau flouté,
-/// reflet supérieur, bord lumineux très fin, teinte contextuelle et profondeur.
-/// Elle évite de dépendre d'une API SwiftUI toute récente qui casserait les
-/// appareils encore supportés par Sarah IA.
+/// iOS 26+ utilise le vrai `glassEffect` du système avec une teinte volontairement
+/// légère. Les versions antérieures utilisent un matériau flouté, un reflet interne
+/// et une bordure lumineuse afin de conserver la même hiérarchie visuelle sans
+/// transformer les contrôles en aplats colorés.
 @available(iOS 15.0, *)
 public struct SarahLiquidGlassModifier: ViewModifier {
     public let cornerRadius: CGFloat
@@ -44,21 +45,36 @@ public struct SarahLiquidGlassModifier: ViewModifier {
     @ViewBuilder
     public func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            // Sur les versions modernes d'iOS, Sarah utilise le vrai matériau
-            // Liquid Glass fourni par SwiftUI. Le fallback ci-dessous conserve
-            // une apparence très proche sur les versions antérieures.
+            let glassTint = max(0.035, min(0.20, intensity * 1.25))
+
             content
                 .glassEffect(
                     .regular
-                        .tint(tint.opacity(max(0.22, min(0.78, intensity * 2.8))))
+                        .tint(tint.opacity(glassTint))
                         .interactive(),
                     in: .rect(cornerRadius: cornerRadius)
                 )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.24),
+                                    Color.white.opacity(0.07),
+                                    tint.opacity(0.10)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.65
+                        )
+                        .allowsHitTesting(false)
+                )
                 .shadow(
-                    color: Color.black.opacity(0.18),
-                    radius: 14,
+                    color: Color.black.opacity(0.16),
+                    radius: 12,
                     x: 0,
-                    y: 7
+                    y: 6
                 )
         } else {
             legacyGlass(content: content)
@@ -80,11 +96,11 @@ public struct SarahLiquidGlassModifier: ViewModifier {
                     shape
                         .fill(
                             LinearGradient(
-                                gradient: Gradient(colors: [
-                                    tint.opacity(intensity),
-                                    Color.white.opacity(0.060),
-                                    Color.black.opacity(0.055)
-                                ]),
+                                colors: [
+                                    tint.opacity(max(0.025, min(0.12, intensity * 0.75))),
+                                    Color.white.opacity(0.045),
+                                    Color.black.opacity(0.035)
+                                ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -93,11 +109,11 @@ public struct SarahLiquidGlassModifier: ViewModifier {
                     shape
                         .fill(
                             LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: Color.white.opacity(0.19), location: 0),
-                                    .init(color: Color.white.opacity(0.055), location: 0.34),
+                                stops: [
+                                    .init(color: Color.white.opacity(0.18), location: 0),
+                                    .init(color: Color.white.opacity(0.055), location: 0.30),
                                     .init(color: Color.clear, location: 0.58)
-                                ]),
+                                ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
@@ -110,22 +126,22 @@ public struct SarahLiquidGlassModifier: ViewModifier {
                 shape
                     .stroke(
                         LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.28),
-                                tint.opacity(0.16),
-                                Color.white.opacity(0.045)
-                            ]),
+                            colors: [
+                                Color.white.opacity(0.24),
+                                tint.opacity(0.11),
+                                Color.white.opacity(0.035)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 0.8
+                        lineWidth: 0.7
                     )
             )
             .shadow(
-                color: Color.black.opacity(0.22),
-                radius: 15,
+                color: Color.black.opacity(0.18),
+                radius: 12,
                 x: 0,
-                y: 8
+                y: 6
             )
     }
 }
