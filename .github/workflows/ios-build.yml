@@ -102,7 +102,12 @@ jobs:
 
           check_alive() {
             LABEL="$1"
-            if ! xcrun simctl spawn "$SIM_UDID" launchctl list | grep -q "com.sarahia.app"; then
+            # Simulator app processes run as normal host processes. `launchctl list`
+            # is not a reliable liveness source after opening a UIScene/deep link:
+            # the app can remain RunningBoard-active while its launchctl label is
+            # absent. Check the actual SarahIA process instead so a live voice UI
+            # is not reported as a crash.
+            if ! pgrep -x "SarahIA" >/dev/null 2>&1; then
               echo "❌ $LABEL: Sarah IA stopped unexpectedly"
               xcrun simctl spawn "$SIM_UDID" log show --last 2m --style compact \
                 --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "com.sarahia.app"' \
