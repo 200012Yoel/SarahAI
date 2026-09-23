@@ -107,7 +107,18 @@ jobs:
             # the app can remain RunningBoard-active while its launchctl label is
             # absent. Check the actual SarahIA process instead so a live voice UI
             # is not reported as a crash.
-            if ! pgrep -x "SarahIA" >/dev/null 2>&1; then
+            # Xcode 27's simulator can briefly make host-side pgrep return a
+            # false negative while a UIScene/deep link is being handed over.
+            # Retry against the executable path before declaring a crash.
+            ALIVE=0
+            for ATTEMPT in 1 2 3 4 5; do
+              if ps -ax -o command= | grep -F "/SarahIA.app/SarahIA" | grep -v grep >/dev/null 2>&1; then
+                ALIVE=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ALIVE" -ne 1 ]; then
               echo "❌ $LABEL: Sarah IA stopped unexpectedly"
               xcrun simctl spawn "$SIM_UDID" log show --last 2m --style compact \
                 --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "com.sarahia.app"' \
