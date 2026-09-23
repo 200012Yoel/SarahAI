@@ -176,6 +176,7 @@ public struct ChatScreenView: View {
                     },
                     onOpenVoiceOrb: {
                         keyboard.dismiss()
+                        viewModel.startVoiceConversation()
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     onOpenVAICoding: {
@@ -183,6 +184,11 @@ public struct ChatScreenView: View {
                     }
                 )
             }
+            // Sur les iPhone avec Home Indicator, le composer était visuellement
+            // trop proche du bord inférieur. On le remonte légèrement au repos,
+            // tout en gardant un écart minimal quand le clavier est affiché pour
+            // éviter le double décalage clavier corrigé précédemment.
+            .padding(.bottom, keyboard.isVisible ? 4 : 12)
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [
@@ -339,6 +345,7 @@ public struct ChatScreenView: View {
                         viewModel.sendMessage("Ouvre mes mails Gmail")
                     },
                     .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
+                        viewModel.startVoiceConversation()
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
