@@ -118,7 +118,15 @@ public final class AIService {
         
         // 0.3 GÉNÉRATION MUSICALE LOCALE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -207,22 +215,23 @@ public final class AIService {
 
         // 0.4 GÉNÉRATION VIDÉO
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if videoCheck.isIntent {
             SarahLocalVideoGenEngine.shared.generateVideo(
-                prompt: videoCheck.prompt,
-                duration: videoCheck.duration,
-                vertical: videoCheck.isVertical
+                prompt: semanticVideo.enhancedPrompt,
+                duration: semanticVideo.durationSeconds,
+                vertical: semanticVideo.aspectRatio == .portrait
             ) { [weak self] result in
                 guard let self = self else { return }
 
                 let reply: String
                 switch result {
                 case .success(let url):
-                    let format = videoCheck.isVertical ? "vertical 9:16" : "paysage 16:9"
+                    let format = semanticVideo.aspectRatio == .portrait ? "vertical 9:16" : "paysage 16:9"
                     reply = """
                     🎬 **Vidéo générée**
 
-                    Sarah a créé un MP4 **\(format)** de **\(Int(videoCheck.duration)) secondes** avec **Sarah Motion Video**.
+                    Sarah a créé un MP4 **\(format)** de **\(Int(semanticVideo.durationSeconds)) secondes** avec **Sarah Motion Video**.
                     Fichier : \(url.lastPathComponent)
 
                     Le rendu utilise une image clé générée par Sarah puis une animation locale. Le moteur de diffusion vidéo dédié reste séparé tant que son runtime iPhone n'est pas validé.
@@ -247,9 +256,10 @@ public final class AIService {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
+            let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
             let profile = SarahGenerativeModelCatalog.imageProfile()
 
-            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { [weak self] result in
+            OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { [weak self] result in
                 guard let self = self else { return }
 
                 let reply: String
@@ -397,7 +407,15 @@ public final class AIService {
         
         // 1.1 GÉNÉRATION MUSICALE RÉELLE ON-DEVICE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -438,6 +456,7 @@ public final class AIService {
         
         // 1.2 GÉNÉRATION VIDÉO
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if videoCheck.isIntent {
             let profile = SarahLocalVideoGenEngine.shared.profile
             let reply = """
@@ -453,9 +472,10 @@ public final class AIService {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
+            let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
             let profile = SarahGenerativeModelCatalog.imageProfile()
 
-            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+            OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { _ in }
 
             let reply = """
             🎨 **Création d'image lancée**

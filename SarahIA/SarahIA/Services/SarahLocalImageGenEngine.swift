@@ -403,6 +403,7 @@ public final class SarahLocalVideoGenEngine {
 
     public func detectVideoIntent(_ text: String) -> VideoIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(clean)
         let lower = clean
             .folding(
                 options: [.diacriticInsensitive, .caseInsensitive],
@@ -461,9 +462,9 @@ public final class SarahLocalVideoGenEngine {
 
         return VideoIntent(
             isIntent: true,
-            prompt: prompt,
-            duration: requestedDuration(from: clean) ?? 6,
-            isVertical: vertical
+            prompt: semanticVideo.enhancedPrompt,
+            duration: semanticVideo.durationSeconds,
+            isVertical: semanticVideo.aspectRatio == .portrait
         )
     }
 
@@ -951,4 +952,3 @@ public final class SarahLocalVideoGenEngine {
         return "Sarah Motion Video est prêt : Sarah peut générer une image clé puis produire localement un MP4 animé. \(diffusionDetail)"
     }
 }
-

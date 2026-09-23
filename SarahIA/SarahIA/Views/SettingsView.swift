@@ -1761,6 +1761,38 @@ private struct AboutSettingsView: View {
                 }
             }
 
+            Section("Modèles génératifs") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Photo · \(SarahGenerativeModelCatalog.imageProfile().displayName)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Licence : \(SarahGenerativeModelCatalog.imageProfile().licenseName)")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Vidéo · \(SarahGenerativeModelCatalog.videoProfile().displayName)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Licence : \(SarahGenerativeModelCatalog.videoProfile().licenseName)")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text(SarahGenerativeModelCatalog.videoProfile().note)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Musique · \(SarahGenerativeModelCatalog.musicProfile().displayName)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Licence : \(SarahGenerativeModelCatalog.musicProfile().licenseName)")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("Les conditions commerciales exactes sont indiquées dans Licences et notices. Sarah ne présente jamais une licence conditionnelle comme libre de droits.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             Section("Informations légales") {
                 NavigationLink(destination: LegalNoticesView()) {
                     SettingsHomeRow(

@@ -61,7 +61,10 @@ public final class OpenSourceImageGenerationService {
             "fais-moi une image de ", "fais moi une image de ", "fais une image de ", "fais une photo de ",
             "génère une illustration de ", "genere une illustration de ", "crée un visuel de ", "cree un visuel de ",
             "génère une image ", "genere une image ", "génère une photo ", "genere une photo ",
-            "generate an image of ", "generate a picture of ", "draw me "
+            "generate an image of ", "generate a picture of ", "draw me ",
+            "crée une affiche ", "cree une affiche ", "crée un poster ", "cree un poster ",
+            "crée un logo ", "cree un logo ", "crée un fond d’écran ", "cree un fond d ecran ",
+            "visualise ", "rends-moi une image ", "rends moi une image "
         ]
         
         for trigger in triggers {
@@ -107,7 +110,8 @@ public final class OpenSourceImageGenerationService {
         guard !clean.isEmpty else { return original }
         
         let lower = clean.lowercased()
-        var base = clean
+        let semantic = SarahMediaPromptUnderstanding.image(clean)
+        var base = semantic.enhancedPrompt
         
         // Traductions et adaptations conceptuelles pour les requêtes françaises fréquentes
         if lower.contains("dauphin") && lower.contains("voiture") {

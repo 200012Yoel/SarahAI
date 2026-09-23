@@ -170,12 +170,16 @@ public final class SarahLocalMusicGenEngine {
             prompt = "instrumental doux et mélodique"
         }
 
+        let semantic = SarahMediaPromptUnderstanding.music(clean)
+        let finalPrompt = semantic.enhancedPrompt.isEmpty ? prompt : semantic.enhancedPrompt
+        let finalDuration = requestedSeconds ?? semantic.durationSeconds.map { Float($0) }
+
         return MusicIntent(
             isIntent: isIntent,
             wantsLyrics: wantsLyrics,
-            prompt: prompt,
-            language: language,
-            requestedSeconds: requestedSeconds
+            prompt: finalPrompt,
+            language: semantic.language.isEmpty ? language : semantic.language,
+            requestedSeconds: finalDuration
         )
     }
 

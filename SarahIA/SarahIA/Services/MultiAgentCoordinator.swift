@@ -579,9 +579,10 @@ public final class MultiAgentCoordinator {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
 
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
+        let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+        OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { result in
             let responseText: String
             let spoken: String
 
@@ -962,22 +963,23 @@ public final class MultiAgentCoordinator {
         
         // 4. Génération vidéo : prioritaire sur le flux de publication.
         let localVideoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if localVideoIntent.isIntent {
             SarahLocalVideoGenEngine.shared.generateVideo(
-                prompt: localVideoIntent.prompt,
-                duration: localVideoIntent.duration,
-                vertical: localVideoIntent.isVertical
+                prompt: semanticVideo.enhancedPrompt,
+                duration: semanticVideo.durationSeconds,
+                vertical: semanticVideo.aspectRatio == .portrait
             ) { result in
                 let responseText: String
                 let spoken: String
 
                 switch result {
                 case .success(let url):
-                    let format = localVideoIntent.isVertical ? "vertical" : "paysage"
+                    let format = semanticVideo.aspectRatio == .portrait ? "vertical" : "paysage"
                     responseText = """
                     🎬 **Sarah & Nathan [Création vidéo]**
 
-                    Vidéo **\(format)** de **\(Int(localVideoIntent.duration)) secondes** prête avec **Sarah Motion Video**.
+                    Vidéo **\(format)** de **\(Int(semanticVideo.durationSeconds)) secondes** prête avec **Sarah Motion Video**.
                     Fichier : \(url.lastPathComponent)
                     """
                     spoken = "La vidéo est prête."
@@ -1044,7 +1046,15 @@ public final class MultiAgentCoordinator {
         
         // 9. Génération musicale locale via Core AI sur iOS 27
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -1125,7 +1135,7 @@ public final class MultiAgentCoordinator {
                 let prompt = imageCheck.cleanedPrompt
                 let profile = SarahGenerativeModelCatalog.imageProfile()
 
-                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+                OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { result in
                     let responseText: String
                     let spoken: String
 
