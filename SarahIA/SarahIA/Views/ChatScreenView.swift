@@ -212,6 +212,13 @@ public struct ChatScreenView: View {
 
             if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-voice") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    // Le smoke visuel ne doit jamais rester bloqué derrière une alerte
+                    // système de permission. Le vrai mode vocal garde son démarrage
+                    // normal partout ailleurs.
+                    viewModel.isContinuousConversationActive = true
+                    viewModel.isVoiceMicrophoneMuted = true
+                    viewModel.isMicRunning = false
+                    viewModel.voiceStatus = .idle
                     viewModel.isShowingVoiceOrbModal = true
                 }
             }
@@ -230,7 +237,7 @@ public struct ChatScreenView: View {
                 ]
 
                 for (index, answer) in answers.enumerated() {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8 + Double(index) * 0.45) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + Double(index) * 0.62) {
                         viewModel.sendMessage(answer)
                     }
                 }
@@ -1456,6 +1463,40 @@ private struct Sarah3DEnvironmentStudioView: View {
     @State private var extraSpheres = 0
     @State private var sceneSeed = 0
 
+    /// Interprétation locale légère du prompt. Pas de réseau et pas d'attente :
+    /// les mots clés choisissent l'environnement puis SceneKit le régénère.
+    private func generateFromPrompt() {
+        HapticService.shared.buttonTap()
+
+        let normalized = prompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+
+        let spaceWords = ["espace", "spatial", "planete", "galaxie", "etoile", "lune", "mars", "orbite"]
+        let natureWords = ["nature", "foret", "arbre", "parc", "montagne", "jardin", "vegetation"]
+        let showroomWords = ["showroom", "galerie", "exposition", "produit", "boutique", "studio", "musee"]
+        let cityWords = ["ville", "city", "urbain", "immeuble", "rue", "avenue", "gratte ciel", "metropole"]
+
+        if spaceWords.contains(where: normalized.contains) {
+            preset = .space
+        } else if natureWords.contains(where: normalized.contains) {
+            preset = .nature
+        } else if showroomWords.contains(where: normalized.contains) {
+            preset = .showroom
+        } else if cityWords.contains(where: normalized.contains) {
+            preset = .city
+        }
+
+        if normalized.contains("cube") {
+            extraBoxes = max(extraBoxes, 4)
+        }
+        if normalized.contains("sphere") || normalized.contains("boule") {
+            extraSpheres = max(extraSpheres, 4)
+        }
+
+        sceneSeed += 1
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -1486,8 +1527,7 @@ private struct Sarah3DEnvironmentStudioView: View {
                     Spacer()
 
                     Button {
-                        HapticService.shared.buttonTap()
-                        sceneSeed += 1
+                        generateFromPrompt()
                     } label: {
                         Label("Générer", systemImage: "sparkles")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -1525,8 +1565,7 @@ private struct Sarah3DEnvironmentStudioView: View {
                             .foregroundColor(.white)
 
                         Button {
-                            HapticService.shared.buttonTap()
-                            sceneSeed += 1
+                            generateFromPrompt()
                         } label: {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 27, weight: .semibold))

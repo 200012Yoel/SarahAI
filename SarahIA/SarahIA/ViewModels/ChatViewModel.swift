@@ -1118,22 +1118,32 @@ public final class ChatViewModel: ObservableObject {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        // Le handoff Raphaël et son questionnaire sont entièrement locaux.
+        // Ils doivent répondre immédiatement, sans réveiller AIService avant même
+        // que le premier message ait pu être affiché (ce qui gelait le smoke test
+        // et pouvait donner l'impression que le changement d'agent ne marchait pas).
+        if developerSkillSession != nil || looksLikeDeveloperHandoff(text) {
+            let userMessage = Message(content: text, isFromUser: true)
+            appendMessage(userMessage)
+            inputText = ""
+
+            if handleDeveloperSkillAnswer(text) {
+                isTyping = false
+                voiceStatus = isContinuousConversationActive ? voiceStatus : .idle
+                return
+            }
+
+            if looksLikeDeveloperHandoff(text) {
+                beginDeveloperSkill()
+                isTyping = false
+                return
+            }
+        }
+
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         inputText = ""
-
-        if handleDeveloperSkillAnswer(text) {
-            isTyping = false
-            voiceStatus = isContinuousConversationActive ? voiceStatus : .idle
-            return
-        }
-
-        if looksLikeDeveloperHandoff(text) {
-            beginDeveloperSkill()
-            isTyping = false
-            return
-        }
 
         // Une demande de suivi peut arriver après un changement d'agent,
         // un retour dans la discussion ou une relance de l'app. On restaure
