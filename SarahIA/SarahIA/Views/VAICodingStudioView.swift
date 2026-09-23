@@ -333,7 +333,9 @@ public struct VAICodingStudioView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.white)
                 Spacer()
-                Text("\(value.wrappedValue, specifier: step < 1 ? \"%.1f\" : \"%.0f\")\(suffix)")
+                Text((step < 1
+                ? String(format: "%.1f", value.wrappedValue)
+                : String(format: "%.0f", value.wrappedValue)) + suffix)
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.gray)
             }
