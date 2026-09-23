@@ -1737,7 +1737,8 @@ private struct SarahSceneKitPreview: UIViewRepresentable {
         for index in 0..<18 {
             let row = index / 6
             let col = index % 6
-            let height = CGFloat(1.4 + ((index * 7 + seed) % 8)) * 0.46
+            let heightStep = (index * 7 + seed) % 8
+            let height = CGFloat(heightStep) * CGFloat(0.46) + CGFloat(1.4)
             let geometry = SCNBox(width: 0.95, height: height, length: 0.95, chamferRadius: 0.12)
             geometry.firstMaterial = glassMaterial(index.isMultiple(of: 3) ? .systemBlue : .darkGray)
             let node = SCNNode(geometry: geometry)
