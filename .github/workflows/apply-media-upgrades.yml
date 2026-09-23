@@ -29,6 +29,20 @@ jobs:
       - name: Apply media and 3D upgrade
         run: python3 tools/apply_media_prompt_upgrade.py
 
+      - name: Harden generated 3D Swift
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("SarahIA/SarahIA/Views/VAICodingStudioView.swift")
+          text = path.read_text(encoding="utf-8")
+          old = 'Text("\\(value.wrappedValue, specifier: step < 1 ? \\\"%.1f\\\" : \\\"%.0f\\\")\\(suffix)")'
+          new = '''Text((step < 1
+                          ? String(format: "%.1f", value.wrappedValue)
+                          : String(format: "%.0f", value.wrappedValue)) + suffix)'''
+          text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+          PY
+
       - name: Normalize generated Swift files
         run: |
           python3 - <<'PY'
@@ -70,5 +84,5 @@ jobs:
             SarahIA/SarahIA/Views/SettingsView.swift \
             SarahIA/SarahIA/Views/VAICodingStudioView.swift
 
-          git commit -m "Wire adaptive media prompts and native 3D studio"
+          git commit -m "Harden adaptive media prompts and native 3D studio"
           git push origin HEAD:feature/chatgpt-ui-media-shortcuts-20260922
