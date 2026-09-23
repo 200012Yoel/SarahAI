@@ -23,17 +23,18 @@ jobs:
           ref: feature/chatgpt-ui-media-shortcuts-20260922
           fetch-depth: 0
 
-      - name: Apply UI and recording patch
+      - name: Apply UI patch
         run: |
           python3 tools/apply_composer_voice_recording_fix.py
+          git checkout -- .github/workflows/ios-build.yml
           git diff --check
-          git diff -- SarahIA/SarahIA/Views/ChatScreenView.swift .github/workflows/ios-build.yml
+          git diff -- SarahIA/SarahIA/Views/ChatScreenView.swift
 
       - name: Commit integration
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@github.com"
-          git add SarahIA/SarahIA/Views/ChatScreenView.swift .github/workflows/ios-build.yml
+          git add SarahIA/SarahIA/Views/ChatScreenView.swift
           git diff --cached --quiet && exit 0
-          git commit -m "Raise composer, restore voice, record simulator UI"
+          git commit -m "Raise composer and restore voice mode"
           git push origin HEAD:feature/chatgpt-ui-media-shortcuts-20260922
