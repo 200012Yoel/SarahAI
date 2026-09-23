@@ -44,6 +44,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    private var isInputTapInstalled = false
     
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 1.3
@@ -162,8 +163,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         if #available(iOS 13.0, *) {
-            // Utiliser la reconnaissance locale lorsqu'elle est réellement prise en
-            // charge par l'iPhone, sinon conserver le fallback Apple standard.
             request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         }
 
@@ -177,12 +176,19 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        inputNode.removeTap(onBus: 0)
+        // Un ancien tap peut survivre à un échec de démarrage de l'AudioEngine.
+        // On le retire uniquement si nous savons qu'il a réellement été installé.
+        if isInputTapInstalled {
+            inputNode.removeTap(onBus: 0)
+            isInputTapInstalled = false
+        }
+
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
             self.recognitionRequest?.append(buffer)
             self.calculateAudioEnergy(buffer: buffer)
         }
+        isInputTapInstalled = true
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
@@ -235,7 +241,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         
         if audioEngine.isRunning {
             audioEngine.stop()
+        }
+
+        if isInputTapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
+            isInputTapInstalled = false
         }
         
         recognitionRequest?.endAudio()
