@@ -14,4 +14,6 @@ jobs:
       - name: Start simulator-tested iOS build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
+        run: |
+          echo "Starting corrected simulator-tested SarahIA build"
+          gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
