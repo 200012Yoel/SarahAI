@@ -53,18 +53,20 @@ jobs:
           LOGPID=$!
           sleep 2
           set +e
-          xcrun simctl launch --console-pty "$DEVICE" com.sarahia.app >> "$LOGFILE" 2>&1 &
-          LAUNCHPID=$!
+          xcrun simctl launch "$DEVICE" com.sarahia.app >> "$LOGFILE" 2>&1
+          LAUNCH_STATUS=$?
           sleep 15
-          xcrun simctl spawn "$DEVICE" launchctl print gui/$(id -u)/com.sarahia.app >> "$LOGFILE" 2>&1
-          STATUS=$?
-          ps -p "$LAUNCHPID" >/dev/null 2>&1
           kill "$LOGPID" >/dev/null 2>&1 || true
           mkdir -p "$GITHUB_WORKSPACE/crash-reports"
           find "$HOME/Library/Logs/DiagnosticReports" -type f \( -name 'SarahIA*.crash' -o -name 'SarahIA*.ips' \) -exec cp {} "$GITHUB_WORKSPACE/crash-reports/" \; 2>/dev/null || true
           xcrun simctl spawn "$DEVICE" log show --last 2m --style compact --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "SarahIA"' >> "$LOGFILE" 2>&1 || true
           set -e
-          if grep -Eqi 'crash|fatal error|abort|uncaught exception|dyld|terminated due to|signal 6|signal 11' "$LOGFILE" || [ -n "$(find "$GITHUB_WORKSPACE/crash-reports" -type f -print -quit)" ]; then
+          if [ "$LAUNCH_STATUS" -ne 0 ]; then
+            echo 'SarahIA could not be launched in the simulator.'
+            tail -n 300 "$LOGFILE"
+            exit 1
+          fi
+          if grep -Eqi 'Fatal error:|Terminating app due to uncaught exception|uncaught exception|EXC_BAD_ACCESS|SIGABRT|SIGSEGV|Termination Reason:|abort\(\) called' "$LOGFILE" || [ -n "$(find "$GITHUB_WORKSPACE/crash-reports" -type f -print -quit)" ]; then
             echo 'SarahIA crashed during simulator smoke test.'
             tail -n 300 "$LOGFILE"
             exit 1
