@@ -4,8 +4,8 @@ import UIKit
 import Combine
 
 /// Service de synthèse vocale léger utilisé par les anciens écrans de Sarah.
-/// Toute la logique de visage, visèmes et rendu 3D a été retirée : ce service ne
-/// gère plus que la parole Apple et son cycle de vie audio.
+/// Toute l'ancienne logique de visage et de visèmes a été retirée : ce service
+/// ne gère plus que la parole Apple et son cycle de vie audio.
 @available(iOS 13.0, *)
 public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
 
@@ -25,8 +25,6 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         super.init()
         synthesizer.delegate = self
     }
-
-    // MARK: - Synthèse vocale
 
     public func speak(
         text: String,
@@ -78,8 +76,6 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         }
     }
 
-    // MARK: - Tâche d'arrière-plan
-
     private func beginSpeechBackgroundTask() {
         if speechBgTask != .invalid {
             UIApplication.shared.endBackgroundTask(speechBgTask)
@@ -95,8 +91,6 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
             speechBgTask = .invalid
         }
     }
-
-    // MARK: - AVSpeechSynthesizerDelegate
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
