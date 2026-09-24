@@ -13,8 +13,8 @@ public enum SpeechRecognizerState: Equatable {
 }
 
 /// Reconnaissance vocale Apple utilisée à la fois par le mode conversation et
-/// par la dictée de la barre de saisie. Les deux usages ont maintenant des fins
-/// de phrase différentes : le mode vocal peut valider au silence, la dictée non.
+/// par la dictée de la barre de saisie. Les deux usages ont des fins de phrase
+/// différentes : le mode vocal peut valider au silence, la dictée attend le bouton.
 public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
     public static let shared = AppleSpeechRecognizer()
@@ -79,8 +79,8 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     // MARK: - Écoute
 
     /// - Parameter autoFinalizeOnSilence: `true` pour une conversation mains
-    /// libres, `false` pour la dictée type ChatGPT qui ne doit être validée que
-    /// par le bouton carré ou le bouton Envoyer.
+    /// libres, `false` pour la dictée type ChatGPT qui n'est validée que par
+    /// le bouton carré ou le bouton Envoyer.
     public func startListening(autoFinalizeOnSilence: Bool = true) {
         guard !isListening else { return }
 
@@ -172,7 +172,14 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                     }
 
                     if result.isFinal {
-                        self.finalizeTranscription(text)
+                        if self.automaticallyFinalizeOnSilence {
+                            self.finalizeTranscription(text)
+                        } else {
+                            // En dictée, un résultat « final » provenant de Speech ne doit
+                            // jamais envoyer le message tout seul. On arrête simplement le
+                            // micro ; MessageBar remettra ce texte dans la zone de saisie.
+                            self.stopListening()
+                        }
                         return
                     }
                 }
@@ -278,8 +285,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         let rms = sqrt(sum / Float(frameLength))
-        // Courbe logarithmique douce : les voix faibles restent visibles sans
-        // transformer le silence en animation artificielle.
         let db = 20.0 * log10(max(rms, 0.000_001))
         let normalized = min(1.0, max(0.0, (db + 55.0) / 45.0))
 
