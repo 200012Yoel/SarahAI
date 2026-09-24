@@ -16,7 +16,7 @@ jobs:
 
       - name: Configure target
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 4006" SarahIA/SarahIA/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 4007" SarahIA/SarahIA/Info.plist
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
       - name: Build Release

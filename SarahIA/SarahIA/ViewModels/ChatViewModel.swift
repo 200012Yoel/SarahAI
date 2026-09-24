@@ -454,7 +454,7 @@ public final class ChatViewModel: ObservableObject {
                     self.isMicRunning = true
                     self.voiceStatus = .listening(level: self.micInputLevel)
                 case .processing:
-                    self.voiceStatus = .processing
+                    self.updateVoiceProcessingStatus()
                 case .error(let message):
                     self.isDictating = false
                     self.isMicRunning = false
@@ -464,6 +464,14 @@ public final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
+    // Speech recognition finishing is not an AI request. Its notification can
+    // arrive after a synchronous reply, so only the response owner may show thinking.
+    func updateVoiceProcessingStatus() {
+        if isTyping && !voiceManager.isSpeaking {
+            voiceStatus = .processing
+        }
+    }
+
     // MARK: - Persistance des Données & Restauration
     
     public func restorePersistedState() {
@@ -1252,6 +1260,16 @@ public final class ChatViewModel: ObservableObject {
         }
 
         if WebsiteBrief.shouldOpenBuilder(for: text) {
+            if isContinuousConversationActive {
+                // Ask the existing developer questions aloud, without presenting
+                // a second modal underneath the full-screen voice conversation.
+                transitionToAgent(.esther)
+                developerSkillSession = DeveloperSkillSession()
+                isTyping = false
+                voiceStatus = .idle
+                _ = handleDeveloperSkillAnswer(text)
+                return
+            }
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                 activeAgent = .esther
             }

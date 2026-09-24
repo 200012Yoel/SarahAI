@@ -4,6 +4,31 @@ import AVFoundation
 
 @MainActor
 final class AudioLifecycleTests: XCTestCase {
+    func testCreateWebsiteStaysInVoiceAndAsksNextQuestion() {
+        let model = ChatViewModel()
+        model.isContinuousConversationActive = true
+        model.isShowingVoiceOrbModal = true
+        model.sendMessage("Créer un site Internet")
+        XCTAssertTrue(model.isShowingVoiceOrbModal)
+        XCTAssertFalse(model.isShowingWebsiteBuilder)
+        XCTAssertTrue(model.isContinuousConversationActive)
+        XCTAssertEqual(model.activeAgent, .esther)
+        XCTAssertTrue(model.messages.last?.content.contains("Quel type de site") == true)
+        XCTAssertFalse(model.isTyping)
+        model.stopVoiceConversation()
+    }
+
+    func testDelayedRecognitionProcessingDoesNotOverwriteReplyStatus() {
+        let model = ChatViewModel()
+        model.isTyping = false
+        model.voiceStatus = .speaking
+        model.updateVoiceProcessingStatus()
+        XCTAssertEqual(model.voiceStatus, .speaking)
+        model.voiceStatus = .idle
+        model.updateVoiceProcessingStatus()
+        XCTAssertEqual(model.voiceStatus, .idle)
+    }
+
     func testDictationFinalStaysInDraft() {
         let model = ChatViewModel()
         let count = model.messages.count
