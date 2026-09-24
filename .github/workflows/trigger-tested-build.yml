@@ -1,0 +1,17 @@
+name: Trigger Tested SarahIA Build
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/trigger-tested-build.yml']
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start simulator-tested iOS build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
