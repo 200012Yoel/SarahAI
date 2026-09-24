@@ -15,9 +15,14 @@ public struct MessageBar: View {
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
 
-    @ObservedObject private var speech = ObservableSpeechRecognizer.shared
+    // IMPORTANT : ne jamais instancier ObservableSpeechRecognizer/AVAudioEngine
+    // pendant la construction de la vue. Sur certaines versions iOS 27, créer le
+    // pipeline Speech avant toute action utilisateur peut fermer le processus au
+    // démarrage. Le moteur vocal est donc créé uniquement quand on touche le micro.
     @State private var isDictating = false
     @State private var textBeforeDictation = ""
+    @State private var dictationMicLevel: Float = 0.0
+    @State private var dictationLiveText: String = ""
 
     public init(
         text: Binding<String>,
@@ -47,19 +52,34 @@ public struct MessageBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
-        .onChange(of: speech.isListening) { listening in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerListeningChanged"))) { _ in
+            guard isDictating else { return }
+            let recognizer = AppleSpeechRecognizer.shared
+            dictationLiveText = recognizer.currentLiveText
+            dictationMicLevel = recognizer.micEnergyLevel
+
             // Une interruption système ne doit jamais laisser l'interface bloquée
             // en « transcription en cours ».
-            if isDictating && !listening {
+            if !recognizer.isListening {
                 commitDictationToComposer()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"))) { _ in
+            guard isDictating else { return }
+            let recognizer = AppleSpeechRecognizer.shared
+            dictationMicLevel = recognizer.micEnergyLevel
+            dictationLiveText = recognizer.currentLiveText
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))) { _ in
-            if case .error = AppleSpeechRecognizer.shared.state, isDictating {
+            guard isDictating else { return }
+            let recognizer = AppleSpeechRecognizer.shared
+            dictationLiveText = recognizer.currentLiveText
+            if case .error = recognizer.state {
                 // Autorisation refusée, route audio indisponible, etc. : on sort
                 // immédiatement de l'état dictée sans effacer le texte existant.
-                AppleSpeechRecognizer.shared.stopListening()
+                recognizer.stopListening()
                 isDictating = false
+                dictationMicLevel = 0.0
                 text = textBeforeDictation
             }
         }
@@ -67,6 +87,7 @@ public struct MessageBar: View {
             if isDictating {
                 AppleSpeechRecognizer.shared.stopListening()
                 isDictating = false
+                dictationMicLevel = 0.0
             }
         }
     }
@@ -131,7 +152,7 @@ public struct MessageBar: View {
             .accessibilityLabel("Annuler la dictée")
 
             VStack(spacing: 3) {
-                LiveMicrophoneWaveform(level: speech.micEnergyLevel)
+                LiveMicrophoneWaveform(level: dictationMicLevel)
                     .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
 
                 Text(currentRecognizedText.isEmpty ? "Transcription en cours" : "Je t’écoute…")
@@ -171,19 +192,24 @@ public struct MessageBar: View {
         let live = AppleSpeechRecognizer.shared.currentLiveText
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty { return live }
-        return speech.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return dictationLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func startDictation() {
         HapticService.shared.buttonTap()
 
-        if AppleSpeechRecognizer.shared.isListening {
-            AppleSpeechRecognizer.shared.stopListening()
+        // C'est volontairement le premier accès au moteur Speech depuis MessageBar.
+        // Rien de vocal n'est créé tant que l'utilisateur n'appuie pas sur le micro.
+        let recognizer = AppleSpeechRecognizer.shared
+        if recognizer.isListening {
+            recognizer.stopListening()
         }
 
         textBeforeDictation = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        dictationLiveText = ""
+        dictationMicLevel = 0.0
         isDictating = true
-        AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: false)
+        recognizer.startListening(autoFinalizeOnSilence: false)
     }
 
     private func finishDictation(sendImmediately: Bool) {
@@ -191,6 +217,7 @@ public struct MessageBar: View {
         let recognized = currentRecognizedText
         AppleSpeechRecognizer.shared.stopListening()
         isDictating = false
+        dictationMicLevel = 0.0
 
         let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
         text = finalText
@@ -206,12 +233,14 @@ public struct MessageBar: View {
         let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
         text = finalText
         isDictating = false
+        dictationMicLevel = 0.0
     }
 
     private func cancelDictation() {
         HapticService.shared.buttonTap()
         AppleSpeechRecognizer.shared.stopListening()
         isDictating = false
+        dictationMicLevel = 0.0
         text = textBeforeDictation
     }
 
