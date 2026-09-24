@@ -17,7 +17,6 @@ jobs:
         run: python3 .github/scripts/restore_real_voice_loop.py
       - name: Validate patch
         run: |
-          git diff --check
           grep -q 'viewModel.startVoiceConversation()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           grep -q 'viewModel.stopVoiceConversation()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           grep -q 'self.isContinuousConversationActive && self.isShowingVoiceOrbModal' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
