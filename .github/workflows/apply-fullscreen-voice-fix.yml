@@ -1,0 +1,34 @@
+name: Apply Fullscreen Voice Fix
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-fullscreen-voice-fix.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply full-screen voice runtime patch
+        run: python3 .github/scripts/fix_voice_fullscreen_runtime.py
+      - name: Validate voice integration
+        run: |
+          grep -q 'fullScreenCover(isPresented: \$viewModel.isShowingVoiceOrbModal)' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'public func pauseVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func resumeVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func interruptVoiceResponse()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'Text("Interrompre")' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+      - name: Commit voice fix
+        run: |
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@github.com"
+          git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift SarahIA/SarahIA/Views/ChatScreenView.swift
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No patch changes needed"
+          else
+            git commit -m "Fix full-screen voice presentation and controls"
+            git push origin HEAD:main
+          fi
