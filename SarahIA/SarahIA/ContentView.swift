@@ -162,6 +162,22 @@ private struct KeyboardDockedChat: UIViewControllerRepresentable {
             host.view.bottomAnchor.constraint(equalTo: parent.view.keyboardLayoutGuide.topAnchor)
         ])
         host.didMove(toParent: parent)
+#if DEBUG
+        // XCTest's Keyboard frame excludes QuickType on iOS 27. Expose the
+        // actual UIKit keyboard edge for geometry assertions, not key-row bounds.
+        let keyboardEdge = UIView()
+        keyboardEdge.isAccessibilityElement = true
+        keyboardEdge.accessibilityLabel = "Keyboard top edge"
+        keyboardEdge.accessibilityIdentifier = "keyboard.edge"
+        keyboardEdge.translatesAutoresizingMaskIntoConstraints = false
+        parent.view.addSubview(keyboardEdge)
+        NSLayoutConstraint.activate([
+            keyboardEdge.leadingAnchor.constraint(equalTo: parent.view.leadingAnchor),
+            keyboardEdge.widthAnchor.constraint(equalToConstant: 1),
+            keyboardEdge.heightAnchor.constraint(equalToConstant: 1),
+            keyboardEdge.bottomAnchor.constraint(equalTo: parent.view.keyboardLayoutGuide.topAnchor)
+        ])
+#endif
         return parent
     }
     func updateUIViewController(_ controller: UIViewController, context: Context) {}

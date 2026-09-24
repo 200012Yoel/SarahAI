@@ -29,8 +29,11 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         input.typeText("Bonjour")
         XCTAssertEqual(input.value as? String, "Bonjour")
-        // Measure the composer button boundary, not the smaller text glyph bounds.
-        let gap = app.keyboards.firstMatch.frame.minY - app.buttons["chat.sendOrVoice"].frame.maxY
+        // Keyboard's accessibility frame omits QuickType on iOS 27.
+        // Measure against UIKit's actual top edge (also visible in the screenshot).
+        let keyboardEdge = app.otherElements["keyboard.edge"]
+        XCTAssertTrue(keyboardEdge.exists)
+        let gap = keyboardEdge.frame.maxY - app.buttons["chat.sendOrVoice"].frame.maxY
         let keyboardShot = XCTAttachment(screenshot: app.screenshot())
         keyboardShot.name = "keyboard-alignment"
         keyboardShot.lifetime = .keepAlways
