@@ -126,17 +126,6 @@ public struct ChatScreenView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
-                if viewModel.isContinuousConversationActive && !viewModel.isShowingVoiceOrbModal {
-                    HStack {
-                        Spacer(minLength: 18)
-                        CollapsedVoiceSessionBar(viewModel: viewModel)
-                            .frame(maxWidth: 286)
-                        Spacer(minLength: 18)
-                    }
-                    .padding(.bottom, 4)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
@@ -160,7 +149,6 @@ public struct ChatScreenView: View {
                     onToggleMic: { viewModel.toggleMicrophone() },
                     onOpenVoiceOrb: {
                         keyboard.dismiss()
-                        viewModel.startVoiceConversation()
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     onOpenVAICoding: { viewModel.isShowingVAICodingStudio = true }
@@ -285,21 +273,11 @@ public struct ChatScreenView: View {
                 },
                 onOpenSettings: {
                     isShowingSettings = true
-                },
-                onOpenPhotoLibrary: {
-                    selectedPhotoItem = nil
-                    isShowingPhotoPicker = true
-                },
-                onOpenCamera: {
-                    isShowingCamera = true
-                },
-                onOpenFile: {
-                    isShowingFileImporter = true
                 }
             )
             // Grand mode + mode réduit. Un glissement vers le bas garde le chat
             // visible derrière, comme dans les assistants vocaux modernes.
-            .presentationDetents([.large])
+            .presentationDetents([.height(255), .large])
             .presentationDragIndicator(.visible)
         } else {
             VoiceOrbModalView(
@@ -309,16 +287,6 @@ public struct ChatScreenView: View {
                 },
                 onOpenSettings: {
                     isShowingSettings = true
-                },
-                onOpenPhotoLibrary: {
-                    selectedPhotoItem = nil
-                    isShowingPhotoPicker = true
-                },
-                onOpenCamera: {
-                    isShowingCamera = true
-                },
-                onOpenFile: {
-                    isShowingFileImporter = true
                 }
             )
         }
@@ -381,66 +349,6 @@ public struct ChatScreenView: View {
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
-    }
-}
-
-@available(iOS 15.0, *)
-private struct CollapsedVoiceSessionBar: View {
-    @ObservedObject var viewModel: ChatViewModel
-    @State private var pulse = false
-    private var accent: Color { viewModel.activeAgent.themeColor }
-
-    private var status: String {
-        switch viewModel.voiceStatus {
-        case .starting: return "Activation du micro…"
-        case .processing: return "Réflexion…"
-        case .speaking: return "\(viewModel.activeAgent.displayName) parle"
-        case .error: return "Micro indisponible"
-        default: return viewModel.isVoiceMicrophoneMuted ? "Micro coupé" : "À l’écoute"
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.isShowingVoiceOrbModal = true
-            } label: {
-                ZStack {
-                    Circle().fill(accent.opacity(0.22)).frame(width: 34, height: 34)
-                    Circle().stroke(accent.opacity(0.62), lineWidth: 1).frame(width: 34, height: 34)
-                        .scaleEffect(pulse ? 1.08 : 0.94).opacity(pulse ? 0.28 : 0.82)
-                    Image(systemName: "waveform").font(.system(size: 13, weight: .bold)).foregroundColor(.white)
-                }
-            }.buttonStyle(PlainButtonStyle())
-
-            Text(status).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundColor(.white).lineLimit(1)
-            Spacer(minLength: 2)
-
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.toggleMicrophone()
-            } label: {
-                Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill")
-                    .font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(.ultraThinMaterial))
-            }.buttonStyle(PlainButtonStyle())
-
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.endVoiceConversation()
-            } label: {
-                Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundColor(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(accent.opacity(0.22)))
-            }.buttonStyle(PlainButtonStyle())
-        }
-        .padding(.leading, 10).padding(.trailing, 8).frame(height: 50)
-        .sarahLiquidGlass(cornerRadius: 25, tint: accent, intensity: 0.15)
-        .onAppear {
-            withAnimation(Animation.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) { pulse = true }
-        }
     }
 }
 

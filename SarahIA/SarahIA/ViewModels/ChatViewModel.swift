@@ -409,70 +409,61 @@ public final class ChatViewModel: ObservableObject {
     
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
-            DispatchQueue.main.async { self?.liveTranscriptionText = partial }
+            self?.liveTranscriptionText = partial
         }
-
+        
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else {
-                    self.voiceStatus = .idle
-                    return
-                }
-                self.liveTranscriptionText = ""
-                self.sendMessage(cleaned)
-            }
-        }
-
-        voiceManager.onSpeechStarted = { [weak self] in
-            DispatchQueue.main.async {
-                self?.isSpeaking = true
-                self?.voiceStatus = .speaking
-                self?.haptics.speechStarted()
-            }
-        }
-
-        voiceManager.onSpeechFinished = { [weak self] in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                self.isSpeaking = false
+            guard let self = self else { return }
+            let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
-                self.haptics.speechFinished()
-
-                if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        guard self.isContinuousConversationActive,
-                              !self.isVoiceMicrophoneMuted,
-                              !self.voiceManager.isSpeaking else { return }
-                        AppleSpeechRecognizer.shared.startListening()
-                        self.isMicRunning = AppleSpeechRecognizer.shared.isListening
-                        self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
-                    }
+                return
+            }
+            self.liveTranscriptionText = ""
+            self.sendMessage(cleaned)
+        }
+        
+        voiceManager.onSpeechStarted = { [weak self] in
+            self?.isSpeaking = true
+            self?.voiceStatus = .speaking
+            self?.haptics.speechStarted()
+        }
+        
+        voiceManager.onSpeechFinished = { [weak self] in
+            guard let self = self else { return }
+            self.isSpeaking = false
+            self.voiceStatus = .idle
+            self.haptics.speechFinished()
+            
+            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    guard self.isContinuousConversationActive,
+                          self.isShowingVoiceOrbModal,
+                          !self.voiceManager.isSpeaking else { return }
+                    AppleSpeechRecognizer.shared.startListening()
+                    self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+                    self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
                 }
             }
         }
     }
-
+    
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        if isContinuousConversationActive {
-            if isVoiceMicrophoneMuted { resumeVoiceMicrophone() } else { pauseVoiceMicrophone() }
-            return
+        if isMicRunning || AppleSpeechRecognizer.shared.isListening {
+            stopVoiceConversation(stopSpeech: false)
+        } else {
+            startVoiceConversation()
         }
-        startVoiceConversation()
     }
 
+    /// Démarre explicitement une session vocale continue.
+    /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+        voiceManager.stop()
         isContinuousConversationActive = true
-        isVoiceMicrophoneMuted = false
-
-        if voiceManager.isSpeaking {
-            voiceStatus = .speaking
-            return
-        }
 
         guard !AppleSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -480,55 +471,32 @@ public final class ChatViewModel: ObservableObject {
             return
         }
 
-        voiceStatus = .starting
         AppleSpeechRecognizer.shared.startListening()
         isMicRunning = AppleSpeechRecognizer.shared.isListening
-        if isMicRunning { voiceStatus = .listening(level: 0.0) }
+        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
     }
 
-    public func pauseVoiceMicrophone() {
-        ensureVoicePipelinePrepared()
-        isVoiceMicrophoneMuted = true
-        AppleSpeechRecognizer.shared.stopListening()
-        isMicRunning = false
-        micInputLevel = 0
-        liveTranscriptionText = ""
-        voiceStatus = voiceManager.isSpeaking ? .speaking : .idle
-    }
-
-    public func resumeVoiceMicrophone() {
-        ensureVoicePipelinePrepared()
-        isContinuousConversationActive = true
-        isVoiceMicrophoneMuted = false
-
-        guard !voiceManager.isSpeaking else {
-            voiceStatus = .speaking
-            return
-        }
-
-        voiceStatus = .starting
-        AppleSpeechRecognizer.shared.startListening()
-        isMicRunning = AppleSpeechRecognizer.shared.isListening
-        if isMicRunning { voiceStatus = .listening(level: 0.0) }
-    }
-
-    public func endVoiceConversation() {
-        stopVoiceConversation(stopSpeech: true)
-        isShowingVoiceOrbModal = false
-    }
-
+    /// Coupe complètement le mode vocal et rend la session audio à iOS.
+    /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
+    /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
-        isVoiceMicrophoneMuted = false
-        if stopSpeech { voiceManager.stop() }
+
+        // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
+        // la session AVAudioSession pouvait rester active si Sarah parlait encore.
+        if stopSpeech {
+            voiceManager.stop()
+        }
+
         AppleSpeechRecognizer.shared.stopListening()
         AudioSessionManager.shared.deactivateSession()
+
         isMicRunning = false
         micInputLevel = 0.0
         liveTranscriptionText = ""
         voiceStatus = .idle
     }
-
+    
     public func speakMessage(_ text: String) {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -545,13 +513,6 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
-    public func cancelCurrentGeneration() {
-        haptics.buttonTap()
-        isTyping = false
-        voiceStatus = .idle
-        AIProgressiveScheduler.shared.cancelAllTasks()
-    }
-
     // MARK: - Envoi de Message & Orchestration Multi-Agents
     
     public func sendMessage(_ explicitText: String? = nil) {
