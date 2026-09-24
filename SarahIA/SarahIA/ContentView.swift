@@ -25,7 +25,7 @@ public struct ContentView: View {
             let progress = 1 + offset / sidebarWidth
 
             ZStack(alignment: .leading) {
-                ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
+                KeyboardDockedChat(viewModel: viewModel, isShowingSettings: $isShowingSettings)
                     .frame(width: geo.size.width, height: geo.size.height)
                     .allowsHitTesting(progress < 0.001)
                     .accessibilityHidden(viewModel.isDrawerOpen)
@@ -70,6 +70,7 @@ public struct ContentView: View {
                     }
             )
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .background(Color.black.ignoresSafeArea())
         .onChange(of: scenePhase) { phase in
             if phase != .active {
@@ -134,4 +135,34 @@ public struct ContentView: View {
         }
     }
 #endif
+}
+
+/// UIKit owns the keyboard constraint, so SwiftUI cannot add a second keyboard inset.
+@available(iOS 15.0, *)
+private struct KeyboardDockedChat: UIViewControllerRepresentable {
+    var viewModel: ChatViewModel
+    @Binding var isShowingSettings: Bool
+
+    func makeUIViewController(context: Context) -> UIViewController {
+        let parent = UIViewController()
+        parent.view.backgroundColor = .black
+        let host = UIHostingController(rootView:
+            ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
+                .ignoresSafeArea(.all)
+        )
+        if #available(iOS 16.4, *) { host.safeAreaRegions = [] }
+        host.view.backgroundColor = .black
+        parent.addChild(host)
+        parent.view.addSubview(host.view)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: parent.view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: parent.view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: parent.view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: parent.view.keyboardLayoutGuide.topAnchor)
+        ])
+        host.didMove(toParent: parent)
+        return parent
+    }
+    func updateUIViewController(_ controller: UIViewController, context: Context) {}
 }

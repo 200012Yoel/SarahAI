@@ -29,13 +29,15 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         input.typeText("Bonjour")
         XCTAssertEqual(input.value as? String, "Bonjour")
-        let gap = app.keyboards.firstMatch.frame.minY - input.frame.maxY
-        XCTAssertGreaterThanOrEqual(gap, 0)
-        XCTAssertLessThanOrEqual(gap, 12, "Composer must stay next to the keyboard")
+        // Measure the composer button boundary, not the smaller text glyph bounds.
+        let gap = app.keyboards.firstMatch.frame.minY - app.buttons["chat.sendOrVoice"].frame.maxY
         let keyboardShot = XCTAttachment(screenshot: app.screenshot())
         keyboardShot.name = "keyboard-alignment"
         keyboardShot.lifetime = .keepAlways
         add(keyboardShot)
+        print("COMPOSER_KEYBOARD_GAP=\(gap)")
+        XCTAssertGreaterThanOrEqual(gap, 0)
+        XCTAssertLessThanOrEqual(gap, 12, "Composer must stay next to the keyboard")
         input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7))
         app.buttons["chat.sendOrVoice"].tap()
         XCTAssertTrue(app.staticTexts["voice.title"].waitForExistence(timeout: 5))

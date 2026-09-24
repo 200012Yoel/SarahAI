@@ -16,7 +16,7 @@ jobs:
 
       - name: Configure target
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 4002" SarahIA/SarahIA/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 4003" SarahIA/SarahIA/Info.plist
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
       - name: Build Release
@@ -60,7 +60,7 @@ jobs:
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
           defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-          xcodebuild -project SarahIA/SarahIA.xcodeproj -scheme SarahUIRegression -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath UITestDerivedData -resultBundlePath NavigationTests.xcresult CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=16.2 test 2>&1 | tee navigation-tests.log
+          xcodebuild -project SarahIA/SarahIA.xcodeproj -scheme SarahUIRegression -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath UITestDerivedData -resultBundlePath NavigationTests.xcresult -parallel-testing-enabled NO -collect-test-diagnostics never -maximum-concurrent-test-simulator-destinations 1 CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=16.2 test 2>&1 | tee navigation-tests.log
       - name: Upload UI test evidence
         if: always()
         uses: actions/upload-artifact@v4
