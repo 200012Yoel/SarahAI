@@ -30,7 +30,9 @@ final class AudioLifecycleTests: XCTestCase {
     func testVocalMuteDoesNotStartDictation() {
         let model = ChatViewModel()
         model.isContinuousConversationActive = true
+        let generation = model.audioGeneration
         model.toggleVoiceMicrophone()
+        XCTAssertEqual(model.audioGeneration, generation, "Muting must not discard an incoming spoken response")
         XCTAssertTrue(model.isContinuousConversationActive)
         XCTAssertTrue(model.isVoiceMicrophoneMuted)
         XCTAssertFalse(model.isDictating)

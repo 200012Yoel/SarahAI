@@ -42,7 +42,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isMicRunning: Bool = false
     @Published public var isDictating = false
     private var dictationPrefix = ""
-    private var audioGeneration = UUID()
+    private(set) var audioGeneration = UUID()
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -1012,8 +1012,7 @@ public final class ChatViewModel: ObservableObject {
         voiceStatus = .idle
     }
 
-    /// Démarre une session vocale continue. La session appartient au chat,
-    /// pas à la feuille visuelle : fermer l'interface vocale ne l'arrête donc plus.
+    /// Démarre une nouvelle session vocale. Sa fermeture invalide les réponses audio tardives.
     public func startVoiceConversation() {
         finishDictation()
         ensureVoicePipelinePrepared()
@@ -1048,7 +1047,6 @@ public final class ChatViewModel: ObservableObject {
 
     public func pauseVoiceMicrophone() {
         ensureVoicePipelinePrepared()
-        audioGeneration = UUID()
         isVoiceMicrophoneMuted = true
         AppleSpeechRecognizer.shared.stopListening()
         isMicRunning = false
@@ -1065,7 +1063,6 @@ public final class ChatViewModel: ObservableObject {
     /// Réactive le micro sans recréer la session vocale.
     public func resumeVoiceMicrophone() {
         ensureVoicePipelinePrepared()
-        audioGeneration = UUID()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
 
@@ -1073,6 +1070,7 @@ public final class ChatViewModel: ObservableObject {
             voiceStatus = .speaking
             return
         }
+        guard !isTyping else { voiceStatus = .processing; return }
 
         voiceStatus = .starting
         AppleSpeechRecognizer.shared.startListening()
@@ -1082,8 +1080,7 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Arrête réellement le mode vocal. C'est la seule action UI qui doit
-    /// faire disparaître la mini-barre vocale du chat.
+    /// Ferme le mode vocal et libère la session audio.
     public func endVoiceConversation() {
         stopVoiceConversation(stopSpeech: true)
         isShowingVoiceOrbModal = false
