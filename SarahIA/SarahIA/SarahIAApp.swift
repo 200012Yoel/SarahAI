@@ -3,43 +3,28 @@ import SwiftUI
 import UserNotifications
 import AVFoundation
 
-/// Point d'entrée de l'application Sarah AI compatible iOS 12.0+ à iOS 18.0+.
+/// Point d'entrée UIKit de Sarah IA.
+///
+/// Xcode 27 / iOS 27 exige désormais le cycle de vie UIScene pour les applications
+/// construites avec le SDK moderne. L'AppDelegate reste responsable des services
+/// globaux, tandis que SceneDelegate crée et affiche la fenêtre principale.
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    
+
+    /// Conservé uniquement pour compatibilité avec certains appels hérités.
+    /// La fenêtre active appartient maintenant à SceneDelegate.
     var window: UIWindow?
-    
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-
-        // HOTFIX démarrage : aucune migration lourde, aucun modèle IA et aucune base
-        // de données secondaire ne sont initialisés avant le premier écran.
-        // Cela évite qu'un composant optionnel puisse faire tomber le processus au lancement.
+        // HOTFIX démarrage : aucune migration lourde, aucun modèle IA, aucun moteur
+        // audio et aucune base secondaire ne sont initialisés avant le premier écran.
         SessionTimeoutManager.shared.prepareForProcessLaunch(
             didResetUserStateForNewBuild: false
         )
-        
-        let window = UIWindow(frame: UIScreen.main.bounds)
-        self.window = window
-        
-        if #available(iOS 15.0, *) {
-            // Mode Moderne SwiftUI Pixel-Perfect
-            let contentView = ContentView()
-            let hostingController = UIHostingController(rootView: contentView)
-            hostingController.view.backgroundColor = .black
-            window.rootViewController = hostingController
-        } else {
-            // Mode Secours UIKit 100% Natif pour iOS 12, 13 et 14 (iPhone 5S, 6, 6 Plus)
-            let legacyVC = LegacyChatViewController()
-            window.rootViewController = legacyVC
-        }
-        
-        window.makeKeyAndVisible()
-        
-        // Le premier écran est rendu avant tout service optionnel.
-        // Les permissions audio sont demandées uniquement lorsqu'un mode vocal est lancé.
+
         UNUserNotificationCenter.current().delegate = self
 
         DispatchQueue.main.async {
@@ -48,7 +33,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
         return true
     }
-    
+
+    // MARK: - UIScene lifecycle (obligatoire avec le SDK iOS 27)
+
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(
+            name: "Default Configuration",
+            sessionRole: connectingSceneSession.role
+        )
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
+    }
+
+    func application(
+        _ application: UIApplication,
+        didDiscardSceneSessions sceneSessions: Set<UISceneSession>
+    ) {
+        // Aucune ressource persistante attachée à une scène.
+    }
+
+    // MARK: - Notifications
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -60,7 +69,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             completionHandler([.alert, .sound, .badge])
         }
     }
-    
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -69,37 +78,35 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         NotificationService.shared.clearBadge()
         completionHandler()
     }
-    
+
+    // MARK: - Deep links
+
     func application(
         _ app: UIApplication,
         open url: URL,
         options: [UIApplication.OpenURLOptionsKey : Any] = [:]
     ) -> Bool {
-        guard let host = url.host?.lowercased() else { return true }
-        
-        NotificationCenter.default.post(name: NSNotification.Name("SarahOpenDeepLink"), object: host)
-        
+        Self.handleDeepLink(url)
+        return true
+    }
+
+    static func handleDeepLink(_ url: URL) {
+        guard let host = url.host?.lowercased() else { return }
+
+        NotificationCenter.default.post(
+            name: NSNotification.Name("SarahOpenDeepLink"),
+            object: host
+        )
+
         if host == "torch" {
             _ = DeviceController.shared.toggleTorch(enable: nil)
         }
-        
-        return true
     }
-    
-    // MARK: - Cycle de Vie & Session Timeout (Inactivité > 1h)
-    
-    func applicationDidEnterBackground(_ application: UIApplication) {
-        SessionTimeoutManager.shared.recordAppBackgroundTime()
-    }
-    
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
-    }
-    
-    // MARK: - Finalisation du Téléchargement Background (URLSession GGUF)
-    
+
+    // MARK: - Finalisation du téléchargement Background (URLSession GGUF)
+
     public static var backgroundSessionCompletionHandler: (() -> Void)?
-    
+
     func application(
         _ application: UIApplication,
         handleEventsForBackgroundURLSession identifier: String,
@@ -107,5 +114,46 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     ) {
         AppDelegate.backgroundSessionCompletionHandler = completionHandler
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
+    }
+}
+
+/// Gère la fenêtre principale et le cycle de vie visible de Sarah IA.
+/// Déclaré dans ce même fichier afin d'éviter tout risque de cible Xcode oubliée.
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+
+        let window = UIWindow(windowScene: windowScene)
+        let contentView = ContentView()
+        let hostingController = UIHostingController(rootView: contentView)
+        hostingController.view.backgroundColor = .black
+
+        window.rootViewController = hostingController
+        self.window = window
+        window.makeKeyAndVisible()
+
+        // Un deep link peut être à l'origine même de la création de la scène.
+        if let url = connectionOptions.urlContexts.first?.url {
+            AppDelegate.handleDeepLink(url)
+        }
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        SessionTimeoutManager.shared.recordAppBackgroundTime()
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        AppDelegate.handleDeepLink(url)
     }
 }
