@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// Interface vocale Sarah.
-/// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
-@available(iOS 14.0, *)
+/// La feuille peut être fermée sans interrompre la session vocale : la mini-barre
+/// reste alors visible dans le chat jusqu'à ce que l'utilisateur touche X.
+@available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.presentationMode) private var presentationMode
@@ -34,10 +35,12 @@ public struct VoiceOrbModalView: View {
 
     private var statusTitle: String {
         switch viewModel.voiceStatus {
+        case .starting:
+            return "Activation du micro…"
         case .processing:
             return "Je réfléchis…"
         case .speaking:
-            return "Sarah parle"
+            return "\(viewModel.activeAgent.displayName) parle"
         case .error:
             return "Micro indisponible"
         default:
@@ -50,12 +53,14 @@ public struct VoiceOrbModalView: View {
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .error:
-            return "Touchez le micro pour réessayer"
+        case .error(let message):
+            return message.isEmpty ? "Touchez le micro pour réessayer" : message
+        case .starting:
+            return "Autorisez le micro et la reconnaissance vocale si iOS vous le demande"
         case .processing:
             return "Un instant…"
         case .speaking:
-            return "Tu peux interrompre Sarah en touchant le micro"
+            return "Tu peux couper le micro ou interrompre la session avec X"
         default:
             return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
         }
@@ -70,13 +75,13 @@ public struct VoiceOrbModalView: View {
                     .ignoresSafeArea()
 
                 RadialGradient(
-                    gradient: Gradient(colors: [
-                        accent.opacity(compact ? 0.08 : 0.14),
-                        accent.opacity(0.025),
+                    colors: [
+                        accent.opacity(compact ? 0.07 : 0.12),
+                        accent.opacity(0.018),
                         Color.clear
-                    ]),
+                    ],
                     center: compact ? .bottom : .center,
-                    startRadius: 40,
+                    startRadius: 36,
                     endRadius: compact ? 260 : 430
                 )
                 .ignoresSafeArea()
@@ -88,17 +93,24 @@ public struct VoiceOrbModalView: View {
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             pulse = true
             drift = true
-            viewModel.startVoiceConversation()
+
+            if !viewModel.isContinuousConversationActive {
+                viewModel.startVoiceConversation()
+            } else if !viewModel.isVoiceMicrophoneMuted,
+                      !viewModel.isMicRunning,
+                      !viewModel.isSpeaking {
+                // Réouvrir la feuille doit aussi réarmer le micro si la session
+                // est encore active mais que la reconnaissance s'est arrêtée.
+                viewModel.resumeVoiceMicrophone()
+            }
         }
-        .onDisappear {
-            viewModel.stopVoiceConversation()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            // Sarah ne doit jamais conserver une route audio active quand
-            // l'utilisateur quitte l'app ou ouvre Siri / un appel.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            // On coupe uniquement si l'application entière passe en arrière-plan.
+            // Fermer la feuille ou revenir au chat ne coupe jamais la session.
             viewModel.stopVoiceConversation()
         }
     }
@@ -134,8 +146,9 @@ public struct VoiceOrbModalView: View {
                 } else {
                     Text(statusSubtitle)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.46))
+                        .foregroundColor(Color.white.opacity(0.48))
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 22)
                 }
             }
             .frame(minHeight: 76)
@@ -148,7 +161,7 @@ public struct VoiceOrbModalView: View {
         }
     }
 
-    // MARK: - Mode réduit quand la feuille est baissée
+    // MARK: - Mode réduit
 
     private var compactLayout: some View {
         VStack(spacing: 10) {
@@ -174,7 +187,6 @@ public struct VoiceOrbModalView: View {
         HStack(spacing: 14) {
             circleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                     onOpenMenu()
@@ -195,12 +207,19 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            circleButton(systemName: "slider.horizontal.3") {
-                HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                presentationMode.wrappedValue.dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    onOpenSettings()
+            HStack(spacing: 8) {
+                circleButton(systemName: "slider.horizontal.3", size: 44) {
+                    HapticService.shared.buttonTap()
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        onOpenSettings()
+                    }
+                }
+
+                circleButton(systemName: "xmark", size: 44, highlighted: true) {
+                    HapticService.shared.buttonTap()
+                    viewModel.endVoiceConversation()
+                    presentationMode.wrappedValue.dismiss()
                 }
             }
         }
@@ -216,11 +235,11 @@ public struct VoiceOrbModalView: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        gradient: Gradient(colors: [
-                            accent.opacity(0.30),
-                            accent.opacity(0.08),
+                        colors: [
+                            accent.opacity(0.28),
+                            accent.opacity(0.07),
                             Color.clear
-                        ]),
+                        ],
                         center: .center,
                         startRadius: core * 0.20,
                         endRadius: size * 0.52
@@ -232,7 +251,7 @@ public struct VoiceOrbModalView: View {
             ForEach(0..<2) { index in
                 Circle()
                     .stroke(
-                        accent.opacity(index == 0 ? 0.40 : 0.18),
+                        accent.opacity(index == 0 ? 0.38 : 0.16),
                         lineWidth: 1
                     )
                     .frame(
@@ -254,18 +273,18 @@ public struct VoiceOrbModalView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.96),
-                                accent.opacity(0.94),
+                            colors: [
+                                Color.white.opacity(0.95),
+                                accent.opacity(0.88),
                                 accent
-                            ]),
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
 
                 Circle()
-                    .fill(Color.white.opacity(0.54))
+                    .fill(Color.white.opacity(0.48))
                     .frame(width: core * 0.48, height: core * 0.48)
                     .blur(radius: size > 150 ? 17 : 8)
                     .offset(
@@ -286,9 +305,9 @@ public struct VoiceOrbModalView: View {
             .clipShape(Circle())
             .overlay(
                 Circle()
-                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
+                    .stroke(Color.white.opacity(0.44), lineWidth: 1.3)
             )
-            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
+            .shadow(color: accent.opacity(0.50), radius: size > 150 ? 18 : 10)
             .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
             .animation(
                 Animation.spring(response: 0.26, dampingFraction: 0.76),
@@ -299,9 +318,9 @@ public struct VoiceOrbModalView: View {
         .onTapGesture {
             HapticService.shared.buttonTap()
             if viewModel.isMicRunning {
-                viewModel.toggleMicrophone()
+                viewModel.pauseVoiceMicrophone()
             } else {
-                viewModel.startVoiceConversation()
+                viewModel.resumeVoiceMicrophone()
             }
         }
     }
@@ -316,7 +335,7 @@ public struct VoiceOrbModalView: View {
 
             HStack(spacing: 10) {
                 TextField(
-                    "Demander à Sarah…",
+                    "Demander à \(viewModel.activeAgent.displayName)…",
                     text: $viewModel.inputText,
                     onCommit: {
                         sendTextIfNeeded()
@@ -330,9 +349,9 @@ public struct VoiceOrbModalView: View {
                     HapticService.shared.buttonTap()
                     if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if viewModel.isMicRunning {
-                            viewModel.toggleMicrophone()
+                            viewModel.pauseVoiceMicrophone()
                         } else {
-                            viewModel.startVoiceConversation()
+                            viewModel.resumeVoiceMicrophone()
                         }
                     } else {
                         sendTextIfNeeded()
@@ -342,29 +361,36 @@ public struct VoiceOrbModalView: View {
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(accent)
                         .frame(width: 36, height: 36)
-                        .background(Circle().fill(accent.opacity(0.11)))
+                        .background(Circle().fill(accent.opacity(0.10)))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
             .padding(.leading, 14)
             .padding(.trailing, 7)
             .frame(height: 52)
-            .background(
-                RoundedRectangle(cornerRadius: 26)
-                    .fill(Color.white.opacity(0.09))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 26)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            .sarahLiquidGlass(
+                cornerRadius: 26,
+                tint: accent,
+                intensity: 0.08
             )
 
             circleButton(
-                systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
+                systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill",
                 size: 50,
-                highlighted: viewModel.isMicRunning
+                highlighted: !viewModel.isVoiceMicrophoneMuted
             ) {
                 HapticService.shared.buttonTap()
                 viewModel.toggleMicrophone()
+            }
+
+            circleButton(
+                systemName: "xmark",
+                size: 50,
+                highlighted: true
+            ) {
+                HapticService.shared.buttonTap()
+                viewModel.endVoiceConversation()
+                presentationMode.wrappedValue.dismiss()
             }
         }
     }
@@ -384,13 +410,17 @@ public struct VoiceOrbModalView: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(highlighted ? accent.opacity(0.24) : Color.white.opacity(0.10))
+                    .fill(.ultraThinMaterial)
+                    .frame(width: size, height: size)
+
+                Circle()
+                    .fill(highlighted ? accent.opacity(0.12) : Color.white.opacity(0.025))
                     .frame(width: size, height: size)
 
                 Circle()
                     .stroke(
-                        highlighted ? accent.opacity(0.44) : Color.white.opacity(0.08),
-                        lineWidth: 1
+                        highlighted ? accent.opacity(0.34) : Color.white.opacity(0.16),
+                        lineWidth: 0.75
                     )
                     .frame(width: size, height: size)
 

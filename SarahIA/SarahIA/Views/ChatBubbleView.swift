@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 /// Bulle de message stylisée au format natif iMessage Dark Mode avec bouton de lecture vocale TTS.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct ChatBubbleView: View {
     public let message: Message
     public var isSpeaking: Bool
@@ -58,18 +58,29 @@ public struct ChatBubbleView: View {
             }
             .padding(.horizontal, message.imageData != nil ? 6 : 16)
             .padding(.vertical, message.imageData != nil ? 6 : 10)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.12, green: 0.53, blue: 0.98), // Apple iMessage Blue
-                        Color(red: 0.05, green: 0.45, blue: 0.90)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+            .sarahLiquidGlass(
+                cornerRadius: 19,
+                tint: Color(red: 0.10, green: 0.53, blue: 0.98),
+                intensity: 0.42
             )
-            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-            .shadow(color: Color.black.opacity(0.15), radius: 3, x: 0, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.10, green: 0.53, blue: 0.98).opacity(0.48),
+                                Color(red: 0.05, green: 0.40, blue: 0.92).opacity(0.24)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .allowsHitTesting(false)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(Color.white.opacity(0.22), lineWidth: 0.75)
+            )
             
             Text(message.formattedTime)
                 .font(.system(size: 11, weight: .regular, design: .rounded))
@@ -104,7 +115,7 @@ public struct ChatBubbleView: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Contenu du message
                 if !message.isVisionReport {
-                    let rawContent = message.content
+                    let rawContent = message.displayContentWithoutEmbeddedPayloads
                     let displayContent: String = {
                         if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
                             let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,33 +131,84 @@ public struct ChatBubbleView: View {
                             .lineSpacing(3)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
-                            .background(
-                                Color(red: 0.16, green: 0.16, blue: 0.18) // Apple Dark Bubble Gray
+                            .sarahLiquidGlass(
+                                cornerRadius: 19,
+                                tint: .sarahCyan,
+                                intensity: isSpeaking ? 0.14 : 0.055
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 19, style: .continuous)
                                     .stroke(
-                                        isSpeaking ? Color.sarahCyan.opacity(0.6) : Color.white.opacity(0.08),
-                                        lineWidth: isSpeaking ? 1.5 : 0.5
+                                        isSpeaking ? Color.sarahCyan.opacity(0.65) : Color.clear,
+                                        lineWidth: isSpeaking ? 1.2 : 0
                                     )
                             )
-                            .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 0)
+                            .shadow(
+                                color: isSpeaking ? Color.sarahCyan.opacity(0.20) : Color.clear,
+                                radius: 8,
+                                x: 0,
+                                y: 0
+                            )
                     }
                 }
                 
-                // Carte Interactive d'Image Générée (Flux / SDXL / CoreML)
-                if let imageURL = message.detectedImageURL {
-                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.imageGenerationPrompt ?? message.content)
-                        .frame(maxWidth: 290)
+                // Carte d'image : placeholder immédiat façon ChatGPT, puis le
+                // même emplacement devient le rendu final lorsque le moteur termine.
+                if message.isImageGenerationPlaceholder {
+                    ImageGeneratingSquareAnimationView(
+                        prompt: message.imageGenerationPrompt
+                    )
+                    .frame(maxWidth: 290, minHeight: 250, maxHeight: 270)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .sarahLiquidGlass(
+                        cornerRadius: 18,
+                        tint: .sarahCyan,
+                        intensity: 0.08
+                    )
+                } else if let data = message.imageData, let localImage = UIImage(data: data) {
+                    GeneratedInlineImageCardView(
+                        image: localImage,
+                        promptDescription: message.imageGenerationPrompt
+                    )
+                    .frame(maxWidth: 290)
+                } else if let imageURL = message.detectedImageURL {
+                    GeneratedImageCardView(
+                        imageURLString: imageURL,
+                        promptDescription: message.imageGenerationPrompt ?? message.content
+                    )
+                    .frame(maxWidth: 290)
                 }
                 
-                // Carte Interactive Musicale Générative (DSP Synth)
+                // Carte musicale : la même carte passe de "création" au vrai WAV jouable.
                 if let musicStyle = message.detectedMusicStyle {
-                    MusicTrackCardView(styleName: musicStyle)
-                        .frame(maxWidth: 280)
+                    MusicTrackCardView(
+                        styleName: musicStyle,
+                        startsGenerating: message.isMusicGenerationPlaceholder,
+                        audioURL: message.detectedGeneratedAudioURL,
+                        requestedDuration: message.detectedMusicDuration
+                    )
+                    .frame(maxWidth: 290)
                 }
                 
+                // Carte vidéo : progression en direct puis lecture du MP4 final.
+                if message.isVideoGenerationPlaceholder || message.detectedGeneratedVideoURL != nil {
+                    GeneratedVideoCardView(
+                        prompt: message.videoGenerationPrompt ?? message.content,
+                        startsGenerating: message.isVideoGenerationPlaceholder,
+                        videoURL: message.detectedGeneratedVideoURL,
+                        requestedDuration: message.audioDuration,
+                        isVertical: message.videoIsVertical ?? false
+                    )
+                    .frame(maxWidth: 300)
+                }
+
+                // Carte Raccourcis Apple : vrais noms de blocs + copie + ouverture
+                // directe d'un raccourci vierge dans l'app Raccourcis.
+                if let shortcutPlan = message.detectedShortcutPlan {
+                    ShortcutPlanCardView(plan: shortcutPlan)
+                        .frame(maxWidth: 300)
+                }
+
                 // Carte de Rapport d'Analyse Visuelle Poussée (OCR & Objets)
                 if message.isVisionReport {
                     VisionReportCardView(messageContent: message.content)
@@ -168,8 +230,11 @@ public struct ChatBubbleView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color(red: 0.15, green: 0.52, blue: 0.96))
-                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            .sarahLiquidGlass(
+                                cornerRadius: 13,
+                                tint: Color(red: 0.10, green: 0.53, blue: 0.98),
+                                intensity: 0.34
+                            )
                     }
                     .buttonStyle(BorderlessButtonStyle())
                     .accessibilityLabel("Ouvrir le Studio Raphaël")

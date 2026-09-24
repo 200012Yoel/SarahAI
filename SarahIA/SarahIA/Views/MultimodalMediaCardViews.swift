@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 import WebKit
 
 // MARK: - 1. Carte Interactive d'Image Générée (Flux / SDXL Open Source)
@@ -194,6 +195,97 @@ public struct GeneratedImageCardView: View {
     }
 }
 
+@available(iOS 14.0, *)
+public struct GeneratedInlineImageCardView: View {
+    public let image: UIImage
+    public let promptDescription: String?
+
+    @State private var isShowingFullScreen = false
+
+    public init(image: UIImage, promptDescription: String? = nil) {
+        self.image = image
+        self.promptDescription = promptDescription
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, minHeight: 250, maxHeight: 290)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isShowingFullScreen = true
+                    }
+
+                Text("✨ HD")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.66))
+                    .cornerRadius(7)
+                    .padding(8)
+            }
+
+            HStack(spacing: 7) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.sarahCyan)
+
+                Text("Image générée par Sarah")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.82))
+
+                Spacer()
+
+                Button(action: shareImage) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 28)
+                        .background(Color.white.opacity(0.10))
+                        .cornerRadius(8)
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+        }
+        .padding(10)
+        .background(Color(red: 0.10, green: 0.10, blue: 0.12))
+        .cornerRadius(18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .sheet(isPresented: $isShowingFullScreen) {
+            FullScreenImageView(image: image, prompt: promptDescription)
+        }
+    }
+
+    private func shareImage() {
+        let controller = UIActivityViewController(
+            activityItems: [image],
+            applicationActivities: nil
+        )
+
+        if #available(iOS 13.0, *) {
+            let root = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+            root?.present(controller, animated: true)
+        } else {
+            UIApplication.shared.keyWindow?
+                .rootViewController?
+                .present(controller, animated: true)
+        }
+    }
+}
+
 // MARK: - Indicateur Standard & Épuré de Génération d'Image
 
 @available(iOS 14.0, *)
@@ -283,19 +375,38 @@ public struct FullScreenImageView: View {
 @available(iOS 14.0, *)
 public struct MusicTrackCardView: View {
     public let styleName: String
-    
+    public let startsGenerating: Bool
+    public let audioURL: URL?
+    public let requestedDuration: TimeInterval?
+
     @State private var isPlaying: Bool = false
+    @State private var isGenerating: Bool
+    @State private var progress: Double
     @State private var animPhase: CGFloat = 0
     @State private var timer: Timer? = nil
-    
-    public init(styleName: String = "Lo-Fi Chill") {
+    @State private var generatedURL: URL?
+    @State private var duration: TimeInterval?
+    @State private var localPlayer: AVAudioPlayer?
+
+    public init(
+        styleName: String = "Lo-Fi Chill",
+        startsGenerating: Bool = false,
+        audioURL: URL? = nil,
+        requestedDuration: TimeInterval? = nil
+    ) {
         self.styleName = styleName
+        self.startsGenerating = startsGenerating
+        self.audioURL = audioURL
+        self.requestedDuration = requestedDuration
+        _isGenerating = State(initialValue: startsGenerating)
+        _progress = State(initialValue: audioURL == nil && startsGenerating ? 0 : 1)
+        _generatedURL = State(initialValue: audioURL)
+        _duration = State(initialValue: requestedDuration)
     }
-    
+
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 12) {
-                // Bouton Play/Stop rond
                 Button(action: {
                     togglePlayback()
                 }) {
@@ -304,111 +415,749 @@ public struct MusicTrackCardView: View {
                             .fill(
                                 LinearGradient(
                                     gradient: Gradient(colors: [
-                                        isPlaying ? Color.red.opacity(0.85) : Color.sarahCyan,
-                                        isPlaying ? Color.orange.opacity(0.85) : Color(red: 0.2, green: 0.5, blue: 1.0)
+                                        Color.sarahCyan,
+                                        Color(red: 0.22, green: 0.45, blue: 1.0)
                                     ]),
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 44, height: 44)
-                            .shadow(color: isPlaying ? Color.red.opacity(0.3) : Color.sarahCyan.opacity(0.3), radius: 6, x: 0, y: 2)
-                        
-                        Image(systemName: isPlaying ? "stop.fill" : "play.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .offset(x: isPlaying ? 0 : 2)
+                            .frame(width: 46, height: 46)
+                            .opacity(isGenerating ? 0.55 : 1)
+
+                        if isGenerating {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .offset(x: isPlaying ? 0 : 1.5)
+                        }
                     }
                 }
+                .disabled(isGenerating)
                 .buttonStyle(BorderlessButtonStyle())
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Sarah Music Engine")
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isGenerating ? "Musique en création…" : "Musique générée")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
-                    
-                    Text("Style : \(styleName) • 100% Local DSP")
+
+                    Text(styleName)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(.sarahCyan)
+                        .lineLimit(2)
                 }
-                
-                Spacer()
-                
-                // Onde animée DSP
-                HStack(spacing: 3) {
-                    ForEach(0..<6) { index in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(isPlaying ? Color.sarahCyan : Color.white.opacity(0.2))
-                            .frame(
-                                width: 3,
-                                height: isPlaying ? CGFloat(8 + (index * 4 + Int(animPhase * 8)) % 22) : 6
-                            )
-                            .animation(.easeInOut(duration: 0.15), value: animPhase)
+
+                Spacer(minLength: 4)
+
+                if generatedURL != nil && !isGenerating {
+                    Button(action: {
+                        shareGeneratedAudio()
+                    }) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.9))
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(Color.white.opacity(0.08)))
                     }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
-                .frame(height: 28)
             }
-            
-            // Tag statut
-            HStack {
-                Text(isPlaying ? "▶️ Lecture en cours sur haut-parleur" : "⏹️ Prêt à être joué")
+
+            // L'onde se "dessine" au fur et à mesure de la génération.
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<22, id: \.self) { index in
+                    let threshold = Double(index + 1) / 22.0
+                    let isBuilt = progress >= threshold || !isGenerating
+                    let moving = CGFloat((index * 7 + Int(animPhase * 11)) % 19)
+                    let base = CGFloat(7 + (index * 5) % 17)
+
+                    RoundedRectangle(cornerRadius: 1.8, style: .continuous)
+                        .fill(isBuilt ? Color.sarahCyan : Color.white.opacity(0.13))
+                        .frame(
+                            width: 3,
+                            height: isGenerating || isPlaying
+                                ? min(30, base + moving * 0.55)
+                                : base
+                        )
+                        .animation(.easeInOut(duration: 0.16), value: animPhase)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 34)
+            .padding(.horizontal, 2)
+
+            if isGenerating {
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
+            }
+
+            HStack(spacing: 8) {
+                Text(statusText)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(isPlaying ? .green : .white.opacity(0.5))
-                
+                    .foregroundColor(statusColor)
+
                 Spacer()
-                
-                Text("Zéro Quota • Synthèse PCM")
-                    .font(.system(size: 10, weight: .regular, design: .rounded))
-                    .foregroundColor(.white.opacity(0.4))
+
+                Text(durationText)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.48))
             }
         }
-        .padding(12)
+        .padding(13)
         .background(Color(red: 0.10, green: 0.10, blue: 0.13))
-        .cornerRadius(14)
+        .cornerRadius(16)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isPlaying ? Color.sarahCyan.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    isGenerating || isPlaying
+                        ? Color.sarahCyan.opacity(0.42)
+                        : Color.white.opacity(0.08),
+                    lineWidth: 1
+                )
         )
         .onAppear {
-            self.isPlaying = OpenSourceMusicEngine.shared.isPlaying
-            setupNotificationObservers()
+            if isGenerating || isPlaying {
+                startWaveAnimation()
+            }
         }
         .onDisappear {
             timer?.invalidate()
+            localPlayer?.stop()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationProgress"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note) else { return }
+            isGenerating = true
+            if let value = note.userInfo?["progress"] as? Double {
+                progress = min(max(value, 0), 0.99)
+            }
+            if let seconds = note.userInfo?["duration"] as? Double {
+                duration = seconds
+            }
+            startWaveAnimation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedMusicReady"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note),
+                  let url = note.object as? URL else { return }
+
+            generatedURL = url
+            if let seconds = note.userInfo?["duration"] as? Double {
+                duration = seconds
+            }
+            progress = 1
+            isGenerating = false
+            timer?.invalidate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationCancelled"))) { _ in
+            guard startsGenerating else { return }
+            isGenerating = false
+            timer?.invalidate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicGenerationFailed"))) { note in
+            guard startsGenerating, matchesCurrentPrompt(note) else { return }
+            isGenerating = false
+            timer?.invalidate()
         }
     }
-    
+
+    private var statusText: String {
+        if isGenerating {
+            return "Création \(Int(progress * 100)) %"
+        }
+        if isPlaying {
+            return "Lecture en cours"
+        }
+        if generatedURL != nil {
+            return "Prêt à être joué"
+        }
+        return "Piste locale"
+    }
+
+    private var statusColor: Color {
+        if isGenerating { return .sarahCyan }
+        if isPlaying { return .green }
+        return .white.opacity(0.55)
+    }
+
+    private var durationText: String {
+        guard let duration else { return "Local" }
+        if duration >= 59.5 {
+            return "1:00"
+        }
+        return "0:" + String(format: "%02d", Int(duration.rounded()))
+    }
+
+    private func matchesCurrentPrompt(_ note: Notification) -> Bool {
+        guard let eventPrompt = note.userInfo?["prompt"] as? String else {
+            return true
+        }
+
+        let lhs = styleName
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = eventPrompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return lhs == rhs || lhs.contains(rhs) || rhs.contains(lhs)
+    }
+
     private func togglePlayback() {
+        guard !isGenerating else { return }
+
+        if let url = generatedURL {
+            do {
+                if localPlayer == nil || localPlayer?.url != url {
+                    localPlayer = try AVAudioPlayer(contentsOf: url)
+                    localPlayer?.prepareToPlay()
+                }
+
+                guard let player = localPlayer else { return }
+
+                if player.isPlaying {
+                    player.pause()
+                    isPlaying = false
+                    timer?.invalidate()
+                } else {
+                    player.play()
+                    isPlaying = true
+                    startWaveAnimation()
+                }
+            } catch {
+                isPlaying = false
+            }
+            return
+        }
+
+        // Compatibilité avec les anciennes cartes DSP déjà présentes dans l'historique.
         if isPlaying {
             OpenSourceMusicEngine.shared.stopMusic()
             isPlaying = false
             timer?.invalidate()
         } else {
-            let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(where: { styleName.contains($0.rawValue) }) ?? .lofi
+            let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(
+                where: { styleName.contains($0.rawValue) }
+            ) ?? .lofi
+
             OpenSourceMusicEngine.shared.generateAndPlayTrack(style: matchedStyle) { success, _ in
                 DispatchQueue.main.async {
                     self.isPlaying = success
-                    if success { self.startWaveAnimation() }
+                    if success {
+                        self.startWaveAnimation()
+                    }
                 }
             }
         }
     }
-    
+
     private func startWaveAnimation() {
-        timer?.invalidate()
+        guard timer == nil else { return }
+
         timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
             animPhase = (animPhase + 1).truncatingRemainder(dividingBy: 10)
+
+            if let player = localPlayer,
+               isPlaying,
+               !player.isPlaying {
+                isPlaying = false
+                timer?.invalidate()
+                timer = nil
+            }
         }
     }
-    
-    private func setupNotificationObservers() {
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStarted"), object: nil, queue: .main) { _ in
-            self.isPlaying = true
-            self.startWaveAnimation()
+
+    private func shareGeneratedAudio() {
+        guard let url = generatedURL else { return }
+
+        let controller = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+
+        if #available(iOS 13.0, *) {
+            let root = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
+            root?.present(controller, animated: true)
+        } else {
+            UIApplication.shared.keyWindow?
+                .rootViewController?
+                .present(controller, animated: true)
         }
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStopped"), object: nil, queue: .main) { _ in
-            self.isPlaying = false
-            self.timer?.invalidate()
+    }
+}
+
+// MARK: - Carte de génération vidéo
+
+@available(iOS 15.0, *)
+public struct GeneratedVideoCardView: View {
+    public let prompt: String
+    public let startsGenerating: Bool
+    public let videoURL: URL?
+    public let requestedDuration: TimeInterval?
+    public let isVertical: Bool
+
+    @State private var progress: Double
+    @State private var phase: String
+    @State private var resolvedURL: URL?
+    @State private var player: AVPlayer?
+    @State private var shimmerOffset: CGFloat = -1
+
+    public init(
+        prompt: String,
+        startsGenerating: Bool,
+        videoURL: URL?,
+        requestedDuration: TimeInterval?,
+        isVertical: Bool = false
+    ) {
+        self.prompt = prompt
+        self.startsGenerating = startsGenerating
+        self.videoURL = videoURL
+        self.requestedDuration = requestedDuration
+        self.isVertical = isVertical
+        _progress = State(initialValue: videoURL == nil && startsGenerating ? 0.02 : 1)
+        _phase = State(initialValue: startsGenerating ? "Préparation de la scène" : "Vidéo prête")
+        _resolvedURL = State(initialValue: videoURL)
+        _player = State(initialValue: videoURL.map { AVPlayer(url: $0) })
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .top) {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.black.opacity(0.48))
+
+                if let player, resolvedURL != nil {
+                    VideoPlayer(player: player)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                } else {
+                    generationCanvas
+                }
+
+                HStack {
+                    HStack(spacing: 5) {
+                        Image(systemName: isVertical ? "iphone" : "rectangle")
+                            .font(.system(size: 9, weight: .bold))
+                        Text(isVertical ? "SHORT 9:16" : "VIDÉO 16:9")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                Capsule()
+                                    .fill(Color.sarahCyan.opacity(0.13))
+                            )
+                    )
+
+                    Spacer()
+
+                    if resolvedURL == nil {
+                        Text("\(Int(progress * 100)) %")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Capsule()
+                                            .fill(Color.sarahCyan.opacity(0.13))
+                                    )
+                            )
+                    }
+                }
+                .padding(10)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: isVertical ? 330 : 190)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.13), lineWidth: 0.8)
+            )
+
+            HStack(alignment: .center, spacing: 9) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(resolvedURL == nil ? "Sarah Motion Video" : "Vidéo générée")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text(resolvedURL == nil ? phase : prompt)
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.52))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                if let duration = requestedDuration {
+                    Text(duration >= 59.5 ? "1:00" : "0:" + String(format: "%02d", Int(duration.rounded())))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.56))
+                }
+
+                if resolvedURL != nil {
+                    Button(action: shareVideo) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                ZStack {
+                                    Circle().fill(.ultraThinMaterial)
+                                    Circle().fill(Color.sarahCyan.opacity(0.10))
+                                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 0.7)
+                                }
+                            )
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                }
+            }
+
+            if resolvedURL == nil {
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .sarahCyan))
+            } else {
+                Text("MP4 créé dans Sarah. Le rendu Motion Video fonctionne dès maintenant ; un moteur de diffusion vidéo dédié peut prendre la relève lorsqu’un runtime iPhone validé est disponible.")
+                    .font(.system(size: 9, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.34))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(11)
+        .sarahLiquidGlass(
+            cornerRadius: 22,
+            tint: .sarahCyan,
+            intensity: 0.11
+        )
+        .onAppear {
+            if let url = resolvedURL, player == nil {
+                player = AVPlayer(url: url)
+            }
+
+            if resolvedURL == nil {
+                withAnimation(
+                    Animation.linear(duration: 1.7)
+                        .repeatForever(autoreverses: false)
+                ) {
+                    shimmerOffset = 1
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationProgress"))) { note in
+            guard matchesPrompt(note) else { return }
+            if let value = note.userInfo?["progress"] as? Double {
+                progress = min(max(value, 0), 0.99)
+            }
+            if let value = note.userInfo?["phase"] as? String {
+                phase = value
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedVideoReady"))) { note in
+            guard matchesPrompt(note), let url = note.object as? URL else { return }
+            resolvedURL = url
+            player = AVPlayer(url: url)
+            progress = 1
+            phase = "Vidéo prête"
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationCancelled"))) { note in
+            guard matchesPrompt(note) else { return }
+            progress = 0
+            phase = "Génération arrêtée"
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahVideoGenerationFailed"))) { note in
+            guard matchesPrompt(note) else { return }
+            progress = 0
+            phase = (note.userInfo?["error"] as? String) ?? "La génération a échoué"
+        }
+    }
+
+    private var generationCanvas: some View {
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.sarahCyan.opacity(0.12),
+                    Color.black.opacity(0.72),
+                    Color.sarahIndigo.opacity(0.10)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            GeometryReader { proxy in
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.clear,
+                        Color.white.opacity(0.11),
+                        Color.clear
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .rotationEffect(.degrees(18))
+                .frame(width: proxy.size.width * 0.32)
+                .offset(x: shimmerOffset * proxy.size.width * 1.35)
+            }
+            .clipped()
+            .allowsHitTesting(false)
+
+            VStack(spacing: 13) {
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 66, height: 66)
+
+                    Circle()
+                        .fill(Color.sarahCyan.opacity(0.12))
+                        .frame(width: 66, height: 66)
+
+                    Image(systemName: isVertical ? "iphone" : "video.fill")
+                        .font(.system(size: 23, weight: .semibold))
+                        .foregroundColor(.sarahCyan)
+                }
+
+                Text(phase)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.78))
+                    .multilineTextAlignment(.center)
+
+                Text(prompt)
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.42))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func matchesPrompt(_ note: Notification) -> Bool {
+        guard let eventPrompt = note.userInfo?["prompt"] as? String else {
+            return true
+        }
+
+        let lhs = prompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = eventPrompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return lhs == rhs || lhs.contains(rhs) || rhs.contains(lhs)
+    }
+
+    private func shareVideo() {
+        guard let url = resolvedURL else { return }
+
+        let controller = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+
+        let root = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .rootViewController
+
+        root?.present(controller, animated: true)
+    }
+}
+
+// MARK: - Carte Raccourcis Apple
+
+@available(iOS 14.0, *)
+public struct ShortcutPlanCardView: View {
+    public let plan: ShortcutGenerator.ShortcutPlan
+
+    @State private var isCopied = false
+    @State private var openedShortcuts = false
+
+    public init(plan: ShortcutGenerator.ShortcutPlan) {
+        self.plan = plan
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.36, green: 0.23, blue: 0.96),
+                                    Color(red: 0.78, green: 0.22, blue: 0.72)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 38, height: 38)
+
+                    Image(systemName: "square.stack.3d.up.fill")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan.title)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+
+                    Text("\(plan.blocks.count) blocs Raccourcis")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.55))
+                }
+
+                Spacer()
+            }
+
+            Text(plan.summary)
+                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 7) {
+                ForEach(0..<plan.blocks.count, id: \.self) { index in
+                    let block = plan.blocks[index]
+                    HStack(alignment: .top, spacing: 9) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color.white.opacity(0.09))
+                                .frame(width: 32, height: 32)
+
+                            Image(systemName: block.systemImage)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.92))
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Text("\(index + 1).")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundColor(.sarahCyan)
+
+                                Text(block.title)
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+
+                            if let subtitle = block.subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.58))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            if !block.parameters.isEmpty {
+                                Text(
+                                    block.parameters.keys.sorted().compactMap { key in
+                                        guard let value = block.parameters[key] else { return nil }
+                                        return "\(key): \(value)"
+                                    }.joined(separator: "  •  ")
+                                )
+                                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                                .foregroundColor(.sarahCyan.opacity(0.82))
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Text(block.category)
+                            .font(.system(size: 8, weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.62))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.white.opacity(0.07)))
+                    }
+                    .padding(9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.045))
+                    )
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(action: copyBlocks) {
+                    HStack(spacing: 6) {
+                        Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                        Text(isCopied ? "Blocs copiés" : "Copier les blocs")
+                    }
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.10))
+                    )
+                }
+                .buttonStyle(BorderlessButtonStyle())
+
+                Button(action: copyAndOpenShortcuts) {
+                    HStack(spacing: 6) {
+                        Image(systemName: openedShortcuts ? "checkmark.circle.fill" : "arrow.up.forward.app.fill")
+                        Text("Ouvrir Raccourcis")
+                    }
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(red: 0.43, green: 0.27, blue: 0.95))
+                    )
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+
+            Text("Sarah copie la recette et ouvre un raccourci vierge. iOS ne permet pas à une app tierce de coller automatiquement une pile arbitraire de blocs dans l’éditeur.")
+                .font(.system(size: 9, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.38))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(Color(red: 0.09, green: 0.09, blue: 0.12))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.purple.opacity(0.30), lineWidth: 1)
+        )
+    }
+
+    private func copyBlocks() {
+        UIPasteboard.general.string = plan.copyText
+        HapticService.shared.notificationSuccess()
+        isCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            isCopied = false
+        }
+    }
+
+    private func copyAndOpenShortcuts() {
+        UIPasteboard.general.string = plan.copyText
+        HapticService.shared.buttonTap()
+
+        guard let url = ShortcutGenerator.shared.createShortcutURL else {
+            return
+        }
+
+        UIApplication.shared.open(url, options: [:]) { success in
+            DispatchQueue.main.async {
+                openedShortcuts = success
+            }
         }
     }
 }

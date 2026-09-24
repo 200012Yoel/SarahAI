@@ -386,6 +386,22 @@ public final class MultiAgentCoordinator {
             return .tom
         }
         
+        // Création multimédia : une nouvelle intention explicite doit pouvoir
+        // quitter l'agent courant. Cela évite qu'une demande vidéo ou musicale
+        // reste coincée chez Raphaël après une session de création de site.
+        if (normalized.contains("genere une video")
+            || normalized.contains("cree une video")
+            || normalized.contains("fais une video")
+            || normalized.contains("genere un short")
+            || normalized.contains("cree un short")
+            || normalized.contains("genere un reel")
+            || normalized.contains("cree un reel")
+            || normalized.contains("genere une musique")
+            || normalized.contains("compose une musique")
+            || normalized.contains("fais une musique")) {
+            return .nathan
+        }
+
         // Nathan (Réseaux Sociaux, Instagram, TikTok, YouTube, Partage)
         if normalized.contains("nathan") ||
            normalized.contains("reseaux sociaux") || normalized.contains("reseau social") ||
@@ -563,20 +579,43 @@ public final class MultiAgentCoordinator {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
 
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
+        let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+        OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { result in
+            let responseText: String
+            let spoken: String
 
-        let responseText = """
-        ✨ **Ethel [Studio Créatif]**
+            if result.isSuccess {
+                let locality = result.modelName.hasPrefix("Cloud ·")
+                    ? "via le réseau"
+                    : "localement sur l’iPhone"
 
-        🎨 Création lancée pour : « **\(prompt)** »
-        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+                responseText = """
+                ✨ **Ethel [Studio Créatif]**
 
-        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
-        """
-        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+                🎨 Image terminée pour : « **\(prompt)** »
+                Rendu créé **\(locality)** avec **\(result.modelName)**.
+                """
+                spoken = "L’image est prête."
+            } else {
+                responseText = """
+                ✨ **Ethel [Studio Créatif]**
+
+                La création n’a pas pu se terminer avec **\(profile.displayName)** :
+                \(result.errorMessage ?? "ressources indisponibles").
+                """
+                spoken = "La génération de l’image n’a pas pu se terminer."
+            }
+
+            completion(
+                AgentResponse(
+                    agent: .ethel,
+                    text: responseText,
+                    spokenText: spoken
+                )
+            )
+        }
     }
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
@@ -687,14 +726,24 @@ public final class MultiAgentCoordinator {
         }
         // 5. Raccourcis Apple Shortcuts
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
+            let plan = ShortcutGenerator.shared.makePlan(prompt: prompt)
+            let embeddedPlan = ShortcutGenerator.shared.marker(for: plan)
+
+            let responseText = """
+            💻 **Raphaël [Raccourci Apple]**
+
+            J’ai préparé **\(plan.title)** avec les vrais noms de blocs à placer dans Raccourcis.
+            Tu peux copier toute la recette ou ouvrir directement un raccourci vierge avec le bouton de la carte ci-dessous.
+
+            \(embeddedPlan)
+            """
+
             completion(AgentResponse(
                 agent: .esther,
                 text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
+                spokenText: "Le plan du raccourci est prêt. Les blocs sont affichés dans le chat et peuvent être copiés avant d'ouvrir Raccourcis.",
+                openStudio: false,
+                generatedCode: nil
             ))
         }
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
@@ -912,22 +961,45 @@ public final class MultiAgentCoordinator {
             return
         }
         
-        // 4. Génération vidéo locale : prioritaire sur le flux de publication.
+        // 4. Génération vidéo : prioritaire sur le flux de publication.
         let localVideoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if localVideoIntent.isIntent {
-            let profile = SarahLocalVideoGenEngine.shared.profile
-            let responseText = """
-            🎬 **Sarah & Nathan [Création vidéo]**
+            SarahLocalVideoGenEngine.shared.generateVideo(
+                prompt: semanticVideo.enhancedPrompt,
+                duration: semanticVideo.durationSeconds,
+                vertical: semanticVideo.aspectRatio == .portrait
+            ) { result in
+                let responseText: String
+                let spoken: String
 
-            Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
+                switch result {
+                case .success(let url):
+                    let format = semanticVideo.aspectRatio == .portrait ? "vertical" : "paysage"
+                    responseText = """
+                    🎬 **Sarah & Nathan [Création vidéo]**
 
-            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
-            """
-            completion(AgentResponse(
-                agent: .nathan,
-                text: responseText,
-                spokenText: SarahLocalVideoGenEngine.shared.availabilityMessage()
-            ))
+                    Vidéo **\(format)** de **\(Int(semanticVideo.durationSeconds)) secondes** prête avec **Sarah Motion Video**.
+                    Fichier : \(url.lastPathComponent)
+                    """
+                    spoken = "La vidéo est prête."
+                case .failure(let error):
+                    responseText = """
+                    🎬 **Sarah & Nathan [Création vidéo]**
+
+                    La génération s'est arrêtée : \(error.localizedDescription)
+                    """
+                    spoken = "La génération vidéo n'a pas pu se terminer."
+                }
+
+                completion(
+                    AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: spoken
+                    )
+                )
+            }
             return
         }
 
@@ -974,7 +1046,15 @@ public final class MultiAgentCoordinator {
         
         // 9. Génération musicale locale via Core AI sur iOS 27
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -995,6 +1075,20 @@ public final class MultiAgentCoordinator {
 
                 let profile = SarahGenerativeModelCatalog.musicProfile()
 
+                guard let requestedSeconds = musicCheck.requestedSeconds else {
+                    let responseText = """
+                    🎵 **Combien de temps ?**
+
+                    Choisis **20 secondes**, **30 secondes** ou **1 minute**.
+                    """
+                    completion(AgentResponse(
+                        agent: .nathan,
+                        text: responseText,
+                        spokenText: "Combien de temps veux-tu pour la musique ? Vingt secondes, trente secondes ou une minute ?"
+                    ))
+                    return
+                }
+
                 guard SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled else {
                     let responseText = """
                     🎵 **Sarah & Nathan [Musique locale]**
@@ -1011,19 +1105,24 @@ public final class MultiAgentCoordinator {
                 }
 
                 SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
+                    prompt: musicCheck.prompt,
+                    seconds: requestedSeconds
                 ) { _ in }
+
+                let durationText = requestedSeconds >= 60
+                    ? "1 minute"
+                    : "\(Int(requestedSeconds)) secondes"
 
                 let responseText = """
                 🎵 **Sarah & Nathan [Musique locale]**
 
-                Génération lancée avec **\(profile.displayName)**.
+                Génération **\(durationText)** lancée avec **\(profile.displayName)**.
                 L'inférence s'exécute localement sur l'iPhone.
                 """
                 completion(AgentResponse(
                     agent: .nathan,
                     text: responseText,
-                    spokenText: "Je lance la génération musicale locale."
+                    spokenText: "Je lance la génération musicale pour \(durationText)."
                 ))
                 return
             }
@@ -1034,20 +1133,43 @@ public final class MultiAgentCoordinator {
             let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
             if imageCheck.isIntent {
                 let prompt = imageCheck.cleanedPrompt
+                let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
                 let profile = SarahGenerativeModelCatalog.imageProfile()
-                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
 
-                let responseText = """
-                🎨 **Sarah & Nathan [Création visuelle]**
+                OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { result in
+                    let responseText: String
+                    let spoken: String
 
-                Création lancée pour : « **\(prompt)** »
-                Profil : **\(profile.displayName)** · \(profile.licenseName).
-                """
-                completion(AgentResponse(
-                    agent: .nathan,
-                    text: responseText,
-                    spokenText: "Je lance la création de votre image avec le modèle adapté à cet iPhone."
-                ))
+                    if result.isSuccess {
+                        let locality = result.modelName.hasPrefix("Cloud ·")
+                            ? "via le réseau"
+                            : "localement sur l’iPhone"
+
+                        responseText = """
+                        🎨 **Sarah & Nathan [Création visuelle]**
+
+                        Image terminée pour : « **\(prompt)** »
+                        Rendu créé **\(locality)** avec **\(result.modelName)**.
+                        """
+                        spoken = "L’image est prête."
+                    } else {
+                        responseText = """
+                        🎨 **Sarah & Nathan [Création visuelle]**
+
+                        La création n’a pas pu se terminer avec **\(profile.displayName)** :
+                        \(result.errorMessage ?? "ressources indisponibles").
+                        """
+                        spoken = "La génération de l’image n’a pas pu se terminer."
+                    }
+
+                    completion(
+                        AgentResponse(
+                            agent: .nathan,
+                            text: responseText,
+                            spokenText: spoken
+                        )
+                    )
+                }
                 return
             }
         }

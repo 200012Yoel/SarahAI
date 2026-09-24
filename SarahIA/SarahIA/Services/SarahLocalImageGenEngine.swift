@@ -1,6 +1,12 @@
 import Foundation
 import UIKit
 import CoreML
+import AVFoundation
+import CoreImage
+
+#if canImport(CoreAI)
+import CoreAI
+#endif
 
 #if canImport(StableDiffusion)
 import StableDiffusion
@@ -310,16 +316,106 @@ public final class SarahLocalImageGenEngine {
     }
 }
 
+
+#if canImport(CoreAI)
+/// Pont Core AI iOS 27. Il ne fabrique pas un faux modèle : il ne s'active que
+/// lorsqu'un vrai paquet .aimodel/.aimodelc est installé sur l'appareil.
+@available(iOS 27.0, *)
+public actor SarahCoreAIVideoRuntime {
+    public static let shared = SarahCoreAIVideoRuntime()
+
+    public struct PreparedModelInfo: Sendable {
+        public let modelURL: URL
+        public let deviceArchitecture: String
+        public let functionName: String
+    }
+
+    private var loadedModel: AIModel?
+    private var mainFunction: InferenceFunction?
+
+    private init() {}
+
+    public static var deviceArchitectureName: String {
+        AIModel.deviceArchitectureName
+    }
+
+    public static func discoverInstalledModelURL() -> URL? {
+        let fileManager = FileManager.default
+        let architecture = AIModel.deviceArchitectureName
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
+        let directory = base
+            .appendingPathComponent("SarahAI", isDirectory: true)
+            .appendingPathComponent("GenerativeModels", isDirectory: true)
+            .appendingPathComponent("wan21-coreai-1.3b-4bit", isDirectory: true)
+
+        let candidates = [
+            directory.appendingPathComponent("Wan21Sarah.\(architecture).aimodelc"),
+            directory.appendingPathComponent("Wan21Sarah.aimodel")
+        ]
+
+        for candidate in candidates where fileManager.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+
+        if let compiled = Bundle.main.url(
+            forResource: "Wan21Sarah.\(architecture)",
+            withExtension: "aimodelc"
+        ) {
+            return compiled
+        }
+
+        return Bundle.main.url(forResource: "Wan21Sarah", withExtension: "aimodel")
+    }
+
+    public static var isInstalled: Bool {
+        discoverInstalledModelURL() != nil
+    }
+
+    /// Spécialise et charge le modèle pour l'iPhone courant. La signature de
+    /// génération vidéo reste volontairement séparée : elle dépend du paquet
+    /// Wan converti et de ses fonctions exportées.
+    public func prepare() async throws -> PreparedModelInfo {
+        guard let modelURL = Self.discoverInstalledModelURL() else {
+            throw NSError(
+                domain: "SarahCoreAIVideoRuntime",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Paquet vidéo Core AI Wan 2.1 absent."]
+            )
+        }
+
+        let model = try await AIModel(contentsOf: modelURL)
+        guard let function = try model.loadFunction(named: "main") else {
+            throw NSError(
+                domain: "SarahCoreAIVideoRuntime",
+                code: 422,
+                userInfo: [NSLocalizedDescriptionKey: "Le paquet Core AI ne contient pas de fonction main exploitable."]
+            )
+        }
+
+        loadedModel = model
+        mainFunction = function
+
+        return PreparedModelInfo(
+            modelURL: modelURL,
+            deviceArchitecture: AIModel.deviceArchitectureName,
+            functionName: "main"
+        )
+    }
+}
+#endif
+
 // MARK: - Génération vidéo locale
 
 /// Routage vidéo local de Sarah.
 ///
-/// MobileI2V est sélectionné sur les appareils de classe iPhone 14 comme
-/// candidat expérimental. MOVD est sélectionné sur les appareils plus puissants
-/// lorsque la configuration publiée (iOS 18+, ~8 Go de RAM) est satisfaite.
+/// Le catalogue sélectionne automatiquement un backend selon la RAM et iOS :
+/// Wan 2.1/Core AI sur les appareils iOS 27 compatibles, MOVD/MobileI2V sur
+/// les profils intermédiaires, et Sarah Motion Video sur les appareils anciens.
 ///
-/// Cette classe ne prétend pas qu'un portage est actif tant que les modèles
-/// Core ML nécessaires ne sont pas réellement présents dans l'app.
+/// Cette classe ne prétend jamais qu'un runtime de diffusion est actif tant que
+/// son vrai paquet converti n'est pas présent. Le fallback vidéo local reste
+/// disponible pour éviter un échec complet sur les iPhone moins puissants.
 public final class SarahLocalVideoGenEngine {
 
     public static let shared = SarahLocalVideoGenEngine()
@@ -327,14 +423,76 @@ public final class SarahLocalVideoGenEngine {
     public struct VideoIntent {
         public let isIntent: Bool
         public let prompt: String
+        public let duration: TimeInterval
+        public let isVertical: Bool
+    }
+
+    public enum VideoError: LocalizedError {
+        case emptyPrompt
+        case keyframeGenerationFailed(String)
+        case imageConversionFailed
+        case writerCreationFailed
+        case pixelBufferFailed
+        case exportFailed(String)
+        case cancelled
+
+        public var errorDescription: String? {
+            switch self {
+            case .emptyPrompt:
+                return "La description de la vidéo est vide."
+            case .keyframeGenerationFailed(let reason):
+                return "Impossible de créer l'image de départ : \(reason)"
+            case .imageConversionFailed:
+                return "Impossible de préparer l'image pour la vidéo."
+            case .writerCreationFailed:
+                return "Impossible de démarrer l'encodeur vidéo."
+            case .pixelBufferFailed:
+                return "Impossible de créer une image vidéo."
+            case .exportFailed(let reason):
+                return "Échec de l'export vidéo : \(reason)"
+            case .cancelled:
+                return "La génération vidéo a été arrêtée."
+            }
+        }
     }
 
     private let fileManager = FileManager.default
+    private let renderQueue = DispatchQueue(
+        label: "com.sarahia.video.motion",
+        qos: .userInitiated
+    )
+    private let ciContext = CIContext(options: [
+        .cacheIntermediates: false
+    ])
+    private let generationLock = NSLock()
+    private var activeGenerationID: UUID?
 
     private init() {}
 
     public var profile: SarahGenerativeModelProfile {
         SarahGenerativeModelCatalog.videoProfile()
+    }
+
+    public var adaptiveBackendSummary: String {
+        let selected = profile
+        switch selected.identifier {
+        case "wan21-coreai-1.3b-4bit":
+            #if canImport(CoreAI)
+            if #available(iOS 27.0, *) {
+                let installed = SarahCoreAIVideoRuntime.isInstalled
+                return installed
+                    ? "Wan 2.1 / Core AI installé pour \(SarahCoreAIVideoRuntime.deviceArchitectureName)"
+                    : "Wan 2.1 / Core AI sélectionné, paquet absent : fallback Sarah Motion Video"
+            }
+            #endif
+            return "Core AI indisponible : fallback Sarah Motion Video"
+        case "movd-coreml":
+            return "MOVD Core ML sélectionné, fallback local tant que les MLPackage ne sont pas installés"
+        case "mobilei2v-027b":
+            return "MobileI2V sélectionné, fallback local tant que le runtime converti n'est pas installé"
+        default:
+            return "Sarah Motion Video actif"
+        }
     }
 
     public var localModelDirectory: URL {
@@ -361,39 +519,514 @@ public final class SarahLocalVideoGenEngine {
 
     public func detectVideoIntent(_ text: String) -> VideoIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean.lowercased()
+        let semanticVideo = SarahMediaPromptUnderstanding.video(clean)
+        let lower = clean
+            .folding(
+                options: [.diacriticInsensitive, .caseInsensitive],
+                locale: Locale(identifier: "fr_FR")
+            )
+            .lowercased()
 
         let triggers = [
-            "génère une vidéo", "genere une video",
-            "génère-moi une vidéo", "genere moi une video",
-            "crée une vidéo", "cree une video",
-            "fais une vidéo", "fais une video",
-            "generate a video"
+            "genere une video", "genere-moi une video", "genere moi une video",
+            "cree une video", "cree-moi une video", "cree moi une video",
+            "fais une video", "fabrique une video",
+            "generate a video", "create a video",
+            "cree un short", "genere un short", "fais un short",
+            "cree un reel", "genere un reel"
         ]
 
         guard let trigger = triggers.first(where: { lower.contains($0) }) else {
-            return VideoIntent(isIntent: false, prompt: "")
+            return VideoIntent(
+                isIntent: false,
+                prompt: "",
+                duration: 6,
+                isVertical: false
+            )
         }
 
         var prompt = clean
         if let range = lower.range(of: trigger) {
-            let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
-            let safeOffset = min(offset, clean.count)
-            let cleanIndex = clean.index(clean.startIndex, offsetBy: safeOffset)
-            prompt = String(clean[cleanIndex...])
-                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
+            let distance = lower.distance(
+                from: lower.startIndex,
+                to: range.upperBound
+            )
+            let safeDistance = min(distance, clean.count)
+            let index = clean.index(
+                clean.startIndex,
+                offsetBy: safeDistance
+            )
+            prompt = String(clean[index...])
         }
+
+        prompt = removingVideoDuration(from: prompt)
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+                    .union(CharacterSet(charactersIn: ":,-."))
+            )
 
         if prompt.isEmpty {
-            prompt = clean
+            prompt = "scène cinématique élégante"
         }
 
-        return VideoIntent(isIntent: true, prompt: prompt)
+        let vertical =
+            lower.contains("short")
+            || lower.contains("reel")
+            || lower.contains("tiktok")
+            || lower.contains("vertical")
+            || lower.contains("9:16")
+
+        return VideoIntent(
+            isIntent: true,
+            prompt: semanticVideo.enhancedPrompt,
+            duration: semanticVideo.durationSeconds,
+            isVertical: semanticVideo.aspectRatio == .portrait
+        )
     }
 
-    /// Indique uniquement si un ensemble de ressources locales crédible est
-    /// présent. L'inférence vidéo complète sera activée au moment où le
-    /// runtime Core ML correspondant est intégré et validé sur l'appareil.
+    private func requestedDuration(from text: String) -> TimeInterval? {
+        let normalized = text
+            .folding(
+                options: [.diacriticInsensitive, .caseInsensitive],
+                locale: Locale(identifier: "fr_FR")
+            )
+            .lowercased()
+
+        let pattern = "([0-9]+(?:[\\.,][0-9]+)?)\\s*(?:secondes?|secs?|sec|s)\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                in: normalized,
+                range: NSRange(
+                    normalized.startIndex..<normalized.endIndex,
+                    in: normalized
+                )
+              ),
+              let range = Range(match.range(at: 1), in: normalized) else {
+            return nil
+        }
+
+        let raw = String(normalized[range])
+            .replacingOccurrences(of: ",", with: ".")
+        guard let seconds = Double(raw) else { return nil }
+        return min(max(seconds, 3), 12)
+    }
+
+    private func removingVideoDuration(from text: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: "(?i)\\b(?:de\\s+)?[0-9]+(?:[\\.,][0-9]+)?\\s*(?:secondes?|secs?|sec|s)\\b"
+        ) else {
+            return text
+        }
+
+        return regex.stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..<text.endIndex, in: text),
+            withTemplate: " "
+        )
+    }
+
+    /// Génération vidéo immédiatement utilisable sur iPhone.
+    ///
+    /// Sarah crée d'abord une image clé avec le moteur image sélectionné, puis
+    /// produit localement un MP4 animé (zoom/panoramique cinématique). Cette
+    /// voie est distincte d'un vrai modèle de diffusion vidéo comme MOVD ou
+    /// MobileI2V, dont les runtimes Core ML restent signalés comme expérimentaux.
+    public func generateVideo(
+        prompt: String,
+        duration: TimeInterval = 6,
+        vertical: Bool = false,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) {
+        let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            completion(.failure(VideoError.emptyPrompt))
+            return
+        }
+
+        let safeDuration = min(max(duration, 3), 12)
+        let generationID = beginGeneration()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahVideoGenerationProgress"),
+                object: nil,
+                userInfo: [
+                    "prompt": clean,
+                    "progress": 0.03,
+                    "phase": "Création de l’image clé",
+                    "duration": safeDuration,
+                    "vertical": vertical
+                ]
+            )
+        }
+
+        OpenSourceImageGenerationService.shared.generateImage(
+            prompt: clean,
+            width: vertical ? 768 : 1024,
+            height: vertical ? 1024 : 768,
+            model: "flux",
+            notifyChat: false
+        ) { [weak self] result in
+            guard let self = self else { return }
+
+            guard self.isGenerationCurrent(generationID) else {
+                completion(.failure(VideoError.cancelled))
+                return
+            }
+
+            guard result.isSuccess, let image = result.image else {
+                let error = VideoError.keyframeGenerationFailed(
+                    result.errorMessage ?? "moteur image indisponible"
+                )
+                self.finishGeneration(generationID)
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahVideoGenerationFailed"),
+                        object: nil,
+                        userInfo: [
+                            "prompt": clean,
+                            "error": error.localizedDescription
+                        ]
+                    )
+                    completion(.failure(error))
+                }
+                return
+            }
+
+            self.renderQueue.async {
+                do {
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahVideoGenerationProgress"),
+                            object: nil,
+                            userInfo: [
+                                "prompt": clean,
+                                "progress": 0.20,
+                                "phase": "Animation de la scène",
+                                "duration": safeDuration,
+                                "vertical": vertical
+                            ]
+                        )
+                    }
+
+                    let url = try self.renderMotionVideo(
+                        image: image,
+                        prompt: clean,
+                        duration: safeDuration,
+                        vertical: vertical,
+                        generationID: generationID
+                    )
+
+                    self.finishGeneration(generationID)
+
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahGeneratedVideoReady"),
+                            object: url,
+                            userInfo: [
+                                "prompt": clean,
+                                "duration": safeDuration,
+                                "vertical": vertical,
+                                "engineName": "Sarah Motion Video",
+                                "isLocalMotionRender": true
+                            ]
+                        )
+                        completion(.success(url))
+                    }
+                } catch {
+                    self.finishGeneration(generationID)
+
+                    let wasCancelled: Bool
+                    if let videoError = error as? VideoError,
+                       case .cancelled = videoError {
+                        wasCancelled = true
+                    } else {
+                        wasCancelled = false
+                    }
+
+                    DispatchQueue.main.async {
+                        if wasCancelled {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahVideoGenerationCancelled"),
+                                object: nil,
+                                userInfo: ["prompt": clean]
+                            )
+                        } else {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahVideoGenerationFailed"),
+                                object: nil,
+                                userInfo: [
+                                    "prompt": clean,
+                                    "error": error.localizedDescription
+                                ]
+                            )
+                        }
+                        completion(.failure(error))
+                    }
+                }
+            }
+        }
+    }
+
+    private func renderMotionVideo(
+        image: UIImage,
+        prompt: String,
+        duration: TimeInterval,
+        vertical: Bool,
+        generationID: UUID
+    ) throws -> URL {
+        guard isGenerationCurrent(generationID) else {
+            throw VideoError.cancelled
+        }
+        guard let ciImage = CIImage(image: image) else {
+            throw VideoError.imageConversionFailed
+        }
+
+        let width = vertical ? 720 : 1280
+        let height = vertical ? 1280 : 720
+        let fps: Int32 = 24
+        let totalFrames = max(1, Int(duration * Double(fps)))
+
+        let outputURL = generatedVideoURL(prompt: prompt)
+        try? fileManager.removeItem(at: outputURL)
+
+        let writer = try AVAssetWriter(
+            outputURL: outputURL,
+            fileType: .mp4
+        )
+
+        let input = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: vertical ? 5_500_000 : 6_500_000,
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                ]
+            ]
+        )
+        input.expectsMediaDataInRealTime = false
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String:
+                    Int(kCVPixelFormatType_32BGRA),
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+        )
+
+        guard writer.canAdd(input) else {
+            throw VideoError.writerCreationFailed
+        }
+        writer.add(input)
+
+        guard writer.startWriting() else {
+            throw VideoError.exportFailed(
+                writer.error?.localizedDescription ?? "démarrage impossible"
+            )
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        let target = CGRect(
+            x: 0,
+            y: 0,
+            width: width,
+            height: height
+        )
+        let background = CIImage(
+            color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)
+        ).cropped(to: target)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        for frameIndex in 0..<totalFrames {
+            guard isGenerationCurrent(generationID) else {
+                writer.cancelWriting()
+                throw VideoError.cancelled
+            }
+
+            while !input.isReadyForMoreMediaData {
+                if writer.status == .failed {
+                    throw VideoError.exportFailed(
+                        writer.error?.localizedDescription ?? "encodeur interrompu"
+                    )
+                }
+                Thread.sleep(forTimeInterval: 0.002)
+            }
+
+            guard let pool = adaptor.pixelBufferPool else {
+                throw VideoError.pixelBufferFailed
+            }
+
+            var optionalBuffer: CVPixelBuffer?
+            let status = CVPixelBufferPoolCreatePixelBuffer(
+                nil,
+                pool,
+                &optionalBuffer
+            )
+            guard status == kCVReturnSuccess,
+                  let pixelBuffer = optionalBuffer else {
+                throw VideoError.pixelBufferFailed
+            }
+
+            let progress = CGFloat(frameIndex) / CGFloat(max(totalFrames - 1, 1))
+            let baseScale = max(
+                CGFloat(width) / ciImage.extent.width,
+                CGFloat(height) / ciImage.extent.height
+            )
+            let zoom = baseScale * (1.0 + 0.09 * progress)
+
+            var frameImage = ciImage.transformed(
+                by: CGAffineTransform(
+                    scaleX: zoom,
+                    y: zoom
+                )
+            )
+
+            let extent = frameImage.extent
+            let travel = max(0, extent.width - CGFloat(width))
+            let pan = travel * (0.18 + 0.64 * progress)
+            let x = -pan
+            let y = (CGFloat(height) - extent.height) / 2
+
+            frameImage = frameImage.transformed(
+                by: CGAffineTransform(
+                    translationX: x - extent.minX,
+                    y: y - extent.minY
+                )
+            )
+
+            frameImage = frameImage
+                .composited(over: background)
+                .cropped(to: target)
+
+            ciContext.render(
+                frameImage,
+                to: pixelBuffer,
+                bounds: target,
+                colorSpace: colorSpace
+            )
+
+            let time = CMTime(
+                value: Int64(frameIndex),
+                timescale: fps
+            )
+
+            guard adaptor.append(pixelBuffer, withPresentationTime: time) else {
+                throw VideoError.exportFailed(
+                    writer.error?.localizedDescription ?? "image refusée"
+                )
+            }
+
+            if frameIndex % 6 == 0 {
+                let renderProgress =
+                    0.20 + 0.78 * Double(frameIndex + 1) / Double(totalFrames)
+
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahVideoGenerationProgress"),
+                        object: nil,
+                        userInfo: [
+                            "prompt": prompt,
+                            "progress": min(renderProgress, 0.98),
+                            "phase": "Encodage vidéo",
+                            "duration": duration,
+                            "vertical": vertical
+                        ]
+                    )
+                }
+            }
+        }
+
+        input.markAsFinished()
+
+        let semaphore = DispatchSemaphore(value: 0)
+        writer.finishWriting {
+            semaphore.signal()
+        }
+        semaphore.wait()
+
+        guard writer.status == .completed else {
+            throw VideoError.exportFailed(
+                writer.error?.localizedDescription ?? "export incomplet"
+            )
+        }
+
+        return outputURL
+    }
+
+    private func generatedVideoURL(prompt: String) -> URL {
+        let base = fileManager.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first ?? fileManager.temporaryDirectory
+
+        let directory = base
+            .appendingPathComponent("SarahIA", isDirectory: true)
+            .appendingPathComponent("GeneratedVideos", isDirectory: true)
+
+        try? fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+
+        let safe = prompt
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .prefix(4)
+            .joined(separator: "-")
+            .lowercased()
+
+        return directory.appendingPathComponent(
+            "sarah-"
+            + (safe.isEmpty ? "video" : safe)
+            + "-"
+            + String(UUID().uuidString.prefix(8))
+            + ".mp4"
+        )
+    }
+
+    public func cancelCurrentGeneration() {
+        generationLock.lock()
+        activeGenerationID = nil
+        generationLock.unlock()
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("SarahVideoGenerationCancelled"),
+                object: nil
+            )
+        }
+    }
+
+    private func beginGeneration() -> UUID {
+        let id = UUID()
+        generationLock.lock()
+        activeGenerationID = id
+        generationLock.unlock()
+        return id
+    }
+
+    private func isGenerationCurrent(_ id: UUID) -> Bool {
+        generationLock.lock()
+        let current = activeGenerationID == id
+        generationLock.unlock()
+        return current
+    }
+
+    private func finishGeneration(_ id: UUID) {
+        generationLock.lock()
+        if activeGenerationID == id {
+            activeGenerationID = nil
+        }
+        generationLock.unlock()
+    }
+
+    /// Vrai uniquement pour les runtimes de diffusion vidéo dédiés.
     public var hasInstalledRuntimeAssets: Bool {
         switch profile.identifier {
         case "movd-coreml":
@@ -418,21 +1051,20 @@ public final class SarahLocalVideoGenEngine {
     }
 
     public func availabilityMessage() -> String {
+        let diffusionDetail: String
         switch profile.runtimeState {
         case .unsupported:
-            return "La génération vidéo locale n'est pas prise en charge sur cet appareil."
-
+            diffusionDetail = "Le modèle de diffusion vidéo dédié n'est pas disponible sur cet appareil."
         case .experimental:
-            return "Le profil \(profile.displayName) est sélectionné pour cet iPhone, mais son port Core ML iOS n'est pas encore validé dans cette version de Sarah."
-
+            diffusionDetail = "\(profile.displayName) reste expérimental sur iPhone."
         case .requiresDownload:
-            if hasInstalledRuntimeAssets {
-                return "Les ressources de \(profile.displayName) sont présentes, mais le runtime vidéo doit encore être validé avant activation."
-            }
-            return "Le profil \(profile.displayName) est compatible avec ce niveau de matériel, mais les ressources locales ne sont pas installées."
-
+            diffusionDetail = hasInstalledRuntimeAssets
+                ? "Les ressources de \(profile.displayName) sont présentes, mais son runtime doit encore être validé."
+                : "Les ressources de \(profile.displayName) ne sont pas encore installées."
         case .ready:
-            return "\(profile.displayName) est prêt."
+            diffusionDetail = "\(profile.displayName) est prêt."
         }
+
+        return "Sarah Motion Video est prêt : Sarah peut générer une image clé puis produire localement un MP4 animé. \(diffusionDetail)"
     }
 }

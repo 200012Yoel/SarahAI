@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import SceneKit
 
 /// Studio "VAI Coding" avec streaming direct token par token, prévisualisation interactive WKWebView,
 /// ingestion de maquettes Figma/Google Stitch et exportateur de raccourcis Apple (.shortcut).
@@ -17,11 +18,16 @@ public struct VAICodingStudioView: View {
     @State private var exportMessage: String = ""
     @State private var figmaTokensInput: String = ""
     @State private var isShowingFigmaSheet: Bool = false
+    @State private var sceneWidth: Double = 8
+    @State private var sceneLength: Double = 10
+    @State private var sceneFloors: Double = 2
+    @State private var sceneFloorHeight: Double = 2.7
     
     enum StudioTab {
         case preview
         case editor
         case shortcuts
+        case scene3D
         case cloudDeploy
     }
     
@@ -105,6 +111,7 @@ public struct VAICodingStudioView: View {
                     Text("🌐 Rendu Live").tag(StudioTab.preview)
                     Text("💻 Code Source").tag(StudioTab.editor)
                     Text("⚡ Raccourcis").tag(StudioTab.shortcuts)
+                    Text("🧊 3D").tag(StudioTab.scene3D)
                     Text("🚀 Cloud & Déploiement").tag(StudioTab.cloudDeploy)
                 }
                 .pickerStyle(SegmentedPickerStyle())
@@ -152,6 +159,8 @@ public struct VAICodingStudioView: View {
                 } else if selectedTab == .shortcuts {
                     // Compilateur & Exportateur Apple Shortcuts (.shortcut)
                     shortcutsTabContent
+                } else if selectedTab == .scene3D {
+                    scene3DTabContent
                 } else {
                     // Déploiement en Ligne, GitHub, Gmail & Play Console
                     cloudDeployTabContent
@@ -268,6 +277,88 @@ public struct VAICodingStudioView: View {
         .padding(24)
     }
     
+    // MARK: - Studio 3D paramétrique
+
+    private var scene3DTabContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 14) {
+                VAI3DPreviewRepresentable(
+                    width: sceneWidth,
+                    length: sceneLength,
+                    floors: max(1, Int(sceneFloors.rounded())),
+                    floorHeight: sceneFloorHeight
+                )
+                .frame(height: 280)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .sarahLiquidGlass(cornerRadius: 18, tint: Color(red: 0.15, green: 0.72, blue: 1.0), intensity: 0.08)
+
+                VStack(spacing: 12) {
+                    parameterSlider(title: "Largeur", value: $sceneWidth, range: 3...25, suffix: "m")
+                    parameterSlider(title: "Longueur", value: $sceneLength, range: 3...35, suffix: "m")
+                    parameterSlider(title: "Étages", value: $sceneFloors, range: 1...5, step: 1, suffix: "")
+                    parameterSlider(title: "Hauteur sous plafond", value: $sceneFloorHeight, range: 2.2...4.5, step: 0.1, suffix: "m")
+                }
+                .padding(14)
+                .sarahLiquidGlass(cornerRadius: 18, tint: Color(red: 0.15, green: 0.72, blue: 1.0), intensity: 0.06)
+
+                Button(action: send3DBriefToRaphael) {
+                    HStack {
+                        Image(systemName: "cube.transparent")
+                        Text("Envoyer le brief 3D à Raphaël")
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "arrow.up.circle.fill")
+                    }
+                    .foregroundColor(.white)
+                    .padding(14)
+                    .background(Color(red: 0.15, green: 0.72, blue: 1.0))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(14)
+        }
+    }
+
+    private func parameterSlider(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double = 0.5,
+        suffix: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white)
+                Spacer()
+                Text((step < 1
+                ? String(format: "%.1f", value.wrappedValue)
+                : String(format: "%.0f", value.wrappedValue)) + suffix)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.gray)
+            }
+            Slider(value: value, in: range, step: step)
+                .tint(Color(red: 0.15, green: 0.72, blue: 1.0))
+        }
+    }
+
+    private func send3DBriefToRaphael() {
+        HapticService.shared.buttonTap()
+        let floors = max(1, Int(sceneFloors.rounded()))
+        let prompt = """
+        Raphaël, crée une scène 3D paramétrique éditable avec ce brief :
+        - largeur : \(String(format: "%.1f", sceneWidth)) m
+        - longueur : \(String(format: "%.1f", sceneLength)) m
+        - étages : \(floors)
+        - hauteur sous plafond : \(String(format: "%.1f", sceneFloorHeight)) m
+        Commence par confirmer les paramètres manquants utiles (pièces, ouvertures, matériaux, éclairage et style), puis génère une structure exploitable par le Studio 3D.
+        """
+        viewModel.activeAgent = .esther
+        viewModel.sendMessage(prompt)
+    }
+
     // MARK: - Onglet Raccourcis Apple
     
     private var shortcutsTabContent: some View {
@@ -625,5 +716,111 @@ public struct VAIWebViewRepresentable: UIViewRepresentable {
     
     public func updateUIView(_ uiView: WKWebView, context: Context) {
         uiView.loadHTMLString(htmlContent, baseURL: nil)
+    }
+}
+
+/// Aperçu SceneKit local du brief 3D. Il reste volontairement paramétrique :
+/// l'interface HTML future pourra piloter les mêmes dimensions sans changer la logique Raphaël.
+@available(iOS 14.0, *)
+public struct VAI3DPreviewRepresentable: UIViewRepresentable {
+    public var width: Double
+    public var length: Double
+    public var floors: Int
+    public var floorHeight: Double
+
+    public init(width: Double, length: Double, floors: Int, floorHeight: Double) {
+        self.width = width
+        self.length = length
+        self.floors = floors
+        self.floorHeight = floorHeight
+    }
+
+    public func makeUIView(context: Context) -> SCNView {
+        let view = SCNView(frame: .zero)
+        view.backgroundColor = .clear
+        view.autoenablesDefaultLighting = false
+        view.allowsCameraControl = true
+        view.antialiasingMode = .multisampling4X
+        return view
+    }
+
+    public func updateUIView(_ uiView: SCNView, context: Context) {
+        let scene = SCNScene()
+        let root = scene.rootNode
+
+        let safeWidth = max(3.0, width)
+        let safeLength = max(3.0, length)
+        let safeFloors = max(1, floors)
+        let safeHeight = max(2.2, floorHeight)
+        let wallThickness = 0.12
+
+        let material = SCNMaterial()
+        material.diffuse.contents = UIColor(white: 0.82, alpha: 1)
+        material.roughness.contents = 0.62
+
+        let accent = SCNMaterial()
+        accent.diffuse.contents = UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 0.95)
+        accent.roughness.contents = 0.38
+
+        for floor in 0..<safeFloors {
+            let baseY = Double(floor) * safeHeight
+
+            let slab = SCNBox(width: safeWidth, height: 0.14, length: safeLength, chamferRadius: 0.04)
+            slab.materials = [floor == 0 ? material : accent]
+            let slabNode = SCNNode(geometry: slab)
+            slabNode.position = SCNVector3(0, Float(baseY), 0)
+            root.addChildNode(slabNode)
+
+            let wallH = safeHeight - 0.15
+            let frontBack = SCNBox(width: safeWidth, height: wallH, length: wallThickness, chamferRadius: 0.03)
+            frontBack.materials = [material]
+            for z in [-safeLength / 2, safeLength / 2] {
+                let node = SCNNode(geometry: frontBack.copy() as? SCNGeometry)
+                node.position = SCNVector3(0, Float(baseY + safeHeight / 2), Float(z))
+                root.addChildNode(node)
+            }
+
+            let side = SCNBox(width: wallThickness, height: wallH, length: safeLength, chamferRadius: 0.03)
+            side.materials = [material]
+            for x in [-safeWidth / 2, safeWidth / 2] {
+                let node = SCNNode(geometry: side.copy() as? SCNGeometry)
+                node.position = SCNVector3(Float(x), Float(baseY + safeHeight / 2), 0)
+                root.addChildNode(node)
+            }
+        }
+
+        let roof = SCNBox(width: safeWidth + 0.18, height: 0.18, length: safeLength + 0.18, chamferRadius: 0.05)
+        roof.materials = [accent]
+        let roofNode = SCNNode(geometry: roof)
+        roofNode.position = SCNVector3(0, Float(Double(safeFloors) * safeHeight), 0)
+        root.addChildNode(roofNode)
+
+        let camera = SCNCamera()
+        camera.fieldOfView = 48
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        let extent = max(safeWidth, safeLength)
+        cameraNode.position = SCNVector3(Float(extent * 1.15), Float(Double(safeFloors) * safeHeight * 0.85 + 2), Float(extent * 1.35))
+        cameraNode.look(at: SCNVector3(0, Float(Double(safeFloors) * safeHeight * 0.45), 0))
+        root.addChildNode(cameraNode)
+
+        let key = SCNLight()
+        key.type = .omni
+        key.intensity = 900
+        let keyNode = SCNNode()
+        keyNode.light = key
+        keyNode.position = SCNVector3(6, 10, 8)
+        root.addChildNode(keyNode)
+
+        let ambient = SCNLight()
+        ambient.type = .ambient
+        ambient.intensity = 480
+        ambient.color = UIColor(white: 0.72, alpha: 1)
+        let ambientNode = SCNNode()
+        ambientNode.light = ambient
+        root.addChildNode(ambientNode)
+
+        uiView.scene = scene
+        uiView.pointOfView = cameraNode
     }
 }

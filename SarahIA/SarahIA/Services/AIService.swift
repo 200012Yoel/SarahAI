@@ -118,7 +118,15 @@ public final class AIService {
         
         // 0.3 GÉNÉRATION MUSICALE LOCALE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -147,6 +155,17 @@ public final class AIService {
                     return
                 }
 
+                guard let requestedSeconds = musicCheck.requestedSeconds else {
+                    let reply = """
+                    🎵 **Combien de temps pour la musique ?**
+
+                    Choisis **20 secondes**, **30 secondes** ou **1 minute**.
+                    """
+                    recordExchange(userText: trimmed, assistantResponse: reply)
+                    completion(reply.decodingHTMLEntities())
+                    return
+                }
+
                 if !SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
                     let reply = """
                     🎵 **Modèle musical à installer**
@@ -159,10 +178,16 @@ public final class AIService {
                     return
                 }
 
+                let profile = SarahGenerativeModelCatalog.musicProfile()
                 SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
+                    prompt: musicCheck.prompt,
+                    seconds: requestedSeconds
                 ) { [weak self] result in
                     guard let self = self else { return }
+
+                    let durationText = requestedSeconds >= 60
+                        ? "1 minute"
+                        : "\(Int(requestedSeconds)) secondes"
 
                     let reply: String
                     switch result {
@@ -170,7 +195,7 @@ public final class AIService {
                         reply = """
                         🎵 **Musique générée localement**
 
-                        Création terminée avec **Stable Audio Open Small · Core ML**.
+                        Création **\(durationText)** terminée avec **\(profile.displayName)**.
                         Fichier : \(url.lastPathComponent)
                         """
                     case .failure(let error):
@@ -188,19 +213,42 @@ public final class AIService {
             }
         }
 
-        // 0.4 GÉNÉRATION VIDÉO LOCALE
+        // 0.4 GÉNÉRATION VIDÉO
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if videoCheck.isIntent {
-            let profile = SarahLocalVideoGenEngine.shared.profile
-            let reply = """
-            🎬 **Création vidéo — \(profile.displayName)**
+            SarahLocalVideoGenEngine.shared.generateVideo(
+                prompt: semanticVideo.enhancedPrompt,
+                duration: semanticVideo.durationSeconds,
+                vertical: semanticVideo.aspectRatio == .portrait
+            ) { [weak self] result in
+                guard let self = self else { return }
 
-            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
+                let reply: String
+                switch result {
+                case .success(let url):
+                    let format = semanticVideo.aspectRatio == .portrait ? "vertical 9:16" : "paysage 16:9"
+                    reply = """
+                    🎬 **Vidéo générée**
 
-            Profil sélectionné automatiquement pour cet appareil : **\(profile.displayName)** · \(profile.licenseName).
-            """
-            recordExchange(userText: trimmed, assistantResponse: reply)
-            completion(reply.decodingHTMLEntities())
+                    Sarah a créé un MP4 **\(format)** de **\(Int(semanticVideo.durationSeconds)) secondes** avec **Sarah Motion Video**.
+                    Fichier : \(url.lastPathComponent)
+
+                    Le rendu utilise une image clé générée par Sarah puis une animation locale. Le moteur de diffusion vidéo dédié reste séparé tant que son runtime iPhone n'est pas validé.
+                    """
+                case .failure(let error):
+                    reply = """
+                    🎬 **Génération vidéo interrompue**
+
+                    \(error.localizedDescription)
+                    """
+                }
+
+                self.recordExchange(userText: trimmed, assistantResponse: reply)
+                DispatchQueue.main.async {
+                    completion(reply.decodingHTMLEntities())
+                }
+            }
             return
         }
 
@@ -208,9 +256,10 @@ public final class AIService {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
+            let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
             let profile = SarahGenerativeModelCatalog.imageProfile()
 
-            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { [weak self] result in
+            OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { [weak self] result in
                 guard let self = self else { return }
 
                 let reply: String
@@ -358,7 +407,15 @@ public final class AIService {
         
         // 1.1 GÉNÉRATION MUSICALE RÉELLE ON-DEVICE (Core ML / iOS 27)
         if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let baseMusicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+            let semanticMusic = SarahMediaPromptUnderstanding.music(trimmed)
+            let musicCheck = SarahLocalMusicGenEngine.MusicIntent(
+                isIntent: baseMusicCheck.isIntent,
+                wantsLyrics: baseMusicCheck.wantsLyrics,
+                prompt: semanticMusic.enhancedPrompt,
+                language: semanticMusic.language,
+                requestedSeconds: baseMusicCheck.requestedSeconds ?? semanticMusic.durationSeconds.map { Float($0) }
+            )
             if musicCheck.isIntent {
                 if musicCheck.wantsLyrics {
                     let profile = SarahGenerativeModelCatalog.vocalSongProfile()
@@ -399,6 +456,7 @@ public final class AIService {
         
         // 1.2 GÉNÉRATION VIDÉO
         let videoCheck = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        let semanticVideo = SarahMediaPromptUnderstanding.video(trimmed)
         if videoCheck.isIntent {
             let profile = SarahLocalVideoGenEngine.shared.profile
             let reply = """
@@ -414,9 +472,10 @@ public final class AIService {
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
         if imageCheck.isIntent {
             let prompt = imageCheck.cleanedPrompt
+            let semanticImage = SarahMediaPromptUnderstanding.image(prompt)
             let profile = SarahGenerativeModelCatalog.imageProfile()
 
-            OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+            OpenSourceImageGenerationService.shared.generateImage(prompt: semanticImage.enhancedPrompt) { _ in }
 
             let reply = """
             🎨 **Création d'image lancée**

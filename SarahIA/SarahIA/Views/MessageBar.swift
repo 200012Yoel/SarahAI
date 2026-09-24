@@ -1,22 +1,29 @@
 import SwiftUI
 
-/// Barre de saisie 100% native SwiftUI (MessageBar) avec Capsule Élargie,
-/// champ texte, microphone intégré et bouton waveform / envoi.
-@available(iOS 14.0, *)
+/// Barre de saisie native SwiftUI.
+@available(iOS 15.0, *)
 public struct MessageBar: View {
     @Binding var text: String
     @Binding var activeAgent: AgentType
     var isRecording: Bool
+    var isProcessing: Bool
+    var onOpenActions: () -> Void
     var onSend: (String) -> Void
+    var onCancel: () -> Void
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
-    
+
+    @FocusState private var isComposerFocused: Bool
+
     public init(
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
         isRecording: Bool,
+        isProcessing: Bool = false,
+        onOpenActions: @escaping () -> Void = {},
         onSend: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void = {},
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
         onOpenVAICoding: @escaping () -> Void
@@ -24,64 +31,228 @@ public struct MessageBar: View {
         self._text = text
         self._activeAgent = activeAgent
         self.isRecording = isRecording
+        self.isProcessing = isProcessing
+        self.onOpenActions = onOpenActions
         self.onSend = onSend
+        self.onCancel = onCancel
         self.onToggleMic = onToggleMic
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
     }
-    
+
     public var body: some View {
-        HStack(spacing: 12) {
-            // Champ texte étendu naturellement avec Micro intégré à droite de la capsule
+        HStack(spacing: 10) {
+            Menu {
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenActions()
+                }) {
+                    Label("Ajouter une photo ou vidéo", systemImage: "photo.on.rectangle.angled")
+                }
+
+                Divider()
+
+                Button(action: openRaphaelStudio) {
+                    Label("Studio Raphaël · Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+
+                Button(action: prepare3DStudioPrompt) {
+                    Label("Studio Raphaël · 3D", systemImage: "cube.transparent")
+                }
+
+                Button(action: startGuidedWebsite) {
+                    Label("Créer un site guidé", systemImage: "safari")
+                }
+
+                Button(action: prepareDebugPrompt) {
+                    Label("Déboguer / améliorer du code", systemImage: "wrench.and.screwdriver")
+                }
+
+                Button(action: prepareAppleWebsitePrompt) {
+                    Label("Site Apple · Liquid Glass", systemImage: "sparkles.rectangle.stack")
+                }
+
+                Divider()
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenVoiceOrb()
+                }) {
+                    Label("Mode vocal", systemImage: "waveform.circle.fill")
+                }
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenActions()
+                }) {
+                    Label("Tous les outils", systemImage: "square.grid.2x2")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .sarahLiquidGlass(
+                        cornerRadius: 22,
+                        tint: activeAgent.themeColor,
+                        intensity: 0.10
+                    )
+            }
+            .accessibilityLabel("Ajouter un média ou ouvrir les outils rapides")
+
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
+                    guard !isProcessing else { return }
                     submitMessage()
                 })
+                .focused($isComposerFocused)
                 .foregroundColor(.white)
-                .accentColor(.blue)
+                .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
-                
+
+                if activeAgent == .esther {
+                    Button(action: openRaphaelStudio) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .foregroundColor(activeAgent.themeColor)
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(width: 30, height: 30)
+                            .background(activeAgent.themeColor.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(isProcessing)
+                    .accessibilityLabel("Ouvrir le Studio Raphaël")
+                }
+
                 Button(action: {
+                    guard !isProcessing else { return }
                     onToggleMic()
                 }) {
                     Image(systemName: isRecording ? "mic.fill" : "mic")
-                        .foregroundColor(isRecording ? .red : .gray)
+                        .foregroundColor(isProcessing ? .gray.opacity(0.45) : (isRecording ? activeAgent.themeColor : .gray))
                         .font(.system(size: 18))
                 }
                 .buttonStyle(PlainButtonStyle())
+                .disabled(isProcessing)
             }
-            .padding(.horizontal, 16)
+            .padding(.leading, 15)
+            .padding(.trailing, 9)
             .frame(height: 48)
-            .background(Color(white: 0.15))
-            .cornerRadius(24)
-            
-            // Bouton Waveform / Envoi
+            .sarahLiquidGlass(
+                cornerRadius: 24,
+                tint: activeAgent.themeColor,
+                intensity: activeAgent == .esther ? 0.12 : 0.08
+            )
+
             let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
             Button(action: {
-                if hasText {
+                if isProcessing {
+                    HapticService.shared.buttonTap()
+                    onCancel()
+                } else if hasText {
                     submitMessage()
                 } else {
                     HapticService.shared.buttonTap()
+                    isComposerFocused = false
                     onOpenVoiceOrb()
                 }
             }) {
-                Image(systemName: hasText ? "arrow.up" : "waveform")
-                    .font(.system(size: 18, weight: hasText ? .bold : .regular))
-                    .foregroundColor(.white)
+                ZStack {
+                    if isProcessing {
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                            .fill(Color.white)
+                            .frame(width: 11, height: 11)
+                    } else {
+                        Image(systemName: hasText ? "arrow.up" : "waveform")
+                            .font(.system(size: 18, weight: hasText ? .bold : .regular))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
             }
             .frame(width: 44, height: 44)
-            .background(hasText ? Color.blue : Color(white: 0.15))
+            .background(
+                ZStack {
+                    Circle().fill(.ultraThinMaterial)
+                    Circle().fill(
+                        (isProcessing || hasText)
+                            ? activeAgent.themeColor.opacity(0.92)
+                            : Color.white.opacity(0.06)
+                    )
+                    Circle().stroke(
+                        (isProcessing || hasText)
+                            ? Color.white.opacity(0.26)
+                            : Color.white.opacity(0.12),
+                        lineWidth: 0.8
+                    )
+                }
+            )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-keyboard") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    isComposerFocused = true
+                }
+            }
+        }
     }
-    
+
+    private func openRaphaelStudio() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        isComposerFocused = false
+        onOpenVAICoding()
+    }
+
+    private func startGuidedWebsite() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        isComposerFocused = false
+        onSend("Donne-moi l'agent développeur")
+    }
+
+    private func prepare3DStudioPrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Crée-moi une scène 3D éditable. Commence par extraire les dimensions, les étages, la hauteur sous plafond, les pièces, les ouvertures, les matériaux, l'éclairage et le style, puis prépare la scène paramétrique. "
+        isComposerFocused = true
+    }
+
+    private func prepareDebugPrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Analyse ce code, trouve les bugs et propose une version corrigée : "
+        isComposerFocused = true
+    }
+
+    private func prepareAppleWebsitePrompt() {
+        guard !isProcessing else { return }
+        HapticService.shared.buttonTap()
+        activeAgent = .esther
+        text = "Je veux créer un site internet avec un style Apple / Liquid Glass. "
+        isComposerFocused = true
+    }
+
     private func submitMessage() {
+        guard !isProcessing else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             HapticService.shared.buttonTap()
+            isComposerFocused = false
             onSend(trimmed)
             text = ""
         } else {

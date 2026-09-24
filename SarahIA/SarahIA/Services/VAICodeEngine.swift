@@ -264,6 +264,10 @@ public final class VAICodeEngine {
         let category = htmlEscaped(brief.category)
         let audience = htmlEscaped(brief.audience.isEmpty ? "vos visiteurs" : brief.audience)
         let style = htmlEscaped(brief.visualStyle.isEmpty ? "Moderne" : brief.visualStyle)
+        let normalizedStyle = brief.visualStyle
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+        let isAppleLiquidGlass = normalizedStyle.contains("apple") || normalizedStyle.contains("liquid glass")
         let colors = websiteColors(for: brief.accent)
         let sections = brief.sections.isEmpty ? ["Accueil", "À propos", "Produits / services", "Contact"] : brief.sections
 
@@ -277,6 +281,67 @@ public final class VAICodeEngine {
                 accent: colors.primary
             )
         }.joined(separator: "\n")
+
+        let appleLiquidGlassCSS = isAppleLiquidGlass ? """
+            body {
+              background:
+                radial-gradient(circle at 78% -8%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 34%),
+                radial-gradient(circle at -8% 34%, rgba(94,92,230,.16), transparent 30%),
+                #000 !important;
+              color:#f5f5f7 !important;
+              letter-spacing:-.012em;
+            }
+            nav {
+              position:sticky; top:12px; z-index:40;
+              margin-top:12px; padding:13px 16px !important;
+              border:1px solid rgba(255,255,255,.14);
+              border-radius:22px;
+              background:rgba(25,25,28,.58);
+              backdrop-filter:blur(28px) saturate(180%);
+              -webkit-backdrop-filter:blur(28px) saturate(180%);
+              box-shadow:inset 0 1px rgba(255,255,255,.14), 0 18px 55px rgba(0,0,0,.28);
+            }
+            .brand { color:#fff; }
+            .links a { color:#b7b7bd !important; }
+            .hero {
+              margin-top:18px;
+              min-height:58vh;
+              display:flex; flex-direction:column; justify-content:center;
+              border:1px solid rgba(255,255,255,.16);
+              border-radius:40px !important;
+              background:
+                radial-gradient(circle at 80% 12%, rgba(255,255,255,.20), transparent 26%),
+                linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, #111), #111 70%) !important;
+              box-shadow:inset 0 1px rgba(255,255,255,.20), 0 36px 95px rgba(0,0,0,.42) !important;
+            }
+            h1 { font-size:clamp(46px,9vw,92px) !important; letter-spacing:-.065em !important; }
+            h2 { letter-spacing:-.04em; }
+            section {
+              color:#f5f5f7;
+              border:1px solid rgba(255,255,255,.12) !important;
+              background:rgba(255,255,255,.072) !important;
+              backdrop-filter:blur(26px) saturate(165%);
+              -webkit-backdrop-filter:blur(26px) saturate(165%);
+              box-shadow:inset 0 1px rgba(255,255,255,.12);
+            }
+            .intro, .card p, footer { color:#a1a1a6 !important; }
+            .card {
+              color:#fff;
+              background:rgba(255,255,255,.065) !important;
+              border:1px solid rgba(255,255,255,.09);
+              box-shadow:inset 0 1px rgba(255,255,255,.08);
+            }
+            .contact { background:rgba(255,255,255,.085) !important; }
+            .cta {
+              border-radius:999px !important;
+              background:#fff !important;
+              color:#111 !important;
+              box-shadow:0 10px 30px rgba(0,0,0,.22);
+            }
+            @media(max-width:640px) {
+              .hero { min-height:48vh; border-radius:30px !important; }
+            }
+        """ : ""
 
         return """
         <!doctype html>
@@ -316,6 +381,7 @@ public final class VAICodeEngine {
             .status { margin-top: 16px; color: #fff; font-weight: 650; }
             footer { padding: 12px 0 38px; text-align: center; color: #8890a6; font-size: 13px; }
             @media (max-width: 640px) { nav { align-items: flex-start; flex-direction: column; } .links { justify-content: flex-start; } .hero { padding: 48px 24px; } section { padding: 24px; } .cards { grid-template-columns: 1fr; } .contact { align-items: flex-start; flex-direction: column; } }
+            \(appleLiquidGlassCSS)
           </style>
         </head>
         <body>
@@ -339,6 +405,479 @@ public final class VAICodeEngine {
         </body>
         </html>
         """
+    }
+
+    /// Compétence de création de site premium inspirée des principes d'Apple :
+    /// hiérarchie typographique nette, grands espaces, surfaces vitrées,
+    /// animations discrètes et forte adaptation mobile. Aucun logo ni contenu
+    /// propriétaire d'Apple n'est copié.
+    public func generateAppleInspiredWebsite(prompt: String) -> String {
+        let safePrompt = htmlEscaped(
+            prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+
+        return """
+        <!doctype html>
+        <html lang="fr">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <meta name="color-scheme" content="dark light">
+          <title>Projet premium</title>
+          <style>
+            :root {
+              --blue: #0a84ff;
+              --ink: #f5f5f7;
+              --muted: #a1a1a6;
+              --panel: rgba(255,255,255,.075);
+              --line: rgba(255,255,255,.14);
+              --bg: #000;
+            }
+            * { box-sizing: border-box; }
+            html { scroll-behavior: smooth; }
+            body {
+              margin: 0;
+              background:
+                radial-gradient(circle at 80% -10%, rgba(10,132,255,.22), transparent 34%),
+                radial-gradient(circle at -10% 28%, rgba(94,92,230,.18), transparent 30%),
+                var(--bg);
+              color: var(--ink);
+              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+              -webkit-font-smoothing: antialiased;
+            }
+            .wrap { width: min(1180px, calc(100% - 32px)); margin: auto; }
+            nav {
+              position: sticky; top: 12px; z-index: 20;
+              display: flex; align-items: center; justify-content: space-between;
+              margin-top: 12px; padding: 11px 15px;
+              border: 1px solid var(--line);
+              border-radius: 22px;
+              background: rgba(20,20,22,.62);
+              backdrop-filter: blur(28px) saturate(180%);
+              -webkit-backdrop-filter: blur(28px) saturate(180%);
+              box-shadow: inset 0 1px rgba(255,255,255,.15), 0 16px 50px rgba(0,0,0,.26);
+            }
+            .brand { font-weight: 700; letter-spacing: -.02em; }
+            .links { display: flex; gap: 18px; }
+            .links a { color: var(--muted); text-decoration: none; font-size: 13px; }
+            .hero {
+              min-height: 76vh; display: grid; place-items: center; text-align: center;
+              padding: 88px 0 54px;
+            }
+            .hero-inner { max-width: 920px; }
+            .kicker { color: var(--blue); font-weight: 700; margin-bottom: 12px; }
+            h1 {
+              margin: 0;
+              font-size: clamp(48px, 9vw, 108px);
+              line-height: .92;
+              letter-spacing: -.065em;
+              background: linear-gradient(180deg,#fff,#9b9ba1);
+              -webkit-background-clip: text; color: transparent;
+            }
+            .lead {
+              max-width: 720px; margin: 28px auto 0;
+              color: var(--muted); font-size: clamp(18px,2.6vw,28px); line-height: 1.18;
+            }
+            .actions { display: flex; justify-content: center; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+            .button {
+              appearance: none; border: 0; cursor: pointer; text-decoration: none;
+              padding: 12px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
+            }
+            .primary { background: var(--blue); color: white; }
+            .secondary {
+              color: white; border: 1px solid var(--line); background: var(--panel);
+              backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            }
+            .showcase {
+              position: relative; overflow: hidden; min-height: 470px;
+              border-radius: 42px; border: 1px solid var(--line);
+              background: linear-gradient(145deg, rgba(255,255,255,.12), rgba(255,255,255,.035));
+              box-shadow: inset 0 1px rgba(255,255,255,.16), 0 35px 90px rgba(0,0,0,.42);
+            }
+            .glow {
+              position:absolute; width:540px; height:540px; border-radius:50%;
+              background:radial-gradient(circle,rgba(10,132,255,.55),transparent 64%);
+              filter: blur(15px); right:-150px; top:-180px;
+            }
+            .product {
+              position:absolute; inset:70px 8% 0; border-radius:34px 34px 0 0;
+              border:1px solid rgba(255,255,255,.18);
+              background:linear-gradient(160deg,#2a2a2f,#101014 48%,#070708);
+              box-shadow:0 35px 90px rgba(0,0,0,.58), inset 0 1px rgba(255,255,255,.14);
+              display:grid; place-items:center; text-align:center; padding:30px;
+            }
+            .product strong { font-size: clamp(30px,6vw,72px); letter-spacing:-.05em; }
+            .grid {
+              display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+              gap:16px; padding:72px 0;
+            }
+            .card {
+              min-height:270px; padding:26px; border-radius:30px;
+              border:1px solid var(--line); background:var(--panel);
+              backdrop-filter: blur(28px) saturate(150%);
+              -webkit-backdrop-filter: blur(28px) saturate(150%);
+              box-shadow: inset 0 1px rgba(255,255,255,.14);
+              transform: translateY(18px); opacity: 0;
+              transition: transform .65s cubic-bezier(.2,.8,.2,1), opacity .65s ease;
+            }
+            .card.visible { transform: translateY(0); opacity: 1; }
+            .card h2 { margin:0 0 10px; font-size:28px; letter-spacing:-.035em; }
+            .card p { color:var(--muted); margin:0; }
+            .wide { grid-column:span 2; }
+            .statement {
+              padding:100px 0; text-align:center;
+              font-size:clamp(34px,6vw,76px); line-height:1; letter-spacing:-.055em; font-weight:750;
+            }
+            .statement span { color:var(--muted); }
+            footer { padding:34px 0 54px; color:#74747a; font-size:12px; border-top:1px solid rgba(255,255,255,.08); }
+            @media(max-width:760px) {
+              .links { display:none; }
+              .hero { min-height:68vh; padding-top:70px; }
+              .showcase { min-height:390px; border-radius:30px; }
+              .product { inset:58px 6% 0; }
+              .grid { grid-template-columns:1fr; padding:50px 0; }
+              .wide { grid-column:auto; }
+              .statement { padding:70px 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <nav>
+              <div class="brand">Projet</div>
+              <div class="links">
+                <a href="#experience">Expérience</a>
+                <a href="#details">Détails</a>
+                <a href="#contact">Contact</a>
+              </div>
+            </nav>
+
+            <section class="hero">
+              <div class="hero-inner">
+                <div class="kicker">Conçu pour être évident.</div>
+                <h1>Plus simple.<br>Plus vivant.</h1>
+                <p class="lead">\(safePrompt.isEmpty ? "Une expérience premium, rapide et pensée pour chaque écran." : safePrompt)</p>
+                <div class="actions">
+                  <a class="button primary" href="#experience">Découvrir</a>
+                  <a class="button secondary" href="#contact">En savoir plus</a>
+                </div>
+              </div>
+            </section>
+
+            <section class="showcase" id="experience">
+              <div class="glow"></div>
+              <div class="product">
+                <div>
+                  <strong>Votre produit.<br>Mis en lumière.</strong>
+                  <p class="lead">Remplace ce bloc par la présentation centrale de ton projet.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="grid" id="details">
+              <article class="card wide">
+                <h2>Une interface qui respire.</h2>
+                <p>Grands espaces, hiérarchie claire, animations discrètes et détails visuels précis.</p>
+              </article>
+              <article class="card">
+                <h2>Rapide.</h2>
+                <p>Structure légère, responsive et sans dépendances lourdes.</p>
+              </article>
+              <article class="card">
+                <h2>Liquid Glass.</h2>
+                <p>Surfaces translucides, profondeur et contraste adaptés au contenu.</p>
+              </article>
+              <article class="card wide">
+                <h2>Mobile d’abord.</h2>
+                <p>La mise en page se replie proprement sur iPhone sans perdre son caractère premium.</p>
+              </article>
+            </section>
+
+            <section class="statement">
+              Pensé pour disparaître.<br><span>Et laisser le contenu parler.</span>
+            </section>
+
+            <footer id="contact">Prototype local créé par Raphaël dans Sarah IA.</footer>
+          </div>
+          <script>
+            const observer = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('visible');
+              });
+            }, { threshold: .18 });
+            document.querySelectorAll('.card').forEach(card => observer.observe(card));
+          </script>
+        </body>
+        </html>
+        """
+    }
+
+    /// Améliore le site actuellement ouvert sans repartir de zéro.
+    /// Le HTML existant reste la source de vérité, puis Raphaël injecte une
+    /// couche d'amélioration correspondant à la demande.
+    public func refineWebsite(
+        currentHTML: String,
+        brief: WebsiteBrief?,
+        instruction: String
+    ) -> String {
+        guard !currentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            if let brief = brief {
+                return generateWebsite(brief: brief)
+            }
+            return generateAppleInspiredWebsite(prompt: instruction)
+        }
+
+        let normalized = instruction
+            .folding(
+                options: [.diacriticInsensitive, .caseInsensitive],
+                locale: Locale(identifier: "fr_FR")
+            )
+            .lowercased()
+
+        let appleStyle =
+            normalized.contains("apple")
+            || normalized.contains("premium")
+            || normalized.contains("liquid glass")
+            || normalized.contains("liquidglass")
+
+        let strongerMotion =
+            normalized.contains("animation")
+            || normalized.contains("anime")
+            || normalized.contains("dynamique")
+            || normalized.contains("fluide")
+
+        let generalUpgrade =
+            normalized.contains("ameliore")
+            || normalized.contains("modernise")
+            || normalized.contains("plus beau")
+            || normalized.contains("plus propre")
+            || normalized.contains("plus premium")
+            || normalized.contains("refais")
+            || normalized.contains("corrige")
+
+        let requestedAccent: String? = {
+            let palette: [(String, String)] = [
+                ("bleu", "#0A84FF"),
+                ("violet", "#7D5CFF"),
+                ("rose", "#FF4FA3"),
+                ("orange", "#FF8A2A"),
+                ("vert", "#31C48D"),
+                ("rouge", "#FF453A"),
+                ("turquoise", "#22D3EE")
+            ]
+            return palette.first(where: { normalized.contains($0.0) })?.1
+        }()
+
+        var extraCSS = ""
+
+        if generalUpgrade {
+            extraCSS += """
+            :root {
+              --sarah-surface: rgba(255,255,255,.075);
+              --sarah-line: rgba(255,255,255,.13);
+            }
+            body {
+              background:
+                radial-gradient(circle at 82% -8%, rgba(10,132,255,.16), transparent 34%),
+                radial-gradient(circle at 4% 34%, rgba(94,92,230,.11), transparent 28%),
+                #000!important;
+            }
+            nav, .card, section, .hero, .showcase {
+              border-color: var(--sarah-line)!important;
+            }
+            .card, .showcase {
+              backdrop-filter: blur(24px) saturate(165%);
+              -webkit-backdrop-filter: blur(24px) saturate(165%);
+              box-shadow: inset 0 1px rgba(255,255,255,.13), 0 22px 60px rgba(0,0,0,.20);
+            }
+            button, .button, .cta, a[class*="button"] {
+              transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+            }
+            button:active, .button:active, .cta:active {
+              transform: scale(.975);
+            }
+            """
+        }
+
+        if let requestedAccent {
+            extraCSS += """
+            :root {
+              --blue: \(requestedAccent)!important;
+              --primary: \(requestedAccent)!important;
+              --accent: \(requestedAccent)!important;
+            }
+            .primary, .cta {
+              background: \(requestedAccent)!important;
+            }
+            """
+        }
+
+        if appleStyle {
+            extraCSS += """
+            body { letter-spacing:-.012em; }
+            nav, section, .card {
+              border-color:rgba(255,255,255,.12)!important;
+              backdrop-filter:blur(24px) saturate(170%);
+              -webkit-backdrop-filter:blur(24px) saturate(170%);
+            }
+            .hero {
+              border-radius:38px!important;
+              box-shadow:0 35px 90px rgba(0,0,0,.22)!important;
+            }
+            h1, h2 { letter-spacing:-.045em!important; }
+            """
+        }
+
+        if strongerMotion {
+            extraCSS += """
+            [data-sarah-reveal] {
+              opacity:0;
+              transform:translateY(18px);
+              transition:opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1);
+            }
+            [data-sarah-reveal].visible {
+              opacity:1;
+              transform:none;
+            }
+            """
+        }
+
+        let css = """
+        <style id="sarah-raphael-refinement">
+          html { scroll-behavior:smooth; }
+          body {
+            -webkit-font-smoothing:antialiased;
+            text-rendering:optimizeLegibility;
+          }
+          nav {
+            position:sticky;
+            top:10px;
+            z-index:50;
+            backdrop-filter:blur(24px) saturate(170%);
+            -webkit-backdrop-filter:blur(24px) saturate(170%);
+          }
+          section, .card, .hero {
+            transition:transform .35s ease, box-shadow .35s ease, border-color .35s ease;
+          }
+          .card:hover {
+            transform:translateY(-4px);
+            box-shadow:0 18px 45px rgba(0,0,0,.14);
+          }
+          @media(max-width:640px) {
+            h1 { font-size:clamp(38px,13vw,58px)!important; }
+            .shell { padding-left:16px!important; padding-right:16px!important; }
+          }
+          \(extraCSS)
+        </style>
+        """
+
+        let js: String
+        if strongerMotion {
+            js = """
+            <script id="sarah-raphael-refinement-js">
+              document.querySelectorAll('section,.card').forEach(el => {
+                el.setAttribute('data-sarah-reveal','');
+              });
+              const sarahObserver = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                  if (entry.isIntersecting) entry.target.classList.add('visible');
+                });
+              }, { threshold: .12 });
+              document.querySelectorAll('[data-sarah-reveal]').forEach(el => {
+                sarahObserver.observe(el);
+              });
+            </script>
+            """
+        } else {
+            js = ""
+        }
+
+        var result = currentHTML
+
+        if let oldStyle = result.range(
+            of: #"(?s)<style id="sarah-raphael-refinement">.*?</style>"#,
+            options: .regularExpression
+        ) {
+            result.replaceSubrange(oldStyle, with: css)
+        } else if let headClose = result.range(
+            of: "</head>",
+            options: .caseInsensitive
+        ) {
+            result.insert(contentsOf: css + "\n", at: headClose.lowerBound)
+        } else {
+            result = css + result
+        }
+
+        if !js.isEmpty {
+            if let oldScript = result.range(
+                of: #"(?s)<script id="sarah-raphael-refinement-js">.*?</script>"#,
+                options: .regularExpression
+            ) {
+                result.replaceSubrange(oldScript, with: js)
+            } else if let bodyClose = result.range(
+                of: "</body>",
+                options: .caseInsensitive
+            ) {
+                result.insert(contentsOf: js + "\n", at: bodyClose.lowerBound)
+            } else {
+                result += js
+            }
+        }
+
+        // Ajout de section demandé en langage naturel. Le HTML courant reste
+        // intact et la nouvelle section est injectée juste avant le footer.
+        if let sectionTitle = requestedSectionTitle(from: instruction) {
+            let safeTitle = htmlEscaped(sectionTitle)
+            let section = """
+            <section class="sarah-added-section" data-sarah-added="true">
+              <h2>\(safeTitle)</h2>
+              <p>Cette section a été ajoutée à partir de ta dernière demande. Tu peux maintenant préciser son texte, ses boutons ou ses éléments.</p>
+            </section>
+            """
+
+            if let footer = result.range(of: "<footer", options: .caseInsensitive) {
+                result.insert(contentsOf: section + "\n", at: footer.lowerBound)
+            } else if let bodyClose = result.range(of: "</body>", options: .caseInsensitive) {
+                result.insert(contentsOf: section + "\n", at: bodyClose.lowerBound)
+            } else {
+                result += section
+            }
+        }
+
+        return result
+    }
+
+    private func requestedSectionTitle(from instruction: String) -> String? {
+        let normalized = instruction.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: Locale(identifier: "fr_FR")
+        )
+
+        let triggers = [
+            "ajoute une section ",
+            "rajoute une section ",
+            "ajoute la section ",
+            "rajoute la section "
+        ]
+
+        for trigger in triggers {
+            if let range = normalized.range(of: trigger) {
+                let distance = normalized.distance(from: normalized.startIndex, to: range.upperBound)
+                let safeDistance = min(distance, instruction.count)
+                let originalIndex = instruction.index(instruction.startIndex, offsetBy: safeDistance)
+                let tail = instruction[originalIndex...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .components(separatedBy: CharacterSet(charactersIn: ".!?;\n"))
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                if !tail.isEmpty {
+                    return String(tail.prefix(70))
+                }
+            }
+        }
+
+        return nil
     }
 
     private func websiteColors(for accent: String) -> (primary: String, secondary: String) {

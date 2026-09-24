@@ -31,9 +31,9 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         case .sarah:
             return "Assistant principal pour organiser, expliquer et vous accompagner."
         case .nathan:
-            return "Réseaux sociaux, idées de contenus et veille IA."
+            return "Réseaux sociaux, idées de contenus, montage vidéo assisté et veille IA."
         case .esther:
-            return "Développeur : sites web, apps iOS, SwiftUI, code et prototypes."
+            return "Développeur : sites web, apps iOS, SwiftUI, code, prototypes et scènes 3D paramétriques."
         case .tom:
             return "Recherche, actualités, voyages et explications documentées."
         case .yohan:
@@ -45,9 +45,9 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     
     public var roleDescription: String {
         switch self {
-        case .sarah:  return "Voix système principale (Rose néon)"
-        case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
-        case .esther: return "Développeur : sites, apps iOS & code (Bleu ciel)"
+        case .sarah:  return "Voix système principale (Bleu Sarah)"
+        case .nathan: return "Expert Réseaux Sociaux, Montage Vidéo & IA (Violet Néon)"
+        case .esther: return "Développeur : Web, iOS, SwiftUI, code & 3D (Bleu ciel)"
         case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
         case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Siri Canadien)"
         case .ethel:  return "Voix féminine dédiée (Thème Bleu & Rouge)"
@@ -57,11 +57,29 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var specialtySubtitle: String {
         switch self {
         case .sarah:  return "Patronne & Agent Pilote"
-        case .nathan: return "Réseaux Sociaux · Vidéos · Veille IA"
-        case .esther: return "Développeur · Web · iOS · SwiftUI · Code"
+        case .nathan: return "Réseaux Sociaux · Montage Vidéo · Veille IA"
+        case .esther: return "Développeur · Web · iOS · SwiftUI · Code · Studio 3D"
         case .tom:    return "Encyclopédie & Débats mondiaux (1948 - Aujourd'hui)"
         case .yohan:  return "Dictionnaires locaux fusionnés (FR ⇄ HE)"
         case .ethel:  return "Intelligence Créative Polyvalente · Design Bleu & Rouge"
+        }
+    }
+
+    /// Instructions spécialisées injectables par les écrans de développement.
+    /// Raphaël transforme une demande 3D libre en paramètres vérifiables avant rendu :
+    /// dimensions, nombre d'étages, hauteur sous plafond, ouvertures, matériaux et style.
+    public var specialistInstructions: String {
+        switch self {
+        case .esther:
+            return """
+            Tu es Raphaël, l'agent développeur. Pour une demande de site, d'app ou de scène 3D, commence par extraire les contraintes utiles. Pour la 3D, retourne d'abord un brief structuré avec dimensions, nombre d'étages, hauteur sous plafond, pièces, ouvertures, matériaux, éclairage et style. N'invente pas une mesure critique quand l'utilisateur l'a donnée. Après validation implicite ou explicite du brief, génère une scène paramétrique éditable et du code exploitable par le Studio 3D de Sarah.
+            """
+        case .nathan:
+            return """
+            Tu es Nathan, l'agent réseaux sociaux. Pour le montage vidéo, analyse le rythme, le sujet, la parole et le format cible. Propose des coupes, sous-titres, titres, musique et transitions sans supprimer le sens du contenu. Préserve toujours une version originale non destructive.
+            """
+        default:
+            return capabilitiesSummary
         }
     }
     
@@ -184,7 +202,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var themeColor: Color {
         switch self {
         case .sarah:
-            return Color(red: 1.0, green: 0.18, blue: 0.65)   // Rose Néon / Magenta
+            return Color(red: 0.10, green: 0.53, blue: 0.98)   // Bleu Sarah / iMessage
         case .tom:
             return Color(red: 0.05, green: 0.85, blue: 0.45)  // Vert Émeraude
         case .esther:
@@ -202,7 +220,11 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     public var gradientColors: [Color] {
         switch self {
         case .sarah:
-            return [Color.white, Color(red: 1.0, green: 0.25, blue: 0.70), Color(red: 0.95, green: 0.05, blue: 0.55)]
+            return [
+                Color.white,
+                Color(red: 0.20, green: 0.66, blue: 1.0),
+                Color(red: 0.04, green: 0.42, blue: 0.96)
+            ]
         case .tom:
             return [Color.white, Color(red: 0.20, green: 0.90, blue: 0.55), Color(red: 0.02, green: 0.75, blue: 0.38)]
         case .esther:
@@ -231,7 +253,7 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     #if canImport(UIKit)
     public var uiColor: UIColor {
         switch self {
-        case .sarah:   return UIColor(red: 1.0, green: 0.18, blue: 0.65, alpha: 1.0)
+        case .sarah:   return UIColor(red: 0.10, green: 0.53, blue: 0.98, alpha: 1.0)
         case .tom:     return UIColor(red: 0.05, green: 0.85, blue: 0.45, alpha: 1.0)
         case .esther:  return UIColor(red: 0.15, green: 0.72, blue: 1.0, alpha: 1.0)
         case .yohan:   return UIColor(red: 0.0, green: 0.45, blue: 0.90, alpha: 1.0)

@@ -61,7 +61,10 @@ public final class OpenSourceImageGenerationService {
             "fais-moi une image de ", "fais moi une image de ", "fais une image de ", "fais une photo de ",
             "génère une illustration de ", "genere une illustration de ", "crée un visuel de ", "cree un visuel de ",
             "génère une image ", "genere une image ", "génère une photo ", "genere une photo ",
-            "generate an image of ", "generate a picture of ", "draw me "
+            "generate an image of ", "generate a picture of ", "draw me ",
+            "crée une affiche ", "cree une affiche ", "crée un poster ", "cree un poster ",
+            "crée un logo ", "cree un logo ", "crée un fond d’écran ", "cree un fond d ecran ",
+            "visualise ", "rends-moi une image ", "rends moi une image "
         ]
         
         for trigger in triggers {
@@ -107,7 +110,8 @@ public final class OpenSourceImageGenerationService {
         guard !clean.isEmpty else { return original }
         
         let lower = clean.lowercased()
-        var base = clean
+        let semantic = SarahMediaPromptUnderstanding.image(clean)
+        var base = semantic.enhancedPrompt
         
         // Traductions et adaptations conceptuelles pour les requêtes françaises fréquentes
         if lower.contains("dauphin") && lower.contains("voiture") {
@@ -132,7 +136,7 @@ public final class OpenSourceImageGenerationService {
     // MARK: - Construction URL d'Image
     
     /// Génère l'URL publique de génération pour le modèle Flux / Pollinations avec photoréalisme maximal
-    public func buildImageURL(for prompt: String, width: Int = 768, height: Int = 768, model: String = "flux") -> String {
+    public func buildImageURL(for prompt: String, width: Int = 1024, height: Int = 1024, model: String = "flux") -> String {
         let enhanced = enhancePromptForHyperrealism(prompt)
         var allowedSet = CharacterSet.urlPathAllowed
         allowedSet.remove(charactersIn: "/?#&=+[]@!$'*,;")
@@ -146,9 +150,10 @@ public final class OpenSourceImageGenerationService {
     /// Le fallback distant n'est utilisé que si l'utilisateur l'a activé.
     public func generateImage(
         prompt: String,
-        width: Int = 768,
-        height: Int = 768,
+        width: Int = 1024,
+        height: Int = 1024,
         model: String = "flux",
+        notifyChat: Bool = true,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -177,17 +182,19 @@ public final class OpenSourceImageGenerationService {
                 }
 
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("SarahGeneratedImageReady"),
-                        object: nil,
-                        userInfo: [
-                            "image": image,
-                            "prompt": cleanPrompt,
-                            "fileURL": localURL as Any,
-                            "modelName": profile.displayName,
-                            "isLocal": true
-                        ]
-                    )
+                    if notifyChat {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahGeneratedImageReady"),
+                            object: nil,
+                            userInfo: [
+                                "image": image,
+                                "prompt": cleanPrompt,
+                                "fileURL": localURL as Any,
+                                "modelName": profile.displayName,
+                                "isLocal": true
+                            ]
+                        )
+                    }
 
                     completion(GeneratedImageResult(
                         prompt: cleanPrompt,
@@ -202,6 +209,17 @@ public final class OpenSourceImageGenerationService {
             case .failure(let localError):
                 guard self.cloudFallbackEnabled else {
                     DispatchQueue.main.async {
+                        if notifyChat {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("SarahImageGenerationFailed"),
+                                object: nil,
+                                userInfo: [
+                                    "prompt": cleanPrompt,
+                                    "error": localError.localizedDescription
+                                ]
+                            )
+                        }
+
                         completion(GeneratedImageResult(
                             prompt: cleanPrompt,
                             image: nil,
@@ -218,7 +236,8 @@ public final class OpenSourceImageGenerationService {
                     prompt: cleanPrompt,
                     width: width,
                     height: height,
-                    model: model
+                    model: model,
+                    notifyChat: notifyChat
                 ) { remote in
                     let result = GeneratedImageResult(
                         prompt: remote.prompt,
@@ -237,9 +256,10 @@ public final class OpenSourceImageGenerationService {
     /// Télécharge et traite directement l'image avec système de secours multi-serveurs
     public func fetchDirectImage(
         prompt: String,
-        width: Int = 768,
-        height: Int = 768,
+        width: Int = 1024,
+        height: Int = 1024,
         model: String = "flux",
+        notifyChat: Bool = true,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -257,13 +277,21 @@ public final class OpenSourceImageGenerationService {
         }
         
         guard NetworkMonitor.shared.isOnline else {
+            let message = "Mode hors-ligne actif (génération distante suspendue)."
+            if notifyChat {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SarahImageGenerationFailed"),
+                    object: nil,
+                    userInfo: ["prompt": cleanPrompt, "error": message]
+                )
+            }
             completion(GeneratedImageResult(
                 prompt: cleanPrompt,
                 image: nil,
                 imageURL: nil,
                 modelName: model,
                 isSuccess: false,
-                errorMessage: "Mode hors-ligne actif (génération distante suspendue)."
+                errorMessage: message
             ))
             return
         }
@@ -274,12 +302,24 @@ public final class OpenSourceImageGenerationService {
         let encoded = enhanced.addingPercentEncoding(withAllowedCharacters: allowedSet) ?? cleanPrompt.replacingOccurrences(of: "/", with: "-")
         
         let candidateURLs = [
+            // Qualité d'abord : Flux en 1024² lorsque le fallback réseau a
+            // été explicitement autorisé. Les essais suivants privilégient
+            // ensuite la vitesse et la compatibilité.
             "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=flux&nologo=true&enhance=true",
-            "https://image.pollinations.ai/prompt/\(encoded)?width=\(width)&height=\(height)&model=turbo&nologo=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=flux&nologo=true&enhance=true",
+            "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=turbo&nologo=true",
             "https://image.pollinations.ai/prompt/\(encoded)?width=512&height=512&nologo=true"
         ]
         
-        tryFetchCandidates(urls: candidateURLs, index: 0, prompt: cleanPrompt, cacheKey: cacheKey, model: model, completion: completion)
+        tryFetchCandidates(
+            urls: candidateURLs,
+            index: 0,
+            prompt: cleanPrompt,
+            cacheKey: cacheKey,
+            model: model,
+            notifyChat: notifyChat,
+            completion: completion
+        )
     }
     
     private func tryFetchCandidates(
@@ -288,17 +328,26 @@ public final class OpenSourceImageGenerationService {
         prompt: String,
         cacheKey: NSString,
         model: String,
+        notifyChat: Bool,
         completion: @escaping (GeneratedImageResult) -> Void
     ) {
         guard index < urls.count, let requestURL = URL(string: urls[index]) else {
             DispatchQueue.main.async {
+                let message = "Échec de génération sur tous les serveurs d'images."
+                if notifyChat {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("SarahImageGenerationFailed"),
+                        object: nil,
+                        userInfo: ["prompt": prompt, "error": message]
+                    )
+                }
                 completion(GeneratedImageResult(
                     prompt: prompt,
                     image: nil,
                     imageURL: nil,
                     modelName: model,
                     isSuccess: false,
-                    errorMessage: "Échec de génération sur tous les serveurs d'images."
+                    errorMessage: message
                 ))
             }
             return
@@ -319,11 +368,13 @@ public final class OpenSourceImageGenerationService {
                 let localFileURL = self.saveImageLocally(data: data, prompt: prompt)
                 
                 DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("SarahGeneratedImageReady"),
-                        object: nil,
-                        userInfo: ["image": image, "prompt": prompt, "fileURL": localFileURL as Any]
-                    )
+                    if notifyChat {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("SarahGeneratedImageReady"),
+                            object: nil,
+                            userInfo: ["image": image, "prompt": prompt, "fileURL": localFileURL as Any]
+                        )
+                    }
                     
                     completion(GeneratedImageResult(
                         prompt: prompt,
@@ -337,7 +388,15 @@ public final class OpenSourceImageGenerationService {
             } else {
                 // Tentative avec le serveur/modèle de secours suivant
                 print("⚠️ [ImageGenService] Tentative sur URL candidate \(index + 1) échouée -> Bascule sur secours...")
-                self.tryFetchCandidates(urls: urls, index: index + 1, prompt: prompt, cacheKey: cacheKey, model: model, completion: completion)
+                self.tryFetchCandidates(
+                    urls: urls,
+                    index: index + 1,
+                    prompt: prompt,
+                    cacheKey: cacheKey,
+                    model: model,
+                    notifyChat: notifyChat,
+                    completion: completion
+                )
             }
         }.resume()
     }

@@ -62,7 +62,10 @@ public struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
+            // Étendre le contenu derrière l'encoche/Home Indicator sans ignorer
+            // la zone clavier. Avec .all, SwiftUI supprimait aussi la safe area
+            // du clavier et le composer finissait sous le clavier sur iOS 27.
+            .ignoresSafeArea(.container, edges: .all)
             .highPriorityGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { value in
@@ -103,8 +106,11 @@ public struct ContentView: View {
                     }
             )
         }
+        .preferredColorScheme(.dark)
+        .tint(viewModel.activeAgent.themeColor)
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
+                .preferredColorScheme(.dark)
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -115,12 +121,43 @@ public struct ContentView: View {
 
             switch host {
             case "voice":
+                // Démarrer la session avant d'afficher la feuille évite une interface
+                // vocale visuellement ouverte mais sans micro actif.
+                viewModel.startVoiceConversation()
                 viewModel.isShowingVoiceOrbModal = true
             case "chat":
                 viewModel.isShowingVoiceOrbModal = false
+            case "developer":
+                viewModel.sendMessage("Donne-moi l'agent développeur")
+#if DEBUG
+            case "developer-demo":
+                runDeveloperSmokeDemo()
+#endif
             default:
                 break
             }
         }
     }
+
+#if DEBUG
+    private func runDeveloperSmokeDemo() {
+        let answers = [
+            "Donne-moi l'agent développeur",
+            "site internet",
+            "e-commerce",
+            "Atelier Nova",
+            "Vendre des accessoires",
+            "Grand public",
+            "Apple / Liquid Glass",
+            "Bleu",
+            "Accueil, Produits, À propos, FAQ, Contact"
+        ]
+
+        for (index, answer) in answers.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35 + Double(index) * 0.45) {
+                viewModel.sendMessage(answer)
+            }
+        }
+    }
+#endif
 }
