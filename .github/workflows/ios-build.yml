@@ -8,10 +8,9 @@ on:
         description: 'Confirmer la compilation et la publication de cette IPA'
         required: false
         type: choice
-        options:
-          - 'no'
-          - 'yes'
+        options: ['no', 'yes']
         default: 'no'
+
 jobs:
   build:
     if: inputs.confirm_release == 'yes'
@@ -20,179 +19,115 @@ jobs:
     permissions:
       contents: write
       actions: read
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Select Xcode
+      - uses: actions/checkout@v4
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Configure build number
         run: |
-          echo "=== Xcode Version Active ==="
-          xcodebuild -version
-
-      - name: Configure iOS 27-compatible Local AI Target
-        run: |
-          echo "=== Sarah IA moderne : iOS 27 / Local AI ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
-          find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
-
-      - name: Assign a unique build number for this IPA
-        run: |
-          echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
-      - name: Build iOS 27 App
+      - name: Simulator smoke test and crash capture
+        run: |
+          set -o pipefail
+          PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          PROJECT_NAME=$(basename "$PROJECT_FILE")
+          cd "$PROJECT_DIR"
+          rm -rf "$GITHUB_WORKSPACE/SimDerivedData"
+          xcodebuild -project "$PROJECT_NAME" -scheme SarahIA -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$GITHUB_WORKSPACE/SimDerivedData" IPHONEOS_DEPLOYMENT_TARGET=16.2 CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$GITHUB_WORKSPACE/simulator-build.log"
+          APP_PATH=$(find "$GITHUB_WORKSPACE/SimDerivedData" -path '*Debug-iphonesimulator/SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          xcrun simctl shutdown all >/dev/null 2>&1 || true
+          DEVICE=$(xcrun simctl create SarahIA-CI 'iPhone 16' 2>/dev/null || xcrun simctl create SarahIA-CI 'iPhone 15' 2>/dev/null || true)
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for a in d.values() for x in a if x.get("isAvailable")))')
+          fi
+          xcrun simctl boot "$DEVICE" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" "$APP_PATH"
+          LOGFILE="$GITHUB_WORKSPACE/runtime.log"
+          : > "$LOGFILE"
+          (xcrun simctl spawn "$DEVICE" log stream --style compact --level debug --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "SarahIA"' > "$LOGFILE" 2>&1) &
+          LOGPID=$!
+          sleep 2
+          set +e
+          xcrun simctl launch --console-pty "$DEVICE" com.sarahia.app >> "$LOGFILE" 2>&1 &
+          LAUNCHPID=$!
+          sleep 15
+          xcrun simctl spawn "$DEVICE" launchctl print gui/$(id -u)/com.sarahia.app >> "$LOGFILE" 2>&1
+          STATUS=$?
+          ps -p "$LAUNCHPID" >/dev/null 2>&1
+          kill "$LOGPID" >/dev/null 2>&1 || true
+          mkdir -p "$GITHUB_WORKSPACE/crash-reports"
+          find "$HOME/Library/Logs/DiagnosticReports" -type f \( -name 'SarahIA*.crash' -o -name 'SarahIA*.ips' \) -exec cp {} "$GITHUB_WORKSPACE/crash-reports/" \; 2>/dev/null || true
+          xcrun simctl spawn "$DEVICE" log show --last 2m --style compact --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "SarahIA"' >> "$LOGFILE" 2>&1 || true
+          set -e
+          if grep -Eqi 'crash|fatal error|abort|uncaught exception|dyld|terminated due to|signal 6|signal 11' "$LOGFILE" || [ -n "$(find "$GITHUB_WORKSPACE/crash-reports" -type f -print -quit)" ]; then
+            echo 'SarahIA crashed during simulator smoke test.'
+            tail -n 300 "$LOGFILE"
+            exit 1
+          fi
+          echo 'Simulator launch survived the smoke-test window.'
+
+      - name: Build device app
         run: |
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
-
           cd "$PROJECT_DIR"
-
           set -o pipefail
-          xcodebuild \
-            -project "$PROJECT_NAME" \
-            -scheme "SarahIA" \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
-            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            SWIFT_SUPPRESS_WARNINGS=YES \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
-          BUILD_EXIT_CODE=$?
+          xcodebuild -project "$PROJECT_NAME" -scheme SarahIA -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" IPHONEOS_DEPLOYMENT_TARGET=16.2 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' AD_HOC_CODE_SIGNING_ALLOWED=YES COMPILER_INDEX_STORE_ENABLE=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=NO clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
 
-          if [ $BUILD_EXIT_CODE -ne 0 ] || grep -q "BUILD FAILED" "$GITHUB_WORKSPACE/xcodebuild.log"; then
-            echo "❌ BUILD FAILED DETECTED (Exit code: $BUILD_EXIT_CODE)"
-            grep -E "(\.swift:[0-9]+:[0-9]+: error:|error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt" || true
-            if [ ! -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
-              tail -n 200 "$GITHUB_WORKSPACE/xcodebuild.log" > "$GITHUB_WORKSPACE/xcode_errors.txt"
-            fi
-            echo "================================================================"
-            echo "=== XCODE ERRORS FOUND IN RUN ==="
-            cat "$GITHUB_WORKSPACE/xcode_errors.txt"
-            echo "================================================================"
-            exit 1
-          fi
-
-      - name: Package Universal IPA
+      - name: Package IPA
         run: |
           set -eo pipefail
-          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "SarahIA.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name "*.app" -type d | head -n 1)
-          fi
-
-          echo "=== Bundle App Trouve : $APP_PATH ==="
-          rm -rf /tmp/Payload
-          mkdir -p /tmp/Payload
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          rm -rf /tmp/Payload && mkdir -p /tmp/Payload
           cp -R "$APP_PATH" /tmp/Payload/
-
           APP_TARGET_DIR="/tmp/Payload/$(basename "$APP_PATH")"
-
-          INFOPLIST_TARGET="$APP_TARGET_DIR/Info.plist"
-          if [ -f "$INFOPLIST_TARGET" ]; then
-            plutil -replace MinimumOSVersion -string "16.2" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace CFBundleIdentifier -string "com.sarahia.app" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace CFBundleExecutable -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace CFBundleName -string "SarahIA" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace CFBundleDisplayName -string "Sarah IA" "$INFOPLIST_TARGET" 2>/dev/null || true
-            plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
-          fi
-
-          # Signer d'abord tous les composants imbriqués, puis le bundle principal.
-          # Une dépendance dynamique non signée peut provoquer une fermeture immédiate au lancement.
           if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
-            find "$APP_TARGET_DIR/Frameworks" -type d -name "*.framework" -print0 | while IFS= read -r -d '' FRAMEWORK; do
-              codesign -f -s - "$FRAMEWORK"
-            done
+            find "$APP_TARGET_DIR/Frameworks" -type d -name '*.framework' -print0 | while IFS= read -r -d '' F; do codesign -f -s - "$F"; done
           fi
-
           if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0 | while IFS= read -r -d '' APPEX; do
-              codesign -f -s - "$APPEX"
-            done
+            find "$APP_TARGET_DIR/PlugIns" -type d -name '*.appex' -print0 | while IFS= read -r -d '' E; do codesign -f -s - "$E"; done
           fi
-
           codesign -f -s - "$APP_TARGET_DIR"
           codesign --verify --deep --strict "$APP_TARGET_DIR"
-
-          echo "=== Structure du Bundle Final dans l'IPA ==="
-          ls -la "$APP_TARGET_DIR"
-          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            ls -la "$APP_TARGET_DIR/PlugIns"
-          fi
-
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cd /tmp
-          zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
+          cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-          echo "=== Fichier SarahIA.ipa iOS 27 genere avec succes ==="
-          ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-runtime-diagnostics
+          path: |
+            runtime.log
+            simulator-build.log
+            xcodebuild.log
+            crash-reports
+          if-no-files-found: ignore
+          retention-days: 7
 
-      - name: Upload IPA Artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: SarahIA-IPA
           path: dist/SarahIA.ipa
           retention-days: 14
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Publish release
         if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "Sarah IA - iOS 27 / Local AI"
-          body: "Build #${{ github.run_number }}. Édition iOS 27 de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
+          name: 'Sarah IA - tested build'
+          body: 'Build #${{ github.run_number }}. Device build is published only after the simulator launch smoke test succeeds.'
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Log Compilation Diagnostics
-        if: failure()
-        run: |
-          echo "### ❌ Xcode Build Compilation Error Summary" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          if [ -s "$GITHUB_WORKSPACE/xcode_errors.txt" ]; then
-            cat "$GITHUB_WORKSPACE/xcode_errors.txt" | head -n 100 >> $GITHUB_STEP_SUMMARY
-          elif [ -f "$GITHUB_WORKSPACE/xcodebuild.log" ]; then
-            grep -E "(\.swift:[0-9]+:[0-9]+: error:|error:|fatal error:)" "$GITHUB_WORKSPACE/xcodebuild.log" | head -n 100 >> $GITHUB_STEP_SUMMARY || tail -n 100 "$GITHUB_WORKSPACE/xcodebuild.log" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No xcode logs generated" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-      - name: Publish Error Release If Failed
-        if: failure()
-        uses: softprops/action-gh-release@v2
-        continue-on-error: true
-        with:
-          tag_name: build-error-log
-          name: "Build Error Diagnostic Log"
-          files: |
-            ${{ github.workspace }}/xcode_errors.txt
-            ${{ github.workspace }}/xcodebuild.log
-          draft: false
-          prerelease: false
-          make_latest: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Build Log Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            xcodebuild.log
-            xcode_errors.txt
-          retention-days: 3
-          if-no-files-found: ignore
