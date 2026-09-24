@@ -435,12 +435,13 @@ public final class ChatViewModel: ObservableObject {
             self.voiceStatus = .idle
             self.haptics.speechFinished()
             
-            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal && !self.isVoiceMicrophoneMuted {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     guard self.isContinuousConversationActive,
                           self.isShowingVoiceOrbModal,
+                          !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
-                    AppleSpeechRecognizer.shared.startListening()
+                    AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: true)
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
                 }
@@ -464,6 +465,7 @@ public final class ChatViewModel: ObservableObject {
         ensureVoicePipelinePrepared()
         voiceManager.stop()
         isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
 
         guard !AppleSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -476,11 +478,72 @@ public final class ChatViewModel: ObservableObject {
         voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
     }
 
+    /// Met uniquement le micro en pause sans fermer la session vocale.
+    public func pauseVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        isVoiceMicrophoneMuted = true
+        AppleSpeechRecognizer.shared.stopListening()
+        isMicRunning = false
+        micInputLevel = 0.0
+        liveTranscriptionText = ""
+        voiceStatus = voiceManager.isSpeaking ? .speaking : .idle
+    }
+
+    /// Réarme le micro dans la session vocale plein écran.
+    public func resumeVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
+
+        guard !voiceManager.isSpeaking else {
+            voiceStatus = .speaking
+            return
+        }
+
+        guard !AppleSpeechRecognizer.shared.isListening else {
+            isMicRunning = true
+            voiceStatus = .listening(level: micInputLevel)
+            return
+        }
+
+        voiceStatus = .starting
+        AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: true)
+        isMicRunning = AppleSpeechRecognizer.shared.isListening
+        if isMicRunning {
+            voiceStatus = .listening(level: micInputLevel)
+        }
+    }
+
+    /// Interrompt la voix de Sarah mais conserve la conversation vocale ouverte.
+    public func interruptVoiceResponse() {
+        ensureVoicePipelinePrepared()
+        voiceManager.stop()
+        isSpeaking = false
+        currentSpeakingText = nil
+        voiceStatus = .idle
+
+        guard isContinuousConversationActive,
+              isShowingVoiceOrbModal,
+              !isVoiceMicrophoneMuted else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+            guard let self = self,
+                  self.isContinuousConversationActive,
+                  self.isShowingVoiceOrbModal,
+                  !self.isVoiceMicrophoneMuted,
+                  !AppleSpeechRecognizer.shared.isListening else { return }
+            AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: true)
+            self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+            self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .idle
+        }
+    }
+
     /// Coupe complètement le mode vocal et rend la session audio à iOS.
     /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
+        isVoiceMicrophoneMuted = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.

@@ -163,8 +163,16 @@ public struct ChatScreenView: View {
                 ).allowsHitTesting(false)
             )
         }
-        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
-            voiceSheetContent
+        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.openDrawer()
+                },
+                onOpenSettings: {
+                    isShowingSettings = true
+                }
+            )
         }
         .photosPicker(isPresented: $isShowingPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .onChange(of: selectedPhotoItem) { item in
