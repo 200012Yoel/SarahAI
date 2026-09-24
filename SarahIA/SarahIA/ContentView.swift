@@ -106,6 +106,14 @@ public struct ContentView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
+            // Chaque ouverture du mode vocal repart de Sarah, qui reste l'agent
+            // pilote. Le routeur peut ensuite passer la main à Raphaël, Tom,
+            // Yohan, Nathan ou Ethel selon la demande prononcée.
+            if isPresented {
+                viewModel.activeAgent = .sarah
+            }
+        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSNotification.Name("SarahOpenDeepLink")
@@ -115,6 +123,7 @@ public struct ContentView: View {
 
             switch host {
             case "voice":
+                viewModel.activeAgent = .sarah
                 viewModel.isShowingVoiceOrbModal = true
             case "chat":
                 viewModel.isShowingVoiceOrbModal = false
