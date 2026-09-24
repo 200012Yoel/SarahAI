@@ -1,4 +1,7 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
+import UIKit
 
 /// Écran principal de discussion 100% natif SwiftUI avec interface multi-agents,
 /// disposition fixe Header / Messages / Barre basse au-dessus du clavier,
@@ -11,12 +14,44 @@ public struct ChatScreenView: View {
     
     @State private var isShowingActionSheet: Bool = false
     @State private var isShowingVoiceCallScreen: Bool = false
+    @State private var isShowingPhotoPicker: Bool = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var isShowingCamera: Bool = false
+    @State private var isShowingFileImporter: Bool = false
     
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
     }
     
+    private func analyzeSelectedPhoto(_ item: PhotosPickerItem?) {
+        guard let item = item else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run { viewModel.inputText = "Impossible de lire cette image." }
+                    return
+                }
+                LocalVisionEngine.shared.recognizeObject(in: image) { result in
+                    DispatchQueue.main.async {
+                        viewModel.appendVisionAnalysis(image: image, result: result)
+                    }
+                }
+            } catch {
+                await MainActor.run { viewModel.inputText = "Impossible d'ouvrir la photo : \(error.localizedDescription)" }
+            }
+        }
+    }
+
+    private func handleCameraImage(_ image: UIImage) {
+        LocalVisionEngine.shared.recognizeObject(in: image) { result in
+            DispatchQueue.main.async {
+                viewModel.appendVisionAnalysis(image: image, result: result)
+            }
+        }
+    }
+
     private var topSafeArea: CGFloat {
         if #available(iOS 13.0, *) {
             let window = UIApplication.shared.connectedScenes
@@ -87,30 +122,78 @@ public struct ChatScreenView: View {
                     keyboard.dismiss()
                 }
                 
-                // 3. Zone de saisie (au-dessus du Home Indicator ou collée au clavier)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                if viewModel.isContinuousConversationActive && !viewModel.isShowingVoiceOrbModal {
+                    HStack {
+                        Spacer(minLength: 18)
+                        CollapsedVoiceSessionBar(viewModel: viewModel)
+                            .frame(maxWidth: 286)
+                        Spacer(minLength: 18)
+                    }
+                    .padding(.bottom, 4)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
                     isRecording: viewModel.isMicRunning,
-                    onSend: { text in
-                        viewModel.sendMessage(text)
+                    isProcessing: viewModel.isGeneratingResponse,
+                    onOpenPhotoLibrary: {
+                        keyboard.dismiss()
+                        selectedPhotoItem = nil
+                        isShowingPhotoPicker = true
                     },
-                    onToggleMic: {
-                        viewModel.toggleMicrophone()
+                    onOpenCamera: {
+                        keyboard.dismiss()
+                        isShowingCamera = true
                     },
+                    onOpenFile: {
+                        keyboard.dismiss()
+                        isShowingFileImporter = true
+                    },
+                    onSend: { text in viewModel.sendMessage(text) },
+                    onCancel: { viewModel.cancelCurrentGeneration() },
+                    onToggleMic: { viewModel.toggleMicrophone() },
                     onOpenVoiceOrb: {
+                        keyboard.dismiss()
+                        viewModel.startVoiceConversation()
                         viewModel.isShowingVoiceOrbModal = true
                     },
-                    onOpenVAICoding: {
-                        viewModel.isShowingVAICodingStudio = true
-                    }
+                    onOpenVAICoding: { viewModel.isShowingVAICodingStudio = true }
                 )
             }
-            .padding(.bottom, currentBottomPadding)
+            .padding(.bottom, keyboard.isVisible ? 8 : 38)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black.opacity(0.02), Color.black.opacity(0.68)]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                ).allowsHitTesting(false)
+            )
         }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
+        }
+        .photosPicker(isPresented: $isShowingPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { item in
+            analyzeSelectedPhoto(item)
+        }
+        .sheet(isPresented: $isShowingCamera) {
+            SarahCameraPicker { image in
+                isShowingCamera = false
+                if let image = image { handleCameraImage(image) }
+            }
+        }
+        .fileImporter(isPresented: $isShowingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                viewModel.appendImportedFile(url: url)
+            } else if case .failure(let error) = result {
+                viewModel.inputText = "Impossible d'ouvrir le fichier : \(error.localizedDescription)"
+            }
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
             VAICodingStudioView(viewModel: viewModel)
@@ -202,11 +285,21 @@ public struct ChatScreenView: View {
                 },
                 onOpenSettings: {
                     isShowingSettings = true
+                },
+                onOpenPhotoLibrary: {
+                    selectedPhotoItem = nil
+                    isShowingPhotoPicker = true
+                },
+                onOpenCamera: {
+                    isShowingCamera = true
+                },
+                onOpenFile: {
+                    isShowingFileImporter = true
                 }
             )
             // Grand mode + mode réduit. Un glissement vers le bas garde le chat
             // visible derrière, comme dans les assistants vocaux modernes.
-            .presentationDetents([.height(255), .large])
+            .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         } else {
             VoiceOrbModalView(
@@ -216,6 +309,16 @@ public struct ChatScreenView: View {
                 },
                 onOpenSettings: {
                     isShowingSettings = true
+                },
+                onOpenPhotoLibrary: {
+                    selectedPhotoItem = nil
+                    isShowingPhotoPicker = true
+                },
+                onOpenCamera: {
+                    isShowingCamera = true
+                },
+                onOpenFile: {
+                    isShowingFileImporter = true
                 }
             )
         }
@@ -278,6 +381,66 @@ public struct ChatScreenView: View {
             .buttonStyle(ScaleBounceButtonStyle())
         }
         .padding(.horizontal, 16)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct CollapsedVoiceSessionBar: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @State private var pulse = false
+    private var accent: Color { viewModel.activeAgent.themeColor }
+
+    private var status: String {
+        switch viewModel.voiceStatus {
+        case .starting: return "Activation du micro…"
+        case .processing: return "Réflexion…"
+        case .speaking: return "\(viewModel.activeAgent.displayName) parle"
+        case .error: return "Micro indisponible"
+        default: return viewModel.isVoiceMicrophoneMuted ? "Micro coupé" : "À l’écoute"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.isShowingVoiceOrbModal = true
+            } label: {
+                ZStack {
+                    Circle().fill(accent.opacity(0.22)).frame(width: 34, height: 34)
+                    Circle().stroke(accent.opacity(0.62), lineWidth: 1).frame(width: 34, height: 34)
+                        .scaleEffect(pulse ? 1.08 : 0.94).opacity(pulse ? 0.28 : 0.82)
+                    Image(systemName: "waveform").font(.system(size: 13, weight: .bold)).foregroundColor(.white)
+                }
+            }.buttonStyle(PlainButtonStyle())
+
+            Text(status).font(.system(size: 12, weight: .semibold, design: .rounded)).foregroundColor(.white).lineLimit(1)
+            Spacer(minLength: 2)
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.toggleMicrophone()
+            } label: {
+                Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill")
+                    .font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(.ultraThinMaterial))
+            }.buttonStyle(PlainButtonStyle())
+
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.endVoiceConversation()
+            } label: {
+                Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(accent.opacity(0.22)))
+            }.buttonStyle(PlainButtonStyle())
+        }
+        .padding(.leading, 10).padding(.trailing, 8).frame(height: 50)
+        .sarahLiquidGlass(cornerRadius: 25, tint: accent, intensity: 0.15)
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) { pulse = true }
+        }
     }
 }
 
@@ -600,5 +763,36 @@ private struct WebsiteSecondaryButtonStyle: ButtonStyle {
             .font(.headline)
             .foregroundColor(.white)
             .background(RoundedRectangle(cornerRadius: 15).fill(Color.white.opacity(configuration.isPressed ? 0.05 : 0.11)))
+    }
+}
+
+
+@available(iOS 15.0, *)
+private struct SarahCameraPicker: UIViewControllerRepresentable {
+    let completion: (UIImage?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.mediaTypes = ["public.image"]
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let completion: (UIImage?) -> Void
+        init(completion: @escaping (UIImage?) -> Void) { self.completion = completion }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            completion(info[.originalImage] as? UIImage)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            completion(nil)
+        }
     }
 }
