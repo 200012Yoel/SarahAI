@@ -20,47 +20,50 @@ public final class AudioSessionManager {
     
     // MARK: - Configuration des Sessions Audio
     
-    /// Active la session audio en mode lecture haut-parleur (contourne le mode silencieux).
+    /// Active une vraie session de lecture pour la voix de Sarah.
+    /// .playback contourne le mode silencieux sans garder le micro ouvert.
     public func configurePlaybackSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth]
+                .playback,
+                mode: .spokenAudio,
+                options: [.duckOthers]
             )
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🔊 [AudioSessionManager] Mode .playAndRecord (Haut-parleur forcé & Bluetooth actif).")
+            print("🔊 [AudioSessionManager] Session spokenAudio active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }
     }
     
-    /// Configure la session audio pour l'enregistrement micro natif sans déclencher de mode appel téléphonique.
+    /// Configure le micro sans imposer le haut-parleur si un casque est connecté.
     public func configureRecordingSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
                 .playAndRecord,
-                mode: .default,
+                mode: .voiceChat,
                 options: [
                     .defaultToSpeaker,
-                    .allowBluetooth,
-                    .allowBluetoothA2DP
+                    .allowBluetooth
                 ]
             )
-            try session.setPreferredIOBufferDuration(0.02)
+            try session.setPreferredIOBufferDuration(0.046)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🎙️ [AudioSessionManager] Session micro active.")
+            print("🎙️ [AudioSessionManager] Session micro voiceChat active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration micro: \(error.localizedDescription)")
         }
     }
     
-    /// Désactive la session audio proprement
+    /// Désactive la session audio seulement si aucun moteur Sarah ne l'utilise.
     public func deactivateSession() {
+        guard !AppleSpeechRecognizer.shared.isListening,
+              !MultiAgentVoiceManager.shared.isSpeaking else {
+            return
+        }
+
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         } catch {

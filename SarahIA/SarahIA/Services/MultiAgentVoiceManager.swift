@@ -1,5 +1,4 @@
 import Foundation
-import Foundation
 import AVFoundation
 #if canImport(UIKit)
 import UIKit
@@ -229,14 +228,10 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-        } catch {
-            print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
-        }
+        // La synthèse n'a pas besoin de garder le micro ouvert.
+        // Utiliser une vraie session de lecture évite l'effet "appel téléphonique"
+        // et respecte automatiquement les écouteurs / appareils Bluetooth connectés.
+        AudioSessionManager.shared.configurePlaybackSession()
         
         let utterance = makeUtterance(text: cleaned)
         let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
@@ -345,13 +340,21 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             pendingSpeechBlock = nil
             next()
         } else {
-            AudioSessionManager.shared.deactivateSession()
+            // Un callback tardif ne doit jamais couper AVAudioSession si
+            // Apple Speech a déjà repris le micro.
+            if !AppleSpeechRecognizer.shared.isListening {
+                AudioSessionManager.shared.deactivateSession()
+            }
             onSpeechFinished?()
         }
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        AudioSessionManager.shared.deactivateSession()
+        // stopSpeaking() peut rappeler ce delegate quelques millisecondes après
+        // le redémarrage du micro. Ne pas désactiver la session dans ce cas.
+        if !AppleSpeechRecognizer.shared.isListening {
+            AudioSessionManager.shared.deactivateSession()
+        }
         onSpeechFinished?()
     }
 }

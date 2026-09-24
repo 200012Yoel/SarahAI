@@ -100,6 +100,16 @@ public struct SettingsView: View {
                             settingsDivider
 
                             settingsLink(
+                                destination: WidgetsHealthSettingsView(),
+                                icon: "rectangle.grid.2x2.fill",
+                                tint: .cyan,
+                                title: "Widgets et Santé",
+                                detail: "Tableau Santé, activité Sarah et accès rapides"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
                                 destination: DataAndConversationsSettingsView(
                                     viewModel: viewModel,
                                     onStartNewChat: startNewChatAndDismiss
@@ -891,6 +901,50 @@ private struct ConnectionsSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Apple") {
+                Button {
+                    HapticService.shared.buttonTap()
+                    ShortcutGenerator.shared.openShortcutsApp()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.blue)
+                            .frame(width: 34, height: 34)
+                            .background(Color.blue.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Apple Raccourcis")
+                                .foregroundColor(.primary)
+                            Text("App Intents Sarah + génération locale")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("100 % local")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            Image(systemName: "checkmark.shield.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Label(
+                    "Les définitions de raccourcis restent sur l’iPhone. Sarah ouvre ensuite l’app Raccourcis pour la finalisation autorisée par iOS.",
+                    systemImage: "iphone.and.arrow.forward"
+                )
+                .font(.footnote)
+                .foregroundColor(.secondary)
+            }
+
             Section("Services") {
                 ForEach(connections) { connection in
                     Button {
@@ -1023,9 +1077,8 @@ private struct VoiceAndSpeechSettingsView: View {
 private struct LocalGenerationSettingsView: View {
     @AppStorage("sarahAllowCloudGeneration") private var allowCloudGeneration: Bool = false
     @StateObject private var downloader = GenerativeModelDownloader.shared
-    @State private var musicDownloadProgress: Double = 0
-    @State private var musicStatus: String = ""
-    @State private var isPreparingMusic: Bool = false
+    @StateObject private var installer = SarahModelInstallCoordinator.shared
+    @State private var showExperimental = false
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
@@ -1038,6 +1091,8 @@ private struct LocalGenerationSettingsView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
+                    installAllCard
+
                     capabilityCard(
                         icon: "photo.fill",
                         tint: .purple,
@@ -1046,36 +1101,9 @@ private struct LocalGenerationSettingsView: View {
                         kind: .image
                     )
 
-                    capabilityCard(
-                        icon: "video.fill",
-                        tint: .orange,
-                        title: "Vidéo",
-                        profile: videoProfile,
-                        kind: .video
-                    )
-
                     musicCapabilityCard
 
-                    vocalSongCapabilityCard
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Sélection automatique", systemImage: "cpu")
-                            .font(.headline)
-                            .foregroundColor(.white)
-
-                        Text("Sarah choisit le profil selon la RAM et la version d’iOS. Un futur iPhone plus puissant basculera automatiquement vers un profil plus lourd sans modifier l’interface.")
-                            .font(.footnote)
-                            .foregroundColor(Color.white.opacity(0.54))
-
-                        Text(String(format: "RAM détectée : %.1f Go • iOS %d", SarahGenerativeModelCatalog.physicalRAMGB, SarahGenerativeModelCatalog.iosMajor))
-                            .font(.caption.monospaced())
-                            .foregroundColor(Color.white.opacity(0.38))
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(Color.white.opacity(0.075))
-                    )
+                    experimentalSection
 
                     VStack(alignment: .leading, spacing: 12) {
                         Toggle(isOn: $allowCloudGeneration) {
@@ -1127,6 +1155,169 @@ private struct LocalGenerationSettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    private var installAllCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(
+                    "Installer les moteurs compatibles",
+                    systemImage: "square.and.arrow.down.on.square.fill"
+                )
+                .font(.headline)
+                .foregroundColor(.white)
+
+                Spacer()
+
+                if installer.totalCount > 0 && installer.installedCount == installer.totalCount {
+                    Text("Prêt")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.green)
+                }
+            }
+
+            Text(installer.hardwareSummary)
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.45))
+
+            if installer.isInstalling {
+                ProgressView(value: installer.progress)
+                    .tint(.blue)
+
+                HStack {
+                    Text(installer.statusText)
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.58))
+
+                    Spacer()
+
+                    Text("\(Int(installer.progress * 100)) %")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(Color.white.opacity(0.58))
+                }
+            } else if installer.totalCount == 0 || installer.installedCount < installer.totalCount {
+                Button {
+                    HapticService.shared.buttonTap()
+                    installer.installAllCompatible()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                        Text("Installer tout")
+                        Spacer()
+                    }
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(.blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                Label(
+                    "Tous les moteurs compatibles sont installés",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.green)
+            }
+
+            Text("Les téléchargements utilisent les sessions de fond d’iOS. Les moteurs expérimentaux sans runtime iPhone fonctionnel sont exclus.")
+                .font(.caption2)
+                .foregroundColor(Color.white.opacity(0.40))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.075))
+        )
+    }
+
+    private var experimentalSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    showExperimental.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "flask.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.orange)
+                        .frame(width: 30, height: 30)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Fonctions expérimentales")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+
+                        Text("Vidéo et chanson avec voix")
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.42))
+                    }
+
+                    Spacer()
+
+                    Image(systemName: showExperimental ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color.white.opacity(0.32))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            if showExperimental {
+                experimentalRow(
+                    icon: "video.fill",
+                    tint: .orange,
+                    title: videoProfile.displayName,
+                    detail: "Vidéo · runtime iPhone non validé"
+                )
+
+                experimentalRow(
+                    icon: "music.mic",
+                    tint: .cyan,
+                    title: vocalSongProfile.displayName,
+                    detail: "Chanson avec voix · runtime iPhone non validé"
+                )
+
+                Text("Ces fonctions restent cachées du parcours principal tant qu’elles ne sont pas réellement prêtes sur iPhone.")
+                    .font(.caption2)
+                    .foregroundColor(Color.white.opacity(0.34))
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+        )
+    }
+
+    private func experimentalRow(
+        icon: String,
+        tint: Color,
+        title: String,
+        detail: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.white.opacity(0.82))
+                    .lineLimit(1)
+
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(Color.white.opacity(0.38))
+            }
+
+            Spacer()
+        }
+    }
+
     private var musicCapabilityCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -1163,53 +1354,57 @@ private struct LocalGenerationSettingsView: View {
                 .foregroundColor(Color.white.opacity(0.54))
                 .fixedSize(horizontal: false, vertical: true)
 
-            if isPreparingMusic {
-                VStack(alignment: .leading, spacing: 8) {
-                    ProgressView(value: musicDownloadProgress)
-                        .tint(.pink)
+            if #available(iOS 27.0, *) {
+                if MusicModelBackgroundDownloader.shared.isDownloading {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(value: MusicModelBackgroundDownloader.shared.progress)
+                            .tint(.pink)
 
-                    HStack {
-                        Text(musicStatus.isEmpty ? "Préparation du modèle…" : musicStatus)
-                            .font(.caption)
-                            .foregroundColor(Color.white.opacity(0.58))
-                        Spacer()
-                        Text("\(Int(musicDownloadProgress * 100)) %")
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(Color.white.opacity(0.58))
+                        HStack {
+                            Text(MusicModelBackgroundDownloader.shared.statusText)
+                                .font(.caption)
+                                .foregroundColor(Color.white.opacity(0.58))
+
+                            Spacer()
+
+                            Text("\(Int(MusicModelBackgroundDownloader.shared.progress * 100)) %")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(Color.white.opacity(0.58))
+                        }
                     }
-                }
-            } else if musicProfile.runtimeState != .unsupported {
-                Button {
-                    HapticService.shared.buttonTap()
-                    prepareMusicModel()
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text("Préparer le modèle musical local")
-                        Spacer()
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.pink)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-
-            if !musicStatus.isEmpty && !isPreparingMusic {
-                Text(musicStatus)
-                    .font(.caption)
-                    .foregroundColor(
-                        musicStatus.contains("prêt") ? .green : Color.white.opacity(0.48)
-                    )
-            }
-
-            if let source = URL(string: musicProfile.sourceURL), !musicProfile.sourceURL.isEmpty {
-                Link(destination: source) {
-                    Label("Source du modèle", systemImage: "arrow.up.right.square")
+                } else if SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    Label("Modèle musical local installé", systemImage: "checkmark.circle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.green)
+                } else if musicProfile.runtimeState != .unsupported {
+                    Button {
+                        HapticService.shared.buttonTap()
+                        MusicModelBackgroundDownloader.shared.start()
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text("Télécharger le modèle musical local")
+                            Spacer()
+                        }
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.pink)
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+
+                if !MusicModelBackgroundDownloader.shared.statusText.isEmpty &&
+                   !MusicModelBackgroundDownloader.shared.isDownloading {
+                    Text(MusicModelBackgroundDownloader.shared.statusText)
+                        .font(.caption)
+                        .foregroundColor(
+                            MusicModelBackgroundDownloader.shared.statusText.contains("prêt")
+                                ? .green
+                                : Color.white.opacity(0.48)
+                        )
                 }
             }
+
         }
         .padding(16)
         .background(
@@ -1281,34 +1476,6 @@ private struct LocalGenerationSettingsView: View {
         )
     }
 
-    private func prepareMusicModel() {
-        guard #available(iOS 27.0, *) else {
-            musicStatus = "La génération musicale locale nécessite iOS 27."
-            return
-        }
-
-        isPreparingMusic = true
-        musicDownloadProgress = 0
-        musicStatus = "Téléchargement du modèle musical…"
-
-        SarahLocalMusicGenEngine.shared.prepareInstrumentalModel(
-            progress: { value, file in
-                musicDownloadProgress = value
-                musicStatus = file.isEmpty ? "Téléchargement du modèle musical…" : file
-            },
-            completion: { result in
-                isPreparingMusic = false
-                switch result {
-                case .success:
-                    musicDownloadProgress = 1
-                    musicStatus = "Modèle musical local prêt"
-                case .failure(let error):
-                    musicStatus = error.localizedDescription
-                }
-            }
-        )
-    }
-
     private func capabilityCard(
         icon: String,
         tint: Color,
@@ -1358,16 +1525,6 @@ private struct LocalGenerationSettingsView: View {
 
             modelInstallControls(profile: profile, kind: kind, tint: tint)
 
-            if let source = URL(string: profile.sourceURL), !profile.sourceURL.isEmpty {
-                Link(destination: source) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "arrow.up.right.square")
-                        Text("Source du modèle")
-                    }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(tint)
-                }
-            }
         }
         .padding(16)
         .background(
@@ -1627,6 +1784,115 @@ private struct SarahEngineSettingsView: View {
 }
 
 @available(iOS 15.0, *)
+private struct WidgetsHealthSettingsView: View {
+    @State private var healthEnabled = WidgetDataBridge.shared.isHealthWidgetEnabled
+    @State private var statusText = ""
+    @State private var isRequesting = false
+
+    var body: some View {
+        List {
+            Section("Widgets disponibles") {
+                widgetRow(
+                    icon: "heart.text.square.fill",
+                    title: "Sarah · Santé",
+                    detail: "Pas, distance, calories actives, exercice, activité, fréquence cardiaque au repos et tendance."
+                )
+                widgetRow(
+                    icon: "bubble.left.and.bubble.right.fill",
+                    title: "Sarah · Activité",
+                    detail: "Questions aujourd’hui, sur 7 jours, 30 jours et nombre de discussions."
+                )
+                widgetRow(
+                    icon: "bolt.fill",
+                    title: "Sarah · Rapide",
+                    detail: "Chat, mode vocal et Apple Raccourcis."
+                )
+            }
+
+            Section("Apple Santé") {
+                Toggle("Afficher le résumé Santé dans le widget", isOn: Binding(
+                    get: { healthEnabled },
+                    set: { value in
+                        healthEnabled = value
+                        WidgetDataBridge.shared.isHealthWidgetEnabled = value
+                        if value {
+                            WidgetDataBridge.shared.refreshHealthSnapshot()
+                        }
+                    }
+                ))
+                .tint(.cyan)
+
+                Button {
+                    isRequesting = true
+                    statusText = "Demande d’autorisation…"
+                    WidgetDataBridge.shared.requestHealthAuthorization { result in
+                        DispatchQueue.main.async {
+                            isRequesting = false
+                            switch result {
+                            case .success(let allowed):
+                                healthEnabled = allowed
+                                statusText = allowed
+                                    ? "Accès Santé prêt. Les widgets seront actualisés."
+                                    : "HealthKit n’est pas disponible ou l’accès n’a pas été accordé."
+                            case .failure(let error):
+                                statusText = error.localizedDescription
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "heart.circle.fill")
+                        Text(isRequesting ? "Autorisation en cours…" : "Autoriser et actualiser Santé")
+                        Spacer()
+                        if isRequesting {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(isRequesting)
+
+                Text("Sarah lit uniquement les catégories nécessaires au tableau : pas, distance marche/course, calories actives, minutes d’exercice, temps debout et fréquence cardiaque au repos. Les données détaillées restent dans HealthKit ; le widget reçoit seulement un résumé via l’App Group.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                if !statusText.isEmpty {
+                    Text(statusText)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Confidentialité") {
+                Text("Les informations Santé affichées sur un widget peuvent être visibles sur l’écran d’accueil. Désactivez le widget Santé si vous ne souhaitez pas qu’un résumé d’activité soit visible sans ouvrir Sarah.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+        .navigationTitle("Widgets et Santé")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func widgetRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(.cyan)
+                .frame(width: 32, height: 32)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+@available(iOS 15.0, *)
 private struct DataAndConversationsSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
     let onStartNewChat: () -> Void
@@ -1774,6 +2040,29 @@ private struct LegalNoticesView: View {
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
                 }
 
+                Section("Shortcut Agent Skill — MIT") {
+                    Text("Référence de génération utilisée pour valider la structure plist, les UUID, les variables et les familles d’actions Apple Shortcuts. Le projet annonce 427+ actions prises en charge et est distribué sous licence MIT.")
+                    Text("Copyright (c) 2026 owgit — MIT License. Permission is hereby granted, free of charge, to use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software, subject to inclusion of the copyright and permission notice. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .textSelection(.enabled)
+                    Link("Projet Shortcut Agent Skill", destination: URL(string: "https://github.com/owgit/shortcut-agent-skill")!)
+                }
+
+                Section("Apple Raccourcis & App Intents") {
+                    Text("Sarah IA expose ses propres actions directement dans l’app Raccourcis avec le framework public Apple App Intents.")
+                    Text("Actions Sarah publiées : Demander à Sarah, Nouveau chat Sarah et Créer un brouillon de raccourci.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La génération de workflow est effectuée localement sur l’iPhone. Sarah ne transmet pas le contenu d’un raccourci à un service externe.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("Apple ne fournit pas d’API publique permettant à une app tierce d’injecter arbitrairement des blocs dans l’éditeur Raccourcis ou de signer localement un .shortcut arbitraire. Sarah prépare donc le workflow puis ouvre Raccourcis pour la finalisation.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Documentation Apple App Intents", destination: URL(string: "https://developer.apple.com/documentation/appintents")!)
+                }
+
                 Section("Génération d’images — cible locale") {
                     Text("Sarah prévoit d’utiliser Stable Diffusion 2.1 converti en Core ML, notamment les poids 6-bit palettisés publiés pour les appareils Apple.")
                     Text("Le code de conversion et d’inférence Apple ml-stable-diffusion est distribué sous licence MIT. Les poids Stable Diffusion restent soumis à leur licence OpenRAIL++ et à ses restrictions d’usage.")
@@ -1816,6 +2105,17 @@ private struct LegalNoticesView: View {
                 Section("Composants Apple") {
                     Text("Sarah IA utilise les frameworks système Apple, notamment SwiftUI, UIKit, Foundation, AVFoundation, Speech, Vision, WebKit et Core ML. Ces composants sont fournis avec iOS et soumis aux conditions Apple applicables.")
                         .font(.footnote)
+                }
+
+                Section("Conditions d’utilisation — Raccourcis") {
+                    Text("Les automatisations générées par Sarah doivent être vérifiées par l’utilisateur avant exécution. Certaines actions peuvent demander des autorisations iOS supplémentaires ou dépendre d’apps installées sur l’iPhone.")
+                        .font(.footnote)
+                    Text("Sarah respecte les protections d’iOS : elle ne contourne pas les permissions, ne modifie pas silencieusement la bibliothèque Raccourcis et ne prétend pas signer un fichier lorsque l’API publique Apple ne le permet pas.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La disponibilité exacte d’une action dépend de la version d’iOS, des apps présentes et des autorisations accordées par l’utilisateur.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
 
                 Section("Information importante") {

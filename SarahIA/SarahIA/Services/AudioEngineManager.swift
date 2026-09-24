@@ -154,16 +154,35 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    /// Arrête le moteur audio
+    /// Arrête le moteur audio et rend immédiatement la session audio à iOS.
+    /// Important : sans cette désactivation, la session peut rester en mode
+    /// .playAndRecord/.voiceChat et perturber Siri, le routage Bluetooth ou
+    /// les autres apps audio après une seule utilisation de Sara.
     public func stopAudioEngine() {
         if audioEngine.isRunning {
             inputNode?.removeTap(onBus: 0)
             audioEngine.stop()
-            DispatchQueue.main.async {
-                self.isRunning = false
-                self.currentInputLevel = 0.0
-                self.isUserSpeaking = false
-            }
+            audioEngine.reset()
+        }
+
+        inputNode = nil
+        audioFormat = nil
+        accumulatedAudioSamples.removeAll(keepingCapacity: false)
+        speechStartTime = nil
+        lastSpeechTime = nil
+        consecutiveVoiceFrames = 0
+
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ [AudioEngineManager] Impossible de libérer AVAudioSession: \(error.localizedDescription)")
+        }
+
+        DispatchQueue.main.async {
+            self.isRunning = false
+            self.currentInputLevel = 0.0
+            self.isUserSpeaking = false
         }
     }
     
@@ -300,6 +319,9 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     }
     
     @objc private func handleRouteChange(notification: Notification) {
+        // Ne jamais réactiver le micro simplement parce que la route audio change.
+        // On ne reconfigure la session que si Sara est réellement en écoute.
+        guard audioEngine.isRunning || isRunning else { return }
         setupAudioSession()
     }
 }

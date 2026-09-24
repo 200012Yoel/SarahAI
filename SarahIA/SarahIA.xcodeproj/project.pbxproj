@@ -104,7 +104,21 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
+		B00000000000000000000101 /* WidgetDataBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000101 /* WidgetDataBridge.swift */; };
+		B00000000000000000000102 /* SarahIAWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000102 /* SarahIAWidgets.swift */; };
+		B00000000000000000000103 /* SarahIAWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = F00000000000000000000105 /* SarahIAWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+
+/* Begin PBXContainerItemProxy section */
+		A00000000000000000000125 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1B2C3D40006000100000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A00000000000000000000120;
+			remoteInfo = SarahIAWidgets;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D40002000100000001 /* SarahIAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAApp.swift; sourceTree = "<group>"; };
@@ -204,7 +218,27 @@
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
+		F00000000000000000000101 /* WidgetDataBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataBridge.swift; sourceTree = "<group>"; };
+		F00000000000000000000102 /* SarahIAWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWidgets.swift; sourceTree = "<group>"; };
+		F00000000000000000000103 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F00000000000000000000104 /* SarahIAWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SarahIAWidgets.entitlements; sourceTree = "<group>"; };
+		F00000000000000000000105 /* SarahIAWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SarahIAWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A00000000000000000000124 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B00000000000000000000103 /* SarahIAWidgets.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A1B2C3D40003000100000001 /* Frameworks */ = {
@@ -216,6 +250,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000122 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -223,6 +264,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40004000100000002 /* SarahIA */,
+				A00000000000000000000110 /* SarahIAWidgets */,
 				A1B2C3D40004000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -281,6 +323,7 @@
 				A1B2C3D40002000100000023 /* SemanticMemoryIndex.swift */,
 				A1B2C3D40002000100000024 /* DeviceController.swift */,
 				A1B2C3D40002000100000025 /* ShortcutGenerator.swift */,
+				F00000000000000000000101 /* WidgetDataBridge.swift */,
 				A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */,
 				A1B2C3D40002000100000027 /* ClipboardCompanion.swift */,
 				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
@@ -366,8 +409,19 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4000200010000000C /* SarahIA.app */,
+				F00000000000000000000105 /* SarahIAWidgets.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000110 /* SarahIAWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000102 /* SarahIAWidgets.swift */,
+				F00000000000000000000103 /* Info.plist */,
+				F00000000000000000000104 /* SarahIAWidgets.entitlements */,
+			);
+			path = SarahIAWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -380,10 +434,12 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
+				A00000000000000000000124 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A00000000000000000000126 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
 			packageProductDependencies = (
@@ -393,6 +449,25 @@
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A00000000000000000000120 /* SarahIAWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000132 /* Build configuration list for PBXNativeTarget "SarahIAWidgets" */;
+			buildPhases = (
+				A00000000000000000000121 /* Sources */,
+				A00000000000000000000122 /* Frameworks */,
+				A00000000000000000000123 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SarahIAWidgets;
+			packageProductDependencies = (
+			);
+			productName = SarahIAWidgets;
+			productReference = F00000000000000000000105 /* SarahIAWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -405,6 +480,9 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					A1B2C3D40005000100000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					A00000000000000000000120 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -428,6 +506,7 @@
 			projectRoot = "";
 			targets = (
 				A1B2C3D40005000100000001 /* SarahIA */,
+				A00000000000000000000120 /* SarahIAWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -439,6 +518,13 @@
 			files = (
 				A1B2C3D4000100010000000B /* Assets.xcassets in Resources */,
 				A1B2C3D4000100010000000D /* LaunchScreen.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00000000000000000000123 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -475,6 +561,7 @@
 				A1B2C3D40001000100000023 /* SemanticMemoryIndex.swift in Sources */,
 				A1B2C3D40001000100000024 /* DeviceController.swift in Sources */,
 				A1B2C3D40001000100000025 /* ShortcutGenerator.swift in Sources */,
+				B00000000000000000000101 /* WidgetDataBridge.swift in Sources */,
 				A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */,
 				A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */,
 				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
@@ -545,6 +632,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A00000000000000000000121 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000102 /* SarahIAWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -579,6 +674,15 @@
 		};
 /* End XCSwiftPackageProductDependency section */
 
+
+/* Begin PBXTargetDependency section */
+		A00000000000000000000126 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A00000000000000000000120 /* SarahIAWidgets */;
+			targetProxy = A00000000000000000000125 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		A1B2C3D40007000100000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -593,7 +697,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -604,7 +708,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 4.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -641,7 +745,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -652,7 +756,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 4.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -797,6 +901,64 @@
 			};
 			name = Release;
 		};
+		A00000000000000000000130 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SarahIAWidgets/SarahIAWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.SarahIAWidgets;
+				PRODUCT_NAME = SarahIAWidgets;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Debug;
+		};
+		A00000000000000000000131 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SarahIAWidgets/SarahIAWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SarahIAWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.SarahIAWidgets;
+				PRODUCT_NAME = SarahIAWidgets;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -814,6 +976,15 @@
 			buildConfigurations = (
 				A1B2C3D40007000100000004 /* Debug */,
 				A1B2C3D40007000100000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000132 /* Build configuration list for PBXNativeTarget "SarahIAWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A00000000000000000000130 /* Debug */,
+				A00000000000000000000131 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -47,8 +47,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     // Détection automatique de silence pour valider la fin de la phrase
     private var silenceTimer: Timer?
-    private let silenceThreshold: TimeInterval = 1.3 // Secondes de pause pour valider la question
+    private let silenceThreshold: TimeInterval = 1.05
     private var hasDetectedSpeechInCurrentSession: Bool = false
+    private var shouldFinalizeOnSilence: Bool = true
+    private var didFinalizeCurrentSession: Bool = false
 
     // Limite la télémétrie du niveau micro à ~15 FPS. Le callback audio tourne
     // beaucoup plus vite et ne doit jamais inonder le thread principal.
@@ -81,8 +83,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     // MARK: - Démarrage de l'Écoute
     
-    public func startListening() {
+    public func startListening(autoFinalizeOnSilence: Bool = true) {
         guard !isListening else { return }
+        shouldFinalizeOnSilence = autoFinalizeOnSilence
 
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         if speechStatus == .notDetermined || AVAudioSession.sharedInstance().recordPermission == .undetermined {
@@ -91,7 +94,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                     self?.state = .error("Autorisation microphone ou dictée refusée")
                     return
                 }
-                self?.startListening()
+                self?.startListening(autoFinalizeOnSilence: autoFinalizeOnSilence)
             }
             return
         }
@@ -140,8 +143,16 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         request.shouldReportPartialResults = true
+        request.taskHint = .dictation
+        request.contextualStrings = [
+            "bonjour", "salut", "coucou", "bonsoir",
+            "Sarah", "Tom", "Raphaël", "Yohan",
+            "nouveau chat", "mode vocal", "confirme", "annule",
+            "génère", "générer", "crée", "créer",
+            "image", "photo", "vidéo", "musique", "raccourci"
+        ]
         if #available(iOS 13.0, *) {
-            request.requiresOnDeviceRecognition = false
+            request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         }
 
         let inputNode = audioEngine.inputNode
@@ -167,7 +178,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             guard let self = self else { return }
             DispatchQueue.main.async {
                 if let result = result {
-                    let text = result.bestTranscription.formattedString
+                    let alternatives = result.transcriptions.map { $0.formattedString }
+                    let text = self.preferredTranscript(
+                        best: result.bestTranscription.formattedString,
+                        alternatives: alternatives
+                    )
                     self.currentLiveText = text
                     self.hasDetectedSpeechInCurrentSession = true
                     self.onPartialTranscription?(text)
@@ -198,12 +213,47 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             state = .listening
             currentLiveText = ""
             hasDetectedSpeechInCurrentSession = false
+            didFinalizeCurrentSession = false
             HapticService.shared.speechStarted()
         } catch {
             state = .error("Micro indisponible")
             print("⚠️ [AppleSpeechRecognizer] AVAudioEngine start: \(error.localizedDescription)")
             stopListening()
         }
+    }
+    
+    private func preferredTranscript(best: String, alternatives: [String]) -> String {
+        func normalized(_ value: String) -> String {
+            value
+                .lowercased()
+                .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+                .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+        
+        // Sur les phrases très courtes, Apple propose parfois la bonne salutation
+        // en alternative alors que le premier candidat ressemble à une commande.
+        let greetingMap: [String: String] = [
+            "bonjour": "bonjour",
+            "bonjour sarah": "bonjour",
+            "bon jour": "bonjour",
+            "salut": "salut",
+            "salut sarah": "salut",
+            "coucou": "coucou",
+            "coucou sarah": "coucou",
+            "bonsoir": "bonsoir",
+            "bonsoir sarah": "bonsoir"
+        ]
+        
+        for candidate in [best] + alternatives {
+            if let canonical = greetingMap[normalized(candidate)] {
+                return canonical
+            }
+        }
+        
+        return best
     }
     
     // MARK: - Arrêt de l'Écoute
@@ -247,6 +297,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+
+        guard shouldFinalizeOnSilence else {
+            silenceTimer = nil
+            return
+        }
+
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceThreshold, repeats: false) { [weak self] _ in
             guard let self = self, self.isListening, self.hasDetectedSpeechInCurrentSession else { return }
             let finalText = self.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -257,8 +313,17 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     }
     
     private func finalizeTranscription(_ text: String) {
-        let textToSend = text
+        guard !didFinalizeCurrentSession else { return }
+
+        let textToSend = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !textToSend.isEmpty else {
+            stopListening()
+            return
+        }
+
+        didFinalizeCurrentSession = true
         stopListening()
+        currentLiveText = textToSend
         state = .processing
         HapticService.shared.notificationSuccess()
         onFinalTranscription?(textToSend)

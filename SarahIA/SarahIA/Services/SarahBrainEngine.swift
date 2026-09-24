@@ -353,8 +353,21 @@ public final class SarahBrainEngine {
             return BrainIntent(primaryTopic: "youtube")
         }
         
-        // Intent Radio / Podcasts / Musique
-        if norm.contains("radio") || norm.contains("podcast") || norm.contains("musique") || norm.contains("spotify") || norm.contains("apple music") || norm.contains("skyrock") || norm.contains("france inter") || norm.contains("nrj") || norm.contains("rtl") {
+        // Intent Radio / Podcasts / Musique : uniquement sur ordre explicite.
+        // Mentionner "musique" dans une conversation ne doit jamais ouvrir un lecteur.
+        let mediaTargets = [
+            "radio", "podcast", "musique", "spotify", "apple music",
+            "skyrock", "france inter", "nrj", "rtl"
+        ]
+        let mediaVerbs = [
+            "mets", "met ", "lance", "ouvre", "joue", "ecoute",
+            "écoute", "demarre", "démarre", "arrete", "arrête", "stop", "coupe"
+        ]
+        let hasMediaTarget = mediaTargets.contains { norm.contains($0) }
+        let hasMediaVerb = mediaVerbs.contains { verb in
+            norm == verb || norm.hasPrefix(verb + " ") || norm.contains(" " + verb + " ")
+        }
+        if hasMediaTarget && hasMediaVerb {
             return BrainIntent(primaryTopic: "media_stream", requiresMediaStream: true)
         }
         

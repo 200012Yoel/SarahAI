@@ -283,13 +283,18 @@ public struct FullScreenImageView: View {
 @available(iOS 14.0, *)
 public struct MusicTrackCardView: View {
     public let styleName: String
+    public let variationSeed: UInt64
     
     @State private var isPlaying: Bool = false
     @State private var animPhase: CGFloat = 0
     @State private var timer: Timer? = nil
     
-    public init(styleName: String = "Lo-Fi Chill") {
+    public init(
+        styleName: String = "Lo-Fi Chill",
+        variationSeed: UInt64 = UInt64.random(in: 1...UInt64.max)
+    ) {
         self.styleName = styleName
+        self.variationSeed = variationSeed
     }
     
     public var body: some View {
@@ -385,7 +390,10 @@ public struct MusicTrackCardView: View {
             timer?.invalidate()
         } else {
             let matchedStyle = OpenSourceMusicEngine.MusicStyle.allCases.first(where: { styleName.contains($0.rawValue) }) ?? .lofi
-            OpenSourceMusicEngine.shared.generateAndPlayTrack(style: matchedStyle) { success, _ in
+            OpenSourceMusicEngine.shared.generateAndPlayTrack(
+                style: matchedStyle,
+                variationSeed: variationSeed
+            ) { success, _ in
                 DispatchQueue.main.async {
                     self.isPlaying = success
                     if success { self.startWaveAnimation() }
@@ -409,6 +417,171 @@ public struct MusicTrackCardView: View {
         NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStopped"), object: nil, queue: .main) { _ in
             self.isPlaying = false
             self.timer?.invalidate()
+        }
+    }
+}
+
+// MARK: - 2.5 Lecteur d'un vrai fichier audio généré
+
+@available(iOS 15.0, *)
+public struct GeneratedAudioFileCardView: View {
+    public let audioURLString: String
+
+    @State private var player: AVAudioPlayer?
+    @State private var isPlaying = false
+    @State private var isShowingShare = false
+    @State private var playbackTimer: Timer?
+
+    public init(audioURLString: String) {
+        self.audioURLString = audioURLString
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Button {
+                    togglePlayback()
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.sarahCyan,
+                                        Color(red: 0.34, green: 0.42, blue: 1.0)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 46, height: 46)
+
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                            .offset(x: isPlaying ? 0 : 1)
+                    }
+                }
+                .buttonStyle(BorderlessButtonStyle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Musique générée")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    Text("Stable Audio Open Small · local")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.sarahCyan)
+                }
+
+                Spacer()
+
+                Button {
+                    isShowingShare = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 34, height: 34)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+
+            HStack(spacing: 3) {
+                ForEach(Array(0..<20), id: \.self) { index in
+                    Capsule()
+                        .fill(waveBarColor)
+                        .frame(width: 3, height: waveBarHeight(for: index))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 28)
+
+            Text(isPlaying ? "Lecture en cours" : "Prêt à écouter")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(
+                    isPlaying ? .green : Color.white.opacity(0.44)
+                )
+        }
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 0.10, green: 0.10, blue: 0.13))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+        )
+        .sheet(isPresented: $isShowingShare) {
+            if let url = resolvedURL {
+                ActivityViewController(activityItems: [url])
+            }
+        }
+        .onDisappear {
+            playbackTimer?.invalidate()
+            player?.stop()
+        }
+    }
+
+    private var waveBarColor: Color {
+        if isPlaying {
+            return Color.sarahCyan.opacity(0.82)
+        }
+        return Color.white.opacity(0.14)
+    }
+
+    private func waveBarHeight(for index: Int) -> CGFloat {
+        CGFloat(6 + ((index * 7) % 18))
+    }
+
+    private var resolvedURL: URL? {
+        if let url = URL(string: audioURLString), url.isFileURL {
+            return url
+        }
+
+        if audioURLString.hasPrefix("/") {
+            return URL(fileURLWithPath: audioURLString)
+        }
+
+        return URL(string: audioURLString)
+    }
+
+    private func togglePlayback() {
+        if isPlaying {
+            player?.pause()
+            isPlaying = false
+            playbackTimer?.invalidate()
+            return
+        }
+
+        guard let url = resolvedURL else { return }
+
+        do {
+            if player == nil {
+                player = try AVAudioPlayer(contentsOf: url)
+                player?.prepareToPlay()
+            }
+
+            player?.play()
+            isPlaying = true
+            startPlaybackTimer()
+        } catch {
+            isPlaying = false
+        }
+    }
+
+    private func startPlaybackTimer() {
+        playbackTimer?.invalidate()
+        playbackTimer = Timer.scheduledTimer(
+            withTimeInterval: 0.25,
+            repeats: true
+        ) { _ in
+            if player?.isPlaying != true {
+                isPlaying = false
+                playbackTimer?.invalidate()
+            }
         }
     }
 }

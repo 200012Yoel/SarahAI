@@ -33,6 +33,14 @@ public final class BackgroundModelDownloader: NSObject {
         config.sessionSendsLaunchEvents = true
         self.session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.resumeData = UserDefaults.standard.data(forKey: resumeDataKey)
+
+        self.session.getAllTasks { [weak self] tasks in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                self.downloadTask = tasks.compactMap { $0 as? URLSessionDownloadTask }.first
+                self.isDownloading = self.downloadTask != nil
+            }
+        }
     }
     
     /// Chemin vers le fichier GGUF local dans Application Support
@@ -186,6 +194,10 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
             }
         }
     }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.completeBackgroundSession(identifier: session.configuration.identifier)
+    }
 }
 
 
@@ -230,6 +242,24 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             delegate: self,
             delegateQueue: nil
         )
+
+        self.session.getAllTasks { [weak self] tasks in
+            guard let self,
+                  let existing = tasks.compactMap({ $0 as? URLSessionDownloadTask }).first else { return }
+
+            let parts = (existing.taskDescription ?? "").split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let kind = DownloadKind(rawValue: parts[0]) else { return }
+
+            DispatchQueue.main.async {
+                self.task = existing
+                self.activeKind = kind
+                self.activeIdentifier = parts[1]
+                self.isDownloading = true
+                self.statusText = kind == .image
+                    ? "Téléchargement du modèle image…"
+                    : "Téléchargement du modèle vidéo…"
+            }
+        }
     }
 
     public func startImageModelDownload() {
@@ -335,6 +365,7 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             : "Téléchargement du modèle vidéo…"
 
         task = session.downloadTask(with: url)
+        task?.taskDescription = "\(kind.rawValue)|\(identifier)"
         task?.resume()
     }
 
@@ -468,9 +499,16 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let kind = activeKind,
-              let identifier = activeIdentifier else {
-            publishFailure("Téléchargement terminé sans profil actif.")
+        let metadata = (downloadTask.taskDescription ?? "")
+            .split(separator: "|", maxSplits: 1)
+            .map(String.init)
+
+        let restoredKind = metadata.count == 2 ? DownloadKind(rawValue: metadata[0]) : nil
+        let restoredIdentifier = metadata.count == 2 ? metadata[1] : nil
+
+        guard let kind = activeKind ?? restoredKind,
+              let identifier = activeIdentifier ?? restoredIdentifier else {
+            publishFailure("Téléchargement terminé sans profil identifiable.")
             return
         }
 
@@ -521,5 +559,383 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
     ) {
         guard let error else { return }
         publishFailure(error.localizedDescription)
+    }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.completeBackgroundSession(identifier: session.configuration.identifier)
+    }
+}
+
+
+@available(iOS 27.0, *)
+public final class MusicModelBackgroundDownloader: NSObject, ObservableObject, URLSessionDownloadDelegate {
+    public static let shared = MusicModelBackgroundDownloader()
+
+    @Published public private(set) var isDownloading = false
+    @Published public private(set) var progress: Double = 0
+    @Published public private(set) var statusText = ""
+
+    private var session: URLSession!
+    private var activeTask: URLSessionDownloadTask?
+    private let engine = SarahLocalMusicGenEngine.shared
+
+    private override init() {
+        super.init()
+
+        let config = URLSessionConfiguration.background(
+            withIdentifier: "com.sarahia.stable-audio-model-download"
+        )
+        config.isDiscretionary = false
+        config.allowsCellularAccess = false
+        config.sessionSendsLaunchEvents = true
+        config.waitsForConnectivity = true
+
+        session = URLSession(
+            configuration: config,
+            delegate: self,
+            delegateQueue: nil
+        )
+
+        restoreExistingTask()
+    }
+
+    public func start() {
+        if engine.isInstrumentalModelInstalled {
+            DispatchQueue.main.async {
+                self.progress = 1
+                self.statusText = "Modèle musical local prêt"
+                self.isDownloading = false
+            }
+            return
+        }
+
+        restoreExistingTask(startIfMissing: true)
+    }
+
+    public func cancel() {
+        session.getAllTasks { tasks in
+            tasks.forEach { $0.cancel() }
+
+            DispatchQueue.main.async {
+                self.activeTask = nil
+                self.isDownloading = false
+                self.progress = 0
+                self.statusText = "Téléchargement musical annulé"
+            }
+        }
+    }
+
+    private func restoreExistingTask(startIfMissing: Bool = false) {
+        session.getAllTasks { [weak self] tasks in
+            guard let self else { return }
+
+            if let existing = tasks.compactMap({ $0 as? URLSessionDownloadTask }).first {
+                DispatchQueue.main.async {
+                    self.activeTask = existing
+                    self.isDownloading = true
+                    self.statusText = "Téléchargement musical en arrière-plan…"
+                }
+                return
+            }
+
+            guard startIfMissing else { return }
+            self.startNextMissingAsset()
+        }
+    }
+
+    private func startNextMissingAsset() {
+        let manifest = engine.backgroundDownloadManifest
+        let completed = manifest.filter { engine.isBackgroundAssetInstalled($0.id) }.count
+
+        guard let next = manifest.first(where: { !engine.isBackgroundAssetInstalled($0.id) }) else {
+            DispatchQueue.main.async {
+                self.activeTask = nil
+                self.isDownloading = false
+                self.progress = 1
+                self.statusText = "Modèle musical local prêt"
+
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("SarahMusicModelInstalled"),
+                    object: nil
+                )
+            }
+            return
+        }
+
+        let task = session.downloadTask(with: next.url)
+        task.taskDescription = next.id
+        activeTask = task
+
+        DispatchQueue.main.async {
+            self.isDownloading = true
+            self.progress = Double(completed) / Double(max(manifest.count, 1))
+            self.statusText = "Téléchargement : \(next.id)…"
+        }
+
+        task.resume()
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let manifest = engine.backgroundDownloadManifest
+        let completed = manifest.filter { engine.isBackgroundAssetInstalled($0.id) }.count
+        let partial = totalBytesExpectedToWrite > 0
+            ? Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            : 0
+        let overall = (Double(completed) + partial) / Double(max(manifest.count, 1))
+
+        DispatchQueue.main.async {
+            self.progress = min(max(overall, 0), 1)
+            self.statusText = "Téléchargement : \(downloadTask.taskDescription ?? "modèle")…"
+        }
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        guard let id = downloadTask.taskDescription, !id.isEmpty else {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.statusText = "Modèle musical reçu sans identifiant"
+            }
+            return
+        }
+
+        do {
+            try engine.installBackgroundDownloadedAsset(
+                id: id,
+                downloadedURL: location
+            )
+
+            DispatchQueue.main.async {
+                self.statusText = "Installé : \(id)"
+            }
+
+            activeTask = nil
+            startNextMissingAsset()
+        } catch {
+            DispatchQueue.main.async {
+                self.activeTask = nil
+                self.isDownloading = false
+                self.statusText = error.localizedDescription
+            }
+        }
+    }
+
+    public func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error else { return }
+
+        DispatchQueue.main.async {
+            self.activeTask = nil
+            self.isDownloading = false
+            self.statusText = error.localizedDescription
+        }
+    }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.completeBackgroundSession(identifier: session.configuration.identifier)
+    }
+}
+
+@available(iOS 15.0, *)
+public final class SarahModelInstallCoordinator: ObservableObject {
+    public static let shared = SarahModelInstallCoordinator()
+
+    @Published public private(set) var isInstalling = false
+    @Published public private(set) var progress: Double = 0
+    @Published public private(set) var statusText = "Prêt à installer"
+    @Published public private(set) var installedCount = 0
+    @Published public private(set) var totalCount = 0
+
+    public let installRequestedKey = "sarahInstallAllCompatibleModelsRequestedV1"
+
+    private var cancellables = Set<AnyCancellable>()
+    private var qwenProgress: Double = 0
+
+    private init() {
+        bindDownloaders()
+        refreshState()
+    }
+
+    public var hardwareSummary: String {
+        String(
+            format: "%.1f Go de RAM · iOS %d",
+            SarahGenerativeModelCatalog.physicalRAMGB,
+            SarahGenerativeModelCatalog.iosMajor
+        )
+    }
+
+    public var installableNames: [String] {
+        var names: [String] = []
+
+        if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
+            names.append("Moteur conversationnel local")
+        }
+
+        let image = SarahGenerativeModelCatalog.imageProfile()
+        if image.runtimeState == .requiresDownload || image.runtimeState == .ready {
+            names.append(image.displayName)
+        }
+
+        let music = SarahGenerativeModelCatalog.musicProfile()
+        if music.runtimeState == .requiresDownload || music.runtimeState == .ready {
+            names.append(music.displayName)
+        }
+
+        return names
+    }
+
+    public func installAllCompatible() {
+        UserDefaults.standard.set(true, forKey: installRequestedKey)
+        isInstalling = true
+        statusText = "Préparation des moteurs compatibles…"
+
+        if ModelSelectionEngine.shared.isLocalGGUFAllowed(),
+           !BackgroundModelDownloader.isModelDownloaded {
+            BackgroundModelDownloader.shared.startQwenModelDownload()
+        }
+
+        let image = SarahGenerativeModelCatalog.imageProfile()
+        if image.runtimeState == .requiresDownload,
+           !GenerativeModelDownloader.shared.isInstalled(kind: .image) {
+            GenerativeModelDownloader.shared.startImageModelDownload()
+        }
+
+        if #available(iOS 27.0, *) {
+            let music = SarahGenerativeModelCatalog.musicProfile()
+
+            if music.runtimeState == .requiresDownload,
+               !SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                MusicModelBackgroundDownloader.shared.start()
+            }
+        }
+
+        refreshState()
+    }
+
+    public func resumeIfRequested() {
+        guard UserDefaults.standard.bool(forKey: installRequestedKey) else {
+            refreshState()
+            return
+        }
+
+        installAllCompatible()
+    }
+
+    public func refreshState() {
+        let states = componentStates()
+        totalCount = states.count
+        installedCount = states.filter { $0.installed }.count
+
+        progress = states.isEmpty
+            ? 1
+            : states.map { $0.progress }.reduce(0, +) / Double(states.count)
+
+        if totalCount > 0 && installedCount == totalCount {
+            isInstalling = false
+            progress = 1
+            statusText = "Tous les moteurs compatibles sont prêts"
+        } else if UserDefaults.standard.bool(forKey: installRequestedKey) {
+            isInstalling = true
+            statusText = "Installation en arrière-plan · \(installedCount)/\(totalCount)"
+        } else {
+            isInstalling = false
+            statusText = "Prêt à installer"
+        }
+    }
+
+    private func componentStates() -> [(installed: Bool, progress: Double)] {
+        var values: [(Bool, Double)] = []
+
+        if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
+            let installed = BackgroundModelDownloader.isModelDownloaded
+            values.append((installed, installed ? 1 : qwenProgress))
+        }
+
+        let image = SarahGenerativeModelCatalog.imageProfile()
+        if image.runtimeState == .requiresDownload || image.runtimeState == .ready {
+            let installed = GenerativeModelDownloader.shared.isInstalled(kind: .image)
+            let value = installed ? 1 : (
+                GenerativeModelDownloader.shared.activeKind == .image
+                    ? GenerativeModelDownloader.shared.progress
+                    : 0
+            )
+            values.append((installed, value))
+        }
+
+        let music = SarahGenerativeModelCatalog.musicProfile()
+        if music.runtimeState == .requiresDownload || music.runtimeState == .ready {
+            if #available(iOS 27.0, *) {
+                let installed = SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled
+                values.append(
+                    (installed, installed ? 1 : MusicModelBackgroundDownloader.shared.progress)
+                )
+            }
+        }
+
+        return values
+    }
+
+    private func bindDownloaders() {
+        BackgroundModelDownloader.shared.onProgress = { [weak self] value, _, _ in
+            DispatchQueue.main.async {
+                self?.qwenProgress = value
+                self?.refreshState()
+            }
+        }
+
+        BackgroundModelDownloader.shared.onCompletion = { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.qwenProgress = BackgroundModelDownloader.isModelDownloaded ? 1 : 0
+                self?.refreshState()
+            }
+        }
+
+        GenerativeModelDownloader.shared.$progress
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshState() }
+            .store(in: &cancellables)
+
+        GenerativeModelDownloader.shared.$isDownloading
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshState() }
+            .store(in: &cancellables)
+
+        if #available(iOS 27.0, *) {
+            MusicModelBackgroundDownloader.shared.$progress
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.refreshState() }
+                .store(in: &cancellables)
+
+            MusicModelBackgroundDownloader.shared.$isDownloading
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.refreshState() }
+                .store(in: &cancellables)
+        }
+
+        NotificationCenter.default.publisher(
+            for: NSNotification.Name("SarahGenerativeModelInstalled")
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in self?.refreshState() }
+        .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(
+            for: NSNotification.Name("SarahMusicModelInstalled")
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in self?.refreshState() }
+        .store(in: &cancellables)
     }
 }

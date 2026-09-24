@@ -32,7 +32,7 @@ public final class LocalNeuralIntelligenceEngine {
             "etats_unis": "Les États-Unis d'Amérique (fondés en 1776) reposent sur un régime fédéral présidentiel avec une séparation stricte des pouvoirs (exécutif, législatif, judiciaire)."
         ],
         "science_technologie": [
-            "ia_locale": "L'IA embarquée (On-Device) traite les données directement sur les processeurs de votre téléphone (Apple Neural Engine). Cela garantit une confidentialité absolue, une latence quasi-nulle et une autonomie totale sans aucun serveur.",
+            "ia_locale": "L'IA embarquée peut traiter certaines tâches directement sur l'appareil, notamment via Core ML et l'Apple Neural Engine. Les capacités exactes dépendent du modèle installé et du runtime disponible.",
             "quantique": "La physique quantique étudie les propriétés de la matière à l'échelle atomique, caractérisée par la superposition d'états et l'intrication.",
             "relativite": "La relativité générale d'Albert Einstein (1915) démontre que la gravité n'est pas une simple force mais une courbure de l'espace-temps causée par la masse et l'énergie."
         ],
@@ -86,12 +86,11 @@ public final class LocalNeuralIntelligenceEngine {
         // A. Détection de questions complexes sur la science & l'IA
         if normalized.contains("comment fonctionne l'ia") || normalized.contains("ia locale") || normalized.contains("intelligence artificielle") || normalized.contains("sur mon telephone") {
             return """
-            🧠 **Moteur Neuronal Local Intégré (100% Sur Téléphone)**
+            🧠 **Traitement local dans Sarah**
 
-            Votre application exécute son intelligence directement sur la puce de votre appareil :
-            • **Confidentialité Totale** : Aucune de vos requêtes, photos ou discussions ne transite par un serveur externe.
-            • **Zéro Latence** : Les calculs arithmétiques, la synthèse vocale et la vision sont traités en temps réel à 60 FPS.
-            • **Autonomie Hors-Ligne** : Fonctionne partout, y compris en mode avion ou dans les zones blanches.
+            Certaines fonctions peuvent s’exécuter directement sur l’iPhone, notamment la synthèse vocale, plusieurs traitements Vision/Core ML et les modèles locaux installés.
+
+            Sarah indique séparément lorsqu’une fonction utilise le réseau. Les fonctions expérimentales ou non validées sur iPhone ne sont pas présentées comme disponibles.
             """
         }
         
@@ -172,12 +171,22 @@ public final class LocalNeuralIntelligenceEngine {
     }
     
     private func synthesizeNaturalResponse(for normalized: String, raw: String) -> String {
-        // Formulations dynamiques Sarah Engine
-        return """
-        👩🏻‍💼 **Sarah Engine [Moteur Neuronal Local]**
+        // Dernier filet conversationnel : rester naturel et ne jamais afficher
+        // un diagnostic technique au milieu d'une discussion normale.
+        let clean = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = normalized
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
 
-        J'ai analysé votre demande en local avec succès. Tous mes modules (mémoire sémantique, vision, musique et calculs) tournent à 100% sur votre téléphone sans dépendre d'aucun serveur.
-        """
+        if words.count <= 3, !clean.isEmpty {
+            return "Tu peux préciser ce que tu veux dire par « \(clean) » ?"
+        }
+
+        if clean.hasSuffix("?") {
+            return "Je n’ai pas assez de contexte pour te répondre correctement. Tu peux préciser un peu ta question ?"
+        }
+
+        return "Je t’écoute. Précise simplement ce que tu veux faire ou savoir, et je vais utiliser le module adapté."
     }
     
     // MARK: - Utilitaires

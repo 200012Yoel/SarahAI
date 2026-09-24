@@ -38,7 +38,10 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var isComposerDictating: Bool = false
     @Published public var isContinuousConversationActive: Bool = false
+    @Published public var pendingVoiceConfirmation: String? = nil
+    @Published public var isVoiceBubbleVisible: Bool = false
     
     // MARK: - Navigation, Studio VAI Coding & Voice Orb
     @Published public var isDrawerOpen: Bool = false
@@ -69,6 +72,12 @@ public final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var isVoicePipelinePrepared = false
+    private var pendingVoiceActionText: String? = nil
+    private var shouldResumeVoiceAfterInterruption = false
+    private var composerDictationBaseText: String = ""
+    private var isVoiceTurnInFlight = false
+    private var lastSubmittedVoiceTranscript = ""
+    private var lastSubmittedVoiceTranscriptAt = Date.distantPast
     
     public init() {
         restorePersistedState()
@@ -109,6 +118,46 @@ public final class ChatViewModel: ObservableObject {
 
         setupVoicePipeline()
 
+        // Relier réellement les interruptions système au mode vocal.
+        // Avant ce correctif, AudioSessionManager détectait Siri/appels/alarmes
+        // mais personne ne coupait puis ne restaurait la conversation vocale.
+        AudioSessionManager.shared.onInterruptionBegan = { [weak self] in
+            guard let self = self else { return }
+            let shouldResume = self.isContinuousConversationActive &&
+                (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible)
+
+            if shouldResume || AppleSpeechRecognizer.shared.isListening || self.voiceManager.isSpeaking {
+                self.stopVoiceConversation()
+            }
+
+            self.shouldResumeVoiceAfterInterruption = shouldResume
+        }
+
+        AudioSessionManager.shared.onInterruptionEnded = { [weak self] in
+            guard let self = self else { return }
+            let shouldResume = self.shouldResumeVoiceAfterInterruption
+            self.shouldResumeVoiceAfterInterruption = false
+
+            guard shouldResume else { return }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible else { return }
+
+                if self.isVoiceBubbleVisible {
+                    self.isContinuousConversationActive = true
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true
+                    )
+                    self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+                    self.voiceStatus = self.isMicRunning
+                        ? .listening(level: 0.0)
+                        : .idle
+                } else {
+                    self.startVoiceConversation()
+                }
+            }
+        }
+
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
@@ -125,6 +174,20 @@ public final class ChatViewModel: ObservableObject {
                 self?.micInputLevel = level
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(
+            for: NSNotification.Name("AppleSpeechRecognizerStateChanged")
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+            guard let self = self else { return }
+            if case .error(let message) = AppleSpeechRecognizer.shared.state {
+                self.isMicRunning = false
+                self.isVoiceTurnInFlight = false
+                self.voiceStatus = .error(message)
+            }
+        }
+        .store(in: &cancellables)
     }
     
     // MARK: - Persistance des Données & Restauration
@@ -195,12 +258,20 @@ public final class ChatViewModel: ObservableObject {
     
     public func startNewChat(silently: Bool = false) {
         if !silently { haptics.buttonTap() }
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
-        let newSessionId = UUID()
-        currentConversationId = newSessionId
+        currentConversationId = nil
         messages = []
         inputText = ""
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         appMode = .text
         isDrawerOpen = false
         drawerProgress = 0.0
@@ -209,14 +280,22 @@ public final class ChatViewModel: ObservableObject {
         SemanticMemoryIndex.shared.clearSessionContext()
         ConversationContext.shared.reset()
         SarahBrainEngine.shared.clearSessionHistory()
-        SessionTimeoutManager.shared.recordAppBackgroundTime()
         persistCurrentState()
     }
     
     public func selectConversation(_ conv: Conversation) {
         haptics.buttonTap()
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -269,12 +348,21 @@ public final class ChatViewModel: ObservableObject {
     
     public func deleteAllConversations() {
         haptics.memoryDeleted()
-        voiceManager.stop()
+
+        if isVoicePipelinePrepared {
+            stopVoiceConversation()
+        } else {
+            voiceManager.stop()
+        }
+
         AIProgressiveScheduler.shared.cancelAllTasks()
         conversations.removeAll()
         messages.removeAll()
         currentConversationId = nil
         inputText = ""
+        isTyping = false
+        isSpeaking = false
+        voiceStatus = .idle
         aiService.syncHistoryFromMessages([])
         SemanticMemoryIndex.shared.clearSessionContext()
         ConversationContext.shared.reset()
@@ -310,14 +398,14 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func openDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.30, dampingFraction: 0.88, blendDuration: 0.12)) {
             isDrawerOpen = true
             drawerProgress = 1.0
         }
     }
     
     public func closeDrawer() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.90, blendDuration: 0.10)) {
             isDrawerOpen = false
             drawerProgress = 0.0
         }
@@ -345,45 +433,283 @@ public final class ChatViewModel: ObservableObject {
     
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
-            self?.liveTranscriptionText = partial
+            guard let self = self else { return }
+            self.liveTranscriptionText = partial
+
+            if self.isComposerDictating {
+                self.inputText = self.composerText(with: partial)
+            }
         }
         
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
-            let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let cleaned = self.sanitizeVoiceTranscript(finalTranscription)
+
+            // Dictée de la barre de saisie : conserver le texte, ne jamais
+            // l'envoyer automatiquement à Sarah.
+            if self.isComposerDictating {
+                if !cleaned.isEmpty {
+                    self.inputText = self.composerText(with: cleaned)
+                }
+                self.isComposerDictating = false
+                self.isMicRunning = false
+                self.liveTranscriptionText = ""
+                self.voiceStatus = .idle
+                self.composerDictationBaseText = ""
+                return
+            }
+            
+            // Une seule phrase vocale à la fois. Le micro ne doit jamais
+            // lancer une deuxième requête pendant le traitement ou pendant la voix de Sarah.
+            guard !self.voiceManager.isSpeaking,
+                  !self.isVoiceTurnInFlight,
+                  !self.isTyping else {
+                return
+            }
+
             guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
                 return
             }
-            self.liveTranscriptionText = ""
+
+            let normalizedTranscript = self.normalizeVoiceCommand(cleaned)
+            let now = Date()
+            if normalizedTranscript == self.lastSubmittedVoiceTranscript,
+               now.timeIntervalSince(self.lastSubmittedVoiceTranscriptAt) < 2.5 {
+                self.voiceStatus = .idle
+                return
+            }
+
+            self.liveTranscriptionText = cleaned
+            self.isMicRunning = false
+
+            // Les actions qui ouvrent une app ou modifient l'iPhone ne partent
+            // jamais directement depuis une transcription vocale.
+            if self.handleVoiceActionSafety(cleaned) {
+                return
+            }
+
+            self.lastSubmittedVoiceTranscript = normalizedTranscript
+            self.lastSubmittedVoiceTranscriptAt = now
+            self.isVoiceTurnInFlight = true
+            self.voiceStatus = .processing
             self.sendMessage(cleaned)
         }
         
         voiceManager.onSpeechStarted = { [weak self] in
-            self?.isSpeaking = true
-            self?.voiceStatus = .speaking
-            self?.haptics.speechStarted()
+            guard let self = self else { return }
+            AppleSpeechRecognizer.shared.stopListening()
+            self.isMicRunning = false
+            self.isSpeaking = true
+            self.voiceStatus = .speaking
+            self.haptics.speechStarted()
         }
         
         voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = false
+            self.isVoiceTurnInFlight = false
             self.voiceStatus = .idle
             self.haptics.speechFinished()
-            
-            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+
+            let voiceUIIsAvailable =
+                self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible
+
+            if self.isContinuousConversationActive && voiceUIIsAvailable {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
                     guard self.isContinuousConversationActive,
-                          self.isShowingVoiceOrbModal,
-                          !self.voiceManager.isSpeaking else { return }
-                    AppleSpeechRecognizer.shared.startListening()
+                          (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible),
+                          !self.voiceManager.isSpeaking,
+                          !self.isTyping else { return }
+
+                    if self.pendingVoiceActionText == nil {
+                        self.liveTranscriptionText = ""
+                    }
+
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true
+                    )
                     self.isMicRunning = AppleSpeechRecognizer.shared.isListening
-                    self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
+                    self.voiceStatus = self.isMicRunning
+                        ? .listening(level: 0.0)
+                        : .idle
                 }
             }
         }
     }
     
+    private func sanitizeVoiceTranscript(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        
+        let normalized = trimmed
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        
+        // Canoniser les salutations courtes, très fréquentes en vocal.
+        switch normalized {
+        case "bonjour", "bonjour sarah", "bon jour":
+            return "bonjour"
+        case "salut", "salut sarah", "coucou", "coucou sarah":
+            return "salut"
+        case "bonsoir", "bonsoir sarah":
+            return "bonsoir"
+        default:
+            return trimmed
+        }
+    }
+    
+    private func normalizeVoiceCommand(_ text: String) -> String {
+        text
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+    
+    /// Retourne true si la transcription a été consommée par le garde-fou vocal.
+    private func handleVoiceActionSafety(_ text: String) -> Bool {
+        let normalized = normalizeVoiceCommand(text)
+        
+        let confirmations: Set<String> = [
+            "confirme", "je confirme", "oui confirme", "oui je confirme",
+            "ok confirme", "vas y confirme"
+        ]
+        let cancellations: Set<String> = [
+            "annule", "annuler", "non annule", "laisse tomber", "oublie"
+        ]
+        
+        if let pending = pendingVoiceActionText {
+            if confirmations.contains(normalized) {
+                pendingVoiceActionText = nil
+                pendingVoiceConfirmation = nil
+                liveTranscriptionText = pending
+                isVoiceTurnInFlight = true
+                voiceStatus = .processing
+                sendMessage(pending)
+                return true
+            }
+            
+            if cancellations.contains(normalized) {
+                pendingVoiceActionText = nil
+                pendingVoiceConfirmation = nil
+                liveTranscriptionText = "Action annulée"
+                voiceStatus = .speaking
+                voiceManager.speak(
+                    text: "D'accord, action annulée.",
+                    for: activeAgent
+                )
+                return true
+            }
+            
+            // Une nouvelle phrase remplace l'ancienne demande non confirmée.
+            pendingVoiceActionText = nil
+            pendingVoiceConfirmation = nil
+        }
+        
+        guard requiresVoiceConfirmation(normalized) else {
+            return false
+        }
+        
+        pendingVoiceActionText = text
+        pendingVoiceConfirmation = text
+        liveTranscriptionText = text
+        voiceStatus = .speaking
+        
+        voiceManager.speak(
+            text: "J'ai compris : \(text). Dis confirme pour exécuter cette action, ou annule.",
+            for: activeAgent
+        )
+        return true
+    }
+    
+    private func requiresVoiceConfirmation(_ normalized: String) -> Bool {
+        let actionVerbs = [
+            "ouvre", "lance", "mets", "joue", "demarre", "active",
+            "desactive", "allume", "eteins", "appelle", "telephone"
+        ]
+        
+        let sideEffectTargets = [
+            "apple music", "spotify", "musique", "radio", "podcast",
+            "youtube", "camera", "appareil photo", "torche", "lampe",
+            "flash", "appel", "telephone", "instagram", "tiktok",
+            "whatsapp", "reglages"
+        ]
+        
+        let hasActionVerb = actionVerbs.contains { verb in
+            normalized == verb ||
+            normalized.hasPrefix(verb + " ") ||
+            normalized.contains(" " + verb + " ")
+        }
+        
+        let hasTarget = sideEffectTargets.contains { normalized.contains($0) }
+        return hasActionVerb && hasTarget
+    }
+    
+    private func composerText(with transcript: String) -> String {
+        let spoken = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = composerDictationBaseText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !base.isEmpty else { return spoken }
+        guard !spoken.isEmpty else { return base }
+        return base + " " + spoken
+    }
+
+    public func toggleComposerDictation() {
+        ensureVoicePipelinePrepared()
+        haptics.buttonTap()
+
+        if isComposerDictating {
+            finishComposerDictation()
+        } else {
+            startComposerDictation()
+        }
+    }
+
+    public func startComposerDictation() {
+        ensureVoicePipelinePrepared()
+
+        // Les deux modes audio sont exclusifs.
+        if isContinuousConversationActive {
+            stopVoiceConversation()
+        } else if voiceManager.isSpeaking {
+            voiceManager.stop()
+        }
+
+        composerDictationBaseText = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        liveTranscriptionText = ""
+        isComposerDictating = true
+        voiceStatus = .listening(level: 0.0)
+
+        AppleSpeechRecognizer.shared.startListening(autoFinalizeOnSilence: false)
+        isMicRunning = AppleSpeechRecognizer.shared.isListening
+    }
+
+    public func finishComposerDictation() {
+        guard isComposerDictating else { return }
+
+        let live = AppleSpeechRecognizer.shared.currentLiveText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !live.isEmpty {
+            inputText = composerText(with: live)
+        }
+
+        AppleSpeechRecognizer.shared.stopListening()
+        isComposerDictating = false
+        isMicRunning = false
+        liveTranscriptionText = ""
+        voiceStatus = .idle
+        composerDictationBaseText = ""
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -398,6 +724,28 @@ public final class ChatViewModel: ObservableObject {
     /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+
+        if isComposerDictating {
+            finishComposerDictation()
+        }
+
+        shouldResumeVoiceAfterInterruption = false
+        isVoiceBubbleVisible = false
+        if !isTyping && !voiceManager.isSpeaking {
+            isVoiceTurnInFlight = false
+        }
+
+        // Réouverture depuis la bulle : conserver la réponse en cours au lieu
+        // de redémarrer toute la pile audio.
+        if isContinuousConversationActive {
+            if !voiceManager.isSpeaking && !AppleSpeechRecognizer.shared.isListening {
+                AppleSpeechRecognizer.shared.startListening()
+                isMicRunning = AppleSpeechRecognizer.shared.isListening
+                voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+            }
+            return
+        }
+
         voiceManager.stop()
         isContinuousConversationActive = true
 
@@ -416,7 +764,22 @@ public final class ChatViewModel: ObservableObject {
     /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        shouldResumeVoiceAfterInterruption = false
+        isVoiceBubbleVisible = false
+
+        if isComposerDictating {
+            let live = AppleSpeechRecognizer.shared.currentLiveText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !live.isEmpty {
+                inputText = composerText(with: live)
+            }
+            isComposerDictating = false
+            composerDictationBaseText = ""
+        }
         isContinuousConversationActive = false
+        isVoiceTurnInFlight = false
+        pendingVoiceActionText = nil
+        pendingVoiceConfirmation = nil
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.
@@ -432,11 +795,33 @@ public final class ChatViewModel: ObservableObject {
         liveTranscriptionText = ""
         voiceStatus = .idle
     }
+
+    public func minimizeVoiceConversation() {
+        guard isContinuousConversationActive else { return }
+
+        withAnimation(
+            .spring(response: 0.32, dampingFraction: 0.82)
+        ) {
+            isVoiceBubbleVisible = true
+        }
+
+        isShowingVoiceOrbModal = false
+    }
+
+    public func restoreVoiceConversation() {
+        withAnimation(
+            .spring(response: 0.30, dampingFraction: 0.84)
+        ) {
+            isVoiceBubbleVisible = false
+        }
+
+        isShowingVoiceOrbModal = true
+    }
     
     public func speakMessage(_ text: String) {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        voiceManager.speak(text: text, for: activeAgent)
+        voiceManager.speak(text: sanitizeAssistantOutput(text), for: activeAgent)
     }
     
     public func toggleSpeechForMessage(_ text: String) {
@@ -445,19 +830,73 @@ public final class ChatViewModel: ObservableObject {
         if voiceManager.isSpeaking {
             voiceManager.stop()
         } else {
-            voiceManager.speak(text: text, for: activeAgent)
+            voiceManager.speak(text: sanitizeAssistantOutput(text), for: activeAgent)
         }
     }
     
+    private func sanitizeAssistantOutput(_ raw: String) -> String {
+        var text = raw.decodingHTMLEntities()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let leakedPrompt =
+            text.localizedCaseInsensitiveContains("<|im_start|>") ||
+            text.localizedCaseInsensitiveContains("<|im_end|>") ||
+            text.localizedCaseInsensitiveContains("RÈGLES ABSOLUES") ||
+            text.localizedCaseInsensitiveContains("REGLES ABSOLUES") ||
+            text.localizedCaseInsensitiveContains("Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine")
+        
+        if leakedPrompt {
+            return "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+        }
+        
+        if let regex = try? NSRegularExpression(pattern: "(?is)<think>.*?</think>") {
+            text = regex.stringByReplacingMatches(
+                in: text,
+                range: NSRange(location: 0, length: text.utf16.count),
+                withTemplate: ""
+            )
+        }
+        
+        for token in [
+            "<|assistant|>", "<|user|>", "<|system|>",
+            "<|endoftext|>", "<|im_start|>", "<|im_end|>"
+        ] {
+            text = text.replacingOccurrences(of: token, with: "")
+        }
+        
+        let result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty
+            ? "Je n’ai pas produit une réponse correcte. Réessaie ta demande."
+            : result
+    }
+    
     // MARK: - Envoi de Message & Orchestration Multi-Agents
+
+    public func retryUserMessage(_ message: Message) {
+        guard message.isFromUser else { return }
+
+        let text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        guard !isTyping else { return }
+
+        haptics.buttonTap()
+        sendMessage(text)
+    }
     
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
         aiService.syncHistoryFromMessages(messages)
+
+        if OpenSourceImageGenerationService.shared.isImageGenerationIntent(text).isIntent {
+            notificationService.requestPermission()
+        }
+
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
+        WidgetDataBridge.shared.recordQuestion()
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
         inputText = ""
 
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
@@ -495,18 +934,44 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
                 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
-                var responseContent = rawText.decodingHTMLEntities()
+                let rawText = response.text.isEmpty
+                    ? "Je n’ai pas reçu de réponse du moteur."
+                    : response.text
+                var responseContent = self.sanitizeAssistantOutput(rawText)
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
-                let aiMessage = Message(content: responseContent, isFromUser: false)
+                let aiMessage = Message(
+                    content: responseContent,
+                    isFromUser: false,
+                    imageData: response.generatedImageData,
+                    generatedImageURL: response.generatedImageURL,
+                    generatedAudioURL: response.generatedAudioURL,
+                    generatedMusicStyle: response.generatedMusicStyle,
+                    imageGenerationPrompt: response.imageGenerationPrompt
+                )
                 self.appendMessage(aiMessage)
+
+                if response.generatedImageData != nil || response.generatedImageURL != nil {
+                    if UIApplication.shared.applicationState != .active {
+                        self.notificationService.sendResponseNotification(
+                            message: "Votre image est prête."
+                        )
+                    }
+                }
+
+                if response.generatedAudioURL != nil,
+                   UIApplication.shared.applicationState != .active {
+                    self.notificationService.sendResponseNotification(
+                        message: "Votre musique est prête."
+                    )
+                }
+
                 self.isTyping = false
                 self.voiceStatus = .idle
                 
-                // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
-                self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
+                // La mémoire courte AIService est resynchronisée depuis les messages au prochain envoi.
+                // Ne pas réenregistrer ici, sinon chaque réponse de Sarah apparaît deux fois dans le contexte.
                 SemanticMemoryIndex.shared.indexExchange(userText: text, assistantText: responseContent, topicType: response.agent.rawValue)
                 
                 // Si Raphaël a généré du code, il prépare le studio mais ne l'ouvre jamais
@@ -515,12 +980,25 @@ public final class ChatViewModel: ObservableObject {
                     self.vaiCurrentCode = code
                 }
                 
-                if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
-                    let src = response.handoffSourceAgent ?? .sarah
-                    self.voiceManager.speakHandoff(transitionText: transitionPart.decodingHTMLEntities(), sourceAgent: src, agentGreeting: agentPart.decodingHTMLEntities(), targetAgent: response.agent)
-                } else {
-                    let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText).decodingHTMLEntities()
-                    self.voiceManager.speak(text: spoken, for: response.agent)
+                // En chat texte, Sarah reste silencieuse. La lecture automatique est
+                // réservée au vrai mode vocal ; le bouton "Écouter" reste disponible
+                // manuellement sur chaque réponse.
+                if self.isContinuousConversationActive &&
+                   (self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible) {
+                    if let transitionPart = response.handoffSarahTransition,
+                       let agentPart = response.handoffAgentGreeting {
+                        let src = response.handoffSourceAgent ?? .sarah
+                        self.voiceManager.speakHandoff(
+                            transitionText: self.sanitizeAssistantOutput(transitionPart),
+                            sourceAgent: src,
+                            agentGreeting: self.sanitizeAssistantOutput(agentPart),
+                            targetAgent: response.agent
+                        )
+                    } else {
+                        let spokenRaw = response.spokenText.isEmpty ? responseContent : response.spokenText
+                        let spoken = self.sanitizeAssistantOutput(spokenRaw)
+                        self.voiceManager.speak(text: spoken, for: response.agent)
+                    }
                 }
             }
         }
@@ -557,6 +1035,7 @@ public final class ChatViewModel: ObservableObject {
             isAudio: false
         )
         SQLiteChatDatabase.shared.insertMessage(persisted)
+        WidgetDataBridge.shared.updateConversationCount(conversations.count)
     }
     
     private func ensureConversation(withFirstMessage text: String) {

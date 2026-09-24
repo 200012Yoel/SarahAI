@@ -27,8 +27,8 @@ public final class SarahLocalImageGenEngine {
         public var enablePhotorealismBoost: Bool
 
         public init(
-            steps: Int = 20,
-            guidanceScale: Float = 7.5,
+            steps: Int = 24,
+            guidanceScale: Float = 8.0,
             width: Int = 512,
             height: Int = 512,
             enablePhotorealismBoost: Bool = false
@@ -361,34 +361,80 @@ public final class SarahLocalVideoGenEngine {
 
     public func detectVideoIntent(_ text: String) -> VideoIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean.lowercased()
+        let normalized = clean
+            .lowercased()
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
 
-        let triggers = [
-            "génère une vidéo", "genere une video",
-            "génère-moi une vidéo", "genere moi une video",
-            "crée une vidéo", "cree une video",
-            "fais une vidéo", "fais une video",
-            "generate a video"
+        let words = normalized.split(separator: " ").map(String.init)
+        let wordSet = Set(words)
+
+        let videoWords: Set<String> = [
+            "video", "clip", "animation", "sequence", "film"
         ]
 
-        guard let trigger = triggers.first(where: { lower.contains($0) }) else {
+        let exactCreationWords: Set<String> = [
+            "genere", "generer",
+            "cree", "creer",
+            "fais", "faire",
+            "fabrique", "fabriquer",
+            "produis", "produire",
+            "anime", "animer",
+            "generate", "create", "make"
+        ]
+
+        let creationPrefixes = [
+            "gener", "cre", "fabri", "produ", "anim"
+        ]
+
+        let hasVideoWord = !wordSet.isDisjoint(with: videoWords)
+        let hasCreationWord =
+            !wordSet.isDisjoint(with: exactCreationWords)
+            || words.contains(where: { word in
+                creationPrefixes.contains(where: { word.hasPrefix($0) })
+            })
+
+        let asksCapability =
+            normalized.contains("tu peux")
+            || normalized.contains("peux tu")
+            || normalized.contains("est ce que tu peux")
+            || normalized.contains("j aimerais")
+            || normalized.contains("je veux")
+
+        // La dictée peut parfois transformer « génère-moi » en « généralement ».
+        // On ne corrige ce cas que si un mot vidéo est aussi présent, pour éviter
+        // de déclencher le moteur sur une phrase ordinaire.
+        let noisyDictationCreation =
+            hasVideoWord
+            && words.contains(where: { $0 == "generalement" || $0 == "generalement" })
+
+        guard hasVideoWord && (hasCreationWord || asksCapability || noisyDictationCreation) else {
             return VideoIntent(isIntent: false, prompt: "")
         }
 
-        var prompt = clean
-        if let range = lower.range(of: trigger) {
-            let offset = lower.distance(from: lower.startIndex, to: range.upperBound)
-            let safeOffset = min(offset, clean.count)
-            let cleanIndex = clean.index(clean.startIndex, offsetBy: safeOffset)
-            prompt = String(clean[cleanIndex...])
-                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
-        }
+        let removableWords: Set<String> = exactCreationWords.union([
+            "une", "un", "de", "du", "des", "moi", "me", "la", "le",
+            "petite", "petit", "courte", "court", "rapide",
+            "video", "clip", "animation", "sequence", "film",
+            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais",
+            "generalement"
+        ])
 
-        if prompt.isEmpty {
-            prompt = clean
-        }
+        let prompt = words
+            .filter { word in
+                !removableWords.contains(word)
+                && !creationPrefixes.contains(where: { word.hasPrefix($0) })
+            }
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return VideoIntent(isIntent: true, prompt: prompt)
+        return VideoIntent(
+            isIntent: true,
+            prompt: prompt
+        )
     }
 
     /// Indique uniquement si un ensemble de ressources locales crédible est

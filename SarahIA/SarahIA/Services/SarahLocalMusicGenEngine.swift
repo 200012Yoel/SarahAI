@@ -56,6 +56,11 @@ public final class SarahLocalMusicGenEngine {
         let isArchive: Bool
     }
 
+    public struct DownloadAssetDescriptor {
+        public let id: String
+        public let url: URL
+    }
+
     private static let sampleRate: Double = 44_100
     private static let latentChannels = 64
     private static let latentLength = 256
@@ -79,47 +84,103 @@ public final class SarahLocalMusicGenEngine {
 
     public func detectIntent(_ text: String) -> MusicIntent {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = clean.lowercased()
+        let normalized = clean
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "[^a-z0-9\\s]", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
 
-        let triggers = [
-            "génère une musique", "genere une musique",
-            "génère un morceau", "genere un morceau",
-            "compose une musique", "compose un morceau",
-            "crée une musique", "cree une musique",
-            "fais une musique", "fais un morceau",
-            "generate music", "generate a song",
-            "instrumental", "chanson avec paroles"
+        let words = normalized.split(separator: " ").map(String.init)
+        let wordSet = Set(words)
+
+        let musicNouns: Set<String> = [
+            "musique", "morceau", "instrumental", "chanson", "beat",
+            "music", "song", "track", "son", "audio"
         ]
 
-        let isIntent = triggers.contains { lower.contains($0) }
+        let exactCreationWords: Set<String> = [
+            "genere", "generer",
+            "compose", "composer",
+            "cree", "creer",
+            "fais", "faire",
+            "fabrique", "fabriquer",
+            "produis", "produire",
+            "generate", "create", "make"
+        ]
+
+        let creationPrefixes = [
+            "gener", "compos", "cre", "fabri", "produ"
+        ]
+
+        let hasMusicNoun = !wordSet.isDisjoint(with: musicNouns)
+        let hasCreationWord =
+            !wordSet.isDisjoint(with: exactCreationWords)
+            || words.contains(where: { word in
+                creationPrefixes.contains(where: { word.hasPrefix($0) })
+            })
+
+        // Formulations naturelles comme « tu peux générer une petite musique »
+        // ou « est-ce que tu peux me faire un morceau » sont considérées comme
+        // des intentions explicites de création.
+        let asksCapability =
+            normalized.contains("tu peux")
+            || normalized.contains("peux tu")
+            || normalized.contains("est ce que tu peux")
+            || normalized.contains("j aimerais")
+            || normalized.contains("je veux")
+
+        // La dictée Apple peut parfois transformer « génère » en
+        // « m'énerve ». On ne corrige ce faux positif que lorsqu'un nom musical
+        // explicite est aussi présent.
+        let noisyDictationCreation =
+            hasMusicNoun
+            && (
+                normalized.contains("m enerve")
+                || normalized.contains("menerve")
+                || wordSet.contains("enerve")
+            )
+
+        let isIntent = hasMusicNoun && (hasCreationWord || asksCapability || noisyDictationCreation)
+
         let wantsLyrics =
-            lower.contains("paroles")
-            || lower.contains("lyrics")
-            || lower.contains("chanson")
-            || lower.contains("song")
+            wordSet.contains("paroles")
+            || wordSet.contains("lyrics")
+            || wordSet.contains("chanson")
+            || wordSet.contains("song")
 
         let language = (
-            lower.contains("anglais")
-            || lower.contains("english")
+            wordSet.contains("anglais")
+            || wordSet.contains("english")
         ) ? "en" : "fr"
 
-        var prompt = clean
-        for trigger in triggers {
-            prompt = prompt.replacingOccurrences(
-                of: trigger,
-                with: "",
-                options: .caseInsensitive
+        let removableWords: Set<String> = exactCreationWords.union([
+            "une", "un", "de", "du", "des", "moi", "me", "la", "le",
+            "petite", "petit", "courte", "court",
+            "musique", "morceau", "instrumental", "chanson",
+            "music", "song", "track", "son", "audio",
+            "tu", "peux", "est", "ce", "que", "je", "veux", "aimerais",
+            "m", "enerve", "menerve", "encore"
+        ])
+
+        var promptWords = words.filter { word in
+            !removableWords.contains(word)
+            && !creationPrefixes.contains(where: { word.hasPrefix($0) })
+        }
+
+        if promptWords.isEmpty {
+            promptWords = wantsLyrics
+                ? ["chanson", "originale"]
+                : ["instrumental", "original"]
+        }
+
+        let prompt = promptWords
+            .joined(separator: " ")
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+                    .union(CharacterSet(charactersIn: ":,-"))
             )
-        }
-
-        prompt = prompt.trimmingCharacters(
-            in: CharacterSet.whitespacesAndNewlines
-                .union(CharacterSet(charactersIn: ":,-"))
-        )
-
-        if prompt.isEmpty {
-            prompt = clean
-        }
 
         return MusicIntent(
             isIntent: isIntent,
@@ -177,23 +238,54 @@ public final class SarahLocalMusicGenEngine {
             ),
             Asset(
                 id: "t5_vocab",
-                url: URL(string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/main/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json")!,
+                url: URL(string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json")!,
                 compiledName: nil,
                 isArchive: false
             )
         ]
     }
 
+    public var backgroundDownloadManifest: [DownloadAssetDescriptor] {
+        assets.map { DownloadAssetDescriptor(id: $0.id, url: $0.url) }
+    }
+
+    public func isBackgroundAssetInstalled(_ id: String) -> Bool {
+        guard let asset = assets.first(where: { $0.id == id }) else { return false }
+
+        if let compiledName = asset.compiledName {
+            return fm.fileExists(
+                atPath: modelDirectory.appendingPathComponent(compiledName).path
+            )
+        }
+
+        let vocabURL = modelDirectory.appendingPathComponent("t5_vocab.json")
+        return isValidVocabularyFile(at: vocabURL)
+    }
+
+    public func installBackgroundDownloadedAsset(
+        id: String,
+        downloadedURL: URL
+    ) throws {
+        guard let asset = assets.first(where: { $0.id == id }) else {
+            throw MusicError.invalidPackage(id)
+        }
+
+        if asset.isArchive {
+            try installCompiledModel(downloadedArchive: downloadedURL, asset: asset)
+        } else {
+            try installPlainFile(downloadedFile: downloadedURL, name: "t5_vocab.json")
+        }
+    }
+
     public var isInstrumentalModelInstalled: Bool {
-        let required = [
+        let requiredCoreModels = [
             "T5Encoder.mlmodelc",
             "NumberEmbedder.mlmodelc",
             "DiT.mlmodelc",
-            "VAEDecoder.mlmodelc",
-            "t5_vocab.json"
+            "VAEDecoder.mlmodelc"
         ]
 
-        return required.allSatisfy {
+        return requiredCoreModels.allSatisfy {
             fm.fileExists(
                 atPath: modelDirectory.appendingPathComponent($0).path
             )
@@ -407,12 +499,16 @@ public final class SarahLocalMusicGenEngine {
         )
     }
 
-    private func loadVocabulary() throws {
-        let url = modelDirectory.appendingPathComponent("t5_vocab.json")
-        guard let data = try? Data(contentsOf: url),
-              let raw = try? JSONSerialization.jsonObject(with: data),
+    private var tokenizerRemoteURL: URL {
+        URL(
+            string: "https://raw.githubusercontent.com/john-rocky/CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json"
+        )!
+    }
+
+    private func parseVocabularyData(_ data: Data) -> [String: Int32]? {
+        guard let raw = try? JSONSerialization.jsonObject(with: data),
               let mapping = raw as? [String: String] else {
-            throw MusicError.tokenizerMissing
+            return nil
         }
 
         var parsed: [String: Int32] = [:]
@@ -424,11 +520,50 @@ public final class SarahLocalMusicGenEngine {
             }
         }
 
-        guard !parsed.isEmpty else {
+        return parsed.isEmpty ? nil : parsed
+    }
+
+    private func isValidVocabularyFile(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url),
+              let parsed = parseVocabularyData(data) else {
+            return false
+        }
+
+        return parsed.count > 10_000
+    }
+
+    private func loadVocabulary() throws {
+        let localURL = modelDirectory.appendingPathComponent("t5_vocab.json")
+
+        if let data = try? Data(contentsOf: localURL),
+           let parsed = parseVocabularyData(data),
+           parsed.count > 10_000 {
+            vocabulary = parsed
+            return
+        }
+
+        let repairedData: Data
+        do {
+            repairedData = try Data(contentsOf: tokenizerRemoteURL)
+        } catch {
             throw MusicError.tokenizerMissing
         }
 
-        vocabulary = parsed
+        guard let repaired = parseVocabularyData(repairedData),
+              repaired.count > 10_000 else {
+            throw MusicError.tokenizerMissing
+        }
+
+        do {
+            if fm.fileExists(atPath: localURL.path) {
+                try fm.removeItem(at: localURL)
+            }
+            try repairedData.write(to: localURL, options: .atomic)
+        } catch {
+            throw MusicError.tokenizerMissing
+        }
+
+        vocabulary = repaired
     }
 
     private func tokenize(_ prompt: String) -> [Int32] {

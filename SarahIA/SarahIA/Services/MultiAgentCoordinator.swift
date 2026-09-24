@@ -19,6 +19,11 @@ public final class MultiAgentCoordinator {
         public let handoffSarahTransition: String?
         public let handoffAgentGreeting: String?
         public let handoffSourceAgent: AgentType?
+        public let generatedImageData: Data?
+        public let generatedImageURL: String?
+        public let generatedAudioURL: String?
+        public let generatedMusicStyle: String?
+        public let imageGenerationPrompt: String?
         
         public init(
             agent: AgentType,
@@ -28,7 +33,12 @@ public final class MultiAgentCoordinator {
             generatedCode: String? = nil,
             handoffSarahTransition: String? = nil,
             handoffAgentGreeting: String? = nil,
-            handoffSourceAgent: AgentType? = nil
+            handoffSourceAgent: AgentType? = nil,
+            generatedImageData: Data? = nil,
+            generatedImageURL: String? = nil,
+            generatedAudioURL: String? = nil,
+            generatedMusicStyle: String? = nil,
+            imageGenerationPrompt: String? = nil
         ) {
             self.agent = agent
             self.text = text
@@ -38,6 +48,11 @@ public final class MultiAgentCoordinator {
             self.handoffSarahTransition = handoffSarahTransition
             self.handoffAgentGreeting = handoffAgentGreeting
             self.handoffSourceAgent = handoffSourceAgent
+            self.generatedImageData = generatedImageData
+            self.generatedImageURL = generatedImageURL
+            self.generatedAudioURL = generatedAudioURL
+            self.generatedMusicStyle = generatedMusicStyle
+            self.imageGenerationPrompt = imageGenerationPrompt
         }
     }
     
@@ -62,6 +77,137 @@ public final class MultiAgentCoordinator {
         // 1. Détection prioritaire d'un ordre explicite de passage / bascule d'agent
         if let switchMatch = detectSwitchCommand(normalized: normalized, original: trimmed) {
             handleAgentHandoff(from: sourceAgent, to: switchMatch.targetAgent, residualPrompt: switchMatch.residualPrompt, completion: completion)
+            return
+        }
+        
+        // 1.5 Les salutations simples sont conversationnelles, jamais des commandes.
+        // Ce garde-fou passe avant les moteurs musique, média, code et autres outils.
+        if isSimpleGreeting(normalized) {
+            completion(makeGreetingResponse(for: sourceAgent))
+            return
+        }
+        
+        // 1.6 Une demande musicale est interceptée avant le moteur
+        // conversationnel, exactement comme les images et les vidéos.
+        if #available(iOS 27.0, *) {
+            let musicIntent = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
+
+            if musicIntent.isIntent {
+                if musicIntent.wantsLyrics {
+                    let availability = SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage()
+                    completion(AgentResponse(
+                        agent: sourceAgent,
+                        text: """
+                        🎤 **Chanson avec paroles**
+
+                        J’ai compris la demande musicale.
+
+                        \(availability)
+                        """,
+                        spokenText: availability
+                    ))
+                    return
+                }
+
+                if SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled {
+                    SarahLocalMusicGenEngine.shared.generateInstrumental(
+                        prompt: musicIntent.prompt
+                    ) { result in
+                        switch result {
+                        case .success(let url):
+                            completion(AgentResponse(
+                                agent: sourceAgent,
+                                text: "🎵 **Musique générée localement.**",
+                                spokenText: "La musique est prête.",
+                                generatedAudioURL: url.absoluteString
+                            ))
+
+                        case .failure(let error):
+                            let fallback = OpenSourceMusicEngine.shared
+                                .isMusicGenerationIntent(trimmed)
+                            completion(AgentResponse(
+                                agent: sourceAgent,
+                                text: """
+                                🎵 **Stable Audio n’a pas terminé le rendu.**
+
+                                \(error.localizedDescription)
+
+                                Je te propose le moteur musical local léger à la place.
+                                """,
+                                spokenText: "Le rendu Stable Audio n'a pas terminé. Le moteur musical local léger reste disponible.",
+                                generatedMusicStyle: fallback.detectedStyle.rawValue
+                            ))
+                        }
+                    }
+                    return
+                }
+
+                let fallback = OpenSourceMusicEngine.shared
+                    .isMusicGenerationIntent(trimmed)
+
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: """
+                    🎵 **Musique locale prête**
+
+                    Stable Audio n’est pas encore installé sur cet iPhone. J’utilise donc le moteur musical local léger. Appuie sur **Play** pour écouter le morceau.
+
+                    Tu peux installer Stable Audio dans **Réglages → Création locale** pour obtenir le moteur génératif complet.
+                    """,
+                    spokenText: "Le moteur Stable Audio n'est pas encore installé. J'ai préparé le moteur musical local léger.",
+                    generatedMusicStyle: fallback.detectedStyle.rawValue
+                ))
+                return
+            }
+        } else {
+            let musicFallback = OpenSourceMusicEngine.shared.isMusicGenerationIntent(trimmed)
+            if musicFallback.isIntent {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: "🎵 **Musique locale prête.** Appuie sur Play pour l’écouter.",
+                    spokenText: "La musique locale est prête.",
+                    generatedMusicStyle: musicFallback.detectedStyle.rawValue
+                ))
+                return
+            }
+        }
+
+        // 1.7 Une demande de génération vidéo doit être interceptée avant
+        // le moteur conversationnel. Sinon une formulation comme
+        // « génère une petite vidéo » peut tomber dans une réponse générique.
+        let videoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
+        if videoIntent.isIntent {
+            let availability = SarahLocalVideoGenEngine.shared.availabilityMessage()
+
+            if videoIntent.prompt.isEmpty {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: "🎬 D’accord. **Que veux-tu voir dans la vidéo ?** Décris-moi la scène, le sujet et le style.",
+                    spokenText: "D'accord. Que veux-tu voir dans la vidéo ? Décris-moi la scène, le sujet et le style."
+                ))
+            } else {
+                completion(AgentResponse(
+                    agent: sourceAgent,
+                    text: """
+                    🎬 **Génération vidéo**
+
+                    J’ai bien compris la demande : « \(videoIntent.prompt) ».
+
+                    \(availability)
+
+                    Je ne vais pas prétendre qu’une vidéo a été générée tant que le runtime vidéo iPhone n’est pas réellement actif.
+                    """,
+                    spokenText: availability
+                ))
+            }
+            return
+        }
+
+        // 1.8 Une demande de création visuelle va directement au studio créatif.
+        // Elle doit être détectée avant la conversation générale et avant tout média.
+        let visualIntent = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
+        if visualIntent.isIntent {
+            processWithEthel(text: trimmed, completion: completion)
             return
         }
         
@@ -97,6 +243,49 @@ public final class MultiAgentCoordinator {
         case .ethel:
             processWithEthel(text: trimmed, completion: completion)
         }
+    }
+    
+    private func isSimpleGreeting(_ normalized: String) -> Bool {
+        let greetings: Set<String> = [
+            "bonjour", "salut", "coucou", "hello", "bonsoir",
+            "yo", "wesh", "re",
+            "bonjour sarah", "salut sarah", "coucou sarah", "bonsoir sarah"
+        ]
+        return greetings.contains(normalized)
+    }
+    
+    private func makeGreetingResponse(for agent: AgentType) -> AgentResponse {
+        let text: String
+        let spoken: String
+        
+        switch agent {
+        case .sarah:
+            text = "👋 **Bonjour !** Je suis Sarah. Qu’est-ce que je peux faire pour toi ?"
+            spoken = "Bonjour ! Je suis Sarah. Qu'est-ce que je peux faire pour toi ?"
+        case .tom:
+            text = "🌍 **Bonjour !** Tom à l’écoute. De quoi veux-tu parler ?"
+            spoken = "Bonjour ! Tom à l'écoute. De quoi veux-tu parler ?"
+        case .esther:
+            text = "💻 **Bonjour !** Raphaël à l’écoute. Qu’est-ce qu’on construit ?"
+            spoken = "Bonjour ! Raphaël à l'écoute. Qu'est-ce qu'on construit ?"
+        case .yohan:
+            text = "🇮🇱 **Bonjour !** Yohan à l’écoute. Que veux-tu traduire ou apprendre ?"
+            spoken = "Bonjour ! Yohan à l'écoute. Que veux-tu traduire ou apprendre ?"
+        case .nathan:
+            text = "🤖 **Bonjour !** Nathan à l’écoute. Qu’est-ce que tu veux préparer ?"
+            spoken = "Bonjour ! Nathan à l'écoute. Qu'est-ce que tu veux préparer ?"
+        case .ethel:
+            text = "✨ **Bonjour !** Ethel à l’écoute. Qu’est-ce qu’on imagine ?"
+            spoken = "Bonjour ! Ethel à l'écoute. Qu'est-ce qu'on imagine ?"
+        }
+        
+        return AgentResponse(
+            agent: agent,
+            text: text,
+            spokenText: spoken,
+            openStudio: false,
+            generatedCode: nil
+        )
     }
     
     // MARK: - Conscience de Soi & Connaissance de l'Équipe (Sarah, Tom, Raphaël, Yohan, Nathan, Ethel)
@@ -561,22 +750,43 @@ public final class MultiAgentCoordinator {
         
         let trimmed = clean.isEmpty ? text.trimmingCharacters(in: .whitespacesAndNewlines) : clean
         let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
-
         let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { result in
+            let imageData = result.image?.jpegData(compressionQuality: 0.92)
+            
+            if result.isSuccess {
+                let locality = result.modelName.hasPrefix("Cloud ·")
+                    ? "via le réseau"
+                    : "localement sur l’iPhone"
+                
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: locality == "localement sur l’iPhone"
+                        ? "🎨 Image créée localement."
+                        : "🎨 Image créée via le réseau.",
+                    spokenText: "L'image est prête.",
+                    generatedImageData: imageData,
+                    generatedImageURL: result.imageURL?.absoluteString,
+                    imageGenerationPrompt: prompt
+                ))
+            } else {
+                let reason = result.errorMessage ?? "ressources locales indisponibles"
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: """
+                    🎨 **Impossible de créer l’image**
 
-        let responseText = """
-        ✨ **Ethel [Studio Créatif]**
+                    \(reason)
 
-        🎨 Création lancée pour : « **\(prompt)** »
-        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
-
-        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
-        """
-        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+                    Si le modèle n’est pas installé, ouvre **Création locale** puis **Installer tout**.
+                    """,
+                    spokenText: "Je n'ai pas pu terminer la génération de l'image.",
+                    imageGenerationPrompt: nil
+                ))
+            }
+        }
     }
     
     private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
@@ -685,18 +895,53 @@ public final class MultiAgentCoordinator {
                 generatedCode: manifest
             ))
         }
-        // 5. Raccourcis Apple Shortcuts
+        // 5. Raccourcis Apple Shortcuts — 100 % local
         else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
-            completion(AgentResponse(
-                agent: .esther,
-                text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
-            ))
+            let title = "Automatisation Sarah"
+
+            do {
+                let draft = try ShortcutGenerator.shared.createDraft(
+                    title: title,
+                    prompt: prompt
+                )
+                let plan = ShortcutGenerator.shared.proposePlan(for: prompt)
+                let planText = plan.enumerated()
+                    .map { "\($0.offset + 1). \($0.element.title)" }
+                    .joined(separator: "\n")
+
+                DispatchQueue.main.async {
+                    ShortcutGenerator.shared.openShortcutCreation()
+                }
+
+                let responseText = """
+                💻 **Raphaël [Apple Raccourcis · Local]**
+
+                J’ai préparé localement **« \(draft.title) »** avec **\(draft.actionCount) action(s)**.
+
+                **Plan proposé :**
+                \(planText)
+
+                Rien n’a été envoyé sur Internet. J’ouvre maintenant Apple Raccourcis pour la finalisation que iOS exige.
+                """
+
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: responseText,
+                    spokenText: "Le raccourci a été préparé entièrement en local. J'ouvre Apple Raccourcis pour la finalisation.",
+                    openStudio: true,
+                    generatedCode: draft.plistString
+                ))
+            } catch {
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: "💻 **Raphaël [Apple Raccourcis]**\n\nImpossible de préparer le raccourci : \(error.localizedDescription)",
+                    spokenText: "Je n'ai pas pu préparer ce raccourci.",
+                    openStudio: false,
+                    generatedCode: nil
+                ))
+            }
         }
+
         // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
         // prétendue compilée ici : Raphaël prépare le fichier et laisse le Studio en option.
         else if lower.contains("swiftui") || lower.contains("swift") || lower.contains("ios") || lower.contains("iphone") || lower.contains("ipad") {

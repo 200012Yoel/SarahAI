@@ -1,7 +1,10 @@
-name: iOS 27 Local AI Build
-run-name: iOS 27 Local AI (Build #${{ github.run_number }})
+name: iOS 26 Stable Build
+run-name: iOS 26 Stable (Build #${{ github.run_number }})
 
 on:
+  push:
+    branches:
+      - feature/sarah-native-shortcuts-v4
   workflow_dispatch:
     inputs:
       confirm_release:
@@ -14,8 +17,8 @@ on:
         default: 'no'
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
-    runs-on: xcode-27
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    runs-on: macos-26
     timeout-minutes: 45
     permissions:
       contents: write
@@ -25,14 +28,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Xcode 26.6 stable
         run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
           echo "=== Xcode Version Active ==="
           xcodebuild -version
 
-      - name: Configure iOS 27-compatible Local AI Target
+      - name: Configure iOS 26 stable Local AI Target
         run: |
-          echo "=== Sarah IA moderne : iOS 27 / Local AI ==="
+          echo "=== Sarah IA moderne : iOS 26 Stable / Local AI ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
           find . -path "*/SarahIAWidgets/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
@@ -41,7 +45,145 @@ jobs:
           echo "=== Numéro de build Sarah IA : ${{ github.run_number }} ==="
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
-      - name: Build iOS 27 App
+      - name: Sarah regression guards
+        run: |
+          set -euo pipefail
+
+          AI="SarahIA/SarahIA/Services/AIService.swift"
+          BRAIN="SarahIA/SarahIA/Services/SarahBrainEngine.swift"
+          COORD="SarahIA/SarahIA/Services/MultiAgentCoordinator.swift"
+          VM="SarahIA/SarahIA/ViewModels/ChatViewModel.swift"
+
+          echo "=== Vérification des régressions critiques Sarah ==="
+
+          if grep -Fq 'SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML)' "$AI"; then
+            echo "❌ Régression détectée : le prompt système ChatML est renvoyé au routeur d'intentions."
+            exit 1
+          fi
+
+          grep -Fq 'sanitizeAssistantOutput' "$VM" || {
+            echo "❌ Filtre anti-fuite du prompt interne absent."
+            exit 1
+          }
+
+          grep -Fq 'hasMediaVerb' "$BRAIN" || {
+            echo "❌ Le média peut à nouveau être déclenché par un simple mot-clé."
+            exit 1
+          }
+
+          grep -Fq 'visualIntent' "$COORD" || {
+            echo "❌ Le routage prioritaire de génération d'image a disparu."
+            exit 1
+          }
+
+          grep -Fq '(self.isShowingVoiceOrbModal || self.isVoiceBubbleVisible)' "$VM" || {
+            echo "❌ La lecture vocale automatique n'est plus limitée au mode vocal ou à sa bulle réduite."
+            exit 1
+          }
+
+          grep -Fq 'isVoiceBubbleVisible' "$VM" || {
+            echo "❌ La réduction du mode vocal en bulle a disparu."
+            exit 1
+          }
+
+          grep -Fq 'MusicModelBackgroundDownloader' "SarahIA/SarahIA/Services/BackgroundModelDownloader.swift" || {
+            echo "❌ Le téléchargement musical de fond a disparu."
+            exit 1
+          }
+
+          grep -Fq 'SarahModelInstallerOverlay' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ L'installateur premier lancement a disparu."
+            exit 1
+          }
+
+          grep -Fq 'let videoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)' "$COORD" || {
+            echo "❌ Le routage vidéo prioritaire a disparu."
+            exit 1
+          }
+
+          if grep -Fq 'Tous mes modules (mémoire sémantique, vision, musique et calculs) tournent à 100%' "SarahIA/SarahIA/Services/LocalNeuralIntelligenceEngine.swift"; then
+            echo "❌ Une ancienne affirmation locale non vérifiée est revenue."
+            exit 1
+          fi
+
+          grep -Fq 'onRetryUserMessage' "SarahIA/SarahIA/Views/MessageList.swift" || {
+            echo "❌ L'action Réitérer des messages utilisateur a disparu."
+            exit 1
+          }
+
+          grep -Fq 'SarahFullscreenImageViewer' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le viewer plein écran des images a disparu."
+            exit 1
+          }
+
+          grep -Fq 'NSPhotoLibraryAddUsageDescription' "SarahIA/SarahIA/Info.plist" || {
+            echo "❌ L'autorisation d'enregistrement dans Photos a disparu."
+            exit 1
+          }
+
+          grep -Fq 'let musicIntent = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)' "$COORD" || {
+            echo "❌ Le routage musical prioritaire a disparu."
+            exit 1
+          }
+
+          grep -Fq 'generatedAudioURL' "SarahIA/SarahIA/Models/Message.swift" || {
+            echo "❌ Les fichiers audio générés ne sont plus persistés dans les messages."
+            exit 1
+          }
+
+          grep -Fq 'GeneratedAudioFileCardView' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le lecteur Stable Audio a disparu du chat."
+            exit 1
+          }
+
+          grep -Fq 'isComposerDictating' "$VM" || {
+            echo "❌ L'état de dictée de la barre de saisie a disparu."
+            exit 1
+          }
+
+          grep -Fq 'startListening(autoFinalizeOnSilence: false)' "$VM" || {
+            echo "❌ La dictée manuelle recommence à se valider toute seule."
+            exit 1
+          }
+
+          grep -Fq 'padding(.bottom, 92)' "SarahIA/SarahIA/ContentView.swift" || {
+            echo "❌ Le rond vocal réduit n'est plus centré au-dessus de la barre de saisie."
+            exit 1
+          }
+
+          grep -Fq 'noisyDictationCreation' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ La correction des erreurs de dictée musicales a disparu."
+            exit 1
+          }
+
+          grep -Fq 'CoreML-Models/master/sample_apps/StableAudioDemo/StableAudioDemo/t5_vocab.json' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ Le tokenizer Stable Audio pointe vers la mauvaise branche."
+            exit 1
+          }
+
+          grep -Fq 'parseVocabularyData' "SarahIA/SarahIA/Services/SarahLocalMusicGenEngine.swift" || {
+            echo "❌ L'auto-réparation du tokenizer Stable Audio a disparu."
+            exit 1
+          }
+
+          if grep -Fq 'Je n’ai pas de réponse locale suffisamment fiable pour cette demande.' "SarahIA/SarahIA/Services/LocalNeuralIntelligenceEngine.swift"; then
+            echo "❌ Le fallback conversationnel technique est revenu."
+            exit 1
+          fi
+
+          grep -Fq 'fullScreenCover(item: $fullscreenImageItem)' "SarahIA/SarahIA/Views/ChatBubbleView.swift" || {
+            echo "❌ Le viewer image peut à nouveau s'ouvrir sans image."
+            exit 1
+          }
+
+          grep -Fq 'detectRelationshipHints' "SarahIA/SarahIA/Services/OpenSourceImageGenerationService.swift" || {
+            echo "❌ Les relations multi-sujets des prompts image ont disparu."
+            exit 1
+          }
+
+          echo "✅ Garde-fous Sarah validés."
+
+      - name: Build iOS 26 App
         run: |
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
@@ -106,34 +248,37 @@ jobs:
             plutil -replace CFBundlePackageType -string "APPL" "$INFOPLIST_TARGET" 2>/dev/null || true
           fi
 
-          # Signer d'abord tous les composants imbriqués, puis le bundle principal.
-          # Une dépendance dynamique non signée peut provoquer une fermeture immédiate au lancement.
-          if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
-            find "$APP_TARGET_DIR/Frameworks" -type d -name "*.framework" -print0 | while IFS= read -r -d '' FRAMEWORK; do
-              codesign -f -s - "$FRAMEWORK"
-            done
-          fi
+          # SideStore re-signe l'application avec le compte Apple de l'utilisateur.
+          # On publie donc une IPA propre et non pré-signée, comme la branche stable.
+          find "$APP_TARGET_DIR" -type d -name "_CodeSignature" -prune -exec rm -rf {} + 2>/dev/null || true
+          find "$APP_TARGET_DIR" -name "embedded.mobileprovision" -delete 2>/dev/null || true
+
+          # Validation stricte du bundle avant création de l'IPA.
+          MAIN_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP_TARGET_DIR/Info.plist")
+          test -n "$MAIN_EXEC"
+          test -x "$APP_TARGET_DIR/$MAIN_EXEC"
 
           if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0 | while IFS= read -r -d '' APPEX; do
-              codesign -f -s - "$APPEX"
-            done
+            while IFS= read -r -d '' APPEX; do
+              APPEX_PLIST="$APPEX/Info.plist"
+              EXT_EXEC=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APPEX_PLIST")
+              EXT_BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APPEX_PLIST")
+              echo "=== Extension : $EXT_BUNDLE / $EXT_EXEC ==="
+              test -n "$EXT_EXEC"
+              test -x "$APPEX/$EXT_EXEC"
+            done < <(find "$APP_TARGET_DIR/PlugIns" -type d -name "*.appex" -print0)
           fi
-
-          codesign -f -s - "$APP_TARGET_DIR"
-          codesign --verify --deep --strict "$APP_TARGET_DIR"
 
           echo "=== Structure du Bundle Final dans l'IPA ==="
-          ls -la "$APP_TARGET_DIR"
-          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
-            ls -la "$APP_TARGET_DIR/PlugIns"
-          fi
+          find "$APP_TARGET_DIR" -maxdepth 3 -print
 
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp
           zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-          echo "=== Fichier SarahIA.ipa iOS 27 genere avec succes ==="
+          echo "=== Vérification de l'archive IPA ==="
+          unzip -t "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+          echo "=== Fichier SarahIA.ipa iOS 26 généré avec succès ==="
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
 
       - name: Upload IPA Artifact
@@ -145,14 +290,15 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
         with:
-          tag_name: latest
-          name: "Sarah IA - iOS 27 / Local AI"
-          body: "Build #${{ github.run_number }}. Édition iOS 27 de Sarah IA avec interface adaptative et moteurs locaux image, vidéo et musique. Les modèles volumineux sont téléchargés à la demande. La branche legacy-ios12 conserve l’ancienne édition pour les anciens iPhone."
+          tag_name: sarah-ia-4.0-latest
+          name: "Sarah IA 4.0 - iOS 26 Stable"
+          body: "Build #${{ github.run_number }}. Version Sarah IA 4.0 compilée avec Xcode 26.6 stable, avec nouvelle interface, App Shortcuts natifs et widgets Sarah."
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
+          make_latest: true
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

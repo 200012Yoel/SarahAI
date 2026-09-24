@@ -10,6 +10,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public var imageData: Data?
     public var alertEvent: AlertEvent?
     public var generatedImageURL: String?
+    public var generatedAudioURL: String?
     public var generatedMusicStyle: String?
     public var isGeneratingImage: Bool?
     public var imageGenerationPrompt: String?
@@ -23,6 +24,7 @@ public struct Message: Identifiable, Equatable, Codable {
         imageData: Data? = nil,
         alertEvent: AlertEvent? = nil,
         generatedImageURL: String? = nil,
+        generatedAudioURL: String? = nil,
         generatedMusicStyle: String? = nil,
         isGeneratingImage: Bool? = nil,
         imageGenerationPrompt: String? = nil
@@ -35,11 +37,25 @@ public struct Message: Identifiable, Equatable, Codable {
         self.imageData = imageData
         self.alertEvent = alertEvent
         self.generatedImageURL = generatedImageURL
+        self.generatedAudioURL = generatedAudioURL
         self.generatedMusicStyle = generatedMusicStyle
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
     }
     
+    /// Vrai si une ancienne réponse contient des marqueurs internes du moteur.
+    /// Ces messages ne doivent jamais être affichés comme une vraie réponse.
+    public var isInternalEngineLeak: Bool {
+        guard !isFromUser else { return false }
+
+        let decoded = content.decodingHTMLEntities()
+        return decoded.localizedCaseInsensitiveContains("<|im_start|>") ||
+            decoded.localizedCaseInsensitiveContains("<|im_end|>") ||
+            decoded.localizedCaseInsensitiveContains("RÈGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("REGLES ABSOLUES") ||
+            decoded.localizedCaseInsensitiveContains("Tu es Sarah, l'intelligence artificielle intégrée à Sarah Engine")
+    }
+
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
     public var detectedImageURL: String? {
         if let explicit = generatedImageURL, !explicit.isEmpty { return explicit }
@@ -50,15 +66,19 @@ public struct Message: Identifiable, Equatable, Codable {
                 return "https://image.pollinations.ai/prompt/\(urlPart)"
             }
         }
-        if let prompt = imageGenerationPrompt, !prompt.isEmpty {
-            if let encoded = prompt.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) {
-                return "https://image.pollinations.ai/prompt/\(encoded)?width=768&height=768&model=flux&nologo=true&enhance=true"
-            }
-        }
         return nil
     }
     
     /// Détecte si le message est une composition musicale de Sarah
+    public var musicVariationSeed: UInt64 {
+        var hash: UInt64 = 1469598103934665603
+        for byte in id.uuidString.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
+        return hash == 0 ? 1 : hash
+    }
+
     public var detectedMusicStyle: String? {
         if let explicit = generatedMusicStyle, !explicit.isEmpty { return explicit }
         if content.contains("Sarah Music Engine") || content.contains("Morceau composé") || content.contains("Moteur Musical Open Source") {

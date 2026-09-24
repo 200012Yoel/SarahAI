@@ -94,18 +94,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     
     func applicationDidBecomeActive(_ application: UIApplication) {
         SessionTimeoutManager.shared.checkAndResetSessionIfNeeded()
+        WidgetDataBridge.shared.refreshHealthSnapshot()
     }
     
     // MARK: - Finalisation du Téléchargement Background (URLSession GGUF)
     
-    public static var backgroundSessionCompletionHandler: (() -> Void)?
+    private static var backgroundSessionCompletionHandlers: [String: () -> Void] = [:]
+
+    public static func completeBackgroundSession(identifier: String?) {
+        guard let identifier else { return }
+
+        DispatchQueue.main.async {
+            let handler = backgroundSessionCompletionHandlers.removeValue(forKey: identifier)
+            handler?()
+        }
+    }
     
     func application(
         _ application: UIApplication,
         handleEventsForBackgroundURLSession identifier: String,
         completionHandler: @escaping () -> Void
     ) {
-        AppDelegate.backgroundSessionCompletionHandler = completionHandler
+        AppDelegate.backgroundSessionCompletionHandlers[identifier] = completionHandler
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
     }
 }
