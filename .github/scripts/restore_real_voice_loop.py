@@ -53,6 +53,16 @@ voice_block = voice_block.replace(
 vm, count = block_re.subn(voice_block, vm, count=1)
 if count != 1:
     raise SystemExit(f'Current voice block replacement failed: {count}')
+
+# The modern composer still has a square Stop button. The old voice snapshot did
+# not have this helper, so preserve a lightweight cancellation action explicitly.
+if 'public func cancelCurrentGeneration()' not in vm:
+    marker = '    // MARK: - Envoi de Message & Orchestration Multi-Agents\n'
+    cancel_method = '''    public func cancelCurrentGeneration() {\n        haptics.buttonTap()\n        isTyping = false\n        voiceStatus = .idle\n        AIProgressiveScheduler.shared.cancelAllTasks()\n    }\n\n'''
+    if marker not in vm:
+        raise SystemExit('Message orchestration marker missing')
+    vm = vm.replace(marker, cancel_method + marker, 1)
+
 vm_path.write_text(vm, encoding='utf-8')
 
 # 3) Keep the modern + menu / attachments, but make the voice presentation behave
