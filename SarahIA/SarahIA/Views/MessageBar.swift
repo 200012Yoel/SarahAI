@@ -51,11 +51,16 @@ public struct MessageBar: View {
             // Une interruption système ne doit jamais laisser l'interface bloquée
             // en « transcription en cours ».
             if isDictating && !listening {
-                let recognized = currentRecognizedText
-                if !recognized.isEmpty {
-                    text = mergedText(prefix: textBeforeDictation, dictated: recognized)
-                }
+                commitDictationToComposer()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))) { _ in
+            if case .error = AppleSpeechRecognizer.shared.state, isDictating {
+                // Autorisation refusée, route audio indisponible, etc. : on sort
+                // immédiatement de l'état dictée sans effacer le texte existant.
+                AppleSpeechRecognizer.shared.stopListening()
                 isDictating = false
+                text = textBeforeDictation
             }
         }
         .onDisappear {
@@ -172,7 +177,6 @@ public struct MessageBar: View {
     private func startDictation() {
         HapticService.shared.buttonTap()
 
-        // Si une autre capture vocale tournait encore, on la rend d'abord à iOS.
         if AppleSpeechRecognizer.shared.isListening {
             AppleSpeechRecognizer.shared.stopListening()
         }
@@ -195,6 +199,13 @@ public struct MessageBar: View {
             onSend(finalText)
             text = ""
         }
+    }
+
+    private func commitDictationToComposer() {
+        let recognized = currentRecognizedText
+        let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
+        text = finalText
+        isDictating = false
     }
 
     private func cancelDictation() {
