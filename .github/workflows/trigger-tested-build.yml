@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting SarahIA IPA build without simulator test"
+          echo "Starting restored SarahIA voice + plus-menu IPA build without simulator test"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
