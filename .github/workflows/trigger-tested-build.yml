@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting corrected simulator-tested SarahIA build"
+          echo "Starting final corrected SarahIA IPA build after simulator timeout fix"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
