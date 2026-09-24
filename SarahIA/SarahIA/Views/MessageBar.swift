@@ -8,6 +8,8 @@ public struct MessageBar: View {
     var isRecording: Bool
     var isProcessing: Bool
     var onOpenActions: () -> Void
+    var onOpenCamera: () -> Void
+    var onOpenFile: () -> Void
     var onSend: (String) -> Void
     var onCancel: () -> Void
     var onToggleMic: () -> Void
@@ -22,6 +24,8 @@ public struct MessageBar: View {
         isRecording: Bool,
         isProcessing: Bool = false,
         onOpenActions: @escaping () -> Void = {},
+        onOpenCamera: @escaping () -> Void = {},
+        onOpenFile: @escaping () -> Void = {},
         onSend: @escaping (String) -> Void,
         onCancel: @escaping () -> Void = {},
         onToggleMic: @escaping () -> Void,
@@ -33,6 +37,8 @@ public struct MessageBar: View {
         self.isRecording = isRecording
         self.isProcessing = isProcessing
         self.onOpenActions = onOpenActions
+        self.onOpenCamera = onOpenCamera
+        self.onOpenFile = onOpenFile
         self.onSend = onSend
         self.onCancel = onCancel
         self.onToggleMic = onToggleMic
@@ -43,52 +49,14 @@ public struct MessageBar: View {
     public var body: some View {
         HStack(spacing: 10) {
             Menu {
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    isComposerFocused = false
-                    onOpenActions()
-                }) {
-                    Label("Ajouter une photo ou vidéo", systemImage: "photo.on.rectangle.angled")
+                Button { isComposerFocused = false; onOpenActions() } label: {
+                    Label("Ajouter une image", systemImage: "photo")
                 }
-
-                Divider()
-
-                Button(action: openRaphaelStudio) {
-                    Label("Studio Raphaël · Code", systemImage: "chevron.left.forwardslash.chevron.right")
+                Button { isComposerFocused = false; onOpenCamera() } label: {
+                    Label("Prendre une photo", systemImage: "camera")
                 }
-
-                Button(action: prepare3DStudioPrompt) {
-                    Label("Studio Raphaël · 3D", systemImage: "cube.transparent")
-                }
-
-                Button(action: startGuidedWebsite) {
-                    Label("Créer un site guidé", systemImage: "safari")
-                }
-
-                Button(action: prepareDebugPrompt) {
-                    Label("Déboguer / améliorer du code", systemImage: "wrench.and.screwdriver")
-                }
-
-                Button(action: prepareAppleWebsitePrompt) {
-                    Label("Site Apple · Liquid Glass", systemImage: "sparkles.rectangle.stack")
-                }
-
-                Divider()
-
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    isComposerFocused = false
-                    onOpenVoiceOrb()
-                }) {
-                    Label("Mode vocal", systemImage: "waveform.circle.fill")
-                }
-
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    isComposerFocused = false
-                    onOpenActions()
-                }) {
-                    Label("Tous les outils", systemImage: "square.grid.2x2")
+                Button { isComposerFocused = false; onOpenFile() } label: {
+                    Label("Ajouter un fichier", systemImage: "doc")
                 }
             } label: {
                 Image(systemName: "plus")
@@ -101,7 +69,7 @@ public struct MessageBar: View {
                         intensity: 0.10
                     )
             }
-            .accessibilityLabel("Ajouter un média ou ouvrir les outils rapides")
+            .accessibilityLabel("Ajouter une pièce jointe")
 
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
@@ -129,9 +97,10 @@ public struct MessageBar: View {
 
                 Button(action: {
                     guard !isProcessing else { return }
+                    isComposerFocused = false
                     onToggleMic()
                 }) {
-                    Image(systemName: isRecording ? "mic.fill" : "mic")
+                    Image(systemName: isRecording ? "stop.fill" : "mic")
                         .foregroundColor(isProcessing ? .gray.opacity(0.45) : (isRecording ? activeAgent.themeColor : .gray))
                         .font(.system(size: 18))
                 }
@@ -197,7 +166,8 @@ public struct MessageBar: View {
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.top, 5)
+        .padding(.bottom, 2)
         .onAppear {
             if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-keyboard") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {

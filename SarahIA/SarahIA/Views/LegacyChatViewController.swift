@@ -10,7 +10,7 @@ import WebKit
 /// - Geste universel de glissement gauche -> droite pour ouvrir le menu
 /// - Raccourcis d'actions rapides (Allume la torche, Pikoud HaOref, i24News)
 /// - Barre de saisie Capsule moderne avec +, Champ, Micro, Waveform et Envoi
-public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate {
+public final class LegacyChatViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UITextFieldDelegate, UIGestureRecognizerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIDocumentPickerDelegate {
     
     // MARK: - Propriétés UI Principales
     
@@ -339,7 +339,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         let convertedFrame = view.convert(keyboardFrameVal, from: nil)
         let keyboardHeight = max(0, view.bounds.height - convertedFrame.minY)
         let bottomSafe = view.safeAreaInsets.bottom
-        let offset = -(max(keyboardHeight, 216) - bottomSafe)
+        let offset = -max(0, keyboardHeight - bottomSafe)
         
         composerBottomConstraint?.constant = offset
         let options = UIView.AnimationOptions(rawValue: curveValue << 16)
@@ -703,91 +703,66 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     @objc private func plusTapped() {
-        HapticService.shared.buttonTap()
-        let alert = UIAlertController(title: "Écosystème Développeur & Multi-Agents", message: "Sélectionnez une action :", preferredStyle: .actionSheet)
-        
-        alert.addAction(UIAlertAction(title: "📞 Appel Vocal WebRTC & Traduction IA", style: .default, handler: { [weak self] _ in
-            if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
-                WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
-            }
-            self?.presentVoiceCallModal()
-        }))
-        alert.addAction(UIAlertAction(title: "🎨 Générer une Image HD (Local CoreML / Metal)", style: .default, handler: { [weak self] _ in
-            self?.inputTextField.text = "Génère une photo de "
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "🎵 Composer une Musique 100% Locale (DSP)", style: .default, handler: { [weak self] _ in
-            self?.inputTextField.text = "Génère une musique lo-fi"
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "👁️ Vision & Analyse Multimodale (OCR)", style: .default, handler: { [weak self] _ in
-            self?.inputTextField.text = "Analyse cette photo et décris ce que tu vois"
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "📱 Nathan — Publier sur les Réseaux Sociaux", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
-        }))
-        alert.addAction(UIAlertAction(title: "🎨 Ethel — Créativité & Studio Graphique", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .ethel
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
-        }))
-        alert.addAction(UIAlertAction(title: "🎵 Nathan — Générer une Musique Rapide", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
-            self?.inputTextField.text = "Compose une musique "
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "🤖 Nathan — Meilleurs modèles d'IA", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .nathan
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
-        }))
-        alert.addAction(UIAlertAction(title: "💻 Studio Raphaël — Code & prototypes", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .esther
-            self?.updateAgentCapsuleTitle()
-            self?.sendMessage("Raphaël, crée une interface interactive")
-        }))
-        alert.addAction(UIAlertAction(title: "🐙 Se Connecter à GitHub", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .esther
-            self?.sendMessage("Connecte-toi à GitHub")
-        }))
-        alert.addAction(UIAlertAction(title: "📧 Boîte Google Gmail", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .esther
-            self?.sendMessage("Ouvre mes mails Gmail")
-        }))
-        alert.addAction(UIAlertAction(title: "🔮 Ouvrir l'Orbe Vocal Immersif", style: .default, handler: { [weak self] _ in
-            self?.presentVoiceCallModal()
-        }))
-        alert.addAction(UIAlertAction(title: "🇮🇱 Traduction Hébreu ⇄ Français (Yohan)", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .yohan
-            self?.updateAgentCapsuleTitle()
-            self?.inputTextField.text = "Comment on dit en hébreu : "
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-        alert.addAction(UIAlertAction(title: "🌍 Débat Géopolitique & Histoire (Tom)", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .tom
-            self?.updateAgentCapsuleTitle()
-            self?.inputTextField.text = "Raconte-moi l'histoire de "
-            self?.updateActionButtonState(animated: true)
-            self?.inputTextField.becomeFirstResponder()
-        }))
-
-        alert.addAction(UIAlertAction(title: "👑 Parler à Sarah (Pilote)", style: .default, handler: { [weak self] _ in
-            self?.activeAgent = .sarah
-            self?.updateAgentCapsuleTitle()
-            self?.loadInitialWelcomeMessage()
-        }))
-        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel, handler: nil))
-        present(alert, animated: true, completion: nil)
+        view.endEditing(true)
+        let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "Ajouter une image", style: .default) { [weak self] _ in self?.openImagePicker(.photoLibrary) })
+        alert.addAction(UIAlertAction(title: "Prendre une photo", style: .default) { [weak self] _ in self?.openImagePicker(.camera) })
+        alert.addAction(UIAlertAction(title: "Ajouter un fichier", style: .default) { [weak self] _ in
+            guard let self else { return }
+            let picker = UIDocumentPickerViewController(documentTypes: ["public.text", "public.image"], in: .import)
+            picker.delegate = self
+            self.present(picker, animated: true)
+        })
+        alert.addAction(UIAlertAction(title: "Annuler", style: .cancel))
+        alert.popoverPresentationController?.sourceView = composerContainer
+        alert.popoverPresentationController?.sourceRect = composerContainer.bounds
+        present(alert, animated: true)
     }
-    
+
+    private func openImagePicker(_ source: UIImagePickerController.SourceType) {
+        guard UIImagePickerController.isSourceTypeAvailable(source) else { return }
+        let picker = UIImagePickerController()
+        picker.sourceType = source
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) }
+    public func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        picker.dismiss(animated: true)
+        guard let image = info[.originalImage] as? UIImage else { return }
+        importImage(image)
+    }
+
+    private func importImage(_ image: UIImage) {
+        LocalVisionEngine.shared.recognizeObject(in: image) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.inputTextField.text = "\(result)"
+                self?.updateActionButtonState(animated: true)
+            }
+        }
+    }
+
+    public func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        do {
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard size <= 10_000_000 else { return }
+            let data = try Data(contentsOf: url)
+            if let image = UIImage(data: data) { importImage(image) }
+            else if let text = String(data: data, encoding: .utf8) {
+                inputTextField.text = "Fichier : \(url.lastPathComponent)\n" + text
+                updateActionButtonState(animated: true)
+            }
+        } catch {
+            let alert = UIAlertController(title: "Pièce jointe", message: error.localizedDescription, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
+    }
+
     @objc private func waveformTapped() {
         HapticService.shared.buttonTap()
         if MultiAgentVoiceManager.shared.isSpeaking {

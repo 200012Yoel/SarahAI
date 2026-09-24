@@ -15,7 +15,9 @@ public struct ChatScreenView: View {
     @ObservedObject private var keyboard = KeyboardObserver.shared
     @Binding var isShowingSettings: Bool
     
-    @State private var isShowingActionSheet: Bool = false
+    @State private var isShowingCamera = false
+    @State private var isShowingFilePicker = false
+    @State private var attachmentError: String?
     @State private var isShowingVoiceCallScreen: Bool = false
     @State private var isShowingAgentPicker: Bool = false
     @State private var isShowingVisionPicker: Bool = false
@@ -163,7 +165,19 @@ public struct ChatScreenView: View {
                     isProcessing: viewModel.isGeneratingResponse,
                     onOpenActions: {
                         keyboard.dismiss()
-                        isShowingActionSheet = true
+                        isShowingVisionPicker = true
+                    },
+                    onOpenCamera: {
+                        keyboard.dismiss()
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            isShowingCamera = true
+                        } else {
+                            attachmentError = "L’appareil photo n’est pas disponible sur cet appareil."
+                        }
+                    },
+                    onOpenFile: {
+                        keyboard.dismiss()
+                        isShowingFilePicker = true
                     },
                     onSend: { text in
                         viewModel.sendMessage(text)
@@ -175,8 +189,11 @@ public struct ChatScreenView: View {
                         viewModel.toggleMicrophone()
                     },
                     onOpenVoiceOrb: {
+                        viewModel.finishDictation()
                         keyboard.dismiss()
-                        viewModel.isShowingVoiceOrbModal = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            viewModel.isShowingVoiceOrbModal = true
+                        }
                     },
                     onOpenVAICoding: {
                         viewModel.isShowingVAICodingStudio = true
@@ -222,7 +239,42 @@ public struct ChatScreenView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
+        .fullScreenCover(isPresented: $isShowingCamera) {
+            SarahCameraPicker { image in
+                isShowingCamera = false
+                if let image {
+                    LocalVisionEngine.shared.recognizeObject(in: image) { result in
+                        viewModel.appendVisionAnalysis(image: image, result: result)
+                    }
+                }
+            }.ignoresSafeArea()
+        }
+        .fileImporter(isPresented: $isShowingFilePicker, allowedContentTypes: [.text, .image], allowsMultipleSelection: false) { result in
+            do {
+                guard let url = try result.get().first else { return }
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                let values = try url.resourceValues(forKeys: [.fileSizeKey])
+                guard (values.fileSize ?? 0) <= 10_000_000 else {
+                    attachmentError = "Choisis un fichier de moins de 10 Mo."
+                    return
+                }
+                let data = try Data(contentsOf: url)
+                if let image = UIImage(data: data) {
+                    LocalVisionEngine.shared.recognizeObject(in: image) { result in
+                        viewModel.appendVisionAnalysis(image: image, result: result)
+                    }
+                } else if let text = String(data: data, encoding: .utf8) {
+                    viewModel.inputText += "\n\nFichier : \(url.lastPathComponent)\n" + text
+                } else {
+                    attachmentError = "Ce fichier texte doit être encodé en UTF-8."
+                }
+            } catch { attachmentError = error.localizedDescription }
+        }
+        .alert("Pièce jointe", isPresented: Binding(get: { attachmentError != nil }, set: { if !$0 { attachmentError = nil } })) {
+            Button("OK") { attachmentError = nil }
+        } message: { Text(attachmentError ?? "") }
+        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
         }
         .fullScreenCover(isPresented: $viewModel.isShowingVAICodingStudio) {
@@ -274,91 +326,8 @@ public struct ChatScreenView: View {
         } message: {
             Text("Le changement est instantané et la conversation reste la même.")
         }
-        .actionSheet(isPresented: $isShowingActionSheet) {
-            ActionSheet(
-                title: Text("Écosystème Développeur & Multi-Agents"),
-                buttons: [
-                    .default(Text("📞 Appel Vocal WebRTC & Traduction IA")) {
-                        if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
-                            WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
-                        }
-                        isShowingVoiceCallScreen = true
-                    },
-                    .default(Text("🎨 Générer une Image HD (Local CoreML / Metal)")) {
-                        viewModel.inputText = "Génère une photo de "
-                    },
-                    .default(Text("🎬 Générer une Vidéo / Short")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.inputText = "Génère une vidéo de 6 secondes "
-                    },
-                    .default(Text("✂️ Nathan · Monter une vidéo")) {
-                        viewModel.activeAgent = .nathan
-                        selectedNathanVideoItem = nil
-                        isShowingNathanVideoPicker = true
-                    },
-                    .default(Text("🎵 Composer une Musique 100% Locale (DSP)")) {
-                        viewModel.inputText = "Génère une musique lo-fi"
-                    },
-                    .default(Text("👁️ Ajouter une photo · Vision & OCR local")) {
-                        selectedVisionItem = nil
-                        isShowingVisionPicker = true
-                    },
-                    .default(Text("📱 Nathan — Publier sur les Réseaux Sociaux")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
-                    },
-                    .default(Text("🎨 Ethel — Créativité & Studio Graphique")) {
-                        viewModel.activeAgent = .ethel
-                        viewModel.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
-                    },
-                    .default(Text("🎵 Nathan — Générer une Musique Rapide")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.inputText = "Compose une musique "
-                    },
-                    .default(Text("🤖 Nathan — Meilleurs modèles d'IA")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
-                    },
-                    .default(Text("🌐 Raphaël — Créer un site guidé")) {
-                        viewModel.sendMessage("Donne-moi l'agent développeur")
-                    },
-                    .default(Text("💻 Studio Raphaël — Code & prototypes")) {
-                        viewModel.activeAgent = .esther
-                        viewModel.isShowingVAICodingStudio = true
-                    },
-                    .default(Text("✍️ Rédiger du texte avec Sarah")) {
-                        viewModel.activeAgent = .sarah
-                        viewModel.inputText = "Aide-moi à rédiger "
-                    },
-                    .default(Text("🐙 Se Connecter à GitHub")) {
-                        viewModel.activeAgent = .esther
-                        viewModel.sendMessage("Connecte-toi à GitHub")
-                    },
-                    .default(Text("📧 Boîte Google Gmail")) {
-                        viewModel.activeAgent = .esther
-                        viewModel.sendMessage("Ouvre mes mails Gmail")
-                    },
-                    .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
-                        viewModel.isShowingVoiceOrbModal = true
-                    },
-                    .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
-                        viewModel.activeAgent = .yohan
-                        viewModel.inputText = "Comment on dit en hébreu : "
-                    },
-                    .default(Text("🌍 Débat Géopolitique & Histoire (Tom)")) {
-                        viewModel.activeAgent = .tom
-                        viewModel.inputText = "Raconte-moi l'histoire de "
-                    },
-                    .default(Text("👑 Parler à Sarah (Pilote)")) {
-                        viewModel.activeAgent = .sarah
-                        viewModel.introduceSarah()
-                    },
-                    .cancel(Text("Annuler"))
-                ]
-            )
-        }
     }
-    
+
     @ViewBuilder
     private var voiceSheetContent: some View {
         if #available(iOS 16.0, *) {
@@ -1418,6 +1387,27 @@ public enum NathanVideoEditorEngine {
                     userInfo: [NSLocalizedDescriptionKey: "L'export vidéo a échoué."]
                 )))
             }
+        }
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahCameraPicker: UIViewControllerRepresentable {
+    var completion: (UIImage?) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ controller: UIImagePickerController, context: Context) {}
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let completion: (UIImage?) -> Void
+        init(completion: @escaping (UIImage?) -> Void) { self.completion = completion }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { completion(nil) }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            completion(info[.originalImage] as? UIImage)
         }
     }
 }

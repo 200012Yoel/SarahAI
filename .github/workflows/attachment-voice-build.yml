@@ -1,0 +1,63 @@
+name: Attachment, Voice and Keyboard Build
+
+on:
+  push:
+    branches:
+      - fix/attachment-voice-keyboard
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure target
+        run: |
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
+
+      - name: Build Release
+        run: |
+          set -eo pipefail
+          PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          PROJECT_NAME=$(basename "$PROJECT_FILE")
+          cd "$PROJECT_DIR"
+          xcodebuild \
+            -project "$PROJECT_NAME" \
+            -scheme "SarahIA" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$GITHUB_WORKSPACE/FixDerivedData" \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/attachment-voice-build.log"
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Attachment-Voice-Build-Log
+          path: attachment-voice-build.log
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R FixDerivedData/Build/Products/Release-iphoneos/SarahIA.app Payload/
+          zip -qr SarahIA-menu-audio-clavier.ipa Payload
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-menu-audio-clavier
+          path: SarahIA-menu-audio-clavier.ipa
+          retention-days: 3

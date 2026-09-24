@@ -65,7 +65,7 @@ public struct ContentView: View {
             // Étendre le contenu derrière l'encoche/Home Indicator sans ignorer
             // la zone clavier. Avec .all, SwiftUI supprimait aussi la safe area
             // du clavier et le composer finissait sous le clavier sur iOS 27.
-            .ignoresSafeArea(.container, edges: .all)
+            .ignoresSafeArea(.container, edges: .top)
             .highPriorityGesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { value in

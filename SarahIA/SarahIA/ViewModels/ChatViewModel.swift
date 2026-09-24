@@ -40,6 +40,8 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var isDictating = false
+    private var dictationPrefix = ""
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -439,6 +441,7 @@ public final class ChatViewModel: ObservableObject {
                 case .processing:
                     self.voiceStatus = .processing
                 case .error(let message):
+                    self.isDictating = false
                     self.isMicRunning = false
                     self.voiceStatus = .error(message)
                 }
@@ -911,7 +914,11 @@ public final class ChatViewModel: ObservableObject {
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
             DispatchQueue.main.async {
-                self?.liveTranscriptionText = partial
+                guard let self else { return }
+                self.liveTranscriptionText = partial
+                if self.isDictating {
+                    self.inputText = self.dictationPrefix + partial
+                }
             }
         }
         
@@ -924,7 +931,13 @@ public final class ChatViewModel: ObservableObject {
                     return
                 }
                 self.liveTranscriptionText = ""
-                self.sendMessage(cleaned)
+                if self.isDictating {
+                    self.inputText = self.dictationPrefix + cleaned
+                    self.isDictating = false
+                    self.voiceStatus = .idle
+                } else if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
+                    self.sendMessage(cleaned)
+                }
             }
         }
         
@@ -957,25 +970,29 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    /// Le micro du champ dicte un brouillon ; seul le bouton vocal lance la conversation.
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
-        haptics.buttonTap()
+        if isDictating { finishDictation(); return }
+        stopVoiceConversation()
+        dictationPrefix = inputText.isEmpty ? "" : inputText + " "
+        isDictating = true
+        AppleSpeechRecognizer.shared.startListening(finalizeOnSilence: false)
+    }
 
-        if isContinuousConversationActive {
-            if isVoiceMicrophoneMuted {
-                resumeVoiceMicrophone()
-            } else {
-                pauseVoiceMicrophone()
-            }
-            return
-        }
-
-        startVoiceConversation()
+    public func finishDictation() {
+        guard isDictating else { return }
+        isDictating = false
+        AppleSpeechRecognizer.shared.stopListening()
+        isMicRunning = false
+        liveTranscriptionText = ""
+        voiceStatus = .idle
     }
 
     /// Démarre une session vocale continue. La session appartient au chat,
     /// pas à la feuille visuelle : fermer l'interface vocale ne l'arrête donc plus.
     public func startVoiceConversation() {
+        finishDictation()
         ensureVoicePipelinePrepared()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
@@ -1042,6 +1059,7 @@ public final class ChatViewModel: ObservableObject {
     }
 
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        isDictating = false
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
 
@@ -1332,6 +1350,7 @@ public final class ChatViewModel: ObservableObject {
                     )
                 }
 
+                guard self.isContinuousConversationActive else { return }
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
                     let src = response.handoffSourceAgent ?? .sarah
                     self.voiceManager.speakHandoff(

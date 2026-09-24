@@ -63,6 +63,10 @@
 		<string>audio</string>
 		<string>fetch</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Prendre une photo à analyser dans votre conversation.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choisir une image à ajouter à votre conversation.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales multi-agents en direct (100% hors-ligne).</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

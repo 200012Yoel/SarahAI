@@ -50,6 +50,8 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private let silenceThreshold: TimeInterval = 1.3
     private var hasDetectedSpeechInCurrentSession: Bool = false
     private var authorizationRequestInFlight = false
+    private var listeningGeneration = UUID()
+    private var finalizeOnSilence = true
 
     private var lastEnergyPublishTime: TimeInterval = 0
     private let energyPublishInterval: TimeInterval = 1.0 / 15.0
@@ -101,8 +103,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     // MARK: - Démarrage de l'écoute
     
-    public func startListening() {
+    public func startListening(finalizeOnSilence: Bool = true) {
         guard !isListening else { return }
+        self.finalizeOnSilence = finalizeOnSilence
+        let authorizationGeneration = listeningGeneration
 
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         let micStatus = AVAudioSession.sharedInstance().recordPermission
@@ -110,12 +114,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         if speechStatus == .notDetermined || micStatus == .undetermined {
             state = .processing
             requestAuthorization { [weak self] granted in
-                guard let self else { return }
+                guard let self, self.listeningGeneration == authorizationGeneration else { return }
                 guard granted else {
                     self.state = .error("Autorisation microphone ou reconnaissance vocale refusée")
                     return
                 }
-                self.startListening()
+                self.startListening(finalizeOnSilence: finalizeOnSilence)
             }
             return
         }
@@ -190,9 +194,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
         isInputTapInstalled = true
 
+        let generation = listeningGeneration
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             DispatchQueue.main.async {
+                guard self.listeningGeneration == generation else { return }
                 if let result {
                     let text = result.bestTranscription.formattedString
                     self.currentLiveText = text
@@ -236,6 +242,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     // MARK: - Arrêt de l'écoute
     
     public func stopListening() {
+        listeningGeneration = UUID()
         silenceTimer?.invalidate()
         silenceTimer = nil
         
@@ -275,6 +282,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+        guard finalizeOnSilence else { return }
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceThreshold, repeats: false) { [weak self] _ in
             guard let self, self.isListening, self.hasDetectedSpeechInCurrentSession else { return }
             let finalText = self.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
