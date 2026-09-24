@@ -1,4 +1,4 @@
-name: Trigger Tested SarahIA Build
+name: Trigger SarahIA IPA Build
 on:
   push:
     branches: [main]
@@ -11,9 +11,9 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Start simulator-tested iOS build
+      - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting final corrected SarahIA IPA build after simulator timeout fix"
+          echo "Starting SarahIA IPA build without simulator test"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
