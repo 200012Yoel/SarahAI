@@ -21,22 +21,19 @@ public final class AudioSessionManager {
     // MARK: - Configuration des Sessions Audio
     
     /// Active la session audio en mode lecture haut-parleur (contourne le mode silencieux).
-    public func configurePlaybackSession() {
-        let session = AVAudioSession.sharedInstance()
+    @discardableResult
+    public func configurePlaybackSession() -> Bool {
         do {
-            try session.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth]
-            )
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🔊 [AudioSessionManager] Mode .playAndRecord (Haut-parleur forcé & Bluetooth actif).")
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [])
+            try session.setActive(true)
+            return true
         } catch {
-            print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
+            print("Audio playback unavailable: \(error.localizedDescription)")
+            return false
         }
     }
-    
+
     /// Configure la session audio pour l'enregistrement micro natif sans déclencher de mode appel téléphonique.
     public func configureRecordingSession() {
         let session = AVAudioSession.sharedInstance()

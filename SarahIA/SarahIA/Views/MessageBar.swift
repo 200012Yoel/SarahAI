@@ -47,137 +47,66 @@ public struct MessageBar: View {
     }
 
     public var body: some View {
-        HStack(spacing: 10) {
-            Menu {
-                Button { isComposerFocused = false; onOpenActions() } label: {
-                    Label("Ajouter une image", systemImage: "photo")
-                }
-                Button { isComposerFocused = false; onOpenCamera() } label: {
-                    Label("Prendre une photo", systemImage: "camera")
-                }
-                Button { isComposerFocused = false; onOpenFile() } label: {
-                    Label("Ajouter un fichier", systemImage: "doc")
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
-                    .sarahLiquidGlass(
-                        cornerRadius: 22,
-                        tint: activeAgent.themeColor,
-                        intensity: 0.10
-                    )
-            }
-            .accessibilityLabel("Ajouter une pièce jointe")
-            .accessibilityIdentifier("chat.attach")
-
-            HStack(spacing: 8) {
-                TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
-                    guard !isProcessing else { return }
-                    submitMessage()
-                })
+        VStack(spacing: 8) {
+            TextField("Demander à \(activeAgent.displayName)…", text: $text, onCommit: submitMessage)
                 .focused($isComposerFocused)
                 .accessibilityIdentifier("chat.input")
                 .foregroundColor(.white)
-                .accentColor(activeAgent.themeColor)
-                .font(.system(size: 15))
-
-                if activeAgent == .esther {
-                    Button(action: openRaphaelStudio) {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .foregroundColor(activeAgent.themeColor)
-                            .font(.system(size: 17, weight: .semibold))
-                            .frame(width: 30, height: 30)
-                            .background(activeAgent.themeColor.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(isProcessing)
-                    .accessibilityLabel("Ouvrir le Studio Raphaël")
+                .font(.system(size: 17))
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .frame(minHeight: 42)
+            HStack(spacing: 14) {
+                Menu {
+                    Button(action: onOpenActions) { Label("Ajouter une image", systemImage: "photo") }
+                    Button(action: onOpenCamera) { Label("Prendre une photo", systemImage: "camera") }
+                    Button(action: onOpenFile) { Label("Ajouter un fichier", systemImage: "doc") }
+                } label: {
+                    Image(systemName: "plus").font(.system(size: 23)).frame(width: 44, height: 44)
                 }
-
-                Button(action: {
-                    guard !isProcessing else { return }
+                .accessibilityLabel("Ajouter une pièce jointe")
+                .accessibilityIdentifier("chat.attach")
+                Spacer(minLength: 0)
+                Text(isRecording ? "Dictée en cours…" : activeAgent.displayName)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(1)
+                Button {
                     isComposerFocused = false
                     onToggleMic()
-                }) {
+                } label: {
                     Image(systemName: isRecording ? "stop.fill" : "mic")
-                        .foregroundColor(isProcessing ? .gray.opacity(0.45) : (isRecording ? activeAgent.themeColor : .gray))
-                        .font(.system(size: 18))
+                        .font(.system(size: 21)).frame(width: 44, height: 44)
                 }
-                .buttonStyle(PlainButtonStyle())
                 .disabled(isProcessing)
+                .accessibilityIdentifier("chat.dictate")
+                .accessibilityLabel(isRecording ? "Terminer la dictée" : "Dicter du texte")
+                let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                Button {
+                    if isProcessing { onCancel() }
+                    else if isRecording { onToggleMic() }
+                    else if hasText { submitMessage() }
+                    else { isComposerFocused = false; onOpenVoiceOrb() }
+                } label: {
+                    Image(systemName: isProcessing || isRecording ? "stop.fill" : (hasText ? "arrow.up" : "waveform"))
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.white.opacity(0.18)))
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityIdentifier("chat.sendOrVoice")
+                .accessibilityLabel(isProcessing ? "Arrêter la génération" : (isRecording ? "Terminer la dictée" : (hasText ? "Envoyer" : "Ouvrir le mode vocal")))
             }
-            .padding(.leading, 15)
-            .padding(.trailing, 9)
-            .frame(height: 48)
-            .sarahLiquidGlass(
-                cornerRadius: 24,
-                tint: activeAgent.themeColor,
-                intensity: activeAgent == .esther ? 0.12 : 0.08
-            )
-
-            let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-            Button(action: {
-                if isProcessing {
-                    HapticService.shared.buttonTap()
-                    onCancel()
-                } else if hasText {
-                    submitMessage()
-                } else {
-                    HapticService.shared.buttonTap()
-                    isComposerFocused = false
-                    onOpenVoiceOrb()
-                }
-            }) {
-                ZStack {
-                    if isProcessing {
-                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                            .fill(Color.white)
-                            .frame(width: 11, height: 11)
-                    } else {
-                        Image(systemName: hasText ? "arrow.up" : "waveform")
-                            .font(.system(size: 18, weight: hasText ? .bold : .regular))
-                            .foregroundColor(.white)
-                    }
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Circle())
-            }
-            .frame(width: 44, height: 44)
-            .background(
-                ZStack {
-                    Circle().fill(.ultraThinMaterial)
-                    Circle().fill(
-                        (isProcessing || hasText)
-                            ? activeAgent.themeColor.opacity(0.92)
-                            : Color.white.opacity(0.06)
-                    )
-                    Circle().stroke(
-                        (isProcessing || hasText)
-                            ? Color.white.opacity(0.26)
-                            : Color.white.opacity(0.12),
-                        lineWidth: 0.8
-                    )
-                }
-            )
-            .clipShape(Circle())
-            .buttonStyle(ScaleBounceButtonStyle())
-            .accessibilityIdentifier("chat.sendOrVoice")
-            .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
         }
+        .foregroundColor(.white)
+        .buttonStyle(PlainButtonStyle())
+        .background(RoundedRectangle(cornerRadius: 26).fill(Color(white: 0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 26).stroke(Color.white.opacity(0.12), lineWidth: 1))
         .padding(.horizontal, 12)
         .padding(.top, 5)
         .padding(.bottom, 2)
-        .onAppear {
-            if ProcessInfo.processInfo.arguments.contains("--sarah-ui-smoke-keyboard") {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    isComposerFocused = true
-                }
-            }
-        }
     }
 
     private func openRaphaelStudio() {
@@ -222,6 +151,7 @@ public struct MessageBar: View {
 
     private func submitMessage() {
         guard !isProcessing else { return }
+        if isRecording { onToggleMic(); return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             HapticService.shared.buttonTap()

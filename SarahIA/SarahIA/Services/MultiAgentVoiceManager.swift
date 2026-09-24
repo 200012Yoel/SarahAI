@@ -1,5 +1,4 @@
 import Foundation
-import Foundation
 import AVFoundation
 #if canImport(UIKit)
 import UIKit
@@ -10,6 +9,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public static let shared = AgentVoiceManager()
     
     private let synthesizer = AVSpeechSynthesizer()
+    private var activeUtterance: AVSpeechUtterance?
+    public var onSpeechFailed: ((String) -> Void)?
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -21,6 +22,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public override init() {
         super.init()
         synthesizer.delegate = self
+        NotificationCenter.default.addObserver(self, selector: #selector(stopForBackground),
+            name: UIApplication.didEnterBackgroundNotification, object: nil)
         resolveAllDistinctVoices()
 
         #if canImport(UIKit)
@@ -35,6 +38,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         )
         #endif
     }
+
+    @objc private func stopForBackground() { stop() }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -68,7 +73,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             // leur propre identifiant : ils ne dépendent donc pas du réglage
             // global actuellement affiché dans Siri.
             for identifier in agent.preferredSpeechVoiceIdentifiers where selectedVoice == nil {
-                if let directVoice = AVSpeechSynthesisVoice(identifier: identifier),
+                if let directVoice = allVoices.first(where: { $0.identifier == identifier }),
                    !usedIdentifiers.contains(directVoice.identifier) {
                     selectedVoice = directVoice
                 }
@@ -78,7 +83,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             if selectedVoice == nil {
                 for identifier in agent.preferredSpeechVoiceIdentifiers {
                     let enhancedId = identifier.replacingOccurrences(of: "compact", with: "enhanced")
-                    if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId),
+                    if let enhancedVoice = allVoices.first(where: { $0.identifier == enhancedId }),
                        !usedIdentifiers.contains(enhancedVoice.identifier) {
                         selectedVoice = enhancedVoice
                         break
@@ -229,15 +234,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-        } catch {
-            print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
+        guard UIApplication.shared.applicationState != .background else { return }
+        guard AudioSessionManager.shared.configurePlaybackSession() else {
+            onSpeechFailed?("La sortie audio est indisponible. Réessaie avec le bouton de lecture.")
+            return
         }
-        
+
         let utterance = makeUtterance(text: cleaned)
         let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
         utterance.voice = resolvedVoice
@@ -265,6 +267,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
         
         print("🔊 [AgentVoiceManager] Synthèse vocale [\(agent.rawValue)] via \(resolvedVoice?.name ?? "fr-FR") | ID: \(resolvedVoice?.identifier ?? "")")
+        activeUtterance = utterance
         synthesizer.speak(utterance)
     }
     
@@ -286,7 +289,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             return
         }
         
-        AudioSessionManager.shared.configurePlaybackSession()
+        guard UIApplication.shared.applicationState != .background,
+              AudioSessionManager.shared.configurePlaybackSession() else {
+            onSpeechFailed?("La sortie audio est indisponible")
+            return
+        }
         
         self.pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
@@ -301,6 +308,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             case .yohan:  agentUtterance.pitchMultiplier = 0.90
             case .ethel:  agentUtterance.pitchMultiplier = 1.03
             }
+            self.activeUtterance = agentUtterance
             self.synthesizer.speak(agentUtterance)
         }
         
@@ -315,14 +323,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         case .yohan:  sourceUtterance.pitchMultiplier = 0.90
         case .ethel:  sourceUtterance.pitchMultiplier = 1.03
         }
+        activeUtterance = sourceUtterance
         synthesizer.speak(sourceUtterance)
     }
     
     public func stop() {
+        activeUtterance = nil // Ignore cancellation callbacks from the old utterance.
         pendingSpeechBlock = nil
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
+        synthesizer.stopSpeaking(at: .immediate)
 
         // Ne jamais conserver la route .playAndRecord une fois la voix coupée.
         if !AppleSpeechRecognizer.shared.isListening {
@@ -331,16 +339,19 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
     
     public var isSpeaking: Bool {
-        return synthesizer.isSpeaking
+        return activeUtterance != nil
     }
     
     // MARK: - AVSpeechSynthesizerDelegate
     
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        guard activeUtterance === utterance else { return }
         onSpeechStarted?()
     }
     
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        guard activeUtterance === utterance else { return }
+        activeUtterance = nil
         if let next = pendingSpeechBlock {
             pendingSpeechBlock = nil
             next()
@@ -351,8 +362,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        guard activeUtterance === utterance else { return }
+        activeUtterance = nil
+        pendingSpeechBlock = nil
         AudioSessionManager.shared.deactivateSession()
-        onSpeechFinished?()
+        onSpeechFailed?("Lecture interrompue. Touchez le micro pour reprendre.")
     }
 }
 

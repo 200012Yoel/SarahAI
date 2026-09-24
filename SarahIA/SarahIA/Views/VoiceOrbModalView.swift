@@ -2,8 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Interface vocale Sarah.
-/// La feuille peut être fermée sans interrompre la session vocale : la mini-barre
-/// reste alors visible dans le chat jusqu'à ce que l'utilisateur touche X.
+/// Fermer cet écran termine aussi la session audio.
 @available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -42,7 +41,7 @@ public struct VoiceOrbModalView: View {
         case .speaking:
             return "\(viewModel.activeAgent.displayName) parle"
         case .error:
-            return "Micro indisponible"
+            return "Audio indisponible"
         default:
             if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Je t’écoute."
@@ -94,6 +93,7 @@ public struct VoiceOrbModalView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onDisappear { viewModel.stopVoiceConversation() }
         .onAppear {
             pulse = true
             drift = true
@@ -330,71 +330,31 @@ public struct VoiceOrbModalView: View {
     // MARK: - Barre inférieure
 
     private var composer: some View {
-        HStack(spacing: 10) {
-            circleButton(systemName: "plus", size: 50) {
-                HapticService.shared.buttonTap()
-            }
-
-            HStack(spacing: 10) {
-                TextField(
-                    "Demander à \(viewModel.activeAgent.displayName)…",
-                    text: $viewModel.inputText,
-                    onCommit: {
-                        sendTextIfNeeded()
-                    }
-                )
-                    .foregroundColor(.white)
-                    .accentColor(accent)
-                    .font(.system(size: 16))
-
-                Button(action: {
-                    HapticService.shared.buttonTap()
-                    if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        if viewModel.isMicRunning {
-                            viewModel.pauseVoiceMicrophone()
-                        } else {
-                            viewModel.resumeVoiceMicrophone()
-                        }
-                    } else {
-                        sendTextIfNeeded()
-                    }
-                }) {
-                    Image(systemName: viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "waveform" : "arrow.up")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(accent)
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(accent.opacity(0.10)))
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .padding(.leading, 14)
-            .padding(.trailing, 7)
-            .frame(height: 52)
-            .sarahLiquidGlass(
-                cornerRadius: 26,
-                tint: accent,
-                intensity: 0.08
-            )
-
-            circleButton(
-                systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill",
-                size: 50,
-                highlighted: !viewModel.isVoiceMicrophoneMuted
-            ) {
-                HapticService.shared.buttonTap()
-                viewModel.toggleMicrophone()
-            }
-
-            circleButton(
-                systemName: "xmark",
-                size: 50,
-                highlighted: true
-            ) {
-                HapticService.shared.buttonTap()
+        HStack(spacing: 32) {
+            Button {
                 viewModel.endVoiceConversation()
                 presentationMode.wrappedValue.dismiss()
+            } label: {
+                Label("Écrire", systemImage: "keyboard")
+                    .foregroundColor(.white)
+            }
+            .accessibilityIdentifier("voice.write")
+            circleButton(
+                systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill",
+                size: 54, highlighted: !viewModel.isVoiceMicrophoneMuted
+            ) { viewModel.toggleVoiceMicrophone() }
+            .accessibilityIdentifier("voice.microphone")
+            .accessibilityLabel(viewModel.isVoiceMicrophoneMuted ? "Reprendre le micro" : "Couper le micro")
+            if viewModel.isSpeaking {
+                Button("Interrompre") {
+                    viewModel.stopVoiceConversation()
+                    viewModel.startVoiceConversation()
+                }
+                .foregroundColor(.white)
             }
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 56)
     }
 
     private func sendTextIfNeeded() {

@@ -53,9 +53,23 @@ final class NavigationTests: XCTestCase {
         }
         let close = app.buttons["voice.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let mute = app.buttons["voice.microphone"]
+        XCTAssertTrue(mute.exists)
+        mute.tap()
+        XCTAssertEqual(mute.label, "Reprendre le micro")
         close.tap()
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         XCTAssertTrue(menu.isHittable)
+        app.buttons["chat.sendOrVoice"].tap()
+        XCTAssertTrue(app.buttons["voice.write"].waitForExistence(timeout: 5))
+        app.buttons["voice.write"].tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        app.buttons["chat.sendOrVoice"].tap()
+        XCTAssertTrue(app.staticTexts["voice.title"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["voice.title"].exists)
         app.buttons["chat.attach"].tap()
         XCTAssertTrue(app.buttons["Ajouter une image"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Prendre une photo"].exists)

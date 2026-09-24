@@ -201,13 +201,14 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
         
         // 3. Barre de Saisie Moderne & Universelle (Capsule + Bouton Action Dynamique)
         composerContainer.translatesAutoresizingMaskIntoConstraints = false
-        composerContainer.backgroundColor = .clear
+        composerContainer.backgroundColor = UIColor(white: 0.12, alpha: 1)
+        composerContainer.layer.cornerRadius = 26
         view.addSubview(composerContainer)
         
         // Capsule de saisie
         let textInputCapsule = UIView()
         textInputCapsule.translatesAutoresizingMaskIntoConstraints = false
-        textInputCapsule.backgroundColor = UIColor(white: 0.15, alpha: 1.0)
+        textInputCapsule.backgroundColor = .clear
         textInputCapsule.layer.cornerRadius = 24
         textInputCapsule.layer.masksToBounds = true
         composerContainer.addSubview(textInputCapsule)
@@ -287,29 +288,29 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             composerContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             composerContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             bottomConstraint,
-            composerContainer.heightAnchor.constraint(equalToConstant: 48),
+            composerContainer.heightAnchor.constraint(equalToConstant: 104),
             
             // Capsule de texte
             textInputCapsule.leadingAnchor.constraint(equalTo: composerContainer.leadingAnchor),
-            textInputCapsule.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -10),
+            textInputCapsule.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor),
             textInputCapsule.topAnchor.constraint(equalTo: composerContainer.topAnchor),
             textInputCapsule.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor),
             
             // Champ texte dans la capsule
             inputTextField.leadingAnchor.constraint(equalTo: textInputCapsule.leadingAnchor, constant: 16),
-            inputTextField.trailingAnchor.constraint(equalTo: micButton.leadingAnchor, constant: -8),
-            inputTextField.centerYAnchor.constraint(equalTo: textInputCapsule.centerYAnchor),
+            inputTextField.trailingAnchor.constraint(equalTo: textInputCapsule.trailingAnchor, constant: -16),
+            inputTextField.topAnchor.constraint(equalTo: textInputCapsule.topAnchor, constant: 10),
             inputTextField.heightAnchor.constraint(equalToConstant: 36),
             
             // Micro dans la capsule
-            micButton.trailingAnchor.constraint(equalTo: textInputCapsule.trailingAnchor, constant: -8),
-            micButton.centerYAnchor.constraint(equalTo: textInputCapsule.centerYAnchor),
+            micButton.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -12),
+            micButton.centerYAnchor.constraint(equalTo: sendButton.centerYAnchor),
             micButton.widthAnchor.constraint(equalToConstant: 32),
             micButton.heightAnchor.constraint(equalToConstant: 32),
             
             // Bouton Action (Waveform / Envoi)
-            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor),
-            sendButton.centerYAnchor.constraint(equalTo: composerContainer.centerYAnchor),
+            sendButton.trailingAnchor.constraint(equalTo: composerContainer.trailingAnchor, constant: -8),
+            sendButton.bottomAnchor.constraint(equalTo: composerContainer.bottomAnchor, constant: -4),
             sendButton.widthAnchor.constraint(equalToConstant: 46),
             sendButton.heightAnchor.constraint(equalToConstant: 46)
         ])
@@ -775,11 +776,17 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     }
     
     private func setupSpeechPipeline() {
+        AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] text in
+            self?.inputTextField.text = text
+            self?.updateActionButtonState(animated: false)
+        }
+
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] text in
             guard let self = self else { return }
             let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { return }
-            self.sendMessage(cleaned)
+            self.inputTextField.text = cleaned
+            self.updateActionButtonState(animated: true)
             self.isRecording = false
             self.micButton.setTitle("🎤", for: .normal)
         }
@@ -840,6 +847,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
     @objc private func actionButtonTapped() {
         HapticService.shared.buttonTap()
         let hasText = !(inputTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        if isRecording { micTapped(); return }
         if hasText {
             sendTapped()
         } else {
@@ -860,7 +868,7 @@ public final class LegacyChatViewController: UIViewController, UITableViewDataSo
             micButton.tintColor = UIColor(white: 0.85, alpha: 1.0)
             micButton.backgroundColor = UIColor(white: 0.22, alpha: 1.0)
         } else {
-            AppleSpeechRecognizer.shared.startListening()
+            AppleSpeechRecognizer.shared.startListening(finalizeOnSilence: false)
             isRecording = true
             if #available(iOS 13.0, *), let img = UIImage(systemName: "mic.fill") {
                 micButton.setImage(img, for: .normal)

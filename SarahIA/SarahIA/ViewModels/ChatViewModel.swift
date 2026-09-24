@@ -42,6 +42,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isMicRunning: Bool = false
     @Published public var isDictating = false
     private var dictationPrefix = ""
+    private var audioGeneration = UUID()
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -404,6 +405,20 @@ public final class ChatViewModel: ObservableObject {
         isVoicePipelinePrepared = true
 
         setupVoicePipeline()
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.endVoiceConversation() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                if let type = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                   type == AVAudioSession.InterruptionType.began.rawValue {
+                    self?.endVoiceConversation()
+                }
+            }
+            .store(in: &cancellables)
+
 
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
@@ -912,37 +927,26 @@ public final class ChatViewModel: ObservableObject {
     // MARK: - Pipeline Vocale Apple Speech & Multi-Agents
     
     private func setupVoicePipeline() {
+        // Recognizer delivers on the main queue. Do not defer these callbacks:
+        // changing audio mode before a queued final could accidentally send a draft.
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.liveTranscriptionText = partial
-                if self.isDictating {
-                    self.inputText = self.dictationPrefix + partial
-                }
-            }
+            guard let self, self.isDictating || self.isContinuousConversationActive else { return }
+            self.liveTranscriptionText = partial
+            if self.isDictating { self.inputText = self.dictationPrefix + partial }
         }
-        
-        AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else {
-                    self.voiceStatus = .idle
-                    return
-                }
-                self.liveTranscriptionText = ""
-                if self.isDictating {
-                    self.inputText = self.dictationPrefix + cleaned
-                    self.isDictating = false
-                    self.voiceStatus = .idle
-                } else if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
-                    self.sendMessage(cleaned)
-                }
-            }
+        AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] text in
+            self?.receiveFinalTranscription(text)
         }
-        
+
+        voiceManager.onSpeechFailed = { [weak self] message in
+            guard let self else { return }
+            self.isSpeaking = false
+            self.isVoiceMicrophoneMuted = true
+            self.voiceStatus = .error(message)
+        }
         voiceManager.onSpeechStarted = { [weak self] in
             DispatchQueue.main.async {
+                guard self?.voiceManager.isSpeaking == true else { return }
                 self?.isSpeaking = true
                 self?.voiceStatus = .speaking
                 self?.haptics.speechStarted()
@@ -957,8 +961,11 @@ public final class ChatViewModel: ObservableObject {
                 self.haptics.speechFinished()
             
                 if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
+                    let generation = self.audioGeneration
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    guard self.isContinuousConversationActive,
+                    guard self.audioGeneration == generation,
+                          UIApplication.shared.applicationState == .active,
+                          self.isContinuousConversationActive,
                           !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
                     AppleSpeechRecognizer.shared.startListening()
@@ -970,6 +977,19 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    func receiveFinalTranscription(_ text: String) {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        liveTranscriptionText = ""
+        if isDictating {
+            inputText = dictationPrefix + cleaned
+            isDictating = false
+            voiceStatus = .idle
+        } else if !cleaned.isEmpty, isContinuousConversationActive,
+                  !isVoiceMicrophoneMuted, UIApplication.shared.applicationState == .active {
+            sendMessage(cleaned)
+        }
+    }
+
     /// Le micro du champ dicte un brouillon ; seul le bouton vocal lance la conversation.
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
@@ -982,6 +1002,9 @@ public final class ChatViewModel: ObservableObject {
 
     public func finishDictation() {
         guard isDictating else { return }
+        if AppleSpeechRecognizer.shared.isListening {
+            inputText = dictationPrefix + AppleSpeechRecognizer.shared.currentLiveText
+        }
         isDictating = false
         AppleSpeechRecognizer.shared.stopListening()
         isMicRunning = false
@@ -994,6 +1017,7 @@ public final class ChatViewModel: ObservableObject {
     public func startVoiceConversation() {
         finishDictation()
         ensureVoicePipelinePrepared()
+        audioGeneration = UUID()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
 
@@ -1017,8 +1041,14 @@ public final class ChatViewModel: ObservableObject {
     }
 
     /// Coupe seulement le micro tout en gardant le mode vocal actif.
+    public func toggleVoiceMicrophone() {
+        if isVoiceMicrophoneMuted { resumeVoiceMicrophone() }
+        else { pauseVoiceMicrophone() }
+    }
+
     public func pauseVoiceMicrophone() {
         ensureVoicePipelinePrepared()
+        audioGeneration = UUID()
         isVoiceMicrophoneMuted = true
         AppleSpeechRecognizer.shared.stopListening()
         isMicRunning = false
@@ -1035,6 +1065,7 @@ public final class ChatViewModel: ObservableObject {
     /// Réactive le micro sans recréer la session vocale.
     public func resumeVoiceMicrophone() {
         ensureVoicePipelinePrepared()
+        audioGeneration = UUID()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
 
@@ -1059,13 +1090,19 @@ public final class ChatViewModel: ObservableObject {
     }
 
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        finishDictation()
+        audioGeneration = UUID()
         isDictating = false
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
 
         if stopSpeech {
             voiceManager.stop()
+            SpeechManager.shared.stopSpeaking()
+            TTSManager.shared.stop()
+            TTSService.shared.stopSpeaking()
         }
+        isSpeaking = false
 
         AppleSpeechRecognizer.shared.stopListening()
         AudioSessionManager.shared.deactivateSession()
@@ -1312,6 +1349,8 @@ public final class ChatViewModel: ObservableObject {
         voiceStatus = .processing
 
         let currentSelectedAgent = activeAgent
+        let responseAudioGeneration = audioGeneration
+        let responseWasVoice = isContinuousConversationActive
         let responseConversationID = currentConversationId
         let requestID = UUID()
         responseGenerationID = requestID
@@ -1350,7 +1389,9 @@ public final class ChatViewModel: ObservableObject {
                     )
                 }
 
-                guard self.isContinuousConversationActive else { return }
+                guard responseWasVoice, self.audioGeneration == responseAudioGeneration,
+                      self.isContinuousConversationActive,
+                      UIApplication.shared.applicationState == .active else { return }
                 if let transitionPart = response.handoffSarahTransition, let agentPart = response.handoffAgentGreeting {
                     let src = response.handoffSourceAgent ?? .sarah
                     self.voiceManager.speakHandoff(

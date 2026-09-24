@@ -161,7 +161,7 @@ public struct ChatScreenView: View {
                 MessageBar(
                     text: $viewModel.inputText,
                     activeAgent: $viewModel.activeAgent,
-                    isRecording: viewModel.isMicRunning,
+                    isRecording: viewModel.isDictating,
                     isProcessing: viewModel.isGeneratingResponse,
                     onOpenActions: {
                         keyboard.dismiss()
@@ -501,7 +501,7 @@ private struct CollapsedVoiceSessionBar: View {
 
             Button {
                 HapticService.shared.buttonTap()
-                viewModel.toggleMicrophone()
+                viewModel.toggleVoiceMicrophone()
             } label: {
                 Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill")
                     .font(.system(size: 13, weight: .semibold))

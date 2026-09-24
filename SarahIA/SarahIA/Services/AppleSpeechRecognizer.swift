@@ -1,5 +1,6 @@
 import Foundation
 import Speech
+import UIKit
 import AVFoundation
 #if canImport(Combine)
 import Combine
@@ -100,7 +101,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     // MARK: - Démarrage de l'écoute
     
     public func startListening(finalizeOnSilence: Bool = true) {
-        guard !isListening else { return }
+        guard !isListening, UIApplication.shared.applicationState != .background else { return }
         self.finalizeOnSilence = finalizeOnSilence
         let authorizationGeneration = listeningGeneration
 
@@ -125,6 +126,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
+        MultiAgentVoiceManager.shared.stop()
         TTSManager.shared.stop()
         SpeechManager.shared.stopSpeaking()
         if #available(iOS 13.0, *) {
@@ -142,11 +144,11 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         do {
             try audioSession.setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: .default,
                 options: [.defaultToSpeaker, .allowBluetooth]
             )
             try audioSession.setPreferredIOBufferDuration(0.046)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            try audioSession.setActive(true)
         } catch {
             state = .error("Micro indisponible")
             print("⚠️ [AppleSpeechRecognizer] AVAudioSession: \(error.localizedDescription)")
@@ -185,7 +187,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
-            self.recognitionRequest?.append(buffer)
+            request.append(buffer)
             self.calculateAudioEnergy(buffer: buffer)
         }
         isInputTapInstalled = true
@@ -210,11 +212,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
                 if let error {
                     let nsError = error as NSError
-                    if nsError.code != 216 && self.isListening {
+                    let wasListening = self.isListening
+                    self.stopListening()
+                    if nsError.code != 216 && wasListening {
                         self.state = .error("Reconnaissance vocale interrompue")
                         print("⚠️ [AppleSpeechRecognizer] Recognition: \(error.localizedDescription)")
                     }
-                    self.stopListening()
                 }
             }
         }
@@ -229,9 +232,9 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             hasDetectedSpeechInCurrentSession = false
             HapticService.shared.speechStarted()
         } catch {
+            stopListening()
             state = .error("Micro indisponible")
             print("⚠️ [AppleSpeechRecognizer] AVAudioEngine start: \(error.localizedDescription)")
-            stopListening()
         }
     }
     
