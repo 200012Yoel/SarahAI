@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting SarahIA IPA with the proven Sept 18 voice conversation loop"
+          echo "Starting rebuilt SarahIA IPA with proven Sept 18 voice loop and chat stop compatibility"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
