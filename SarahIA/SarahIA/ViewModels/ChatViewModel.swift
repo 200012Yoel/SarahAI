@@ -513,6 +513,13 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    public func cancelCurrentGeneration() {
+        haptics.buttonTap()
+        isTyping = false
+        voiceStatus = .idle
+        AIProgressiveScheduler.shared.cancelAllTasks()
+    }
+
     // MARK: - Envoi de Message & Orchestration Multi-Agents
     
     public func sendMessage(_ explicitText: String? = nil) {
