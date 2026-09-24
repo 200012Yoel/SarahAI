@@ -5,7 +5,6 @@ import AVFoundation
 import Combine
 #endif
 
-/// État de la reconnaissance vocale Apple native
 public enum SpeechRecognizerState: Equatable {
     case idle
     case listening
@@ -13,11 +12,13 @@ public enum SpeechRecognizerState: Equatable {
     case error(String)
 }
 
-/// Gestionnaire de Reconnaissance Vocale 100% Gratuit, Local et Continu basé sur Apple Speech.framework (`SFSpeechRecognizer`).
+/// Reconnaissance vocale Apple utilisée à la fois par le mode conversation et
+/// par la dictée de la barre de saisie. Les deux usages ont maintenant des fins
+/// de phrase différentes : le mode vocal peut valider au silence, la dictée non.
 public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
-    
+
     public static let shared = AppleSpeechRecognizer()
-    
+
     public private(set) var state: SpeechRecognizerState = .idle {
         didSet {
             DispatchQueue.main.async {
@@ -25,7 +26,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             }
         }
     }
-    
+
     public private(set) var isListening: Bool = false {
         didSet {
             DispatchQueue.main.async {
@@ -33,44 +34,40 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             }
         }
     }
-    
+
     public private(set) var currentLiveText: String = ""
     public private(set) var micEnergyLevel: Float = 0.0
-    
+
     public var onPartialTranscription: ((String) -> Void)?
     public var onFinalTranscription: ((String) -> Void)?
-    
+
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR"))
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
-    
-    // Détection automatique de silence pour valider la fin de la phrase
-    private var silenceTimer: Timer?
-    private let silenceThreshold: TimeInterval = 1.3 // Secondes de pause pour valider la question
-    private var hasDetectedSpeechInCurrentSession: Bool = false
 
-    // Limite la télémétrie du niveau micro à ~15 FPS. Le callback audio tourne
-    // beaucoup plus vite et ne doit jamais inonder le thread principal.
+    private var silenceTimer: Timer?
+    private let silenceThreshold: TimeInterval = 1.3
+    private var hasDetectedSpeechInCurrentSession = false
+    private var automaticallyFinalizeOnSilence = true
+
     private var lastEnergyPublishTime: TimeInterval = 0
-    private let energyPublishInterval: TimeInterval = 1.0 / 15.0
-    
+    private let energyPublishInterval: TimeInterval = 1.0 / 20.0
+
     private override init() {
         super.init()
         speechRecognizer?.delegate = self
     }
-    
-    // MARK: - Demande d'Autorisation Micro + Reconnaissance Vocale
-    
+
+    // MARK: - Autorisations
+
     public func requestAuthorization(completion: @escaping (Bool) -> Void) {
         SFSpeechRecognizer.requestAuthorization { authStatus in
             DispatchQueue.main.async {
                 switch authStatus {
                 case .authorized:
                     AVAudioSession.sharedInstance().requestRecordPermission { allowed in
-                        DispatchQueue.main.async {
-                            completion(allowed)
-                        }
+                        DispatchQueue.main.async { completion(allowed) }
                     }
                 default:
                     completion(false)
@@ -78,11 +75,16 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             }
         }
     }
-    
-    // MARK: - Démarrage de l'Écoute
-    
-    public func startListening() {
+
+    // MARK: - Écoute
+
+    /// - Parameter autoFinalizeOnSilence: `true` pour une conversation mains
+    /// libres, `false` pour la dictée type ChatGPT qui ne doit être validée que
+    /// par le bouton carré ou le bouton Envoyer.
+    public func startListening(autoFinalizeOnSilence: Bool = true) {
         guard !isListening else { return }
+
+        automaticallyFinalizeOnSilence = autoFinalizeOnSilence
 
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
         if speechStatus == .notDetermined || AVAudioSession.sharedInstance().recordPermission == .undetermined {
@@ -91,7 +93,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                     self?.state = .error("Autorisation microphone ou dictée refusée")
                     return
                 }
-                self?.startListening()
+                self?.startListening(autoFinalizeOnSilence: autoFinalizeOnSilence)
             }
             return
         }
@@ -102,7 +104,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        // Une seule pile audio à la fois.
         TTSManager.shared.stop()
         SpeechManager.shared.stopSpeaking()
         if #available(iOS 13.0, *) {
@@ -110,6 +111,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         stopListening()
+        automaticallyFinalizeOnSilence = autoFinalizeOnSilence
 
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
             state = .error("Reconnaissance vocale non disponible")
@@ -118,13 +120,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            // .voiceChat est plus tolérant que .measurement quand iOS change
-            // de route audio (haut-parleur, écouteurs, Bluetooth).
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth]
-            )
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setPreferredIOBufferDuration(0.046)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
@@ -146,7 +142,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
         let inputNode = audioEngine.inputNode
         let nativeFormat = inputNode.outputFormat(forBus: 0)
-
         guard nativeFormat.sampleRate > 0, nativeFormat.channelCount > 0 else {
             state = .error("Micro indisponible")
             recognitionRequest = nil
@@ -155,8 +150,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         inputNode.removeTap(onBus: 0)
-        // format:nil demande à AVAudioEngine d'utiliser la route native actuelle.
-        // Cela évite les erreurs CoreAudio lors d'un changement de casque ou Bluetooth.
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
             guard let self = self else { return }
             self.recognitionRequest?.append(buffer)
@@ -169,9 +162,14 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                 if let result = result {
                     let text = result.bestTranscription.formattedString
                     self.currentLiveText = text
-                    self.hasDetectedSpeechInCurrentSession = true
+                    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        self.hasDetectedSpeechInCurrentSession = true
+                    }
                     self.onPartialTranscription?(text)
-                    self.resetSilenceTimer()
+
+                    if self.automaticallyFinalizeOnSilence {
+                        self.resetSilenceTimer()
+                    }
 
                     if result.isFinal {
                         self.finalizeTranscription(text)
@@ -191,12 +189,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         }
 
         audioEngine.prepare()
-
         do {
             try audioEngine.start()
             isListening = true
             state = .listening
             currentLiveText = ""
+            micEnergyLevel = 0.0
             hasDetectedSpeechInCurrentSession = false
             HapticService.shared.speechStarted()
         } catch {
@@ -205,24 +203,21 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             stopListening()
         }
     }
-    
-    // MARK: - Arrêt de l'Écoute
-    
+
     public func stopListening() {
         silenceTimer?.invalidate()
         silenceTimer = nil
-        
+
         if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
         }
-        
+
         recognitionRequest?.endAudio()
         recognitionRequest = nil
-        
         recognitionTask?.cancel()
         recognitionTask = nil
-        
+
         if isListening {
             isListening = false
             state = .idle
@@ -230,53 +225,63 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             HapticService.shared.speechFinished()
         }
 
-        // Très important : rendre immédiatement la session audio à iOS.
-        // Sans cela, le téléphone peut rester dans une route micro/mesure,
-        // perturber le son système ou conserver les autres apps atténuées.
         let session = AVAudioSession.sharedInstance()
         if !MultiAgentVoiceManager.shared.isSpeaking && !SpeechManager.shared.isSpeaking {
             do {
                 try session.setActive(false, options: .notifyOthersOnDeactivation)
             } catch {
-                print("⚠️ [AppleSpeechRecognizer] Impossible de désactiver la session audio: \(error.localizedDescription)")
+                print("⚠️ [AppleSpeechRecognizer] Désactivation audio: \(error.localizedDescription)")
             }
         }
     }
-    
-    // MARK: - Détection Automatique de Silence & Finalisation
-    
+
+    // MARK: - Finalisation automatique du mode conversation
+
     private func resetSilenceTimer() {
         silenceTimer?.invalidate()
+        guard automaticallyFinalizeOnSilence else { return }
+
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceThreshold, repeats: false) { [weak self] _ in
-            guard let self = self, self.isListening, self.hasDetectedSpeechInCurrentSession else { return }
+            guard let self = self,
+                  self.isListening,
+                  self.hasDetectedSpeechInCurrentSession,
+                  self.automaticallyFinalizeOnSilence else { return }
             let finalText = self.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !finalText.isEmpty {
                 self.finalizeTranscription(finalText)
             }
         }
     }
-    
+
     private func finalizeTranscription(_ text: String) {
-        let textToSend = text
+        let textToSend = text.trimmingCharacters(in: .whitespacesAndNewlines)
         stopListening()
+        guard !textToSend.isEmpty else {
+            state = .idle
+            return
+        }
         state = .processing
         HapticService.shared.notificationSuccess()
         onFinalTranscription?(textToSend)
     }
-    
-    // MARK: - Mesure de l'Énergie Vocale pour l'Animation de l'Onde
-    
+
+    // MARK: - Niveau réel du micro
+
     private func calculateAudioEnergy(buffer: AVAudioPCMBuffer) {
-        guard let channelData = buffer.floatChannelData?[0] else { return }
-        let frameLength = UInt(buffer.frameLength)
-        
+        guard let channelData = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return }
+        let frameLength = Int(buffer.frameLength)
+
         var sum: Float = 0.0
-        for i in 0..<Int(frameLength) {
+        for i in 0..<frameLength {
             let sample = channelData[i]
             sum += sample * sample
         }
+
         let rms = sqrt(sum / Float(frameLength))
-        let normalized = min(1.0, max(0.0, rms * 10.0))
+        // Courbe logarithmique douce : les voix faibles restent visibles sans
+        // transformer le silence en animation artificielle.
+        let db = 20.0 * log10(max(rms, 0.000_001))
+        let normalized = min(1.0, max(0.0, (db + 55.0) / 45.0))
 
         let now = Date().timeIntervalSinceReferenceDate
         guard now - lastEnergyPublishTime >= energyPublishInterval else { return }
@@ -285,15 +290,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         DispatchQueue.main.async {
             guard self.isListening else { return }
             self.micEnergyLevel = normalized
-            NotificationCenter.default.post(
-                name: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"),
-                object: nil
-            )
+            NotificationCenter.default.post(name: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"), object: nil)
         }
     }
-    
-    // MARK: - SFSpeechRecognizerDelegate
-    
+
     public func speechRecognizer(_ speechRecognizer: SFSpeechRecognizer, availabilityDidChange available: Bool) {
         if !available {
             stopListening()
@@ -306,13 +306,13 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 @available(iOS 13.0, *)
 public final class ObservableSpeechRecognizer: ObservableObject {
     public static let shared = ObservableSpeechRecognizer()
-    
+
     @Published public var isListening: Bool = AppleSpeechRecognizer.shared.isListening
     @Published public var currentLiveText: String = AppleSpeechRecognizer.shared.currentLiveText
     @Published public var micEnergyLevel: Float = AppleSpeechRecognizer.shared.micEnergyLevel
-    
+
     private var cancellables = Set<AnyCancellable>()
-    
+
     private init() {
         NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerListeningChanged"))
             .receive(on: DispatchQueue.main)
