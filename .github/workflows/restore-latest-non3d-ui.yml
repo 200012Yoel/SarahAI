@@ -1,0 +1,30 @@
+name: Restore Latest Non-3D Sarah UI
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/restore-latest-non3d-ui.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore latest non-3D UI and voice behavior
+        run: python3 .github/scripts/restore_latest_non3d_ui.py
+      - name: Validate no 3D returned
+        run: |
+          ! grep -Eq 'SceneKit|RealityKit|Model3D|Sarah3DEnvironmentStudioView|cube\.transparent' SarahIA/SarahIA/Views/ChatScreenView.swift
+      - name: Commit restored production files
+        run: |
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@github.com"
+          git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift SarahIA/SarahIA/Views/ChatScreenView.swift
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Restore latest voice and media composer without 3D"
+            git push origin HEAD:main
+          fi
