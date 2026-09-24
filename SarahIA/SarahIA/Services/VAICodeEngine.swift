@@ -1,4 +1,5 @@
 import Foundation
+import WebKit
 
 /// Moteur de Code Autonome Raphaël (Agent Développeur & VAI Coding).
 /// Capable de générer du code Web (HTML/CSS/JS monopage), Swift, Python,
@@ -601,5 +602,472 @@ public final class VAICodeEngine {
           ]
         }
         """
+    }
+}
+
+
+// MARK: - Raphaël Agentic Web Pipeline
+
+public struct SarahWebAuditReport: Codable, Equatable {
+    public var errors: [String]
+    public var warnings: [String]
+    public var passedChecks: [String]
+    public var isPassing: Bool { errors.isEmpty }
+}
+
+public struct SarahBrowserSmokeReport: Codable, Equatable {
+    public var passed: Bool
+    public var title: String
+    public var buttonCount: Int
+    public var linkCount: Int
+    public var brokenImages: Int
+    public var horizontalOverflow: Bool
+    public var javascriptErrors: [String]
+    public var details: String
+}
+
+public struct SarahAgenticWebBuildResult {
+    public var html: String
+    public var revision: Int
+    public var wasRefinement: Bool
+    public var architectModel: SarahCodingModelProfile
+    public var implementerModel: SarahCodingModelProfile
+    public var staticAudit: SarahWebAuditReport
+    public var browserAudit: SarahBrowserSmokeReport?
+    public var usedRemoteModels: Bool
+}
+
+private struct SarahPersistentWebProject: Codable {
+    var rootRequest: String
+    var latestInstruction: String
+    var html: String
+    var revision: Int
+    var updatedAt: Date
+}
+
+/// Client générique pour un serveur OpenAI-compatible contrôlé par l'utilisateur.
+/// Sarah n'envoie rien sur le réseau tant qu'aucun endpoint n'est configuré.
+public final class SarahCodingRuntime {
+    public static let shared = SarahCodingRuntime()
+    private init() {}
+
+    public var endpointString: String {
+        UserDefaults.standard.string(forKey: "sarahCodingEndpoint")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    public var isConfigured: Bool { resolvedEndpoint != nil }
+
+    private var resolvedEndpoint: URL? {
+        guard !endpointString.isEmpty else { return nil }
+        var value = endpointString
+        if value.hasSuffix("/v1") {
+            value += "/chat/completions"
+        } else if !value.contains("/chat/completions") {
+            value = value.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/v1/chat/completions"
+        }
+        return URL(string: value)
+    }
+
+    public func generate(
+        model: SarahCodingModelProfile,
+        system: String,
+        user: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        guard let endpoint = resolvedEndpoint else {
+            completion(.failure(NSError(domain: "SarahCodingRuntime", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucun endpoint de code configuré"])))
+            return
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 150
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload: [String: Any] = [
+            "model": model.identifier,
+            "temperature": model.role == .architect ? 0.30 : 0.15,
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": user]
+            ]
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+            guard let http = response as? HTTPURLResponse,
+                  (200..<300).contains(http.statusCode),
+                  let data = data else {
+                completion(.failure(NSError(domain: "SarahCodingRuntime", code: 2, userInfo: [NSLocalizedDescriptionKey: "Réponse invalide du serveur de code"])))
+                return
+            }
+            do {
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let choices = json["choices"] as? [[String: Any]],
+                      let first = choices.first,
+                      let message = first["message"] as? [String: Any],
+                      let content = message["content"] as? String else {
+                    throw NSError(domain: "SarahCodingRuntime", code: 3, userInfo: [NSLocalizedDescriptionKey: "Format de réponse non reconnu"])
+                }
+                completion(.success(content))
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+}
+
+extension VAICodeEngine {
+    private var agenticProjectURL: URL {
+        workspaceDirectory.appendingPathComponent("current_web_project.json")
+    }
+
+    private func loadAgenticProject() -> SarahPersistentWebProject? {
+        guard let data = try? Data(contentsOf: agenticProjectURL) else { return nil }
+        return try? JSONDecoder().decode(SarahPersistentWebProject.self, from: data)
+    }
+
+    private func persistAgenticProject(_ project: SarahPersistentWebProject) {
+        if let data = try? JSONEncoder().encode(project) {
+            try? data.write(to: agenticProjectURL, options: .atomic)
+        }
+        _ = saveFile(filename: "index.html", content: project.html)
+    }
+
+    public func currentWebProjectHTML() -> String? { loadAgenticProject()?.html }
+
+    public func resetCurrentWebProject() {
+        try? FileManager.default.removeItem(at: agenticProjectURL)
+    }
+
+    public func auditWebHTML(_ html: String) -> SarahWebAuditReport {
+        let lower = html.lowercased()
+        var errors: [String] = []
+        var warnings: [String] = []
+        var passed: [String] = []
+
+        if lower.contains("<!doctype html") { passed.append("DOCTYPE") } else { errors.append("DOCTYPE manquant") }
+        if lower.contains("name=\"viewport\"") || lower.contains("name='viewport'") { passed.append("Viewport mobile") } else { errors.append("Viewport mobile manquant") }
+        if lower.contains("<html") && lower.contains("</html>") { passed.append("Document HTML fermé") } else { errors.append("Balises HTML incomplètes") }
+        if lower.contains("<body") && lower.contains("</body>") { passed.append("Body présent") } else { errors.append("Body incomplet") }
+        if lower.contains("@media") || lower.contains("clamp(") || lower.contains("min(") { passed.append("Responsive CSS") } else { warnings.append("Peu de règles responsive détectées") }
+        if lower.contains("document.write(") { warnings.append("document.write() détecté") }
+        if html.count > 750_000 { warnings.append("Document très volumineux") }
+
+        return SarahWebAuditReport(errors: errors, warnings: warnings, passedChecks: passed)
+    }
+
+    private func extractHTMLDocument(_ raw: String) -> String? {
+        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let start = cleaned.range(of: "```html", options: .caseInsensitive),
+           let end = cleaned.range(of: "```", options: [], range: start.upperBound..<cleaned.endIndex) {
+            cleaned = String(cleaned[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            cleaned = cleaned.replacingOccurrences(of: "```html", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard cleaned.lowercased().contains("<html") || cleaned.lowercased().contains("<!doctype html") else { return nil }
+        return cleaned
+    }
+
+    private func stabilizeHTML(_ html: String) -> String {
+        var result = html
+        if !result.lowercased().contains("<!doctype html") {
+            result = "<!doctype html>\n" + result
+        }
+        if !result.lowercased().contains("name=\"viewport\"") && !result.lowercased().contains("name='viewport'") {
+            let viewport = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
+            if let range = result.range(of: "<head>", options: .caseInsensitive) {
+                result.insert(contentsOf: "\n" + viewport, at: range.upperBound)
+            }
+        }
+        let safetyCSS = """
+        <style id="sarah-agentic-safety">
+        html,body{max-width:100%;overflow-x:hidden}img,video,canvas,svg,iframe{max-width:100%;height:auto}*{box-sizing:border-box}
+        </style>
+        """
+        if !result.contains("sarah-agentic-safety") {
+            result = result.replacingOccurrences(of: "</head>", with: safetyCSS + "\n</head>", options: .caseInsensitive)
+        }
+        return result
+    }
+
+    private func appleStyleRefinement(_ html: String) -> String {
+        guard !html.contains("sarah-apple-refinement") else { return html }
+        let patch = """
+        <style id="sarah-apple-refinement">
+        :root{--sarah-glass:rgba(255,255,255,.075);--sarah-line:rgba(255,255,255,.12)}
+        body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+        button,a,input,textarea,select{border-radius:14px}
+        .card,.feature,.tool,.product,section{backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+        button,a{transition:transform .18s ease,opacity .18s ease}button:active,a:active{transform:scale(.98)}
+        </style>
+        """
+        return html.replacingOccurrences(of: "</head>", with: patch + "\n</head>", options: .caseInsensitive)
+    }
+
+    private func applyLiteralEditIfPossible(_ instruction: String, html: String) -> String? {
+        let patterns = [
+            #"(?i)remplace\s+[«\"“](.+?)[»\"”]\s+par\s+[«\"“](.+?)[»\"”]"#,
+            #"(?i)change\s+[«\"“](.+?)[»\"”]\s+(?:en|par)\s+[«\"“](.+?)[»\"”]"#
+        ]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(instruction.startIndex..., in: instruction)
+            guard let match = regex.firstMatch(in: instruction, range: range), match.numberOfRanges >= 3,
+                  let oldRange = Range(match.range(at: 1), in: instruction),
+                  let newRange = Range(match.range(at: 2), in: instruction) else { continue }
+            let old = String(instruction[oldRange])
+            let new = String(instruction[newRange])
+            if html.contains(old) { return html.replacingOccurrences(of: old, with: new) }
+        }
+        return nil
+    }
+
+    public func createOrRefineWebsite(prompt: String) -> SarahAgenticWebBuildResult {
+        let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = clean.lowercased()
+        let existing = loadAgenticProject()
+        let explicitNew = lower.contains("nouveau site") || lower.contains("nouveau projet") || lower.contains("repars de zéro") || lower.contains("repars de zero")
+        let refinementWords = ["corrige", "change", "remplace", "modifie", "améliore", "ameliore", "erreur", "bug", "plus beau", "style apple", "ajoute", "supprime", "déplace", "deplace"]
+        let looksLikeRefinement = refinementWords.contains { lower.contains($0) }
+        let shouldRefine = existing != nil && !explicitNew && looksLikeRefinement
+
+        var rootRequest = clean
+        var html: String
+        var revision = 1
+
+        if shouldRefine, let existing = existing {
+            rootRequest = existing.rootRequest
+            revision = existing.revision + 1
+            if let edited = applyLiteralEditIfPossible(clean, html: existing.html) {
+                html = edited
+            } else if lower.contains("apple") || lower.contains("plus beau") || lower.contains("design") || lower.contains("interface") {
+                html = appleStyleRefinement(existing.html)
+            } else {
+                html = generateWebUI(prompt: existing.rootRequest + "\nModification : " + clean)
+            }
+        } else {
+            html = generateWebUI(prompt: clean)
+        }
+
+        html = stabilizeHTML(html)
+        let audit = auditWebHTML(html)
+        let project = SarahPersistentWebProject(rootRequest: rootRequest, latestInstruction: clean, html: html, revision: revision, updatedAt: Date())
+        persistAgenticProject(project)
+
+        return SarahAgenticWebBuildResult(
+            html: html,
+            revision: revision,
+            wasRefinement: shouldRefine,
+            architectModel: SarahCodingModelCatalog.architect,
+            implementerModel: SarahCodingModelCatalog.implementer,
+            staticAudit: audit,
+            browserAudit: nil,
+            usedRemoteModels: false
+        )
+    }
+
+    private func architectSystemPrompt() -> String {
+        """
+        Tu es l'architecte web de Sarah IA. Comprends précisément la demande en langage naturel, conserve les contraintes du projet déjà créé, repère les erreurs et prépare un plan exécutable pour un second modèle. Réponds uniquement avec un plan concis et structuré, sans HTML complet.
+        """
+    }
+
+    private func implementerSystemPrompt() -> String {
+        """
+        Tu es le Code Worker de Sarah IA. Retourne uniquement un document HTML autonome complet avec CSS et JavaScript intégrés. Respecte le plan, préserve les fonctions déjà valides du projet existant, corrige les bugs signalés, rends le site responsive et accessible, et n'ajoute aucune fonctionnalité factice présentée comme réelle.
+        """
+    }
+
+    private func repairSystemPrompt() -> String {
+        """
+        Tu es le relecteur final du Code Worker. Retourne uniquement le HTML complet corrigé. Corrige les erreurs WebKit, le débordement horizontal, les erreurs JavaScript et les balises incomplètes sans supprimer les fonctions valides du site.
+        """
+    }
+
+    private func remoteAgenticBuild(prompt: String, completion: @escaping (SarahAgenticWebBuildResult?) -> Void) {
+        let existing = loadAgenticProject()
+        let context = existing.map { "Projet existant, révision \($0.revision). Demande initiale : \($0.rootRequest)\nHTML actuel :\n\($0.html)" } ?? "Aucun projet existant."
+
+        SarahCodingRuntime.shared.generate(
+            model: SarahCodingModelCatalog.architect,
+            system: architectSystemPrompt(),
+            user: context + "\n\nNouvelle demande : " + prompt
+        ) { architectResult in
+            guard case .success(let plan) = architectResult else { completion(nil); return }
+
+            let implementerUser = "Plan de l'architecte :\n\(plan)\n\nDemande utilisateur :\n\(prompt)\n\nHTML précédent si présent :\n\(existing?.html ?? "Aucun")"
+            SarahCodingRuntime.shared.generate(
+                model: SarahCodingModelCatalog.implementer,
+                system: self.implementerSystemPrompt(),
+                user: implementerUser
+            ) { codeResult in
+                guard case .success(let rawCode) = codeResult,
+                      var html = self.extractHTMLDocument(rawCode) else { completion(nil); return }
+
+                html = self.stabilizeHTML(html)
+                let revision = (existing?.revision ?? 0) + 1
+                let root = existing?.rootRequest ?? prompt
+                let project = SarahPersistentWebProject(rootRequest: root, latestInstruction: prompt, html: html, revision: revision, updatedAt: Date())
+                self.persistAgenticProject(project)
+                completion(SarahAgenticWebBuildResult(
+                    html: html,
+                    revision: revision,
+                    wasRefinement: existing != nil,
+                    architectModel: SarahCodingModelCatalog.architect,
+                    implementerModel: SarahCodingModelCatalog.implementer,
+                    staticAudit: self.auditWebHTML(html),
+                    browserAudit: nil,
+                    usedRemoteModels: true
+                ))
+            }
+        }
+    }
+
+    public func runBrowserSmokeTest(html: String, completion: @escaping (SarahBrowserSmokeReport) -> Void) {
+        DispatchQueue.main.async {
+            let config = WKWebViewConfiguration()
+            let probe = """
+            window.__sarahErrors = [];
+            window.addEventListener('error', function(e) {
+              window.__sarahErrors.push(String(e.message || 'JavaScript error'));
+            });
+            window.addEventListener('unhandledrejection', function(e) {
+              window.__sarahErrors.push(String(e.reason || 'Unhandled promise rejection'));
+            });
+            """
+            config.userContentController.addUserScript(WKUserScript(source: probe, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: config)
+            webView.loadHTMLString(html, baseURL: nil)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                let script = """
+                (() => JSON.stringify({
+                  title: document.title || '',
+                  buttons: document.querySelectorAll('button').length,
+                  links: document.querySelectorAll('a').length,
+                  body: !!document.body,
+                  ready: document.readyState,
+                  overflow: document.documentElement.scrollWidth > (window.innerWidth + 2),
+                  brokenImages: Array.from(document.images).filter(i => i.complete && i.naturalWidth === 0).length,
+                  errors: window.__sarahErrors || []
+                }))()
+                """
+                webView.evaluateJavaScript(script) { value, error in
+                    if let error = error {
+                        completion(SarahBrowserSmokeReport(passed: false, title: "", buttonCount: 0, linkCount: 0, brokenImages: 0, horizontalOverflow: false, javascriptErrors: [error.localizedDescription], details: error.localizedDescription))
+                        return
+                    }
+                    guard let jsonString = value as? String,
+                          let data = jsonString.data(using: .utf8),
+                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        completion(SarahBrowserSmokeReport(passed: false, title: "", buttonCount: 0, linkCount: 0, brokenImages: 0, horizontalOverflow: false, javascriptErrors: [], details: "Le DOM n'a pas répondu au test."))
+                        return
+                    }
+
+                    let title = json["title"] as? String ?? ""
+                    let buttons = json["buttons"] as? Int ?? 0
+                    let links = json["links"] as? Int ?? 0
+                    let body = json["body"] as? Bool ?? false
+                    let ready = json["ready"] as? String ?? ""
+                    let overflow = json["overflow"] as? Bool ?? false
+                    let brokenImages = json["brokenImages"] as? Int ?? 0
+                    let jsErrors = json["errors"] as? [String] ?? []
+                    let passed = body && (ready == "complete" || ready == "interactive") && !overflow && jsErrors.isEmpty
+
+                    var details: [String] = []
+                    details.append("DOM: \(ready.isEmpty ? "inconnu" : ready)")
+                    if overflow { details.append("débordement horizontal") }
+                    if brokenImages > 0 { details.append("\(brokenImages) image(s) cassée(s)") }
+                    if !jsErrors.isEmpty { details.append("\(jsErrors.count) erreur(s) JavaScript") }
+                    if passed { details.append("rendu mobile valide") }
+
+                    completion(SarahBrowserSmokeReport(
+                        passed: passed,
+                        title: title,
+                        buttonCount: buttons,
+                        linkCount: links,
+                        brokenImages: brokenImages,
+                        horizontalOverflow: overflow,
+                        javascriptErrors: jsErrors,
+                        details: details.joined(separator: " · ")
+                    ))
+                }
+            }
+        }
+    }
+
+    private func repairRemoteBuild(_ build: SarahAgenticWebBuildResult, report: SarahBrowserSmokeReport, completion: @escaping (SarahAgenticWebBuildResult) -> Void) {
+        guard SarahCodingRuntime.shared.isConfigured else { completion(build); return }
+        let auditText = "WebKit: \(report.details)\nErreurs JavaScript: \(report.javascriptErrors.joined(separator: " | "))\nAudit statique: \(build.staticAudit.errors.joined(separator: " | "))"
+        SarahCodingRuntime.shared.generate(
+            model: SarahCodingModelCatalog.implementer,
+            system: repairSystemPrompt(),
+            user: "Voici le HTML à corriger :\n\(build.html)\n\nRapport de test :\n\(auditText)"
+        ) { result in
+            guard case .success(let raw) = result,
+                  var repaired = self.extractHTMLDocument(raw) else { completion(build); return }
+            repaired = self.stabilizeHTML(repaired)
+            var updated = build
+            updated.html = repaired
+            updated.staticAudit = self.auditWebHTML(repaired)
+            if var project = self.loadAgenticProject() {
+                project.html = repaired
+                project.updatedAt = Date()
+                self.persistAgenticProject(project)
+            }
+            completion(updated)
+        }
+    }
+
+    public func buildAndTestWebsite(prompt: String, completion: @escaping (SarahAgenticWebBuildResult) -> Void) {
+        let finish: (SarahAgenticWebBuildResult) -> Void = { build in
+            self.runBrowserSmokeTest(html: build.html) { firstReport in
+                if firstReport.passed {
+                    var final = build
+                    final.browserAudit = firstReport
+                    completion(final)
+                    return
+                }
+
+                self.repairRemoteBuild(build, report: firstReport) { repairedBuild in
+                    let locallyStabilized = self.stabilizeHTML(repairedBuild.html)
+                    self.runBrowserSmokeTest(html: locallyStabilized) { secondReport in
+                        var final = repairedBuild
+                        final.html = locallyStabilized
+                        final.staticAudit = self.auditWebHTML(locallyStabilized)
+                        final.browserAudit = secondReport
+                        if var project = self.loadAgenticProject() {
+                            project.html = locallyStabilized
+                            project.updatedAt = Date()
+                            self.persistAgenticProject(project)
+                        }
+                        completion(final)
+                    }
+                }
+            }
+        }
+
+        if SarahCodingRuntime.shared.isConfigured {
+            remoteAgenticBuild(prompt: prompt) { remote in
+                if let remote = remote { finish(remote) }
+                else { finish(self.createOrRefineWebsite(prompt: prompt)) }
+            }
+        } else {
+            finish(createOrRefineWebsite(prompt: prompt))
+        }
     }
 }

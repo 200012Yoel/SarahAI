@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Vue Réglages épurée et optimisée de Sarah AI Multi-Agents (100% Moteur Local On-Device) :
+/// Vue Réglages de Sarah AI Multi-Agents : moteurs locaux, voix et runtime de code agentique optionnel :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
 /// - Section Connexions : Instagram, TikTok, YouTube, Twitter/X, GitHub, Google
 /// - Écosystème des 6 Agents & Voix Siri dédiées
@@ -1498,11 +1498,14 @@ private struct LocalGenerationSettingsView: View {
 @available(iOS 15.0, *)
 private struct SarahEngineSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @AppStorage("sarahCodingEndpoint") private var codingEndpoint: String = ""
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
     private let musicProfile = SarahGenerativeModelCatalog.musicProfile()
     private let vocalSongProfile = SarahGenerativeModelCatalog.vocalSongProfile()
+    private let codingArchitect = SarahCodingModelCatalog.architect
+    private let codingImplementer = SarahCodingModelCatalog.implementer
 
     var body: some View {
         ZStack {
@@ -1519,6 +1522,51 @@ private struct SarahEngineSettingsView: View {
                             format: "%.1f Go de RAM détectés",
                             SarahGenerativeModelCatalog.physicalRAMGB
                         )
+                    )
+
+                    engineCard(
+                        icon: "text.bubble.fill",
+                        tint: .blue,
+                        title: "Code · Architecte",
+                        value: codingArchitect.displayName,
+                        detail: codingArchitect.executionNote
+                    )
+
+                    engineCard(
+                        icon: "hammer.fill",
+                        tint: .indigo,
+                        title: "Code · Code Worker",
+                        value: codingImplementer.displayName,
+                        detail: codingImplementer.executionNote
+                    )
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Runtime de code agentique", systemImage: "network")
+                            .font(.headline)
+                            .foregroundColor(.white)
+
+                        TextField("https://serveur-local:8000", text: $codingEndpoint)
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                            .keyboardType(.URL)
+                            .padding(12)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                        Text(codingEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                             ? "Aucun serveur configuré : Raphaël utilise son générateur local de secours. Ajoute un endpoint OpenAI-compatible pour activer l’Architecte puis le Code Worker."
+                             : "Endpoint configuré. Raphaël tentera d’abord les deux modèles de code puis reviendra au moteur local si le serveur est indisponible.")
+                            .font(.footnote)
+                            .foregroundColor(Color.white.opacity(0.54))
+
+                        Text("Aucune clé API n’est enregistrée ici. Ce réglage est prévu d’abord pour un serveur local ou auto-hébergé que tu contrôles.")
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.38))
+                    }
+                    .padding(16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.white.opacity(0.075))
                     )
 
                     engineCard(
@@ -1693,6 +1741,28 @@ private struct AboutSettingsView: View {
                 }
             }
 
+            Section("Développement agentique") {
+                HStack {
+                    Text("Architecte")
+                    Spacer()
+                    Text(SarahCodingModelCatalog.architect.displayName)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                HStack {
+                    Text("Code Worker")
+                    Spacer()
+                    Text(SarahCodingModelCatalog.implementer.displayName)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                Text("Raphaël conserve la dernière révision du site, applique les nouvelles consignes sur ce même projet puis charge le HTML dans WebKit pour vérifier le DOM, le JavaScript et le responsive. Sarah reste l’orchestratrice des familles de modèles.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Informations légales") {
                 NavigationLink(destination: LegalNoticesView()) {
                     SettingsHomeRow(
@@ -1772,6 +1842,16 @@ private struct LegalNoticesView: View {
                         .foregroundColor(.secondary)
                     Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                     Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
+                }
+
+                Section("Développement agentique — Qwen3-Coder") {
+                    Text("Sarah IA référence Qwen3-Coder-Next pour le rôle d’architecte et Qwen3-Coder-30B-A3B-Instruct pour le rôle de Code Worker. Les deux modèles sont publiés sous licence Apache-2.0.")
+                    Text("Leurs poids ne sont pas distribués dans l’IPA. L’application sait appeler un endpoint OpenAI-compatible configuré par l’utilisateur ; sans endpoint, Raphaël utilise le moteur local de secours et l’indique explicitement.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Link("Qwen3-Coder-Next", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-Coder-Next")!)
+                    Link("Qwen3-Coder-30B-A3B-Instruct", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct")!)
+                    Link("Licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
                 }
 
                 Section("Génération d’images — cible locale") {

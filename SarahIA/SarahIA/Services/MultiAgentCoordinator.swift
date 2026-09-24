@@ -366,6 +366,9 @@ public final class MultiAgentCoordinator {
         // Esther (Code, VAI Coding, Shortcuts, HTML/JS, Swift, Python, Figma)
         if normalized.contains("esther") || normalized.contains("raphael") ||
            normalized.contains("code") || normalized.contains("programme") ||
+           normalized.contains("site web") || normalized.contains("site internet") ||
+           normalized.contains("website") || normalized.contains("page web") ||
+           normalized.contains("frontend") || normalized.contains("javascript") ||
            normalized.contains("shortcut") || normalized.contains("raccourci") ||
            normalized.contains("html") || normalized.contains("swift") ||
            normalized.contains("python") || normalized.contains("figma") ||
@@ -628,7 +631,7 @@ public final class MultiAgentCoordinator {
         
         // 1. Préparation de publication : ne jamais inventer une URL publique.
         if lower.contains("met en ligne") || lower.contains("mettre en ligne") || lower.contains("deploie") || lower.contains("deploiement") || lower.contains("deploy") || lower.contains("publie") {
-            let currentCode = VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
+            let currentCode = VAICodeEngine.shared.currentWebProjectHTML() ?? VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
             let (_, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
             completion(AgentResponse(
                 agent: .esther,
@@ -723,19 +726,43 @@ public final class MultiAgentCoordinator {
                 generatedCode: python
             ))
         }
-        // 7. Projet web par défaut
+        // 7. Projet web agentique : Raphaël conserve le projet et ses révisions.
         else {
-            let html = VAICodeEngine.shared.generateWebUI(prompt: prompt)
-            _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
-            DevCodeInjector.injectRender(html: html, css: "", js: "")
-            let responseText = "💻 **Raphaël [Prototype web]**\n\nJ’ai préparé un composant web dans `Documents/VAI_Workspace/index.html`. Ouvre le Studio si tu veux voir la prévisualisation, puis demande-moi les améliorations souhaitées."
-            completion(AgentResponse(
-                agent: .esther,
-                text: responseText,
-                spokenText: "Le prototype web est prêt. Tu peux ouvrir le Studio pour le voir, puis me demander des améliorations.",
-                openStudio: true,
-                generatedCode: html
-            ))
+            VAICodeEngine.shared.buildAndTestWebsite(prompt: prompt) { build in
+                DevCodeInjector.injectRender(html: build.html, css: "", js: "")
+
+                let browserStatus: String
+                if let browser = build.browserAudit {
+                    browserStatus = browser.passed
+                        ? "✅ WebKit : DOM chargé, JavaScript propre et largeur mobile valide."
+                        : "⚠️ WebKit : \(browser.details)"
+                } else {
+                    browserStatus = "⚠️ Test WebKit indisponible."
+                }
+
+                let modelStatus = build.usedRemoteModels
+                    ? "\(build.architectModel.displayName) → \(build.implementerModel.displayName)"
+                    : "Moteur local de secours. Configure un endpoint OpenAI-compatible dans Réglages > Sarah Engine pour activer les deux modèles de code."
+
+                let action = build.wasRefinement ? "mise à jour" : "création"
+                let responseText = """
+                💻 **Raphaël [Atelier Web Agentique]**
+
+                Révision **#\(build.revision)** · \(action) terminée.
+                **Pipeline :** \(modelStatus)
+                \(browserStatus)
+
+                Le fichier courant est `Documents/VAI_Workspace/index.html`. Tu peux maintenant dire « corrige ce bouton », « change ce texte », « ajoute une section » ou « rends-le plus Apple » dans la même discussion : Raphaël repartira de cette révision.
+                """
+
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: responseText,
+                    spokenText: "La révision \(build.revision) est prête. Le site a été chargé et testé dans WebKit. Tu peux me demander une nouvelle correction dans la même discussion.",
+                    openStudio: true,
+                    generatedCode: build.html
+                ))
+            }
         }
     }
     

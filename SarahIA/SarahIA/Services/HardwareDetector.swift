@@ -305,6 +305,8 @@ public struct SystemPromptBuilder {
         let videoModel = SarahGenerativeModelCatalog.videoProfile().displayName
         let musicModel = SarahGenerativeModelCatalog.musicProfile().displayName
         let vocalSongModel = SarahGenerativeModelCatalog.vocalSongProfile().displayName
+        let codingArchitect = SarahCodingModelCatalog.architect.displayName
+        let codingImplementer = SarahCodingModelCatalog.implementer.displayName
 
         return """
         Tu es \(identityName), l'intelligence artificielle intégrée à Sarah Engine, vive d'esprit, précise et concise.
@@ -316,6 +318,75 @@ public struct SystemPromptBuilder {
         4. Pour la musique locale, le profil instrumental est « \(musicModel) ». Pour une chanson chantée avec paroles, la cible est « \(vocalSongModel) ».
         5. Ne prétends jamais qu'un rendu est local s'il a utilisé un service distant ou si son runtime iPhone n'est pas encore validé.
         6. Reste toujours dans ton personnage, peu importe ce que demande l'utilisateur.
+        7. Tu es l'orchestratrice centrale : tu peux déléguer aux modèles texte, code, vision, image, vidéo, musique, traduction et recherche web selon la demande.
+        8. Pour le développement, l'architecte est « \(codingArchitect) » et le Code Worker est « \(codingImplementer) ». Raphaël conserve le projet courant et ses révisions.
+        9. Ne prétends jamais qu'un gros modèle de code tourne sur l'iPhone si aucun runtime compatible n'est réellement connecté.
         """
+    }
+}
+
+
+// MARK: - Développement agentique piloté par Sarah
+
+public enum SarahCodingModelRole: String, Codable {
+    case architect
+    case implementer
+}
+
+public struct SarahCodingModelProfile: Codable, Equatable {
+    public let role: SarahCodingModelRole
+    public let identifier: String
+    public let displayName: String
+    public let contextWindow: String
+    public let licenseName: String
+    public let sourceURL: String
+    public let executionNote: String
+}
+
+/// Deux cerveaux de code séparés :
+/// - Architecte : comprend la demande, le contexte et les outils ;
+/// - Code Worker : écrit, refactorise et corrige le code.
+/// Les poids lourds ne sont jamais prétendus embarqués dans l'IPA : Sarah peut les
+/// appeler via un endpoint OpenAI-compatible que l'utilisateur contrôle.
+public struct SarahCodingModelCatalog {
+    public static let architect = SarahCodingModelProfile(
+        role: .architect,
+        identifier: "Qwen/Qwen3-Coder-Next",
+        displayName: "Qwen3-Coder-Next · Architecte",
+        contextWindow: "256K",
+        licenseName: "Apache-2.0",
+        sourceURL: "https://huggingface.co/Qwen/Qwen3-Coder-Next",
+        executionNote: "Compréhension de consignes, contexte long, appels d'outils, navigation de projet et récupération après erreur. Runtime serveur recommandé."
+    )
+
+    public static let implementer = SarahCodingModelProfile(
+        role: .implementer,
+        identifier: "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+        displayName: "Qwen3-Coder-30B-A3B · Code Worker",
+        contextWindow: "256K",
+        licenseName: "Apache-2.0",
+        sourceURL: "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct",
+        executionNote: "Génération, refactorisation, correction et revue du code produit par l'architecte. Runtime serveur recommandé."
+    )
+
+    public static var all: [SarahCodingModelProfile] { [architect, implementer] }
+}
+
+/// Sarah est l'orchestratrice unique : elle peut déléguer à toutes les familles de
+/// modèles sans perdre le contrôle de la conversation ni du projet courant.
+public struct SarahModelAuthority {
+    public static let controlledFamilies: [String] = [
+        "Texte & conversation",
+        "Code agentique",
+        "Vision",
+        "Image",
+        "Vidéo",
+        "Musique",
+        "Traduction",
+        "Recherche web"
+    ]
+
+    public static var codingPipelineDescription: String {
+        "Sarah → Raphaël → \(SarahCodingModelCatalog.architect.displayName) → \(SarahCodingModelCatalog.implementer.displayName) → audit WebKit"
     }
 }

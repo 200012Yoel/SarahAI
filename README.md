@@ -64,3 +64,12 @@ L'orchestration est pilotée par **Sarah**. L'utilisateur bascule instantanémen
 * **Systèmes supportés** : iOS 12.0, iOS 13.0, iOS 14.0, iOS 15.0, iOS 16.0, iOS 17.0, iOS 18.0+
 * **Appareils compatibles** : De l'iPhone 5s à l'iPhone 17 Pro Max.
 * **Outils d'installation** : Sideloadly, AltStore, TrollStore, Xcode.
+
+
+## Raphaël · développement agentique
+
+Sarah reste l'orchestratrice centrale. Pour le développement web, Raphaël utilise une architecture à deux rôles : **Qwen3-Coder-Next** comme architecte de projet et **Qwen3-Coder-30B-A3B-Instruct** comme Code Worker. Les gros poids ne sont pas embarqués dans l'IPA : un endpoint OpenAI-compatible auto-hébergé peut être configuré dans les réglages. Sans endpoint, l'application garde son générateur local de secours.
+
+Le projet web courant est persisté dans `Documents/VAI_Workspace/index.html` avec un numéro de révision. Les demandes suivantes peuvent modifier la même base. Chaque génération passe ensuite dans un audit statique puis dans un `WKWebView` de test qui vérifie le chargement DOM, les erreurs JavaScript capturées et les débordements horizontaux.
+
+La branche produit ne contient plus de moteur SceneKit/RealityKit ni de ressource USDZ/Reality liée à une fonctionnalité 3D.
