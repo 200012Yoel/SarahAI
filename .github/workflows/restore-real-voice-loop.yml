@@ -1,0 +1,35 @@
+name: Restore Proven Sarah Voice Loop
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/restore-real-voice-loop.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore proven voice implementation
+        run: python3 .github/scripts/restore_real_voice_loop.py
+      - name: Validate patch
+        run: |
+          git diff --check
+          grep -q 'viewModel.startVoiceConversation()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'viewModel.stopVoiceConversation()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'self.isContinuousConversationActive && self.isShowingVoiceOrbModal' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          ! grep -Eq 'SceneKit|RealityKit|Model3D|Sarah3DEnvironmentStudioView|cube\.transparent' SarahIA/SarahIA/Views/ChatScreenView.swift
+      - name: Commit restored voice files
+        run: |
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@github.com"
+          git add SarahIA/SarahIA/Views/VoiceOrbModalView.swift SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift SarahIA/SarahIA/ViewModels/ChatViewModel.swift SarahIA/SarahIA/Views/ChatScreenView.swift
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Restore proven Sept 18 voice conversation loop"
+            git push origin HEAD:main
+          fi
