@@ -16,6 +16,7 @@ jobs:
 
       - name: Configure target
         run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 4002" SarahIA/SarahIA/Info.plist
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
 
       - name: Build Release
@@ -49,6 +50,26 @@ jobs:
           path: attachment-voice-build.log
           retention-days: 3
           if-no-files-found: ignore
+
+      - name: Navigation and keyboard regression on simulator
+        run: |
+          set -eo pipefail
+          python3 tools/add_ui_regression_target.py
+          xcrun simctl list devices available -j > /tmp/devices.json
+          DEVICE=$(python3 -c 'import json; d=json.load(open("/tmp/devices.json")); print(next(x["udid"] for xs in d["devices"].values() for x in xs if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+          xcodebuild -project SarahIA/SarahIA.xcodeproj -scheme SarahUIRegression -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath UITestDerivedData -resultBundlePath NavigationTests.xcresult CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET=16.2 test 2>&1 | tee navigation-tests.log
+      - name: Upload UI test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-navigation-tests
+          path: |
+            NavigationTests.xcresult
+            navigation-tests.log
+          retention-days: 3
 
       - name: Package IPA
         run: |

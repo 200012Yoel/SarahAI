@@ -94,7 +94,7 @@ public struct ChatScreenView: View {
 
             VStack(spacing: 0) {
                 topBar
-                    .padding(.top, topSafeArea)
+                    .padding(.top, 6)
                     .padding(.bottom, 6)
 
                 if let transition = viewModel.agentTransitionBanner {
@@ -340,11 +340,7 @@ public struct ChatScreenView: View {
                     isShowingSettings = true
                 }
             )
-            // Le mode vocal s'ouvre en grand. Un glissement vers le bas le
-            // ferme visuellement sans arrêter la session : la mini-barre vocale
-            // reste ensuite au-dessus du composer.
-            .presentationDetents([.large])
-            .presentationDragIndicator(.visible)
+
         } else {
             VoiceOrbModalView(
                 viewModel: viewModel,
@@ -381,6 +377,8 @@ public struct ChatScreenView: View {
                     )
             }
             .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityLabel("Ouvrir le menu")
+            .accessibilityIdentifier("chat.menu")
             
             Spacer()
             

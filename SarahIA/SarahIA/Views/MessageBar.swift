@@ -70,6 +70,7 @@ public struct MessageBar: View {
                     )
             }
             .accessibilityLabel("Ajouter une pièce jointe")
+            .accessibilityIdentifier("chat.attach")
 
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
@@ -77,6 +78,7 @@ public struct MessageBar: View {
                     submitMessage()
                 })
                 .focused($isComposerFocused)
+                .accessibilityIdentifier("chat.input")
                 .foregroundColor(.white)
                 .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
@@ -163,6 +165,7 @@ public struct MessageBar: View {
             )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
+            .accessibilityIdentifier("chat.sendOrVoice")
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Ouvrir le mode vocal"))
         }
         .padding(.horizontal, 12)

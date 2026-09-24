@@ -201,6 +201,7 @@ public struct VoiceOrbModalView: View {
                     .foregroundColor(.white)
 
                 Text("Mode vocal")
+                    .accessibilityIdentifier("voice.title")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.white.opacity(0.46))
             }
@@ -221,6 +222,7 @@ public struct VoiceOrbModalView: View {
                     viewModel.endVoiceConversation()
                     presentationMode.wrappedValue.dismiss()
                 }
+                .accessibilityIdentifier("voice.close")
             }
         }
     }

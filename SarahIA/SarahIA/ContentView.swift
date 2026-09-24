@@ -8,6 +8,8 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @GestureState private var drawerTranslation: CGFloat = 0
+    @Environment(\.scenePhase) private var scenePhase
 
     public init() {}
 
@@ -18,93 +20,65 @@ public struct ContentView: View {
                 max(CGFloat(278), geo.size.width * 0.84)
             )
 
+            let restingOffset: CGFloat = viewModel.isDrawerOpen ? 0 : -sidebarWidth
+            let offset = min(0, max(-sidebarWidth, restingOffset + drawerTranslation))
+            let progress = 1 + offset / sidebarWidth
+
             ZStack(alignment: .leading) {
-                ChatScreenView(
-                    viewModel: viewModel,
-                    isShowingSettings: $isShowingSettings
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .disabled(viewModel.isDrawerOpen)
+                ChatScreenView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(progress < 0.001)
+                    .accessibilityHidden(viewModel.isDrawerOpen)
 
-                if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
-                    Color.black
-                        .opacity(
-                            Double(
-                                viewModel.drawerProgress > 0.001
-                                    ? viewModel.drawerProgress
-                                    : (viewModel.isDrawerOpen ? 1.0 : 0.0)
-                            ) * 0.40
-                        )
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                                viewModel.closeDrawer()
-                            }
-                        }
+                Color.black.opacity(Double(progress) * 0.4)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(progress > 0.001)
+                    .accessibilityHidden(true)
+                    .onTapGesture { viewModel.closeDrawer() }
 
-                    SidebarView(
-                        viewModel: viewModel,
-                        isShowingSettings: $isShowingSettings
-                    )
-                    .frame(width: sidebarWidth)
-                    .frame(maxHeight: .infinity)
+                // Keep one drawer mounted. Only its offset animates; no insertion transition.
+                SidebarView(viewModel: viewModel, isShowingSettings: $isShowingSettings)
+                    .frame(width: sidebarWidth, height: geo.size.height)
                     .background(Color.black)
-                    .ignoresSafeArea(.all, edges: [.top, .bottom])
-                    .offset(
-                        x: (
-                            viewModel.drawerProgress > 0.001
-                                ? viewModel.drawerProgress - 1.0
-                                : (viewModel.isDrawerOpen ? 0.0 : -1.0)
-                        ) * sidebarWidth
-                    )
-                    .transition(.move(edge: .leading))
-                    .zIndex(1)
-                }
+                    .offset(x: offset)
+                    .allowsHitTesting(viewModel.isDrawerOpen)
+                    .accessibilityHidden(!viewModel.isDrawerOpen)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Étendre le contenu derrière l'encoche/Home Indicator sans ignorer
-            // la zone clavier. Avec .all, SwiftUI supprimait aussi la safe area
-            // du clavier et le composer finissait sous le clavier sur iOS 27.
-            .ignoresSafeArea(.container, edges: .top)
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { value in
-                        let horizontal = value.translation.width
-                        let vertical = value.translation.height
-
-                        if !viewModel.isDrawerOpen {
-                            if value.startLocation.x <= 28,
-                               horizontal > 0,
-                               abs(horizontal) > abs(vertical) * 0.6 {
-                                viewModel.drawerProgress = min(horizontal / sidebarWidth, 1.0)
-                            }
-                        } else if horizontal < 0 {
-                            viewModel.drawerProgress = max(
-                                0.0,
-                                1.0 + horizontal / sidebarWidth
-                            )
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+            .clipped()
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 20)
+                    .updating($drawerTranslation) { value, translation, _ in
+                        guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                        if viewModel.isDrawerOpen {
+                            translation = min(0, value.translation.width)
+                        } else if value.startLocation.x <= 24 {
+                            translation = max(0, value.translation.width)
                         }
                     }
                     .onEnded { value in
-                        let horizontal = value.translation.width
-                        let vertical = value.translation.height
-
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                            if !viewModel.isDrawerOpen,
-                               value.startLocation.x <= 28,
-                               horizontal > 40,
-                               abs(horizontal) > abs(vertical) * 0.6 {
-                                viewModel.openDrawer()
-                            } else if viewModel.isDrawerOpen && horizontal < -40 {
-                                viewModel.closeDrawer()
-                            } else if viewModel.isDrawerOpen && viewModel.drawerProgress > 0.4 {
-                                viewModel.openDrawer()
-                            } else {
+                        guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
+                        if viewModel.isDrawerOpen {
+                            if value.translation.width < -sidebarWidth * 0.3 || value.predictedEndTranslation.width < -sidebarWidth * 0.5 {
                                 viewModel.closeDrawer()
                             }
+                        } else if value.startLocation.x <= 24,
+                                  value.translation.width > sidebarWidth * 0.3 || (value.startLocation.x <= 24 && value.predictedEndTranslation.width > sidebarWidth * 0.5) {
+                            KeyboardObserver.shared.dismiss()
+                            viewModel.openDrawer()
                         }
                     }
             )
+        }
+        .background(Color.black.ignoresSafeArea())
+        .onChange(of: scenePhase) { phase in
+            if phase != .active {
+                viewModel.closeDrawer()
+            }
+            if phase == .background {
+                viewModel.finishDictation()
+                viewModel.stopVoiceConversation()
+            }
         }
         .preferredColorScheme(.dark)
         .tint(viewModel.activeAgent.themeColor)

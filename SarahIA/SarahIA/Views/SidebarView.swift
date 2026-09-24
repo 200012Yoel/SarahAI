@@ -27,7 +27,7 @@ public struct SidebarView: View {
             let titleSize = max(25, min(31, width * 0.085))
             let rowFont = max(16, min(19, width * 0.052))
             let circleSize = max(48, min(58, width * 0.16))
-            let insets = currentSafeAreaInsets
+            let insets = UIEdgeInsets.zero
 
             ZStack(alignment: .bottom) {
                 Color.black.ignoresSafeArea()
@@ -102,6 +102,7 @@ public struct SidebarView: View {
     ) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Text(isShowingArchives ? "Archives" : "Sarah")
+                .accessibilityIdentifier("sidebar.title")
                 .font(.system(size: titleSize, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .lineLimit(1)

@@ -50,6 +50,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private let silenceThreshold: TimeInterval = 1.3
     private var hasDetectedSpeechInCurrentSession: Bool = false
     private var authorizationRequestInFlight = false
+    private var authorizationCompletions: [(Bool) -> Void] = []
     private var listeningGeneration = UUID()
     private var finalizeOnSilence = true
 
@@ -64,18 +65,8 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     // MARK: - Autorisations
     
     public func requestAuthorization(completion: @escaping (Bool) -> Void) {
-        guard !authorizationRequestInFlight else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                guard let self else {
-                    completion(false)
-                    return
-                }
-                let granted = SFSpeechRecognizer.authorizationStatus() == .authorized
-                    && AVAudioSession.sharedInstance().recordPermission == .granted
-                completion(granted)
-            }
-            return
-        }
+        authorizationCompletions.append(completion)
+        guard !authorizationRequestInFlight else { return }
 
         authorizationRequestInFlight = true
         SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
@@ -86,21 +77,26 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                 }
 
                 guard authStatus == .authorized else {
-                    self.authorizationRequestInFlight = false
-                    completion(false)
+                    self.finishAuthorization(false)
                     return
                 }
 
                 AVAudioSession.sharedInstance().requestRecordPermission { allowed in
                     DispatchQueue.main.async {
-                        self.authorizationRequestInFlight = false
-                        completion(allowed)
+                        self.finishAuthorization(allowed)
                     }
                 }
             }
         }
     }
     
+    private func finishAuthorization(_ granted: Bool) {
+        authorizationRequestInFlight = false
+        let callbacks = authorizationCompletions
+        authorizationCompletions.removeAll()
+        callbacks.forEach { $0(granted) }
+    }
+
     // MARK: - Démarrage de l'écoute
     
     public func startListening(finalizeOnSilence: Bool = true) {
