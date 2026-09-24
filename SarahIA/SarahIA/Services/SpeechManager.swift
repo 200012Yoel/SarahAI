@@ -6,7 +6,7 @@ import Combine
 #endif
 
 /// Gestionnaire historique de synthèse vocale de Sarah.
-/// Les anciennes données d'animation faciale/3D ont été supprimées : ce service
+/// Les anciennes données d'animation faciale ont été supprimées : ce service
 /// se concentre uniquement sur une lecture vocale Apple fiable.
 public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
 
@@ -39,8 +39,6 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
         super.init()
         synthesizer.delegate = self
     }
-
-    // MARK: - Synthèse vocale
 
     public func speak(
         text: String,
@@ -89,8 +87,6 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    // MARK: - AVSpeechSynthesizerDelegate
-
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         DispatchQueue.main.async {
             self.isSpeaking = true
@@ -115,8 +111,6 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
             self.onSpeechInterrupted?()
         }
     }
-
-    // MARK: - Background Task
 
     private func beginBackgroundTask() {
         if speechBgTask != .invalid {
