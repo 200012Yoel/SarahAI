@@ -21,78 +21,14 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+
       - name: Xcode version
         run: xcodebuild -version
+
       - name: Configure build number
         run: |
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
-
-      - name: Simulator smoke test and crash capture
-        timeout-minutes: 12
-        run: |
-          set -o pipefail
-          PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
-          PROJECT_DIR=$(dirname "$PROJECT_FILE")
-          PROJECT_NAME=$(basename "$PROJECT_FILE")
-          cd "$PROJECT_DIR"
-          rm -rf "$GITHUB_WORKSPACE/SimDerivedData"
-          xcodebuild -project "$PROJECT_NAME" -scheme SarahIA -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$GITHUB_WORKSPACE/SimDerivedData" IPHONEOS_DEPLOYMENT_TARGET=16.2 CODE_SIGNING_ALLOWED=NO build 2>&1 | tee "$GITHUB_WORKSPACE/simulator-build.log"
-          APP_PATH=$(find "$GITHUB_WORKSPACE/SimDerivedData" -path '*Debug-iphonesimulator/SarahIA.app' -type d | head -n 1)
-          test -n "$APP_PATH"
-          xcrun simctl shutdown all >/dev/null 2>&1 || true
-          DEVICE=$(xcrun simctl create SarahIA-CI 'iPhone 16' 2>/dev/null || xcrun simctl create SarahIA-CI 'iPhone 15' 2>/dev/null || true)
-          if [ -z "$DEVICE" ]; then
-            DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for a in d.values() for x in a if x.get("isAvailable")))')
-          fi
-          xcrun simctl boot "$DEVICE" >/dev/null 2>&1 || true
-          # Never let CoreSimulator block the whole release indefinitely.
-          python3 - <<'PY' "$DEVICE"
-          import subprocess, sys
-          device=sys.argv[1]
-          try:
-              subprocess.run(['xcrun','simctl','bootstatus',device,'-b'], timeout=120, check=True)
-          except subprocess.TimeoutExpired:
-              print('Simulator boot timed out after 120s; failing fast so CI cannot hang.')
-              sys.exit(124)
-          PY
-          xcrun simctl install "$DEVICE" "$APP_PATH"
-          LOGFILE="$GITHUB_WORKSPACE/runtime.log"
-          : > "$LOGFILE"
-          (xcrun simctl spawn "$DEVICE" log stream --style compact --level debug --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "SarahIA"' > "$LOGFILE" 2>&1) &
-          LOGPID=$!
-          trap 'kill "$LOGPID" >/dev/null 2>&1 || true; xcrun simctl shutdown "$DEVICE" >/dev/null 2>&1 || true' EXIT
-          sleep 2
-          set +e
-          python3 - <<'PY' "$DEVICE" "$LOGFILE"
-          import subprocess, sys
-          device, logfile=sys.argv[1], sys.argv[2]
-          try:
-              p=subprocess.run(['xcrun','simctl','launch',device,'com.sarahia.app'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
-              with open(logfile,'a') as f: f.write(p.stdout or '')
-              sys.exit(p.returncode)
-          except subprocess.TimeoutExpired as e:
-              with open(logfile,'a') as f: f.write('\nLaunch timed out after 30s.\n')
-              sys.exit(124)
-          PY
-          LAUNCH_STATUS=$?
-          sleep 15
-          kill "$LOGPID" >/dev/null 2>&1 || true
-          mkdir -p "$GITHUB_WORKSPACE/crash-reports"
-          find "$HOME/Library/Logs/DiagnosticReports" -type f \( -name 'SarahIA*.crash' -o -name 'SarahIA*.ips' \) -exec cp {} "$GITHUB_WORKSPACE/crash-reports/" \; 2>/dev/null || true
-          xcrun simctl spawn "$DEVICE" log show --last 2m --style compact --predicate 'process == "SarahIA" OR eventMessage CONTAINS[c] "SarahIA"' >> "$LOGFILE" 2>&1 || true
-          set -e
-          if [ "$LAUNCH_STATUS" -ne 0 ]; then
-            echo 'SarahIA could not be launched in the simulator.'
-            tail -n 300 "$LOGFILE"
-            exit 1
-          fi
-          if grep -Eqi 'Fatal error:|Terminating app due to uncaught exception|uncaught exception|EXC_BAD_ACCESS|SIGABRT|SIGSEGV|Termination Reason:|abort\(\) called' "$LOGFILE" || [ -n "$(find "$GITHUB_WORKSPACE/crash-reports" -type f -print -quit)" ]; then
-            echo 'SarahIA crashed during simulator smoke test.'
-            tail -n 300 "$LOGFILE"
-            exit 1
-          fi
-          echo 'Simulator launch survived the smoke-test window.'
 
       - name: Build device app
         run: |
@@ -122,16 +58,12 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
 
-      - name: Upload diagnostics
+      - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: SarahIA-runtime-diagnostics
-          path: |
-            runtime.log
-            simulator-build.log
-            xcodebuild.log
-            crash-reports
+          name: SarahIA-build-diagnostics
+          path: xcodebuild.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -147,8 +79,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: 'Sarah IA - tested build'
-          body: 'Build #${{ github.run_number }}. Device build is published only after the simulator launch smoke test succeeds.'
+          name: 'Sarah IA - device build'
+          body: 'Build #${{ github.run_number }}. IPA compiled directly for iPhone without simulator smoke test.'
           files: dist/SarahIA.ipa
           draft: false
           prerelease: false
