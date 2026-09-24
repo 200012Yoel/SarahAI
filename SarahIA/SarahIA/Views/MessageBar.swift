@@ -1,24 +1,26 @@
 import SwiftUI
 
-/// Barre de saisie inspirée du comportement ChatGPT :
-/// - micro = dictée locale dans la barre ;
-/// - le carré arrête la dictée et remet le texte dans le champ ;
-/// - la flèche envoie directement la transcription ;
-/// - le bouton waveform ouvre le vrai mode vocal Sarah.
-@available(iOS 14.0, *)
+/// Barre de saisie récente de Sarah :
+/// - + = Photos / Appareil photo / Fichier uniquement ;
+/// - micro dans le champ = dictée locale, sans envoi automatique ;
+/// - waveform = vrai mode vocal continu ;
+/// - carré = arrêt de la génération en cours.
+@available(iOS 15.0, *)
 public struct MessageBar: View {
     @Binding var text: String
     @Binding var activeAgent: AgentType
     var isRecording: Bool
+    var isProcessing: Bool
+    var onOpenPhotoLibrary: () -> Void
+    var onOpenCamera: () -> Void
+    var onOpenFile: () -> Void
     var onSend: (String) -> Void
+    var onCancel: () -> Void
     var onToggleMic: () -> Void
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
 
-    // IMPORTANT : ne jamais instancier ObservableSpeechRecognizer/AVAudioEngine
-    // pendant la construction de la vue. Sur certaines versions iOS 27, créer le
-    // pipeline Speech avant toute action utilisateur peut fermer le processus au
-    // démarrage. Le moteur vocal est donc créé uniquement quand on touche le micro.
+    @FocusState private var isComposerFocused: Bool
     @State private var isDictating = false
     @State private var textBeforeDictation = ""
     @State private var dictationMicLevel: Float = 0.0
@@ -28,7 +30,12 @@ public struct MessageBar: View {
         text: Binding<String>,
         activeAgent: Binding<AgentType>,
         isRecording: Bool,
+        isProcessing: Bool = false,
+        onOpenPhotoLibrary: @escaping () -> Void = {},
+        onOpenCamera: @escaping () -> Void = {},
+        onOpenFile: @escaping () -> Void = {},
         onSend: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void = {},
         onToggleMic: @escaping () -> Void,
         onOpenVoiceOrb: @escaping () -> Void,
         onOpenVAICoding: @escaping () -> Void
@@ -36,7 +43,12 @@ public struct MessageBar: View {
         self._text = text
         self._activeAgent = activeAgent
         self.isRecording = isRecording
+        self.isProcessing = isProcessing
+        self.onOpenPhotoLibrary = onOpenPhotoLibrary
+        self.onOpenCamera = onOpenCamera
+        self.onOpenFile = onOpenFile
         self.onSend = onSend
+        self.onCancel = onCancel
         self.onToggleMic = onToggleMic
         self.onOpenVoiceOrb = onOpenVoiceOrb
         self.onOpenVAICoding = onOpenVAICoding
@@ -50,36 +62,28 @@ public struct MessageBar: View {
                 standardBar
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerListeningChanged"))) { _ in
             guard isDictating else { return }
             let recognizer = AppleSpeechRecognizer.shared
             dictationLiveText = recognizer.currentLiveText
             dictationMicLevel = recognizer.micEnergyLevel
-
-            // Une interruption système ne doit jamais laisser l'interface bloquée
-            // en « transcription en cours ».
             if !recognizer.isListening {
                 commitDictationToComposer()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"))) { _ in
             guard isDictating else { return }
-            let recognizer = AppleSpeechRecognizer.shared
-            dictationMicLevel = recognizer.micEnergyLevel
-            dictationLiveText = recognizer.currentLiveText
+            dictationMicLevel = AppleSpeechRecognizer.shared.micEnergyLevel
+            dictationLiveText = AppleSpeechRecognizer.shared.currentLiveText
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))) { _ in
             guard isDictating else { return }
-            let recognizer = AppleSpeechRecognizer.shared
-            dictationLiveText = recognizer.currentLiveText
-            if case .error = recognizer.state {
-                // Autorisation refusée, route audio indisponible, etc. : on sort
-                // immédiatement de l'état dictée sans effacer le texte existant.
-                recognizer.stopListening()
+            if case .error = AppleSpeechRecognizer.shared.state {
+                AppleSpeechRecognizer.shared.stopListening()
                 isDictating = false
-                dictationMicLevel = 0.0
+                dictationMicLevel = 0
                 text = textBeforeDictation
             }
         }
@@ -87,58 +91,128 @@ public struct MessageBar: View {
             if isDictating {
                 AppleSpeechRecognizer.shared.stopListening()
                 isDictating = false
-                dictationMicLevel = 0.0
+                dictationMicLevel = 0
             }
         }
     }
 
     private var standardBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
+            Menu {
+                Button {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenPhotoLibrary()
+                } label: {
+                    Label("Photos", systemImage: "photo.on.rectangle.angled")
+                }
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenCamera()
+                } label: {
+                    Label("Appareil photo", systemImage: "camera")
+                }
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    isComposerFocused = false
+                    onOpenFile()
+                } label: {
+                    Label("Fichier", systemImage: "doc")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .sarahLiquidGlass(cornerRadius: 22, tint: activeAgent.themeColor, intensity: 0.10)
+            }
+            .accessibilityLabel("Ajouter une photo, prendre une photo ou joindre un fichier")
+
             HStack(spacing: 8) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
+                    guard !isProcessing else { return }
                     submitMessage()
                 })
+                .focused($isComposerFocused)
                 .foregroundColor(.white)
-                .accentColor(.blue)
+                .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
+
+                if activeAgent == .esther {
+                    Button(action: {
+                        guard !isProcessing else { return }
+                        HapticService.shared.buttonTap()
+                        isComposerFocused = false
+                        onOpenVAICoding()
+                    }) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .foregroundColor(activeAgent.themeColor)
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(width: 30, height: 30)
+                            .background(activeAgent.themeColor.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .disabled(isProcessing)
+                }
 
                 Button(action: startDictation) {
                     Image(systemName: "mic")
-                        .foregroundColor(.gray)
+                        .foregroundColor(isProcessing ? .gray.opacity(0.45) : .gray)
                         .font(.system(size: 18))
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .disabled(isProcessing)
                 .accessibilityLabel("Dicter un message")
             }
-            .padding(.horizontal, 16)
+            .padding(.leading, 15)
+            .padding(.trailing, 9)
             .frame(height: 48)
-            .background(Color(white: 0.15))
-            .clipShape(Capsule())
+            .sarahLiquidGlass(cornerRadius: 24, tint: activeAgent.themeColor, intensity: activeAgent == .esther ? 0.12 : 0.08)
 
             let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            Button(action: {
-                if hasText {
+            Button {
+                if isProcessing {
+                    HapticService.shared.buttonTap()
+                    onCancel()
+                } else if hasText {
                     submitMessage()
                 } else {
                     HapticService.shared.buttonTap()
+                    isComposerFocused = false
                     onOpenVoiceOrb()
                 }
-            }) {
-                Image(systemName: hasText ? "arrow.up" : "waveform")
-                    .font(.system(size: 18, weight: hasText ? .bold : .regular))
-                    .foregroundColor(.white)
+            } label: {
+                ZStack {
+                    if isProcessing {
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                            .fill(Color.white)
+                            .frame(width: 11, height: 11)
+                    } else {
+                        Image(systemName: hasText ? "arrow.up" : "waveform")
+                            .font(.system(size: 18, weight: hasText ? .bold : .regular))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 44, height: 44)
             }
-            .frame(width: 44, height: 44)
-            .background(hasText ? Color.blue : Color(white: 0.15))
+            .background(
+                ZStack {
+                    Circle().fill(.ultraThinMaterial)
+                    Circle().fill((isProcessing || hasText) ? activeAgent.themeColor.opacity(0.92) : Color.white.opacity(0.06))
+                    Circle().stroke((isProcessing || hasText) ? Color.white.opacity(0.26) : Color.white.opacity(0.12), lineWidth: 0.8)
+                }
+            )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
-            .accessibilityLabel(hasText ? "Envoyer" : "Mode vocal Sarah")
+            .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Mode vocal Sarah"))
         }
     }
 
-    /// État compact affiché pendant la dictée, calqué sur la logique montrée dans
-    /// la capture : annuler, vraie onde micro, terminer, envoyer.
     private var dictationBar: some View {
         HStack(spacing: 10) {
             Button(action: cancelDictation) {
@@ -149,12 +223,10 @@ public struct MessageBar: View {
                     .background(Circle().fill(Color.white.opacity(0.10)))
             }
             .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Annuler la dictée")
 
             VStack(spacing: 3) {
                 LiveMicrophoneWaveform(level: dictationMicLevel)
                     .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
-
                 Text(currentRecognizedText.isEmpty ? "Transcription en cours" : "Je t’écoute…")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(0.55))
@@ -170,44 +242,35 @@ public struct MessageBar: View {
                     .background(Circle().fill(Color.white.opacity(0.10)))
             }
             .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Terminer la dictée")
 
             Button(action: { finishDictation(sendImmediately: true) }) {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.orange))
+                    .background(Circle().fill(activeAgent.themeColor))
             }
             .buttonStyle(ScaleBounceButtonStyle())
-            .accessibilityLabel("Envoyer la dictée")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color(white: 0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .sarahLiquidGlass(cornerRadius: 28, tint: activeAgent.themeColor, intensity: 0.10)
     }
 
     private var currentRecognizedText: String {
-        let live = AppleSpeechRecognizer.shared.currentLiveText
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let live = AppleSpeechRecognizer.shared.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty { return live }
         return dictationLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func startDictation() {
+        guard !isProcessing else { return }
         HapticService.shared.buttonTap()
-
-        // C'est volontairement le premier accès au moteur Speech depuis MessageBar.
-        // Rien de vocal n'est créé tant que l'utilisateur n'appuie pas sur le micro.
         let recognizer = AppleSpeechRecognizer.shared
-        if recognizer.isListening {
-            recognizer.stopListening()
-        }
-
+        if recognizer.isListening { recognizer.stopListening() }
         textBeforeDictation = text.trimmingCharacters(in: .whitespacesAndNewlines)
         dictationLiveText = ""
-        dictationMicLevel = 0.0
+        dictationMicLevel = 0
         isDictating = true
         recognizer.startListening(autoFinalizeOnSilence: false)
     }
@@ -217,11 +280,9 @@ public struct MessageBar: View {
         let recognized = currentRecognizedText
         AppleSpeechRecognizer.shared.stopListening()
         isDictating = false
-        dictationMicLevel = 0.0
-
+        dictationMicLevel = 0
         let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
         text = finalText
-
         if sendImmediately && !finalText.isEmpty {
             onSend(finalText)
             text = ""
@@ -229,18 +290,16 @@ public struct MessageBar: View {
     }
 
     private func commitDictationToComposer() {
-        let recognized = currentRecognizedText
-        let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
-        text = finalText
+        text = mergedText(prefix: textBeforeDictation, dictated: currentRecognizedText)
         isDictating = false
-        dictationMicLevel = 0.0
+        dictationMicLevel = 0
     }
 
     private func cancelDictation() {
         HapticService.shared.buttonTap()
         AppleSpeechRecognizer.shared.stopListening()
         isDictating = false
-        dictationMicLevel = 0.0
+        dictationMicLevel = 0
         text = textBeforeDictation
     }
 
@@ -253,26 +312,20 @@ public struct MessageBar: View {
     }
 
     private func submitMessage() {
+        guard !isProcessing else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            HapticService.shared.buttonTap()
-            onSend(trimmed)
-            text = ""
-        }
+        guard !trimmed.isEmpty else { return }
+        HapticService.shared.buttonTap()
+        isComposerFocused = false
+        onSend(trimmed)
+        text = ""
     }
 }
 
-/// Visualisation basée uniquement sur le niveau RMS réel du microphone.
-/// Aucune barre aléatoire : quand la voix monte, les barres montent réellement.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 private struct LiveMicrophoneWaveform: View {
     let level: Float
-
-    private let weights: [CGFloat] = [
-        0.38, 0.62, 0.90, 0.55, 0.74, 1.00, 0.66, 0.44,
-        0.82, 0.58, 0.96, 0.70, 0.48, 0.88, 0.64, 1.00,
-        0.60, 0.78, 0.50, 0.92, 0.68, 0.42
-    ]
+    private let weights: [CGFloat] = [0.38,0.62,0.90,0.55,0.74,1.00,0.66,0.44,0.82,0.58,0.96,0.70,0.48,0.88,0.64,1.00,0.60,0.78,0.50,0.92,0.68,0.42]
 
     var body: some View {
         GeometryReader { geo in
@@ -286,7 +339,7 @@ private struct LiveMicrophoneWaveform: View {
                         .animation(.linear(duration: 0.08), value: level)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
