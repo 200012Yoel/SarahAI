@@ -40,137 +40,223 @@ public final class VAICodeEngine {
         }
     }
     
-    /// Générateur de composant Web monopage interactif (HTML5 / CSS moderne / Vanilla JS)
+    /// Générateur Web polyvalent de Raphaël.
+    /// Toute demande qui arrive ici produit maintenant un vrai site monopage responsive,
+    /// et non plus le même dashboard générique. Le prompt pilote le type de page,
+    /// les libellés, les sections et l'interaction principale.
     public func generateWebUI(prompt: String) -> String {
-        let lower = prompt.lowercased()
-        
+        let normalized = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = normalized.lowercased()
+        let safePrompt = htmlEscaped(normalized.isEmpty ? "Site créé avec Raphaël" : normalized)
+
         let title: String
-        let accentColor: String
-        let cardContent: String
-        
-        if lower.contains("calculatrice") {
-            title = "Calculatrice VAI Neumorphique"
-            accentColor = "#00D2FF"
-            cardContent = """
-            <div class="calc-grid">
-                <input type="text" id="display" readonly value="0" />
-                <div class="btn-row"><button onclick="press('7')">7</button><button onclick="press('8')">8</button><button onclick="press('9')">9</button><button class="op" onclick="op('/')">÷</button></div>
-                <div class="btn-row"><button onclick="press('4')">4</button><button onclick="press('5')">5</button><button onclick="press('6')">6</button><button class="op" onclick="op('*')">×</button></div>
-                <div class="btn-row"><button onclick="press('1')">1</button><button onclick="press('2')">2</button><button onclick="press('3')">3</button><button class="op" onclick="op('-')">-</button></div>
-                <div class="btn-row"><button class="clear" onclick="clr()">C</button><button onclick="press('0')">0</button><button class="eval" onclick="calc()">=</button><button class="op" onclick="op('+')">+</button></div>
-            </div>
+        let eyebrow: String
+        let hero: String
+        let subtitle: String
+        let primaryAction: String
+        let accent: String
+        let accent2: String
+        let cards: [(String, String, String)]
+        let interactiveBlock: String
+
+        if lower.contains("calculatrice") || lower.contains("calculator") {
+            title = "Calculatrice"
+            eyebrow = "Outil interactif"
+            hero = "Calcule vite, sans détour."
+            subtitle = "Une calculatrice responsive pensée pour le téléphone."
+            primaryAction = "Calculer"
+            accent = "#7C5CFF"
+            accent2 = "#22C1FF"
+            cards = [("Rapide", "Résultats immédiats", "bolt.fill"), ("Lisible", "Interface mobile claire", "eye.fill"), ("Locale", "Aucun compte requis", "lock.fill")]
+            interactiveBlock = """
+            <section class="tool" id="experience">
+              <input id="display" class="display" value="0" readonly aria-label="Résultat">
+              <div class="calc-grid">
+                <button onclick="press('7')">7</button><button onclick="press('8')">8</button><button onclick="press('9')">9</button><button class="accent" onclick="op('/')">÷</button>
+                <button onclick="press('4')">4</button><button onclick="press('5')">5</button><button onclick="press('6')">6</button><button class="accent" onclick="op('*')">×</button>
+                <button onclick="press('1')">1</button><button onclick="press('2')">2</button><button onclick="press('3')">3</button><button class="accent" onclick="op('-')">−</button>
+                <button class="danger" onclick="clr()">C</button><button onclick="press('0')">0</button><button class="accent" onclick="calc()">=</button><button class="accent" onclick="op('+')">+</button>
+              </div>
+            </section>
             """
-        } else if lower.contains("meteo") || lower.contains("weather") {
-            title = "Météo Card VAI Glassmorphism"
-            accentColor = "#3A88E9"
-            cardContent = """
-            <div class="weather-box">
-                <div class="city">Paris, FR</div>
-                <div class="temp">22°C</div>
-                <div class="desc">☀️ Ensoleillé & Agréable</div>
-                <div class="stats">
-                    <div class="stat-item"><span>Humidité</span><b>45%</b></div>
-                    <div class="stat-item"><span>Vent</span><b>12 km/h</b></div>
-                    <div class="stat-item"><span>Indice UV</span><b>Faible</b></div>
-                </div>
-            </div>
+        } else if lower.contains("météo") || lower.contains("meteo") || lower.contains("weather") {
+            title = "Météo"
+            eyebrow = "Prévisions"
+            hero = "La météo, en un regard."
+            subtitle = "Une interface météo claire, mobile et immédiatement compréhensible."
+            primaryAction = "Voir les prévisions"
+            accent = "#2687FF"
+            accent2 = "#60D6FF"
+            cards = [("22°", "Température", "sun.max.fill"), ("45 %", "Humidité", "drop.fill"), ("12 km/h", "Vent", "wind")]
+            interactiveBlock = """
+            <section class="feature" id="experience">
+              <div><span class="kicker">Paris</span><h2>22 °C</h2><p>Ensoleillé · Ressenti agréable</p></div>
+              <button class="secondary" onclick="setStatus('Prévisions actualisées dans la maquette')">Actualiser</button>
+            </section>
+            """
+        } else if lower.contains("restaurant") || lower.contains("café") || lower.contains("cafe") || lower.contains("pâtisserie") || lower.contains("patisserie") {
+            title = "Maison"
+            eyebrow = "Restaurant · Réservation"
+            hero = "Une table qu’on a envie de réserver."
+            subtitle = safePrompt
+            primaryAction = "Réserver"
+            accent = "#D56A3A"
+            accent2 = "#F2B35B"
+            cards = [("Menu", "Une carte courte et lisible", "fork.knife"), ("Savoir-faire", "Mettez vos produits en valeur", "sparkles"), ("Réserver", "Un parcours direct", "calendar")]
+            interactiveBlock = """
+            <section class="feature" id="experience"><div><span class="kicker">Aujourd’hui</span><h2>Votre sélection</h2><p>Présentez ici vos plats, créations et horaires.</p></div><button class="secondary" onclick="setStatus('Demande de réservation préparée')">Choisir une table</button></section>
+            """
+        } else if lower.contains("boutique") || lower.contains("ecommerce") || lower.contains("e-commerce") || lower.contains("shop") || lower.contains("magasin") || lower.contains("produit") {
+            title = "Boutique"
+            eyebrow = "E-commerce"
+            hero = "Des produits qui respirent."
+            subtitle = safePrompt
+            primaryAction = "Découvrir"
+            accent = "#5C47E8"
+            accent2 = "#B35CFF"
+            cards = [("Nouveau", "Collection principale", "bag.fill"), ("Favoris", "Sélection mise en avant", "heart.fill"), ("Simple", "Parcours d’achat lisible", "checkmark.circle.fill")]
+            interactiveBlock = """
+            <section class="product-grid" id="experience">
+              <article class="product"><div class="product-art">01</div><h3>Produit phare</h3><p>49 €</p><button onclick="addToCart('Produit phare')">Ajouter</button></article>
+              <article class="product"><div class="product-art">02</div><h3>Nouvelle collection</h3><p>69 €</p><button onclick="addToCart('Nouvelle collection')">Ajouter</button></article>
+              <article class="product"><div class="product-art">03</div><h3>Édition spéciale</h3><p>89 €</p><button onclick="addToCart('Édition spéciale')">Ajouter</button></article>
+            </section>
+            """
+        } else if lower.contains("portfolio") || lower.contains("photographe") || lower.contains("designer") || lower.contains("artiste") {
+            title = "Portfolio"
+            eyebrow = "Création"
+            hero = "Votre travail mérite de l’espace."
+            subtitle = safePrompt
+            primaryAction = "Voir les projets"
+            accent = "#FF4D8A"
+            accent2 = "#8F5CFF"
+            cards = [("Projet 01", "Direction artistique", "square.grid.2x2.fill"), ("Projet 02", "Identité visuelle", "paintbrush.fill"), ("Projet 03", "Expérience numérique", "cursorarrow.click")]
+            interactiveBlock = """
+            <section class="gallery" id="experience"><div class="tile tall"><span>01</span></div><div class="tile"><span>02</span></div><div class="tile"><span>03</span></div></section>
+            """
+        } else if lower.contains("voyage") || lower.contains("travel") || lower.contains("hotel") || lower.contains("hôtel") {
+            title = "Horizon"
+            eyebrow = "Voyage"
+            hero = "Partez quelque part de mémorable."
+            subtitle = safePrompt
+            primaryAction = "Explorer"
+            accent = "#007D73"
+            accent2 = "#35C39A"
+            cards = [("Explorer", "Destinations sélectionnées", "map.fill"), ("Préparer", "Informations essentielles", "suitcase.fill"), ("Profiter", "Une expérience fluide", "airplane")]
+            interactiveBlock = """
+            <section class="feature" id="experience"><div><span class="kicker">Destination</span><h2>Votre prochain départ</h2><p>Photos, itinéraire, prix et appel à l’action peuvent être personnalisés.</p></div><button class="secondary" onclick="setStatus('Destination ajoutée à votre sélection')">Ajouter au voyage</button></section>
+            """
+        } else if lower.contains("blog") || lower.contains("actualité") || lower.contains("actualite") || lower.contains("magazine") {
+            title = "Journal"
+            eyebrow = "Magazine"
+            hero = "Des idées qui se lisent bien."
+            subtitle = safePrompt
+            primaryAction = "Lire"
+            accent = "#E74B3C"
+            accent2 = "#F49E45"
+            cards = [("À la une", "Article principal", "newspaper.fill"), ("Dossiers", "Contenu organisé", "folder.fill"), ("Lecture", "Typographie confortable", "text.alignleft")]
+            interactiveBlock = """
+            <section class="article-list" id="experience"><article><span>01</span><div><h3>Article principal</h3><p>Une introduction claire pour donner envie de poursuivre la lecture.</p></div></article><article><span>02</span><div><h3>Deuxième sujet</h3><p>Une mise en page qui reste lisible sur petit écran.</p></div></article></section>
             """
         } else {
-            title = "VAI Interactive Dashboard"
-            accentColor = "#00F0FF"
-            cardContent = """
-            <div class="dashboard-box">
-                <h2>⚡ Studio Raphaël Actif</h2>
-                <p>Composant interactif généré en direct à partir de vos tokens de conception.</p>
-                <div class="metrics">
-                    <div class="metric-chip">🚀 60 FPS</div>
-                    <div class="metric-chip">🔒 100% Hors-ligne</div>
-                    <div class="metric-chip">⚡ 0 Latence</div>
-                </div>
-                <button class="action-btn" onclick="triggerEffect()">Interagir avec Raphaël</button>
-                <div id="status-tag" style="margin-top: 15px; font-weight: bold; color: #00F0FF;"></div>
-            </div>
+            title = "Projet Raphaël"
+            eyebrow = lower.contains("dashboard") ? "Dashboard" : "Site sur mesure"
+            hero = lower.contains("dashboard") ? "Tout ce qui compte, au même endroit." : "Une première version fidèle à votre idée."
+            subtitle = safePrompt
+            primaryAction = "Commencer"
+            accent = "#336CFF"
+            accent2 = "#8D55FF"
+            cards = [("Responsive", "Téléphone, tablette et ordinateur", "rectangle.3.group.fill"), ("Interactif", "HTML, CSS et JavaScript", "cursorarrow.rays"), ("Évolutif", "Prêt à être amélioré avec Raphaël", "wand.and.stars")]
+            interactiveBlock = """
+            <section class="feature" id="experience"><div><span class="kicker">Votre demande</span><h2>Prototype fonctionnel</h2><p>\(safePrompt)</p></div><button class="secondary" onclick="setStatus('Interaction exécutée avec succès')">Tester l’interaction</button></section>
             """
         }
-        
-        let html = """
-        <!DOCTYPE html>
+
+        let cardsHTML = cards.map { item in
+            "<article class=\"card\"><div class=\"icon\">✦</div><h3>\(htmlEscaped(item.0))</h3><p>\(htmlEscaped(item.1))</p></article>"
+        }.joined(separator: "\n")
+
+        return """
+        <!doctype html>
         <html lang="fr">
         <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-            <title>\(title)</title>
-            <style>
-                * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-                body { background: #0b0b0e; color: #ffffff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-                .app-container { width: 100%; max-width: 380px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 28px; padding: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6); text-align: center; }
-                h2 { font-size: 20px; font-weight: 700; margin-bottom: 12px; color: \(accentColor); }
-                p { font-size: 14px; color: #8E8E93; margin-bottom: 20px; line-height: 1.4; }
-                .metrics { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
-                .metric-chip { background: rgba(255, 255, 255, 0.08); padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-                .action-btn { width: 100%; background: linear-gradient(135deg, \(accentColor), #007AFF); color: white; border: none; border-radius: 16px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer; transition: transform 0.15s; }
-                .action-btn:active { transform: scale(0.96); }
-                
-                /* Styles Calculatrice */
-                .calc-grid { display: flex; flex-direction: column; gap: 10px; }
-                #display { width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; color: white; font-size: 28px; text-align: right; padding: 12px; font-family: monospace; outline: none; margin-bottom: 10px; }
-                .btn-row { display: flex; gap: 8px; }
-                .btn-row button { flex: 1; height: 50px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; color: white; font-size: 18px; font-weight: 600; cursor: pointer; }
-                .btn-row button.op { background: #007AFF; }
-                .btn-row button.eval { background: \(accentColor); color: black; }
-                .btn-row button.clear { background: #FF3B30; }
-                
-                /* Styles Météo */
-                .weather-box .city { font-size: 18px; color: #8E8E93; margin-bottom: 6px; }
-                .weather-box .temp { font-size: 48px; font-weight: 800; color: white; margin-bottom: 6px; }
-                .weather-box .desc { font-size: 15px; color: \(accentColor); margin-bottom: 20px; }
-                .stats { display: flex; justify-content: space-around; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 16px; }
-                .stat-item span { display: block; font-size: 11px; color: #8E8E93; margin-bottom: 4px; }
-                .stat-item b { font-size: 14px; color: white; }
-            </style>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <meta name="theme-color" content="#0A0A0D">
+          <title>\(htmlEscaped(title))</title>
+          <style>
+            :root { --accent: \(accent); --accent2: \(accent2); --bg: #09090c; --panel: #131319; --line: rgba(255,255,255,.10); --muted: #a1a1ad; }
+            * { box-sizing: border-box; }
+            html { scroll-behavior: smooth; }
+            body { margin: 0; color: #fff; background: radial-gradient(circle at 90% -10%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 38%), var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; }
+            button, input { font: inherit; }
+            button { cursor: pointer; }
+            .shell { width: min(1120px, 100%); margin: auto; padding: max(18px, env(safe-area-inset-top)) 20px calc(42px + env(safe-area-inset-bottom)); }
+            nav { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0 32px; }
+            .brand { font-weight: 850; letter-spacing: -.6px; }
+            .brand b { color: var(--accent2); }
+            nav a { color: #fff; text-decoration: none; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; }
+            .hero { min-height: min(610px, 75vh); display: flex; flex-direction: column; justify-content: center; padding: clamp(34px, 7vw, 78px); border: 1px solid var(--line); border-radius: clamp(26px, 5vw, 44px); overflow: hidden; position: relative; background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.025)); box-shadow: 0 35px 90px rgba(0,0,0,.35); }
+            .hero:after { content: ""; position: absolute; right: -12%; top: -32%; width: min(64vw, 610px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 35% 35%, var(--accent2), var(--accent) 45%, transparent 70%); filter: blur(10px); opacity: .48; }
+            .kicker { color: #d8d8e1; text-transform: uppercase; letter-spacing: .14em; font-size: 12px; font-weight: 750; }
+            h1 { position: relative; z-index: 1; max-width: 800px; margin: 14px 0; font-size: clamp(42px, 9vw, 86px); line-height: .98; letter-spacing: clamp(-4px, -.05em, -1px); }
+            .hero p { position: relative; z-index: 1; max-width: 680px; color: #c4c4cf; font-size: clamp(16px, 2.5vw, 20px); line-height: 1.55; }
+            .actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; }
+            .primary, .secondary, .product button { border: 0; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent2)); padding: 13px 17px; border-radius: 14px; font-weight: 750; }
+            .ghost { border: 1px solid var(--line); color: #fff; background: rgba(255,255,255,.05); padding: 13px 17px; border-radius: 14px; font-weight: 700; }
+            .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 28px 0; }
+            .card, .feature, .tool, .product, .article-list article { border: 1px solid var(--line); background: var(--panel); border-radius: 22px; }
+            .card { padding: 22px; min-height: 150px; }
+            .card .icon { color: var(--accent2); font-size: 22px; }
+            h2, h3 { letter-spacing: -.5px; }
+            .card h3 { margin: 24px 0 7px; }
+            .card p, .feature p, .product p, .article-list p { color: var(--muted); line-height: 1.5; margin: 0; }
+            .feature { margin-top: 4px; padding: clamp(24px, 5vw, 46px); display: flex; align-items: end; justify-content: space-between; gap: 28px; }
+            .feature h2 { font-size: clamp(28px, 5vw, 48px); margin: 8px 0 12px; }
+            .status { min-height: 24px; margin: 18px 3px 0; color: #c8f7db; font-size: 13px; }
+            .tool { max-width: 520px; margin: 0 auto; padding: 18px; }
+            .display { width: 100%; padding: 18px; margin-bottom: 12px; color: #fff; background: #08080b; border: 1px solid var(--line); border-radius: 15px; text-align: right; font-size: 32px; }
+            .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+            .calc-grid button { min-height: 58px; border: 0; border-radius: 15px; color: #fff; background: #24242b; font-size: 18px; }
+            .calc-grid .accent { background: var(--accent); } .calc-grid .danger { background: #8e2934; }
+            .product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            .product { padding: 14px; } .product-art { min-height: 190px; display: grid; place-items: center; border-radius: 15px; font-size: 40px; font-weight: 850; background: linear-gradient(145deg, var(--accent), var(--accent2)); }
+            .product h3 { margin-bottom: 4px; } .product button { width: 100%; margin-top: 14px; }
+            .gallery { display: grid; min-height: 520px; grid-template-columns: 1.5fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
+            .tile { display: grid; place-items: end start; padding: 20px; border-radius: 24px; font-size: 42px; font-weight: 900; background: linear-gradient(145deg, var(--accent), var(--accent2)); } .tile.tall { grid-row: 1 / 3; }
+            .article-list { display: grid; gap: 10px; } .article-list article { padding: 22px; display: flex; gap: 20px; align-items: center; } .article-list article > span { color: var(--accent2); font-size: 30px; font-weight: 850; }
+            footer { padding: 36px 4px 8px; color: #72727f; font-size: 12px; text-align: center; }
+            @media (max-width: 680px) { .shell { padding-left: 12px; padding-right: 12px; } nav { padding-bottom: 18px; } .hero { min-height: 560px; padding: 28px 22px; } .cards, .product-grid { grid-template-columns: 1fr; } .feature { align-items: stretch; flex-direction: column; } .gallery { min-height: 600px; grid-template-columns: 1fr; grid-template-rows: repeat(3, 1fr); } .tile.tall { grid-row: auto; } }
+            @media (prefers-reduced-motion: no-preference) { .hero, .card, .feature, .tool, .product { animation: rise .45s ease both; } @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } } }
+          </style>
         </head>
         <body>
-            <div class="app-container">
-                \(cardContent)
-            </div>
-            
-            <script>
-                function triggerEffect() {
-                    const tag = document.getElementById('status-tag');
-                    tag.innerText = "✨ Commande exécutée avec succès par Raphaël !";
-                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.vaiBridge) {
-                        window.webkit.messageHandlers.vaiBridge.postMessage({ status: 'completed' });
-                    }
-                }
-                
-                let curVal = "";
-                function press(num) {
-                    curVal += num;
-                    document.getElementById('display').value = curVal;
-                }
-                function op(operator) {
-                    curVal += " " + operator + " ";
-                    document.getElementById('display').value = curVal;
-                }
-                function clr() {
-                    curVal = "";
-                    document.getElementById('display').value = "0";
-                }
-                function calc() {
-                    try {
-                        let res = eval(curVal);
-                        document.getElementById('display').value = res;
-                        curVal = String(res);
-                    } catch(e) {
-                        document.getElementById('display').value = "Erreur";
-                        curVal = "";
-                    }
-                }
-            </script>
+          <main class="shell">
+            <nav><div class="brand">Raphaël<b>•</b> \(htmlEscaped(title))</div><a href="#experience">Aperçu</a></nav>
+            <header class="hero">
+              <span class="kicker">\(htmlEscaped(eyebrow))</span>
+              <h1>\(htmlEscaped(hero))</h1>
+              <p>\(subtitle)</p>
+              <div class="actions"><button class="primary" onclick="document.getElementById('experience').scrollIntoView({behavior:'smooth'})">\(htmlEscaped(primaryAction))</button><button class="ghost" onclick="setStatus('Prototype prêt à être personnalisé avec Raphaël')">Personnaliser</button></div>
+            </header>
+            <section class="cards">\(cardsHTML)</section>
+            \(interactiveBlock)
+            <div id="status" class="status" aria-live="polite"></div>
+            <footer>Prototype responsive généré localement par Raphaël · HTML + CSS + JavaScript</footer>
+          </main>
+          <script>
+            const statusNode = document.getElementById('status');
+            function setStatus(text) { if (statusNode) statusNode.textContent = text; }
+            function addToCart(name) { setStatus(name + ' ajouté à la sélection'); }
+            let curVal = '';
+            function press(n) { curVal += n; const d = document.getElementById('display'); if (d) d.value = curVal; }
+            function op(o) { if (!curVal.endsWith(' ')) curVal += ' ' + o + ' '; const d = document.getElementById('display'); if (d) d.value = curVal; }
+            function clr() { curVal=''; const d=document.getElementById('display'); if(d) d.value='0'; }
+            function calc() { const d=document.getElementById('display'); if(!d) return; try { const value = Function('return (' + curVal + ')')(); d.value=value; curVal=String(value); } catch(e) { d.value='Erreur'; curVal=''; } }
+          </script>
         </body>
         </html>
         """
-        return html
     }
 
     /// Génère une base SwiftUI locale lorsque Raphaël reçoit une demande iOS.
@@ -424,13 +510,10 @@ public final class VAICodeEngine {
     
     // MARK: - Intégrations Développeur & Cloud (GitHub, Gmail, Google Play Console, Déploiement Web)
     
-    /// Génère le flux d'authentification ou lance le portail de connexion GitHub
     public func getGitHubAuthURL() -> URL {
         return URL(string: "https://github.com/login")!
     }
     
-    /// Prépare un fichier local pour publication.
-    /// Une URL publique ne peut être fournie qu'après une vraie connexion à un hébergeur ou à GitHub.
     public func deployProjectOnline(projectName: String, htmlCode: String) -> (liveURL: String, status: String) {
         let cleanName = projectName.lowercased().replacingOccurrences(of: " ", with: "-")
         let filename = "\(cleanName)_ready_to_publish.html"
@@ -439,17 +522,14 @@ public final class VAICodeEngine {
         return ("", statusMsg)
     }
     
-    /// Génère l'URL et le flux de connexion Google / Gmail
     public func getGoogleMailURL() -> URL {
         return URL(string: "https://mail.google.com")!
     }
     
-    /// Génère l'accès direct et l'analyseur pour Google Play Developer Console
     public func getGooglePlayConsoleURL() -> URL {
         return URL(string: "https://play.google.com/console")!
     }
     
-    /// Générateur de paquet Android App Bundle (AAB / Manifest) pour Google Play Console
     public func generateGooglePlayManifest(appName: String, packageName: String) -> String {
         return """
         <?xml version="1.0" encoding="utf-8"?>
@@ -475,7 +555,6 @@ public final class VAICodeEngine {
         """
     }
     
-    /// Ingestion et extraction de maquettes Figma / Google Stitch Tokens
     public func ingestDesignTokens(jsonString: String) -> String {
         guard let data = jsonString.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -494,7 +573,6 @@ public final class VAICodeEngine {
         return parsedSummary
     }
     
-    /// Générateur de fichier Shortcut JSON pour Apple Shortcuts
     public func generateShortcutJSON(name: String, prompt: String) -> String {
         return """
         {
