@@ -1,21 +1,16 @@
 import Foundation
 import AVFoundation
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Gestionnaire Audio & Synthèse Vocale Apple Multi-Agents
-///
-/// Les agents utilisent volontairement la voix système Apple correspondant à leur
-/// langue. Une application tierce ne peut pas lire ni réutiliser de façon fiable
-/// l'identifiant interne de la voix actuellement choisie pour l'assistant Siri.
-/// En laissant AVSpeechSynthesisVoice résoudre la langue, Sarah suit le choix TTS
-/// standard disponible sur l'iPhone au lieu d'imposer des timbres personnalisés.
+/// Chaque agent reçoit un profil vocal Apple distinct. iOS ne donne pas aux apps
+/// tierces l'identifiant privé des voix numérotées de Siri ; on reproduit donc
+/// l'idée « Voix 1 à 5 » avec cinq voix Apple installées, choisies de façon stable.
 public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public static let shared = AgentVoiceManager()
 
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingSpeechBlock: (() -> Void)?
+    private var cachedFrenchVoices: [AVSpeechSynthesisVoice] = []
 
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -23,18 +18,68 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public override init() {
         super.init()
         synthesizer.delegate = self
+        refreshSystemVoiceSelection()
     }
 
-    /// Conservé pour compatibilité avec l'ancienne implémentation.
-    /// Il n'y a plus de cache de voix à reconstruire : la voix système est
-    /// résolue au moment où chaque phrase est prononcée.
+    /// Recharge les voix installées. Les voix Premium/Enhanced passent avant les
+    /// voix compactes, puis le tri par identifiant garde un ordre stable.
     @objc public func refreshSystemVoiceSelection() {
-        // Intentionnellement vide.
+        var seen = Set<String>()
+        cachedFrenchVoices = AVSpeechSynthesisVoice.speechVoices()
+            .filter { $0.language.lowercased().hasPrefix("fr") }
+            .sorted { lhs, rhs in
+                let left = qualityScore(lhs)
+                let right = qualityScore(rhs)
+                if left != right { return left > right }
+                if lhs.language != rhs.language { return lhs.language < rhs.language }
+                return lhs.identifier < rhs.identifier
+            }
+            .filter { voice in
+                guard !seen.contains(voice.identifier) else { return false }
+                seen.insert(voice.identifier)
+                return true
+            }
     }
 
-    /// Retourne la voix TTS Apple par défaut pour la langue de l'agent.
-    /// Le nom historique de la méthode est conservé pour ne pas casser les appels.
+    /// Profil vocal 1...5 demandé pour les agents principaux.
+    /// Ethel partage le profil 5 afin de conserver cinq profils au total.
+    private func voiceSlot(for agent: AgentPersona) -> Int {
+        switch agent {
+        case .sarah:  return 0 // Voix 1
+        case .esther: return 1 // Voix 2 - Raphaël
+        case .tom:    return 2 // Voix 3
+        case .yohan:  return 3 // Voix 4
+        case .nathan: return 4 // Voix 5
+        case .ethel:  return 4 // partage Voix 5
+        }
+    }
+
+    private func qualityScore(_ voice: AVSpeechSynthesisVoice) -> Int {
+        if #available(iOS 16.0, *), voice.quality == .premium { return 3 }
+        if voice.quality == .enhanced { return 2 }
+        return 1
+    }
+
+    /// Retourne le profil vocal Apple de l'agent. Si l'iPhone possède moins de
+    /// cinq voix françaises, on retombe proprement sur la voix de langue système.
     public func getSiriVoice(for agent: AgentPersona) -> AVSpeechSynthesisVoice? {
+        if cachedFrenchVoices.isEmpty {
+            refreshSystemVoiceSelection()
+        }
+
+        let slot = voiceSlot(for: agent)
+        if cachedFrenchVoices.indices.contains(slot) {
+            return cachedFrenchVoices[slot]
+        }
+
+        // Les anciens identifiants restent d'excellents replis quand la voix est
+        // effectivement installée sur l'appareil.
+        for identifier in agent.preferredSpeechVoiceIdentifiers {
+            if let voice = AVSpeechSynthesisVoice(identifier: identifier) {
+                return voice
+            }
+        }
+
         return AVSpeechSynthesisVoice(language: agent.localeCode)
             ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }
@@ -45,20 +90,17 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             ?? AVSpeechSynthesisVoice()
     }
 
-    /// Nettoyage du texte sans modifier les noms visibles dans l'interface.
+    /// Nettoyage du texte pour éviter de lire les marqueurs Markdown.
     public func cleanTextForSpeech(_ text: String) -> String {
         text
             .replacingOccurrences(of: "*", with: "")
             .replacingOccurrences(of: "#", with: "")
             .replacingOccurrences(of: "`", with: "")
-            .replacingOccurrences(of: "—", with: "")
-            .replacingOccurrences(of: "•", with: "")
+            .replacingOccurrences(of: "—", with: " ")
+            .replacingOccurrences(of: "•", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Crée une énonciation Apple dont le texte reste inchangé, mais dont les
-    /// noms propres portent une notation IPA afin d'éviter les prononciations
-    /// incorrectes tout en gardant l'orthographe normale à l'écran.
     public func makeUtterance(text: String) -> AVSpeechUtterance {
         let cleaned = cleanTextForSpeech(text)
         let attributedText = NSMutableAttributedString(string: cleaned)
@@ -78,12 +120,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
                 let pattern = "(?<![\\p{L}\\p{N}])"
                     + NSRegularExpression.escapedPattern(for: spelling)
                     + "(?![\\p{L}\\p{N}])"
-
-                guard let expression = try? NSRegularExpression(
-                    pattern: pattern,
-                    options: [.caseInsensitive]
-                ) else { continue }
-
+                guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
                 let range = NSRange(cleaned.startIndex..., in: cleaned)
                 for match in expression.matches(in: cleaned, range: range) {
                     attributedText.addAttribute(
@@ -98,23 +135,32 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         return AVSpeechUtterance(attributedString: attributedText)
     }
 
-    private func prepareAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth]
-            )
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-        } catch {
-            print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
+    private func containsHebrew(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            (0x0590...0x05FF).contains(Int(scalar.value))
         }
     }
 
-    /// Prononce avec les réglages Apple standards : aucune hauteur de voix ou
-    /// vitesse propre à un agent n'est imposée.
+    private func resolvedVoice(for agent: AgentPersona, text: String) -> AVSpeechSynthesisVoice? {
+        // Yohan peut lire correctement une réponse réellement en hébreu sans
+        // sacrifier son profil Voix 4 pour les phrases françaises.
+        if containsHebrew(text), let hebrew = AVSpeechSynthesisVoice(language: "he-IL") {
+            return hebrew
+        }
+        return getSiriVoice(for: agent)
+    }
+
+    private func prepareAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.overrideOutputAudioPort(.speaker)
+        } catch {
+            print("⚠️ [AgentVoiceManager] AVAudioSession: \(error.localizedDescription)")
+        }
+    }
+
     public func speak(
         text: String,
         as agent: AgentPersona,
@@ -130,24 +176,20 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         prepareAudioSession()
 
         let utterance = makeUtterance(text: cleaned)
-        let resolvedVoice = getSiriVoice(for: agent)
-        utterance.voice = resolvedVoice
+        let voice = resolvedVoice(for: agent, text: cleaned)
+        utterance.voice = voice
         utterance.pitchMultiplier = 1.0
         utterance.rate = rate
 
-        print(
-            "🔊 [AgentVoiceManager] Synthèse vocale [\(agent.rawValue)] via voix système Apple \(resolvedVoice?.name ?? \"fr-FR\")"
-        )
+        let voiceName = voice?.name ?? "fr-FR"
+        print("🔊 [AgentVoiceManager] \(agent.displayName) · Voix \(voiceSlot(for: agent) + 1) · \(voiceName)")
         synthesizer.speak(utterance)
     }
 
-    /// Compatibilité speak(text:for:)
     public func speak(text: String, for agent: AgentType) {
         speak(text: text, as: agent)
     }
 
-    /// Passation vocale séquentielle entre deux agents, toujours avec les
-    /// réglages de voix système Apple standards.
     public func speakHandoff(
         transitionText: String,
         sourceAgent: AgentType,
@@ -169,15 +211,15 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
         pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
-            let agentUtterance = self.makeUtterance(text: cleanAgent)
-            agentUtterance.voice = self.getSiriVoice(for: targetAgent)
-            agentUtterance.pitchMultiplier = 1.0
-            agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
-            self.synthesizer.speak(agentUtterance)
+            let utterance = self.makeUtterance(text: cleanAgent)
+            utterance.voice = self.resolvedVoice(for: targetAgent, text: cleanAgent)
+            utterance.pitchMultiplier = 1.0
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+            self.synthesizer.speak(utterance)
         }
 
         let sourceUtterance = makeUtterance(text: cleanTransition)
-        sourceUtterance.voice = getSiriVoice(for: sourceAgent)
+        sourceUtterance.voice = resolvedVoice(for: sourceAgent, text: cleanTransition)
         sourceUtterance.pitchMultiplier = 1.0
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
         synthesizer.speak(sourceUtterance)
@@ -188,29 +230,20 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
-
         if !AppleSpeechRecognizer.shared.isListening {
             AudioSessionManager.shared.deactivateSession()
         }
     }
 
-    public var isSpeaking: Bool {
-        synthesizer.isSpeaking
-    }
+    public var isSpeaking: Bool { synthesizer.isSpeaking }
 
     // MARK: - AVSpeechSynthesizerDelegate
 
-    public func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        didStart utterance: AVSpeechUtterance
-    ) {
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         onSpeechStarted?()
     }
 
-    public func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        didFinish utterance: AVSpeechUtterance
-    ) {
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         if let next = pendingSpeechBlock {
             pendingSpeechBlock = nil
             next()
@@ -220,14 +253,10 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    public func speechSynthesizer(
-        _ synthesizer: AVSpeechSynthesizer,
-        didCancel utterance: AVSpeechUtterance
-    ) {
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         AudioSessionManager.shared.deactivateSession()
         onSpeechFinished?()
     }
 }
 
-/// Alias MultiAgentVoiceManager pour compatibilité globale avec les ViewModels et Services.
 public typealias MultiAgentVoiceManager = AgentVoiceManager
