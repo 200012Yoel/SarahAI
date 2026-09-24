@@ -1,75 +1,57 @@
-# 👑 Sarah IA — Moteur IA Local Souverain & Multi-Agents iOS
+# 👑 Sarah IA — Assistant multi-agents pour iOS
 
-<div align="center">
-  <img src="SarahIA/SarahIA/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png" alt="Sarah IA Icon" width="160" style="border-radius: 36px; box-shadow: 0 12px 35px rgba(0,0,0,0.6);" />
-  <h3>Sarah IA — L'Intelligence Artificielle Locale & Souveraine pour iOS</h3>
-  <p><em>Interface Universelle 100% Identique — De l'iPhone 5s (iOS 12.0) à l'iPhone 17+ (iOS 18.0+)</em></p>
-</div>
+Sarah IA est une application iOS centrée sur **Sarah**, l’orchestratrice principale. Sarah route les demandes vers les agents et moteurs adaptés, tout en indiquant clairement ce qui s’exécute localement et ce qui nécessite un runtime réseau configuré.
 
----
+## 👥 Les agents
 
-## 🌟 Présentation
+| Agent | Rôle principal |
+| --- | --- |
+| 👑 **Sarah** | Orchestration générale, conversation et coordination des modèles |
+| 💻 **Raphaël** | Développement web, SwiftUI, scripts, automatisations et atelier de code |
+| 🌍 **Tom** | Recherche, histoire et explications documentées |
+| 🇮🇱 **Yohan** | Traduction français ↔ hébreu |
+| 🤖 **Nathan** | Réseaux sociaux et contenus |
+| ✨ **Ethel** | Création et design |
 
-**Sarah IA** est une application d'assistance intelligente et autonome pour iOS, conçue pour fonctionner **100% en local et hors-ligne**. 
-Elle intègre une **architecture adaptative multi-matérielle** qui ajuste en temps réel la puissance du modèle, la gestion de la mémoire et la cadence de streaming selon la génération exacte de l'iPhone.
+## 🧠 Sarah Engine
 
----
+Sarah pilote les familles de modèles de texte, code, vision, image, vidéo, musique, traduction et recherche. Les fonctions locales utilisent les capacités disponibles sur l’iPhone. Lorsqu’un moteur externe ou auto-hébergé est nécessaire, l’application doit l’indiquer au lieu de présenter le traitement comme local.
 
-## 👥 L'Équipe des 6 Agents Intégrés
+Le pipeline vocal s’appuie sur les frameworks audio Apple, la reconnaissance vocale et la synthèse `AVSpeechSynthesizer`. Les agents peuvent recevoir des profils vocaux Apple distincts selon les voix installées sur l’appareil.
 
-L'orchestration est pilotée par **Sarah**. L'utilisateur bascule instantanément d'un agent à l'autre par commande vocale naturelle (*« Passe-moi Tom »*, *« Donne-moi Esther »*, *« Passe-moi Nathan »*, *« Donne-moi Yoann »*, *« Passe-moi Ethel »*).
+## 💻 Raphaël · développement agentique
 
-| Agent | Rôle & Spécialité | Couleur & Thème | Fonctionnalités Clés |
-|:---|:---|:---:|:---|
-| 👑 **Sarah** | **Patronne & Orchestratrice Générale** | Rose Néon / Couronne | Orchestration générale, mémoire locale, flash/torche, batterie, vision locale et requêtes du quotidien. |
-| 💻 **Esther** *(ou Tom)* | **Synthèse Build & Live Preview** | Vert Cyber / Matrix | Génération de composants Web (HTML/CSS/JS), code Swift, Apple Shortcuts et Live Preview dans l'écran virtuel. |
-| 🌍 **Tom** | **Géopolitique & Histoire Contemporaine** | Bleu Stratégique | Histoire politique mondiale depuis 1948, conflits internationaux, Ve République, débats structurés. |
-| 🇮🇱 **Yoann** | **Traducteur Hébreu ⇄ Français** | Or & Ambre | Dictionnaire expert bilingue, phonétique, racines sémitiques, grammaire et expressions idiomatiques. |
-| 🤖 **Nathan** | **Réseaux Sociaux & Média** | Cyan Tech | Gestion et publication sur les réseaux sociaux (Instagram, TikTok, YouTube, X). |
-| ✨ **Ethel** | **Intelligence Créative & Spécialisée** | Bleu & Rouge | Agent féminin polyvalent pour les modules créatifs et graphiques. |
+Le développement web utilise deux rôles complémentaires :
 
----
+- **Qwen3-Coder-Next · Architecte** comprend la demande en langage naturel, le contexte du projet, les contraintes et prépare le plan de modification.
+- **Qwen3-Coder-30B-A3B-Instruct · Code Worker** écrit, refactorise et corrige le code à partir du plan.
 
-## 🏛️ Architecture Technique de "Sarah Engine"
+Ces modèles sont référencés sous licence Apache-2.0. Leurs gros poids ne sont pas embarqués dans l’IPA. Dans **Réglages > Sarah Engine**, un endpoint OpenAI-compatible auto-hébergé peut être configuré pour les utiliser. Sans endpoint disponible, Raphaël utilise le générateur local de secours et l’indique explicitement.
 
-### 1. 🧠 Inférence Adaptative & Profilage RAM (Zero Crash OOM)
-- **$\ge$ 6 Go RAM (iPhone 14/15/16/17+)** : Modèles 1.5B/3B Q4_K_M (MLX Swift / Core ML / Metal).
-- **2 à 4 Go RAM (iPhone 7 à 11)** : Micro-modèles 0.5B Q4_0 (llama.cpp / ARM NEON).
-- **$\le$ 1 Go RAM (iPhone 5s / 6 / iOS 12)** : Inférence locale désactivée et bascule automatique sur l'**API Cloud Fallback** (0 crash Jetsam OOM).
-- **Model Identity Privacy Shield** : Masquage total des noms de modèles bruts (Ollama, Llama, Qwen, Mistral) sous l'identité incarnée de Sarah.
+### Projet persistant et corrections successives
 
-### 2. 🎙️ Moteur Vocal & Visualiseur RMS 60 FPS
-- **Extraction d'Onde non-bloquante** : Tap sur `AVAudioEngine.inputNode` (bus 0) adapté dynamiquement au format matériel (Bluetooth mono 16 kHz / micro 48 kHz), calcul RMS et rafraîchissement 60 FPS via `CADisplayLink`.
-- **Pipeline STT & Traduction** : Whisper.cpp (Tiny Int8) + `SFSpeechRecognizer` avec moteur lexical `YohanLexiconEngine`.
-- **TTS HD** : `AVSpeechSynthesizer` avec voix neuronales haute fidélité.
+Raphaël conserve le projet web courant dans `Documents/VAI_Workspace/index.html` ainsi qu’un état de révision. Une consigne suivante telle que « corrige ce bouton », « change ce texte », « ajoute une section » ou « rends-le plus Apple » repart donc du projet existant plutôt que d’ouvrir un projet indépendant.
 
-### 3. 💬 Appels vocaux WebRTC
-- Appels vocaux chiffrés de bout en bout et traduction vocale en direct.
+### Test intégré
 
-### 4. 🗄️ Persistance SQLite WAL & Timeout d'Inactivité (1h)
-- Base SQLite native en mode **Write-Ahead Logging (`PRAGMA journal_mode = WAL;`)** avec index B-Tree sur `(conversation_id, timestamp DESC)` pour des lectures en $< 2\text{ ms}$.
-- **SessionTimeoutManager** : Si l'app reste fermée ou en arrière-plan $\ge 3600\text{ s}$ (1 heure), la session active est archivée et un nouveau chat vierge avec un UUID unique est généré.
-- **BackgroundModelDownloader** : `URLSessionConfiguration.background` avec support de reprise (`resumeData`).
+Après la génération, Sarah effectue un audit HTML puis charge le résultat dans un `WKWebView` de test. Le contrôle vérifie notamment :
 
-### 5. 💻 Live Preview Développeur Isolé (Dynamic Island)
-- Écran virtuel (`index.html`) réservé à l'Agent Développeur.
-- Injection via `DevCodeInjector` dans une `<iframe sandbox="allow-scripts allow-same-origin allow-forms">` avec Safe Areas et scrolling vertical autonome (`overflow-y: auto`, `overflow-x: hidden`).
-- Purge de cache `WKWebsiteDataStore.nonPersistent()` et Watchdog Timeout de 5.0 secondes.
+- le chargement du DOM ;
+- les erreurs JavaScript interceptées ;
+- le débordement horizontal sur une largeur mobile ;
+- les images cassées ;
+- la structure HTML et le viewport responsive.
 
----
+Si le runtime de code est connecté et que le test échoue, le Code Worker peut recevoir le rapport d’erreur, corriger le document et le faire tester une seconde fois.
 
-## 📱 Compatibilité Universelle
+## 🎙️ Dictée et lecture
 
-* **Binaire Universel** : `SarahIA.ipa` (~20.7 Mo)
-* **Systèmes supportés** : iOS 12.0, iOS 13.0, iOS 14.0, iOS 15.0, iOS 16.0, iOS 17.0, iOS 18.0+
-* **Appareils compatibles** : De l'iPhone 5s à l'iPhone 17 Pro Max.
-* **Outils d'installation** : Sideloadly, AltStore, TrollStore, Xcode.
+La dictée de la barre de saisie possède un état dédié avec niveau micro réel, arrêt vers le champ de saisie et envoi explicite. Les réponses de l’assistant disposent également d’une action de lecture à voix haute.
 
+## 🌐 Rendu web
 
-## Raphaël · développement agentique
+L’interface utilise un seul rendu web responsive adapté à la largeur du téléphone. L’ancien choix entre plusieurs simulateurs visuels n’est plus utilisé.
 
-Sarah reste l'orchestratrice centrale. Pour le développement web, Raphaël utilise une architecture à deux rôles : **Qwen3-Coder-Next** comme architecte de projet et **Qwen3-Coder-30B-A3B-Instruct** comme Code Worker. Les gros poids ne sont pas embarqués dans l'IPA : un endpoint OpenAI-compatible auto-hébergé peut être configuré dans les réglages. Sans endpoint, l'application garde son générateur local de secours.
+## 🔒 Principe de transparence
 
-Le projet web courant est persisté dans `Documents/VAI_Workspace/index.html` avec un numéro de révision. Les demandes suivantes peuvent modifier la même base. Chaque génération passe ensuite dans un audit statique puis dans un `WKWebView` de test qui vérifie le chargement DOM, les erreurs JavaScript capturées et les débordements horizontaux.
-
-La branche produit ne contient plus de moteur SceneKit/RealityKit ni de ressource USDZ/Reality liée à une fonctionnalité 3D.
+Sarah ne doit pas annoncer qu’un moteur lourd fonctionne directement sur l’iPhone si ce runtime n’est pas réellement présent. Les modèles externes restent optionnels et le comportement de secours local reste disponible quand ils ne sont pas configurés.
