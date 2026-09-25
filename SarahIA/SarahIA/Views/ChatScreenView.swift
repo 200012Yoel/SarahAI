@@ -3,29 +3,28 @@ import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
 
-/// Écran principal de discussion 100% natif SwiftUI avec interface multi-agents,
-/// disposition fixe Header / Messages / Barre basse au-dessus du clavier,
-/// Voice Orb plein écran et Studio VAI Coding.
+/// Écran principal SarahIA. Le mode vocal plein écran reste volontairement isolé
+/// de la couche visuelle afin que les évolutions Liquid Glass ne cassent pas sa logique.
 @available(iOS 15.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
     @ObservedObject private var keyboard = KeyboardObserver.shared
     @Binding var isShowingSettings: Bool
-    
-    @State private var isShowingActionSheet: Bool = false
-    @State private var isShowingVoiceCallScreen: Bool = false
-    @State private var isShowingPhotoPicker: Bool = false
+
+    @State private var isShowingActionSheet = false
+    @State private var isShowingVoiceCallScreen = false
+    @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
-    @State private var isShowingCamera: Bool = false
-    @State private var isShowingFileImporter: Bool = false
-    
+    @State private var isShowingCamera = false
+    @State private var isShowingFileImporter = false
+
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
         self._isShowingSettings = isShowingSettings
     }
-    
+
     private func analyzeSelectedPhoto(_ item: PhotosPickerItem?) {
-        guard let item = item else { return }
+        guard let item else { return }
         Task {
             do {
                 guard let data = try await item.loadTransferable(type: Data.self),
@@ -34,9 +33,7 @@ public struct ChatScreenView: View {
                     return
                 }
                 LocalVisionEngine.shared.recognizeObject(in: image) { result in
-                    DispatchQueue.main.async {
-                        viewModel.appendVisionAnalysis(image: image, result: result)
-                    }
+                    DispatchQueue.main.async { viewModel.appendVisionAnalysis(image: image, result: result) }
                 }
             } catch {
                 await MainActor.run { viewModel.inputText = "Impossible d'ouvrir la photo : \(error.localizedDescription)" }
@@ -46,148 +43,65 @@ public struct ChatScreenView: View {
 
     private func handleCameraImage(_ image: UIImage) {
         LocalVisionEngine.shared.recognizeObject(in: image) { result in
-            DispatchQueue.main.async {
-                viewModel.appendVisionAnalysis(image: image, result: result)
-            }
+            DispatchQueue.main.async { viewModel.appendVisionAnalysis(image: image, result: result) }
         }
     }
 
     private var topSafeArea: CGFloat {
-        if #available(iOS 13.0, *) {
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                .first
-            if let top = window?.safeAreaInsets.top, top > 0 {
-                return top
-            }
-        }
-        return 20
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+            .first
+        return max(window?.safeAreaInsets.top ?? 20, 20)
     }
-    
-    private var bottomSafeArea: CGFloat {
-        if #available(iOS 13.0, *) {
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
-                .first
-            if let insets = window?.safeAreaInsets {
-                return insets.bottom
-            }
-        }
-        return 0
-    }
-    
-    private var currentBottomPadding: CGFloat {
-        if keyboard.isVisible && keyboard.keyboardHeight > 0 {
-            // Collé au millimètre près sur le dessus du clavier
-            return keyboard.keyboardHeight
-        }
-        return bottomSafeArea > 0 ? bottomSafeArea : 8
-    }
-    
+
     public var body: some View {
         ZStack {
-            // Fond noir plein écran
-            Color.black
-                .ignoresSafeArea()
-            
+            modernBackground
+
             VStack(spacing: 0) {
-                // 1. En-tête (TopBar calée sous l'encoche / Dynamic Island)
                 topBar
-                    .padding(.top, topSafeArea)
-                    .padding(.bottom, 6)
-                
-                // 2. Liste des messages (ScrollView)
+                    .padding(.top, topSafeArea + 2)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+
                 MessageList(
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
                     isKeyboardVisible: keyboard.isVisible,
-                    onToggleSpeech: { message in
-                        viewModel.toggleSpeechForMessage(message.content)
-                    },
-                    onSelectSuggestion: { suggestionText in
-                        viewModel.sendMessage(suggestionText)
-                    },
-                    onIntroduceSarah: {
-                        viewModel.introduceSarah()
-                    },
-                    onDismissKeyboard: {
-                        keyboard.dismiss()
-                    },
-                    onOpenStudio: {
-                        viewModel.isShowingVAICodingStudio = true
-                    }
+                    onToggleSpeech: { viewModel.toggleSpeechForMessage($0.content) },
+                    onSelectSuggestion: { viewModel.sendMessage($0) },
+                    onIntroduceSarah: { viewModel.introduceSarah() },
+                    onDismissKeyboard: { keyboard.dismiss() },
+                    onOpenStudio: { viewModel.isShowingVAICodingStudio = true }
                 )
                 .contentShape(Rectangle())
-                .onTapGesture {
-                    keyboard.dismiss()
-                }
-                
+                .onTapGesture { keyboard.dismiss() }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                MessageBar(
-                    text: $viewModel.inputText,
-                    activeAgent: $viewModel.activeAgent,
-                    isRecording: viewModel.isMicRunning,
-                    isProcessing: viewModel.isGeneratingResponse,
-                    onOpenPhotoLibrary: {
-                        keyboard.dismiss()
-                        selectedPhotoItem = nil
-                        isShowingPhotoPicker = true
-                    },
-                    onOpenCamera: {
-                        keyboard.dismiss()
-                        isShowingCamera = true
-                    },
-                    onOpenFile: {
-                        keyboard.dismiss()
-                        isShowingFileImporter = true
-                    },
-                    onSend: { text in viewModel.sendMessage(text) },
-                    onCancel: { viewModel.cancelCurrentGeneration() },
-                    onToggleMic: { viewModel.toggleMicrophone() },
-                    onOpenVoiceOrb: {
-                        keyboard.dismiss()
-                        viewModel.isShowingVoiceOrbModal = true
-                    },
-                    onOpenVAICoding: { viewModel.isShowingVAICodingStudio = true }
-                )
-            }
-            .padding(.bottom, keyboard.isVisible ? 8 : 38)
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [Color.black.opacity(0.02), Color.black.opacity(0.68)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                ).allowsHitTesting(false)
-            )
+            composerDock
         }
+        // IMPORTANT : conserver le vrai mode vocal retrouvé en plein écran.
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(
                 viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.openDrawer()
-                },
-                onOpenSettings: {
-                    isShowingSettings = true
-                }
+                onOpenMenu: { viewModel.openDrawer() },
+                onOpenSettings: { isShowingSettings = true }
             )
         }
         .photosPicker(isPresented: $isShowingPhotoPicker, selection: $selectedPhotoItem, matching: .images)
-        .onChange(of: selectedPhotoItem) { item in
-            analyzeSelectedPhoto(item)
-        }
+        .onChange(of: selectedPhotoItem) { analyzeSelectedPhoto($0) }
         .sheet(isPresented: $isShowingCamera) {
             SarahCameraPicker { image in
                 isShowingCamera = false
-                if let image = image { handleCameraImage(image) }
+                if let image { handleCameraImage(image) }
             }
         }
         .fileImporter(isPresented: $isShowingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.appendImportedFile(url: url)
-            } else if case .failure(let error) = result {
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { viewModel.appendImportedFile(url: url) }
+            case .failure(let error):
                 viewModel.inputText = "Impossible d'ouvrir le fichier : \(error.localizedDescription)"
             }
         }
@@ -205,163 +119,156 @@ public struct ChatScreenView: View {
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
-                title: Text("Écosystème Développeur & Multi-Agents"),
+                title: Text("SarahIA"),
+                message: Text("Outils et agents"),
                 buttons: [
-                    .default(Text("📞 Appel Vocal WebRTC & Traduction IA")) {
-                        if WebRTCVoiceCallManager.shared.callState == .idle, let c = VoiceCallContactManager.shared.contacts.first {
-                            WebRTCVoiceCallManager.shared.startOutboundCall(to: c)
+                    .default(Text("📞 Appel vocal")) {
+                        if WebRTCVoiceCallManager.shared.callState == .idle,
+                           let contact = VoiceCallContactManager.shared.contacts.first {
+                            WebRTCVoiceCallManager.shared.startOutboundCall(to: contact)
                         }
                         isShowingVoiceCallScreen = true
                     },
-                    .default(Text("🎨 Générer une Image HD (Local CoreML / Metal)")) {
-                        viewModel.inputText = "Génère une photo de "
-                    },
-                    .default(Text("🎵 Composer une Musique 100% Locale (DSP)")) {
-                        viewModel.inputText = "Génère une musique lo-fi"
-                    },
-                    .default(Text("👁️ Vision & Analyse Multimodale (OCR)")) {
-                        viewModel.inputText = "Analyse cette photo et décris ce que tu vois"
-                    },
-                    .default(Text("📱 Nathan — Publier sur les Réseaux Sociaux")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Nathan, quels sont mes réseaux sociaux connectés ?")
-                    },
-                    .default(Text("🎨 Ethel — Créativité & Studio Graphique")) {
-                        viewModel.activeAgent = .ethel
-                        viewModel.sendMessage("Bonjour Ethel ! Raconte-moi ce que tu prépares.")
-                    },
-                    .default(Text("🎵 Nathan — Générer une Musique Rapide")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.inputText = "Compose une musique "
-                    },
-                    .default(Text("🤖 Nathan — Meilleurs modèles d'IA")) {
-                        viewModel.activeAgent = .nathan
-                        viewModel.sendMessage("Quels sont les meilleurs modèles d'IA disponibles en ce moment ?")
-                    },
-                    .default(Text("💻 Studio Raphaël — Code & prototypes")) {
+                    .default(Text("💻 Studio Raphaël")) {
                         viewModel.activeAgent = .esther
                         viewModel.isShowingVAICodingStudio = true
                     },
-                    .default(Text("🐙 Se Connecter à GitHub")) {
-                        viewModel.activeAgent = .esther
-                        viewModel.sendMessage("Connecte-toi à GitHub")
+                    .default(Text("👁️ Vision & OCR")) { viewModel.inputText = "Analyse cette photo : " },
+                    .default(Text("🎨 Image")) { viewModel.inputText = "Génère une image de " },
+                    .default(Text("🎵 Musique")) { viewModel.inputText = "Compose une musique " },
+                    .default(Text("🇮🇱 Yohan · Traduction")) {
+                        viewModel.activeAgent = .yohan
+                        viewModel.inputText = "Traduis en hébreu : "
                     },
-                    .default(Text("📧 Boîte Google Gmail")) {
-                        viewModel.activeAgent = .esther
-                        viewModel.sendMessage("Ouvre mes mails Gmail")
+                    .default(Text("🌍 Tom · Histoire")) {
+                        viewModel.activeAgent = .tom
+                        viewModel.inputText = "Explique-moi "
                     },
-                    .default(Text("🔮 Ouvrir l'Orbe Vocal Immersif")) {
+                    .default(Text("🎙️ Mode vocal Sarah")) {
                         viewModel.isShowingVoiceOrbModal = true
                     },
-                    .default(Text("🇮🇱 Traduction Hébreu ⇄ Français (Yohan)")) {
-                        viewModel.activeAgent = .yohan
-                        viewModel.inputText = "Comment on dit en hébreu : "
-                    },
-                    .default(Text("🌍 Débat Géopolitique & Histoire (Tom)")) {
-                        viewModel.activeAgent = .tom
-                        viewModel.inputText = "Raconte-moi l'histoire de "
-                    },
-                    .default(Text("👑 Parler à Sarah (Pilote)")) {
-                        viewModel.activeAgent = .sarah
-                        viewModel.introduceSarah()
-                    },
-                    .cancel(Text("Annuler"))
+                    .cancel(Text("Fermer"))
                 ]
             )
         }
     }
-    
-    @ViewBuilder
-    private var voiceSheetContent: some View {
-        if #available(iOS 16.0, *) {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.openDrawer()
-                },
-                onOpenSettings: {
-                    isShowingSettings = true
-                }
+
+    private var modernBackground: some View {
+        ZStack {
+            Color.black
+            RadialGradient(
+                colors: [viewModel.activeAgent.themeColor.opacity(0.16), Color.clear],
+                center: .top,
+                startRadius: 10,
+                endRadius: 430
             )
-            // Grand mode + mode réduit. Un glissement vers le bas garde le chat
-            // visible derrière, comme dans les assistants vocaux modernes.
-            .presentationDetents([.height(255), .large])
-            .presentationDragIndicator(.visible)
-        } else {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.openDrawer()
-                },
-                onOpenSettings: {
-                    isShowingSettings = true
-                }
+            LinearGradient(
+                colors: [Color.white.opacity(0.035), Color.clear, Color.black.opacity(0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
+        }
+        .ignoresSafeArea()
+    }
+
+    private var composerDock: some View {
+        VStack(spacing: 0) {
+            MessageBar(
+                text: $viewModel.inputText,
+                activeAgent: $viewModel.activeAgent,
+                isRecording: viewModel.isMicRunning,
+                isProcessing: viewModel.isGeneratingResponse,
+                onOpenPhotoLibrary: {
+                    keyboard.dismiss(); selectedPhotoItem = nil; isShowingPhotoPicker = true
+                },
+                onOpenCamera: {
+                    keyboard.dismiss(); isShowingCamera = true
+                },
+                onOpenFile: {
+                    keyboard.dismiss(); isShowingFileImporter = true
+                },
+                onSend: { viewModel.sendMessage($0) },
+                onCancel: { viewModel.cancelCurrentGeneration() },
+                onToggleMic: { viewModel.toggleMicrophone() },
+                onOpenVoiceOrb: {
+                    keyboard.dismiss()
+                    viewModel.isShowingVoiceOrbModal = true
+                },
+                onOpenVAICoding: { viewModel.isShowingVAICodingStudio = true }
+            )
+        }
+        .padding(.top, 3)
+        .padding(.bottom, keyboard.isVisible ? 6 : 8)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            LinearGradient(
+                colors: [Color.white.opacity(0.16), Color.white.opacity(0.025), Color.clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 0.7)
         }
     }
 
-    // MARK: - Topbar
-    
     private var topBar: some View {
-        HStack(alignment: .center) {
-            // Bouton Menu Tiroir (Sidebar)
-            Button(action: {
+        HStack(spacing: 10) {
+            glassCircleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 viewModel.openDrawer()
-            }) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
             }
-            .buttonStyle(ScaleBounceButtonStyle())
-            
-            Spacer()
-            
-            // Titre de l'agent actif (centre)
-            Button(action: {
-                viewModel.isShowingVoiceOrbModal = true
-            }) {
-                HStack(spacing: 6) {
+
+            Spacer(minLength: 4)
+
+            Menu {
+                Button("Sarah") { viewModel.activeAgent = .sarah }
+                Button("Raphaël") { viewModel.activeAgent = .esther }
+                Button("Yohan") { viewModel.activeAgent = .yohan }
+                Button("Tom") { viewModel.activeAgent = .tom }
+                Divider()
+                Button("Outils") { isShowingActionSheet = true }
+            } label: {
+                HStack(spacing: 8) {
                     Circle()
                         .fill(viewModel.activeAgent.themeColor)
                         .frame(width: 8, height: 8)
-                    
+                        .shadow(color: viewModel.activeAgent.themeColor.opacity(0.8), radius: 5)
                     Text(viewModel.activeAgent.displayName)
-                        .font(.headline)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
-                    
                     Image(systemName: "chevron.down")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white.opacity(0.55))
                 }
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .sarahLiquidGlass(cornerRadius: 22, tint: viewModel.activeAgent.themeColor, intensity: 0.12)
             }
             .buttonStyle(PlainButtonStyle())
-            
-            Spacer()
-            
-            // Bouton Paramètres — Roue crantée ⚙️
-            Button(action: {
+
+            Spacer(minLength: 4)
+
+            glassCircleButton(systemName: "gearshape.fill") {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
                 isShowingSettings = true
-            }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Circle().fill(Color(white: 0.16)))
             }
-            .buttonStyle(ScaleBounceButtonStyle())
         }
-        .padding(.horizontal, 16)
+    }
+
+    private func glassCircleButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .sarahLiquidGlass(cornerRadius: 22, tint: viewModel.activeAgent.themeColor, intensity: 0.10)
+        }
+        .buttonStyle(ScaleBounceButtonStyle())
     }
 }
 
 /// Brief conservé entre une première maquette et ses améliorations.
-/// Il ne représente jamais un site déjà publié : le rendu est d'abord local dans le Studio VAI.
 public struct WebsiteBrief {
     public var category: String
     public var name: String
@@ -371,15 +278,7 @@ public struct WebsiteBrief {
     public var accent: String
     public var sections: [String]
 
-    public init(
-        category: String,
-        name: String,
-        purpose: String,
-        audience: String,
-        visualStyle: String,
-        accent: String,
-        sections: [String]
-    ) {
+    public init(category: String, name: String, purpose: String, audience: String, visualStyle: String, accent: String, sections: [String]) {
         self.category = category
         self.name = name
         self.purpose = purpose
@@ -391,24 +290,16 @@ public struct WebsiteBrief {
 
     public static func shouldOpenBuilder(for text: String) -> Bool {
         let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        let creationWords = [
-            "site internet", "site web", "site e-commerce", "site ecommerce",
-            "genere un site", "creer un site", "creation de site", "fabrique un site",
-            "faire un site", "lance un site"
-        ]
+        let creationWords = ["site internet", "site web", "site e-commerce", "site ecommerce", "genere un site", "creer un site", "creation de site", "fabrique un site", "faire un site", "lance un site"]
         return creationWords.contains { normalized.contains($0) } || isRefinementRequest(text)
     }
 
     public static func isRefinementRequest(_ text: String) -> Bool {
         let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return ["ameliore le site", "ameliorer le site", "modifie le site", "modifier le site", "refais le site", "maquette"].contains {
-            normalized.contains($0)
-        }
+        return ["ameliore le site", "ameliorer le site", "modifie le site", "modifier le site", "refais le site", "maquette"].contains { normalized.contains($0) }
     }
 }
 
-/// Parcours de création inspiré des assistants de conception : choix, questions courtes,
-/// puis génération d'une première maquette HTML locale avec Raphaël.
 @available(iOS 15.0, *)
 private struct WebsiteBuilderFlowView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -428,25 +319,22 @@ private struct WebsiteBuilderFlowView: View {
         WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Inspirer et réserver"),
         WebsiteChoice(title: "Restaurant", icon: "fork.knife", detail: "Menu et réservation"),
         WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Présenter son travail"),
-        WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Services et contact"),
-        WebsiteChoice(title: "Événement", icon: "calendar", detail: "Informer et inscrire")
+        WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Présenter une activité")
     ]
-
-    private let audiences = ["Grand public", "Professionnels", "Familles", "Jeunes adultes", "Clients locaux", "International"]
-    private let styles = ["Minimaliste", "Élégant", "Énergique", "Luxe", "Naturel", "Tech"]
-    private let accentOptions = ["Bleu", "Violet", "Rose", "Orange", "Vert", "Noir & blanc"]
-    private let sectionOptions = ["Accueil", "À propos", "Produits / services", "Galerie", "Avis clients", "FAQ", "Contact"]
+    private let styles = ["Apple épuré", "Éditorial", "Minimal sombre", "Coloré", "Premium"]
+    private let accents = ["Bleu", "Violet", "Vert", "Orange", "Rose", "Monochrome"]
+    private let availableSections = ["Accueil", "À propos", "Services", "Produits", "Galerie", "Témoignages", "FAQ", "Contact"]
 
     init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
-        let draft = viewModel.websiteDraft
-        _category = State(initialValue: draft?.category ?? "")
-        _name = State(initialValue: draft?.name ?? "")
-        _purpose = State(initialValue: draft?.purpose ?? "")
-        _audience = State(initialValue: draft?.audience ?? "")
-        _visualStyle = State(initialValue: draft?.visualStyle ?? "")
-        _accent = State(initialValue: draft?.accent ?? "Violet")
-        _sections = State(initialValue: Set(draft?.sections ?? ["Accueil", "À propos", "Contact"]))
+        let brief = viewModel.websiteBrief ?? WebsiteBrief(category: "Entreprise", name: "", purpose: "", audience: "", visualStyle: "Apple épuré", accent: "Bleu", sections: ["Accueil", "À propos", "Services", "Contact"])
+        _category = State(initialValue: brief.category)
+        _name = State(initialValue: brief.name)
+        _purpose = State(initialValue: brief.purpose)
+        _audience = State(initialValue: brief.audience)
+        _visualStyle = State(initialValue: brief.visualStyle)
+        _accent = State(initialValue: brief.accent)
+        _sections = State(initialValue: Set(brief.sections))
     }
 
     var body: some View {
@@ -455,260 +343,149 @@ private struct WebsiteBuilderFlowView: View {
                 Color.black.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
-                        header
-                        progress
-                        questionContent
-                        navigationButtons
+                        Text("Créer un site")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(.white)
+                        Text("Raphaël prépare une maquette locale. Rien n'est publié sans ton accord.")
+                            .foregroundColor(.gray)
+
+                        Group {
+                            if step == 0 { categoryStep }
+                            else if step == 1 { identityStep }
+                            else if step == 2 { styleStep }
+                            else { summaryStep }
+                        }
+
+                        HStack {
+                            if step > 0 {
+                                Button("Retour") { withAnimation { step -= 1 } }
+                                    .foregroundColor(.white)
+                            }
+                            Spacer()
+                            Button(step < 3 ? "Continuer" : "Générer la maquette") {
+                                if step < 3 { withAnimation { step += 1 } } else { generate() }
+                            }
+                            .font(.headline)
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 12)
+                            .background(Color.white)
+                            .clipShape(Capsule())
+                        }
                     }
-                    .padding(20)
+                    .padding(24)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Annuler") { dismiss() }
-                        .foregroundColor(.white)
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Raphaël · Créateur de site")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-            }
-        }
-        .preferredColorScheme(.dark)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(step == 3 ? "Prêt à créer" : "Construisons ton site")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            Text(step == 3
-                 ? "Raphaël va créer une première maquette locale. Tu pourras ensuite lui demander toutes les améliorations que tu veux."
-                 : "Réponds à ces quatre questions courtes. Les choix servent à préparer une première version cohérente.")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .fixedSize(horizontal: false, vertical: true)
+            .navigationBarHidden(true)
         }
     }
 
-    private var progress: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Question \(step + 1) sur 4")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.purple)
-                Spacer()
-                Text("\((step + 1) * 25) %")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+    private var categoryStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quel type de site ?").font(.title2.bold()).foregroundColor(.white)
+            ForEach(categories) { choice in
+                Button { category = choice.title } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: choice.icon).frame(width: 28)
+                        VStack(alignment: .leading) {
+                            Text(choice.title).font(.headline)
+                            Text(choice.detail).font(.caption).foregroundColor(.gray)
+                        }
+                        Spacer()
+                        if category == choice.title { Image(systemName: "checkmark.circle.fill") }
+                    }
+                    .foregroundColor(.white)
+                    .padding(16)
+                    .background(Color.white.opacity(category == choice.title ? 0.12 : 0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
             }
-            ProgressView(value: Double(step + 1), total: 4)
-                .tint(.purple)
         }
     }
 
-    @ViewBuilder
-    private var questionContent: some View {
-        switch step {
-        case 0:
-            questionTitle("Quel type de site veux-tu créer ?", subtitle: "Choisis la base la plus proche de ton idée.")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(categories) { choice in
-                    choiceCard(
-                        title: choice.title,
-                        detail: choice.detail,
-                        icon: choice.icon,
-                        selected: category == choice.title
-                    ) { category = choice.title }
-                }
-            }
-        case 1:
-            questionTitle("Quelle est l’idée du site ?", subtitle: "Donne un nom, son objectif et les personnes à qui il s’adresse.")
-            VStack(spacing: 12) {
-                textField("Nom du site ou de la marque", text: $name)
-                textField("Objectif en une phrase (facultatif)", text: $purpose)
-            }
-            chipSection(title: "Public visé", options: audiences, selection: $audience)
-        case 2:
-            questionTitle("Quel affichage veux-tu ?", subtitle: "Choisis une direction visuelle ; elle restera modifiable après la maquette.")
-            chipSection(title: "Style", options: styles, selection: $visualStyle)
-            chipSection(title: "Couleur principale", options: accentOptions, selection: $accent)
-        default:
-            questionTitle("Quelles sections faut-il afficher ?", subtitle: "Sélectionne au moins trois éléments. Raphaël créera aussi une navigation adaptée.")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(sectionOptions, id: \.self) { section in
+    private var identityStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Parle-moi du projet").font(.title2.bold()).foregroundColor(.white)
+            builderField("Nom du site", text: $name)
+            builderField("Objectif principal", text: $purpose)
+            builderField("Public visé", text: $audience)
+        }
+    }
+
+    private var styleStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Direction visuelle").font(.title2.bold()).foregroundColor(.white)
+            Text("Style").font(.headline).foregroundColor(.white)
+            choiceChips(styles, selection: $visualStyle)
+            Text("Couleur d'accent").font(.headline).foregroundColor(.white)
+            choiceChips(accents, selection: $accent)
+            Text("Sections").font(.headline).foregroundColor(.white)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 10) {
+                ForEach(availableSections, id: \.self) { section in
                     Button {
                         if sections.contains(section) { sections.remove(section) } else { sections.insert(section) }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: sections.contains(section) ? "checkmark.circle.fill" : "circle")
-                            Text(section)
-                                .font(.subheadline.weight(.medium))
-                            Spacer(minLength: 0)
-                        }
-                        .foregroundColor(sections.contains(section) ? .white : .gray)
-                        .padding(13)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(sections.contains(section) ? Color.purple.opacity(0.72) : Color.white.opacity(0.08)))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(sections.contains(section) ? Color.purple : Color.white.opacity(0.12), lineWidth: 1))
+                        Text(section).font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.white.opacity(sections.contains(section) ? 0.18 : 0.06))
+                            .clipShape(Capsule()).foregroundColor(.white)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private var navigationButtons: some View {
-        HStack(spacing: 12) {
-            if step > 0 {
-                Button("Retour") { step -= 1 }
-                    .buttonStyle(WebsiteSecondaryButtonStyle())
-            }
-            Button(step == 3 ? "Générer la maquette" : "Continuer") {
-                if step == 3 {
-                    let finalSections = sections.count >= 3 ? Array(sections).sorted() : ["Accueil", "À propos", "Produits / services", "Contact"]
-                    viewModel.completeWebsiteBrief(WebsiteBrief(
-                        category: category,
-                        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                        purpose: purpose.trimmingCharacters(in: .whitespacesAndNewlines),
-                        audience: audience,
-                        visualStyle: visualStyle,
-                        accent: accent,
-                        sections: finalSections
-                    ))
-                    dismiss()
-                } else {
-                    step += 1
-                }
-            }
-            .disabled(!canContinue)
-            .buttonStyle(WebsitePrimaryButtonStyle())
+    private var summaryStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Prêt pour la première maquette").font(.title2.bold()).foregroundColor(.white)
+            summary("Type", category); summary("Nom", name.isEmpty ? "À proposer" : name)
+            summary("Objectif", purpose.isEmpty ? "À préciser" : purpose)
+            summary("Public", audience.isEmpty ? "Grand public" : audience)
+            summary("Style", visualStyle); summary("Accent", accent)
+            summary("Sections", sections.sorted().joined(separator: ", "))
         }
-        .padding(.top, 4)
+        .padding(18).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
     }
 
-    private var canContinue: Bool {
-        switch step {
-        case 0: return !category.isEmpty
-        case 1: return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !audience.isEmpty
-        case 2: return !visualStyle.isEmpty && !accent.isEmpty
-        default: return true
-        }
+    private func builderField(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text).foregroundColor(.white).padding(14)
+            .background(Color.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func questionTitle(_ title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.title3.weight(.bold)).foregroundColor(.white)
-            Text(subtitle).font(.subheadline).foregroundColor(.gray)
-        }
-    }
-
-    private func textField(_ placeholder: String, text: Binding<String>) -> some View {
-        TextField(placeholder, text: text)
-            .textInputAutocapitalization(.sentences)
-            .disableAutocorrection(false)
-            .foregroundColor(.white)
-            .padding(15)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.09)))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.13), lineWidth: 1))
-    }
-
-    private func chipSection(title: String, options: [String], selection: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundColor(.white)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 9)], alignment: .leading, spacing: 9) {
-                ForEach(options, id: \.self) { option in
-                    Button(option) { selection.wrappedValue = option }
-                        .font(.subheadline.weight(.medium))
-                        .foregroundColor(selection.wrappedValue == option ? .white : .gray)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 10)
-                        .background(Capsule().fill(selection.wrappedValue == option ? Color.purple.opacity(0.78) : Color.white.opacity(0.08)))
-                        .overlay(Capsule().stroke(selection.wrappedValue == option ? Color.purple : Color.white.opacity(0.12), lineWidth: 1))
-                        .buttonStyle(.plain)
+    private func choiceChips(_ values: [String], selection: Binding<String>) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 10) {
+            ForEach(values, id: \.self) { value in
+                Button { selection.wrappedValue = value } label: {
+                    Text(value).font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .background(Color.white.opacity(selection.wrappedValue == value ? 0.18 : 0.06))
+                        .clipShape(Capsule()).foregroundColor(.white)
                 }
             }
         }
     }
 
-    private func choiceCard(title: String, detail: String, icon: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 9) {
-                Image(systemName: icon).font(.title3).foregroundColor(selected ? .white : .purple)
-                Text(title).font(.headline).foregroundColor(.white)
-                Text(detail).font(.caption).foregroundColor(selected ? .white.opacity(0.85) : .gray)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 18).fill(selected ? Color.purple.opacity(0.72) : Color.white.opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? Color.purple : Color.white.opacity(0.12), lineWidth: 1))
+    private func summary(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label).foregroundColor(.gray).frame(width: 82, alignment: .leading)
+            Text(value).foregroundColor(.white)
+            Spacer()
         }
-        .buttonStyle(.plain)
+    }
+
+    private func generate() {
+        let brief = WebsiteBrief(category: category, name: name, purpose: purpose, audience: audience, visualStyle: visualStyle, accent: accent, sections: sections.sorted())
+        viewModel.websiteBrief = brief
+        viewModel.activeAgent = .esther
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            viewModel.isShowingVAICodingStudio = true
+            viewModel.sendMessage("Raphaël, crée une première maquette locale pour ce site : \(category), nom \(name.isEmpty ? "à proposer" : name), objectif \(purpose), public \(audience), style \(visualStyle), accent \(accent), sections \(sections.sorted().joined(separator: ", ")). Ne publie rien sans mon accord.")
+        }
     }
 }
 
-@available(iOS 15.0, *)
 private struct WebsiteChoice: Identifiable {
+    let id = UUID()
     let title: String
     let icon: String
     let detail: String
-    var id: String { title }
-}
-
-@available(iOS 15.0, *)
-private struct WebsitePrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(maxWidth: .infinity)
-            .padding(15)
-            .font(.headline)
-            .foregroundColor(.white)
-            .background(RoundedRectangle(cornerRadius: 15).fill(Color.purple.opacity(configuration.isPressed ? 0.55 : 0.9)))
-            .opacity(configuration.isPressed ? 0.85 : 1)
-    }
-}
-
-@available(iOS 15.0, *)
-private struct WebsiteSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(15)
-            .font(.headline)
-            .foregroundColor(.white)
-            .background(RoundedRectangle(cornerRadius: 15).fill(Color.white.opacity(configuration.isPressed ? 0.05 : 0.11)))
-    }
-}
-
-
-@available(iOS 15.0, *)
-private struct SarahCameraPicker: UIViewControllerRepresentable {
-    let completion: (UIImage?) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.delegate = context.coordinator
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
-        picker.mediaTypes = ["public.image"]
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
-        let completion: (UIImage?) -> Void
-        init(completion: @escaping (UIImage?) -> Void) { self.completion = completion }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            completion(info[.originalImage] as? UIImage)
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            completion(nil)
-        }
-    }
 }
