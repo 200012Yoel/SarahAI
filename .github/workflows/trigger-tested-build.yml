@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting rebuilt SarahIA keyboard and voice compile v4"
+          echo "Starting SarahIA prompt-leak fix compile v5"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
