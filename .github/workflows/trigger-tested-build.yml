@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting clean three-control voice UI and stable system-volume compile v11"
+          echo "Starting centralized voice-audio compile v12"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
