@@ -58,10 +58,13 @@ public final class AudioSessionManager {
         forceDeactivateSession()
     }
 
-    /// Après une vraie interruption iOS, réapplique la configuration de conversation.
+    /// Après une vraie interruption iOS ou un changement de route, on réactive
+    /// seulement la session existante. On ne refait jamais `setCategory` pendant
+    /// une conversation, ce qui évite les bugs lors des changements de volume.
     public func restoreContinuousVoiceSessionIfNeeded() {
         guard isContinuousVoiceSessionActive else { return }
-        configureVoiceConversationSession()
+        ensureContinuousSessionActive()
+        ensureAudibleOutputRouteIfNeeded()
     }
 
     /// Réactive la session sans changer catégorie, mode ou route. Utilisé pour
