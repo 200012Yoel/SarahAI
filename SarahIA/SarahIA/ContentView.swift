@@ -81,7 +81,8 @@ public struct ContentView: View {
                 viewModel.activeAgent = .sarah
                 viewModel.isShowingVoiceOrbModal = true
             case "chat":
-                viewModel.endVoiceConversation()
+                viewModel.stopVoiceConversation()
+                viewModel.isShowingVoiceOrbModal = false
             default:
                 break
             }
