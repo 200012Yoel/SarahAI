@@ -22,15 +22,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify rebuilt chat and voice wiring
+      - name: Verify chat, compact voice sheet and audio wiring
         run: |
           set -e
           test -f SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal)' SarahIA/SarahIA/ContentView.swift
+          grep -q '.sheet(' SarahIA/SarahIA/ContentView.swift
+          grep -q 'isPresented: $viewModel.isShowingVoiceOrbModal' SarahIA/SarahIA/ContentView.swift
+          grep -q 'presentationDetents' SarahIA/SarahIA/ContentView.swift
+          grep -q 'let compact = proxy.size.height < 430' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           grep -q 'viewModel.isShowingVoiceOrbModal = true' SarahIA/SarahIA/Views/ChatScreenView.swift
           grep -q 'safeAreaInset(edge: .bottom' SarahIA/SarahIA/Views/ChatScreenView.swift
           grep -q 'simultaneousGesture(drawerGesture' SarahIA/SarahIA/ContentView.swift
-          echo 'Stable chat, keyboard and root voice wiring present'
+          grep -q 'let shouldSpeakAutomatically = self.isContinuousConversationActive' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          echo 'Compact voice mode and continuous reply wiring present'
 
       - name: Xcode version
         run: xcodebuild -version
