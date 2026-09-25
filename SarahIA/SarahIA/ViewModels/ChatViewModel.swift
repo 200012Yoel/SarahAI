@@ -417,7 +417,6 @@ public final class ChatViewModel: ObservableObject {
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self,
                   self.isContinuousConversationActive,
-                  self.isShowingVoiceOrbModal,
                   !self.isVoiceMicrophoneMuted else { return }
 
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -701,7 +700,7 @@ public final class ChatViewModel: ObservableObject {
                 let aiMessage = Message(content: responseContent, isFromUser: false)
                 self.appendMessage(aiMessage)
                 self.isTyping = false
-                self.voiceStatus = .idle
+                self.voiceStatus = self.isContinuousConversationActive ? .processing : .idle
                 
                 // Enregistrer l'échange pour maintenir le fil contextuel (mémoire court terme)
                 self.aiService.recordExchange(userText: text, assistantResponse: responseContent)
@@ -713,7 +712,7 @@ public final class ChatViewModel: ObservableObject {
                     self.vaiCurrentCode = code
                 }
                 
-                let shouldSpeakAutomatically = self.isContinuousConversationActive && self.isShowingVoiceOrbModal
+                let shouldSpeakAutomatically = self.isContinuousConversationActive
                 if shouldSpeakAutomatically {
                     if let transitionPart = response.handoffSarahTransition,
                        let agentPart = response.handoffAgentGreeting {
