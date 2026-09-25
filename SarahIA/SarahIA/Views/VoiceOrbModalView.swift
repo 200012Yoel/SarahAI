@@ -1,22 +1,20 @@
 import SwiftUI
-import UIKit
 
-/// Mode vocal plein écran de Sarah.
-/// Cette vue reprend l'interface complète : grand orbe, menu, réglages,
-/// fermeture explicite, saisie texte, contrôle micro et interruption de Sarah.
+/// Interface vocale Sarah simple et redimensionnable.
+///
+/// En grand : orbe, état de la conversation et une seule barre de saisie.
+/// En glissant vers le bas : petit orbe centré juste au-dessus de la saisie.
+/// Il n'y a plus de bouton X, ni de commandes Écrire/Interrompre en double.
 @available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.presentationMode) private var presentationMode
-    @Environment(\.scenePhase) private var scenePhase
 
     private let onOpenMenu: () -> Void
     private let onOpenSettings: () -> Void
 
     @State private var pulse = false
     @State private var drift = false
-    @State private var showTextComposer = false
-    @FocusState private var textComposerFocused: Bool
 
     public init(
         viewModel: ChatViewModel,
@@ -28,17 +26,22 @@ public struct VoiceOrbModalView: View {
         self.onOpenSettings = onOpenSettings
     }
 
-    private var accent: Color { viewModel.activeAgent.themeColor }
-    private var normalizedLevel: CGFloat { min(max(CGFloat(viewModel.micInputLevel), 0), 1) }
+    private var accent: Color {
+        viewModel.activeAgent.themeColor
+    }
+
+    private var normalizedLevel: CGFloat {
+        min(max(CGFloat(viewModel.micInputLevel), 0), 1)
+    }
 
     private var statusTitle: String {
         switch viewModel.voiceStatus {
         case .starting:
-            return "Activation du micro…"
+            return "Activation…"
         case .processing:
             return "Je réfléchis…"
         case .speaking:
-            return "\(viewModel.activeAgent.displayName) parle"
+            return "Sarah parle"
         case .error:
             return "Micro indisponible"
         default:
@@ -52,11 +55,11 @@ public struct VoiceOrbModalView: View {
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
         case .starting:
-            return "Activation de la reconnaissance vocale"
+            return "Activation de la voix"
         case .processing:
             return "Un instant…"
         case .speaking:
-            return "Tu peux couper le micro ou interrompre la session avec X"
+            return "Touchez le micro pour interrompre Sarah"
         case .error(let message):
             return message.isEmpty ? "Touchez le micro pour réessayer" : message
         default:
@@ -66,67 +69,27 @@ public struct VoiceOrbModalView: View {
 
     public var body: some View {
         GeometryReader { proxy in
+            let compact = proxy.size.height < 430
+
             ZStack {
                 Color.black.ignoresSafeArea()
 
                 RadialGradient(
                     gradient: Gradient(colors: [
-                        accent.opacity(0.12),
+                        accent.opacity(compact ? 0.08 : 0.14),
                         accent.opacity(0.025),
                         Color.clear
                     ]),
-                    center: .center,
-                    startRadius: 60,
-                    endRadius: 460
+                    center: compact ? .bottom : .center,
+                    startRadius: 40,
+                    endRadius: compact ? 260 : 430
                 )
                 .ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    header
-                        .padding(.horizontal, 18)
-                        .padding(.top, max(10, proxy.safeAreaInsets.top > 0 ? 4 : 14))
-
-                    Spacer(minLength: 26)
-
-                    orb(size: min(proxy.size.width * 0.72, 322))
-
-                    Spacer(minLength: 34)
-
-                    VStack(spacing: 10) {
-                        Text(statusTitle)
-                            .font(.system(size: 27, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-
-                        if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Text(viewModel.liveTranscriptionText)
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.white.opacity(0.72))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(4)
-                                .padding(.horizontal, 28)
-                        } else {
-                            Text(statusSubtitle)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white.opacity(0.47))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 24)
-                        }
-                    }
-                    .frame(minHeight: 92)
-
-                    Spacer(minLength: 28)
-
-                    if showTextComposer {
-                        textComposer
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 16)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-
-                    bottomControls
-                        .padding(.horizontal, 28)
-                        .padding(.bottom, max(18, proxy.safeAreaInsets.bottom + 8))
+                if compact {
+                    compactLayout
+                } else {
+                    expandedLayout
                 }
             }
         }
@@ -141,68 +104,112 @@ public struct VoiceOrbModalView: View {
         .onDisappear {
             viewModel.stopVoiceConversation()
         }
-        .onChange(of: scenePhase) { phase in
-            switch phase {
-            case .active:
-                if viewModel.isShowingVoiceOrbModal {
-                    viewModel.startVoiceConversation()
-                }
-            case .inactive, .background:
-                viewModel.stopVoiceConversation()
-            @unknown default:
-                break
+    }
+
+    // MARK: - Grand mode
+
+    private var expandedLayout: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+            Spacer(minLength: 20)
+
+            orb(size: 292)
+                .frame(width: 320, height: 320)
+
+            Spacer(minLength: 22)
+
+            statusBlock
+                .frame(minHeight: 78)
+
+            Spacer(minLength: 24)
+
+            composer
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
+        }
+    }
+
+    // MARK: - Petit mode après glissement
+
+    private var compactLayout: some View {
+        VStack(spacing: 8) {
+            Spacer(minLength: 6)
+
+            orb(size: 86)
+                .frame(width: 108, height: 108)
+
+            Text(statusTitle)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.84))
+                .lineLimit(1)
+
+            composer
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
+        }
+    }
+
+    private var statusBlock: some View {
+        VStack(spacing: 8) {
+            Text(statusTitle)
+                .font(.system(size: 25, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+
+            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(viewModel.liveTranscriptionText)
+                    .font(.system(size: 16))
+                    .foregroundColor(.white.opacity(0.70))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .padding(.horizontal, 24)
+            } else {
+                Text(statusSubtitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.46))
+                    .multilineTextAlignment(.center)
             }
         }
     }
 
-    // MARK: - En-tête
+    // MARK: - En-tête minimal
 
     private var header: some View {
-        HStack(spacing: 12) {
-            circleButton(systemName: "line.3.horizontal", size: 50) {
+        HStack(spacing: 14) {
+            circleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
-                closeVoiceMode()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                    onOpenMenu()
-                }
+                closeAndThen(onOpenMenu)
             }
 
             Spacer()
 
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Text(viewModel.activeAgent.displayName)
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
 
                 Text("Mode vocal")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.43))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.46))
             }
 
             Spacer()
 
-            HStack(spacing: 8) {
-                circleButton(systemName: "slider.horizontal.3", size: 48) {
-                    HapticService.shared.buttonTap()
-                    closeVoiceMode()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                        onOpenSettings()
-                    }
-                }
-
-                circleButton(systemName: "xmark", size: 48, highlighted: true) {
-                    HapticService.shared.buttonTap()
-                    closeVoiceMode()
-                }
+            circleButton(systemName: "slider.horizontal.3") {
+                HapticService.shared.buttonTap()
+                closeAndThen(onOpenSettings)
             }
         }
     }
 
-    // MARK: - Orbe
+    // MARK: - Orbe Sarah
 
     private func orb(size: CGFloat) -> some View {
-        let core = size * 0.78
-        let voiceBoost = 1.0 + normalizedLevel * 0.075
+        let core = size * 0.72
+        let voiceBoost = 1.0 + normalizedLevel * 0.065
 
         return ZStack {
             Circle()
@@ -214,20 +221,29 @@ public struct VoiceOrbModalView: View {
                             Color.clear
                         ]),
                         center: .center,
-                        startRadius: core * 0.18,
+                        startRadius: core * 0.20,
                         endRadius: size * 0.52
                     )
                 )
                 .frame(width: size, height: size)
-                .blur(radius: 16)
+                .blur(radius: size > 150 ? 15 : 8)
 
             ForEach(0..<2) { index in
                 Circle()
-                    .stroke(accent.opacity(index == 0 ? 0.42 : 0.18), lineWidth: 1.2)
-                    .frame(width: core + CGFloat(index * 34), height: core + CGFloat(index * 34))
-                    .scaleEffect((pulse ? 1.026 : 0.986) + normalizedLevel * CGFloat(index + 1) * 0.014)
+                    .stroke(
+                        accent.opacity(index == 0 ? 0.40 : 0.18),
+                        lineWidth: 1
+                    )
+                    .frame(
+                        width: core + CGFloat(index * 30),
+                        height: core + CGFloat(index * 30)
+                    )
+                    .scaleEffect(
+                        (pulse ? 1.025 : 0.985)
+                        + normalizedLevel * CGFloat(index + 1) * 0.014
+                    )
                     .animation(
-                        Animation.easeInOut(duration: 1.65 + Double(index) * 0.28)
+                        Animation.easeInOut(duration: 1.7 + Double(index) * 0.25)
                             .repeatForever(autoreverses: true),
                         value: pulse
                     )
@@ -238,8 +254,8 @@ public struct VoiceOrbModalView: View {
                     .fill(
                         LinearGradient(
                             gradient: Gradient(colors: [
-                                Color.white.opacity(0.82),
-                                accent.opacity(0.82),
+                                Color.white.opacity(0.96),
+                                accent.opacity(0.94),
                                 accent
                             ]),
                             startPoint: .topLeading,
@@ -248,12 +264,12 @@ public struct VoiceOrbModalView: View {
                     )
 
                 Circle()
-                    .fill(Color.white.opacity(0.42))
-                    .frame(width: core * 0.50, height: core * 0.50)
-                    .blur(radius: 18)
+                    .fill(Color.white.opacity(0.54))
+                    .frame(width: core * 0.48, height: core * 0.48)
+                    .blur(radius: size > 150 ? 17 : 8)
                     .offset(
-                        x: drift ? -core * 0.09 : core * 0.10,
-                        y: drift ? core * 0.08 : -core * 0.08
+                        x: drift ? -core * 0.08 : core * 0.09,
+                        y: drift ? core * 0.07 : -core * 0.07
                     )
                     .animation(
                         Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
@@ -261,147 +277,105 @@ public struct VoiceOrbModalView: View {
                     )
 
                 Image(systemName: viewModel.activeAgent.iconName)
-                    .font(.system(size: max(28, core * 0.16), weight: .bold))
+                    .font(.system(size: max(18, core * 0.16), weight: .bold))
                     .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.18), radius: 4, x: 0, y: 2)
             }
             .frame(width: core, height: core)
             .clipShape(Circle())
-            .overlay(Circle().stroke(Color.white.opacity(0.50), lineWidth: 1.5))
-            .shadow(color: accent.opacity(0.58), radius: 22)
+            .overlay(Circle().stroke(.white.opacity(0.46), lineWidth: 1.5))
+            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
             .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
-            .animation(.spring(response: 0.25, dampingFraction: 0.74), value: normalizedLevel)
+            .animation(.spring(response: 0.26, dampingFraction: 0.76), value: normalizedLevel)
         }
-        .frame(width: size, height: size)
         .contentShape(Circle())
         .onTapGesture {
             HapticService.shared.buttonTap()
-            toggleVoiceMicrophone()
+            primaryVoiceAction()
         }
     }
 
-    // MARK: - Saisie écrite
+    // MARK: - Saisie unique
 
-    private var textComposer: some View {
+    private var composer: some View {
         HStack(spacing: 10) {
-            TextField("Écrire à \(viewModel.activeAgent.displayName)…", text: $viewModel.inputText)
-                .focused($textComposerFocused)
-                .foregroundColor(.white)
-                .accentColor(accent)
-                .font(.system(size: 16))
-                .submitLabel(.send)
-                .onSubmit { sendWrittenMessage() }
-
-            Button(action: sendWrittenMessage) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 17, weight: .bold))
+            HStack(spacing: 10) {
+                TextField("Demander à Sarah…", text: $viewModel.inputText)
                     .foregroundColor(.white)
-                    .frame(width: 38, height: 38)
-                    .background(Circle().fill(accent))
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, 7)
-        .frame(height: 54)
-        .background(
-            RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .fill(Color.white.opacity(0.10))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
-    }
+                    .accentColor(accent)
+                    .font(.system(size: 16))
+                    .submitLabel(.send)
+                    .onSubmit { sendTextIfNeeded() }
 
-    // MARK: - Contrôles inférieurs
-
-    private var bottomControls: some View {
-        HStack(spacing: 0) {
-            Button {
-                HapticService.shared.buttonTap()
-                if !showTextComposer {
-                    viewModel.pauseVoiceMicrophone()
-                }
-                withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
-                    showTextComposer.toggle()
-                }
-                if showTextComposer {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                        textComposerFocused = true
+                if !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: sendTextIfNeeded) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(accent))
                     }
-                } else {
-                    textComposerFocused = false
-                    viewModel.resumeVoiceMicrophone()
+                    .buttonStyle(PlainButtonStyle())
                 }
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 20, weight: .medium))
-                    Text("Écrire")
-                        .font(.system(size: 18, weight: .medium))
-                }
-                .foregroundColor(.white)
             }
-            .buttonStyle(PlainButtonStyle())
+            .padding(.leading, 16)
+            .padding(.trailing, 7)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(.white.opacity(0.09))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
+            )
 
-            Spacer()
-
-            Button {
+            circleButton(
+                systemName: voiceActionIcon,
+                size: 50,
+                highlighted: viewModel.isMicRunning || viewModel.voiceStatus == .speaking
+            ) {
                 HapticService.shared.buttonTap()
-                toggleVoiceMicrophone()
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(viewModel.isMicRunning ? accent.opacity(0.23) : Color.white.opacity(0.10))
-                        .frame(width: 64, height: 64)
-                    Circle()
-                        .stroke(viewModel.isMicRunning ? accent.opacity(0.52) : Color.white.opacity(0.12), lineWidth: 1)
-                        .frame(width: 64, height: 64)
-                    Image(systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill")
-                        .font(.system(size: 25, weight: .semibold))
-                        .foregroundColor(viewModel.isMicRunning ? accent : .white)
-                }
+                primaryVoiceAction()
             }
-            .buttonStyle(ScaleBounceButtonStyle())
-
-            Spacer()
-
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.interruptVoiceResponse()
-            } label: {
-                Text("Interrompre")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            .buttonStyle(PlainButtonStyle())
         }
     }
 
-    private func toggleVoiceMicrophone() {
-        if viewModel.isMicRunning {
-            viewModel.pauseVoiceMicrophone()
-        } else {
-            viewModel.resumeVoiceMicrophone()
+    private var voiceActionIcon: String {
+        switch viewModel.voiceStatus {
+        case .speaking:
+            return "stop.fill"
+        default:
+            return viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill"
         }
     }
 
-    private func sendWrittenMessage() {
+    private func primaryVoiceAction() {
+        switch viewModel.voiceStatus {
+        case .speaking:
+            viewModel.interruptVoiceResponse()
+        default:
+            if viewModel.isMicRunning {
+                viewModel.pauseVoiceMicrophone()
+            } else {
+                viewModel.resumeVoiceMicrophone()
+            }
+        }
+    }
+
+    private func sendTextIfNeeded() {
         let text = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        textComposerFocused = false
-        withAnimation(.easeOut(duration: 0.18)) {
-            showTextComposer = false
-        }
         viewModel.sendMessage(text)
     }
 
-    private func closeVoiceMode() {
-        textComposerFocused = false
+    private func closeAndThen(_ action: @escaping () -> Void) {
         viewModel.stopVoiceConversation()
         viewModel.isShowingVoiceOrbModal = false
         presentationMode.wrappedValue.dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            action()
+        }
     }
 
     private func circleButton(
@@ -413,16 +387,21 @@ public struct VoiceOrbModalView: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(highlighted ? 0.13 : 0.10))
+                    .fill(highlighted ? accent.opacity(0.24) : .white.opacity(0.10))
                     .frame(width: size, height: size)
+
                 Circle()
-                    .stroke(highlighted ? accent.opacity(0.42) : Color.white.opacity(0.10), lineWidth: 1)
+                    .stroke(
+                        highlighted ? accent.opacity(0.44) : .white.opacity(0.08),
+                        lineWidth: 1
+                    )
                     .frame(width: size, height: size)
+
                 Image(systemName: systemName)
                     .font(.system(size: size * 0.34, weight: .semibold))
                     .foregroundColor(highlighted ? accent : .white)
             }
         }
-        .buttonStyle(ScaleBounceButtonStyle())
+        .buttonStyle(PlainButtonStyle())
     }
 }
