@@ -5,8 +5,9 @@ import UIKit
 /// Gestion centralisée de la session audio de Sarah.
 ///
 /// Le mode vocal continu ouvre UNE seule session `.playAndRecord / .voiceChat`
-/// au début, puis la conserve telle quelle pendant écouter -> répondre -> écouter.
-/// Les passages micro/TTS ne reconfigurent plus la route audio du téléphone.
+/// au début, puis la conserve pendant écouter -> répondre -> écouter.
+/// Les changements de volume système ne doivent jamais être interprétés comme
+/// une interruption de conversation et ne doivent pas reconfigurer la route.
 public final class AudioSessionManager {
 
     public static let shared = AudioSessionManager()
@@ -36,7 +37,11 @@ public final class AudioSessionManager {
         continuousVoiceSessionActive = true
         stateLock.unlock()
 
-        guard !wasAlreadyActive else { return }
+        if wasAlreadyActive {
+            ensureContinuousSessionActive()
+            return
+        }
+
         configureVoiceConversationSession()
     }
 
@@ -51,10 +56,21 @@ public final class AudioSessionManager {
         forceDeactivateSession()
     }
 
-    /// Réactive la même route uniquement après une vraie interruption iOS.
+    /// Après une vraie interruption iOS, réapplique la configuration de conversation.
     public func restoreContinuousVoiceSessionIfNeeded() {
         guard isContinuousVoiceSessionActive else { return }
         configureVoiceConversationSession()
+    }
+
+    /// Réactive la session sans changer catégorie, mode ou route. Cette méthode est
+    /// utilisée au passage micro <-> voix afin d'éviter les sauts de son.
+    private func ensureContinuousSessionActive() {
+        guard isContinuousVoiceSessionActive else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("⚠️ [AudioSessionManager] Réactivation session vocale: \(error.localizedDescription)")
+        }
     }
 
     private func configureVoiceConversationSession() {
@@ -66,7 +82,7 @@ public final class AudioSessionManager {
                 options: [.defaultToSpeaker, .allowBluetooth]
             )
             try session.setPreferredIOBufferDuration(0.02)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.setActive(true)
             print("🎙️🔊 [AudioSessionManager] Session vocale continue active.")
         } catch {
             print("⚠️ [AudioSessionManager] Configuration vocale continue: \(error.localizedDescription)")
@@ -75,10 +91,11 @@ public final class AudioSessionManager {
 
     // MARK: - Sessions ponctuelles
 
-    /// Hors mode vocal, configure une lecture ponctuelle. Pendant une conversation
-    /// continue, ne touche surtout pas à la catégorie, au mode ou à la route.
+    /// En conversation continue, on réactive seulement la session existante sans
+    /// modifier sa catégorie ni sa route. Hors conversation, on configure une lecture.
     public func configurePlaybackSession() {
         if isContinuousVoiceSessionActive {
+            ensureContinuousSessionActive()
             return
         }
 
@@ -89,17 +106,17 @@ public final class AudioSessionManager {
                 mode: .spokenAudio,
                 options: [.allowBluetoothA2DP, .allowAirPlay]
             )
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.setActive(true)
             print("🔊 [AudioSessionManager] Lecture ponctuelle active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }
     }
 
-    /// Hors mode vocal, configure une dictée ponctuelle. Pendant une conversation
-    /// continue, le micro réutilise la session déjà ouverte sans la reconfigurer.
+    /// En conversation continue, le micro garde exactement la même session.
     public func configureRecordingSession() {
         if isContinuousVoiceSessionActive {
+            ensureContinuousSessionActive()
             return
         }
 
@@ -111,7 +128,7 @@ public final class AudioSessionManager {
                 options: [.defaultToSpeaker, .allowBluetooth]
             )
             try session.setPreferredIOBufferDuration(0.02)
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            try session.setActive(true)
             print("🎙️ [AudioSessionManager] Dictée ponctuelle active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration micro: \(error.localizedDescription)")
@@ -150,12 +167,9 @@ public final class AudioSessionManager {
             object: nil
         )
 
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleSecondaryAudioHint(_:)),
-            name: AVAudioSession.silenceSecondaryAudioHintNotification,
-            object: nil
-        )
+        // Important : `silenceSecondaryAudioHintNotification` n'est PAS une vraie
+        // interruption. L'ancien code la traitait pourtant comme telle et pouvait
+        // couper Sarah à tort lors de changements audio système.
     }
 
     @objc private func handleAudioInterruption(_ notification: Notification) {
@@ -192,18 +206,5 @@ public final class AudioSessionManager {
 
     @objc private func handleAppWillResignActive() {
         // Ne pas toucher à la session seulement parce que l'app perd le focus.
-    }
-
-    @objc private func handleSecondaryAudioHint(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
-              let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue),
-              type == .begin else {
-            return
-        }
-
-        DispatchQueue.main.async {
-            self.onInterruptionBegan?()
-        }
     }
 }
