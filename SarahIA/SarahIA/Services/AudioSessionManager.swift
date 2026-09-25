@@ -7,7 +7,8 @@ import UIKit
 /// Le mode vocal continu ouvre UNE seule session `.playAndRecord / .voiceChat`
 /// au début, puis la conserve pendant écouter -> répondre -> écouter.
 /// Les changements de volume système ne doivent jamais être interprétés comme
-/// une interruption de conversation et ne doivent pas reconfigurer la route.
+/// une interruption de conversation et aucun autre composant ne doit changer
+/// la catégorie ou la route pendant ce cycle.
 public final class AudioSessionManager {
 
     public static let shared = AudioSessionManager()
@@ -25,7 +26,7 @@ public final class AudioSessionManager {
     }
 
     private init() {
-        setupInterruptionObservers()
+        setupObservers()
     }
 
     // MARK: - Mode vocal continu
@@ -39,6 +40,7 @@ public final class AudioSessionManager {
 
         if wasAlreadyActive {
             ensureContinuousSessionActive()
+            ensureAudibleOutputRouteIfNeeded()
             return
         }
 
@@ -62,8 +64,8 @@ public final class AudioSessionManager {
         configureVoiceConversationSession()
     }
 
-    /// Réactive la session sans changer catégorie, mode ou route. Cette méthode est
-    /// utilisée au passage micro <-> voix afin d'éviter les sauts de son.
+    /// Réactive la session sans changer catégorie, mode ou route. Utilisé pour
+    /// les passages micro <-> voix et les changements de volume système.
     private func ensureContinuousSessionActive() {
         guard isContinuousVoiceSessionActive else { return }
         do {
@@ -79,23 +81,42 @@ public final class AudioSessionManager {
             try session.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth]
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true)
+            ensureAudibleOutputRouteIfNeeded()
             print("🎙️🔊 [AudioSessionManager] Session vocale continue active.")
         } catch {
             print("⚠️ [AudioSessionManager] Configuration vocale continue: \(error.localizedDescription)")
         }
     }
 
+    /// `AVSpeechSynthesizer` peut démarrer alors que la route courante reste sur
+    /// l'écouteur interne. On ne force le haut-parleur que dans ce cas précis,
+    /// afin de préserver les casques Bluetooth/AirPlay et le contrôle de volume iOS.
+    private func ensureAudibleOutputRouteIfNeeded() {
+        let session = AVAudioSession.sharedInstance()
+        let outputs = session.currentRoute.outputs
+        let isReceiverOnly = outputs.count == 1 && outputs.first?.portType == .builtInReceiver
+        guard isReceiverOnly else { return }
+
+        do {
+            try session.overrideOutputAudioPort(.speaker)
+            print("🔊 [AudioSessionManager] Sortie vocale replacée sur le haut-parleur.")
+        } catch {
+            print("⚠️ [AudioSessionManager] Route haut-parleur: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Sessions ponctuelles
 
-    /// En conversation continue, on réactive seulement la session existante sans
-    /// modifier sa catégorie ni sa route. Hors conversation, on configure une lecture.
+    /// En conversation continue, on garde exactement la même session et on
+    /// vérifie seulement que la sortie est audible. Aucun changement de catégorie.
     public func configurePlaybackSession() {
         if isContinuousVoiceSessionActive {
             ensureContinuousSessionActive()
+            ensureAudibleOutputRouteIfNeeded()
             return
         }
 
@@ -150,13 +171,20 @@ public final class AudioSessionManager {
         }
     }
 
-    // MARK: - Interruptions système
+    // MARK: - Interruptions et changements de route système
 
-    private func setupInterruptionObservers() {
+    private func setupObservers() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAudioInterruption(_:)),
             name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance()
         )
 
@@ -168,8 +196,7 @@ public final class AudioSessionManager {
         )
 
         // Important : `silenceSecondaryAudioHintNotification` n'est PAS une vraie
-        // interruption. L'ancien code la traitait pourtant comme telle et pouvait
-        // couper Sarah à tort lors de changements audio système.
+        // interruption. Les boutons de volume ne doivent jamais couper la voix.
     }
 
     @objc private func handleAudioInterruption(_ notification: Notification) {
@@ -202,6 +229,15 @@ public final class AudioSessionManager {
         @unknown default:
             break
         }
+    }
+
+    @objc private func handleRouteChange(_ notification: Notification) {
+        guard isContinuousVoiceSessionActive else { return }
+
+        // Ne jamais refaire setCategory lors d'un changement de route. On garde
+        // la session existante et on ne corrige que le cas écouteur interne.
+        ensureContinuousSessionActive()
+        ensureAudibleOutputRouteIfNeeded()
     }
 
     @objc private func handleAppWillResignActive() {
