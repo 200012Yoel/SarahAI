@@ -6,31 +6,14 @@ on:
   workflow_dispatch:
 permissions:
   actions: write
-  contents: write
+  contents: read
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Repair continuous spoken reply routing
-        run: python3 .github/scripts/fix_voice_reply_routing.py
-
-      - name: Commit voice reply repair
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet; then
-            git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-            git commit -m "Fix continuous voice reply and sheet state race"
-            git push origin main
-          fi
-
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting compact draggable voice compile v7"
+          echo "Starting compact voice reply compile v8"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
