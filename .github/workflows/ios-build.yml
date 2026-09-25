@@ -22,13 +22,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Sarah voice mode wiring
+      - name: Verify rebuilt chat and voice wiring
         run: |
           set -e
           test -f SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal)' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal)' SarahIA/SarahIA/ContentView.swift
           grep -q 'viewModel.isShowingVoiceOrbModal = true' SarahIA/SarahIA/Views/ChatScreenView.swift
-          echo 'Sarah voice mode wiring present'
+          grep -q 'safeAreaInset(edge: .bottom' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'simultaneousGesture(drawerGesture' SarahIA/SarahIA/ContentView.swift
+          echo 'Stable chat, keyboard and root voice wiring present'
 
       - name: Xcode version
         run: xcodebuild -version
