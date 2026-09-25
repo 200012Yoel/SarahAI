@@ -103,7 +103,6 @@ public struct ContentView: View {
             )
             .presentationDetents([.height(255), .large])
             .presentationDragIndicator(.visible)
-            .presentationCornerRadius(28)
             .interactiveDismissDisabled(false)
         } else {
             VoiceOrbModalView(
