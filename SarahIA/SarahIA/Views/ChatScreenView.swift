@@ -3,8 +3,9 @@ import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
 
-/// Écran principal SarahIA. Le mode vocal plein écran reste volontairement isolé
-/// de la couche visuelle afin que les évolutions Liquid Glass ne cassent pas sa logique.
+/// Écran principal SarahIA.
+/// La présentation et la logique du mode vocal restent isolées afin que les
+/// évolutions Liquid Glass du chat ne puissent pas casser le vocal retrouvé.
 @available(iOS 15.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -33,23 +34,32 @@ public struct ChatScreenView: View {
                     return
                 }
                 LocalVisionEngine.shared.recognizeObject(in: image) { result in
-                    DispatchQueue.main.async { viewModel.appendVisionAnalysis(image: image, result: result) }
+                    DispatchQueue.main.async {
+                        viewModel.appendVisionAnalysis(image: image, result: result)
+                    }
                 }
             } catch {
-                await MainActor.run { viewModel.inputText = "Impossible d'ouvrir la photo : \(error.localizedDescription)" }
+                await MainActor.run {
+                    viewModel.inputText = "Impossible d'ouvrir la photo : \(error.localizedDescription)"
+                }
             }
         }
     }
 
     private func handleCameraImage(_ image: UIImage) {
         LocalVisionEngine.shared.recognizeObject(in: image) { result in
-            DispatchQueue.main.async { viewModel.appendVisionAnalysis(image: image, result: result) }
+            DispatchQueue.main.async {
+                viewModel.appendVisionAnalysis(image: image, result: result)
+            }
         }
     }
 
     private var topSafeArea: CGFloat {
         let window = UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.windows.first(where: { $0.isKeyWindow }) ?? ($0 as? UIWindowScene)?.windows.first }
+            .compactMap { scene in
+                let windows = (scene as? UIWindowScene)?.windows ?? []
+                return windows.first(where: { $0.isKeyWindow }) ?? windows.first
+            }
             .first
         return max(window?.safeAreaInsets.top ?? 20, 20)
     }
@@ -68,11 +78,21 @@ public struct ChatScreenView: View {
                     messages: viewModel.messages,
                     isTyping: viewModel.isTyping,
                     isKeyboardVisible: keyboard.isVisible,
-                    onToggleSpeech: { viewModel.toggleSpeechForMessage($0.content) },
-                    onSelectSuggestion: { viewModel.sendMessage($0) },
-                    onIntroduceSarah: { viewModel.introduceSarah() },
-                    onDismissKeyboard: { keyboard.dismiss() },
-                    onOpenStudio: { viewModel.isShowingVAICodingStudio = true }
+                    onToggleSpeech: { message in
+                        viewModel.toggleSpeechForMessage(message.content)
+                    },
+                    onSelectSuggestion: { suggestion in
+                        viewModel.sendMessage(suggestion)
+                    },
+                    onIntroduceSarah: {
+                        viewModel.introduceSarah()
+                    },
+                    onDismissKeyboard: {
+                        keyboard.dismiss()
+                    },
+                    onOpenStudio: {
+                        viewModel.isShowingVAICodingStudio = true
+                    }
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { keyboard.dismiss() }
@@ -81,7 +101,7 @@ public struct ChatScreenView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             composerDock
         }
-        // IMPORTANT : conserver le vrai mode vocal retrouvé en plein écran.
+        // Ne pas convertir en sheet : c'est le mode vocal fonctionnel retrouvé.
         .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
             VoiceOrbModalView(
                 viewModel: viewModel,
@@ -89,15 +109,25 @@ public struct ChatScreenView: View {
                 onOpenSettings: { isShowingSettings = true }
             )
         }
-        .photosPicker(isPresented: $isShowingPhotoPicker, selection: $selectedPhotoItem, matching: .images)
-        .onChange(of: selectedPhotoItem) { analyzeSelectedPhoto($0) }
+        .photosPicker(
+            isPresented: $isShowingPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItem) { item in
+            analyzeSelectedPhoto(item)
+        }
         .sheet(isPresented: $isShowingCamera) {
             SarahCameraPicker { image in
                 isShowingCamera = false
                 if let image { handleCameraImage(image) }
             }
         }
-        .fileImporter(isPresented: $isShowingFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
+        .fileImporter(
+            isPresented: $isShowingFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first { viewModel.appendImportedFile(url: url) }
@@ -133,9 +163,15 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .esther
                         viewModel.isShowingVAICodingStudio = true
                     },
-                    .default(Text("👁️ Vision & OCR")) { viewModel.inputText = "Analyse cette photo : " },
-                    .default(Text("🎨 Image")) { viewModel.inputText = "Génère une image de " },
-                    .default(Text("🎵 Musique")) { viewModel.inputText = "Compose une musique " },
+                    .default(Text("👁️ Vision & OCR")) {
+                        viewModel.inputText = "Analyse cette photo : "
+                    },
+                    .default(Text("🎨 Image")) {
+                        viewModel.inputText = "Génère une image de "
+                    },
+                    .default(Text("🎵 Musique")) {
+                        viewModel.inputText = "Compose une musique "
+                    },
                     .default(Text("🇮🇱 Yohan · Traduction")) {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Traduis en hébreu : "
@@ -159,11 +195,11 @@ public struct ChatScreenView: View {
             RadialGradient(
                 colors: [viewModel.activeAgent.themeColor.opacity(0.16), Color.clear],
                 center: .top,
-                startRadius: 10,
-                endRadius: 430
+                startRadius: 8,
+                endRadius: 440
             )
             LinearGradient(
-                colors: [Color.white.opacity(0.035), Color.clear, Color.black.opacity(0.24)],
+                colors: [Color.white.opacity(0.035), Color.clear, Color.black.opacity(0.25)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -179,22 +215,28 @@ public struct ChatScreenView: View {
                 isRecording: viewModel.isMicRunning,
                 isProcessing: viewModel.isGeneratingResponse,
                 onOpenPhotoLibrary: {
-                    keyboard.dismiss(); selectedPhotoItem = nil; isShowingPhotoPicker = true
+                    keyboard.dismiss()
+                    selectedPhotoItem = nil
+                    isShowingPhotoPicker = true
                 },
                 onOpenCamera: {
-                    keyboard.dismiss(); isShowingCamera = true
+                    keyboard.dismiss()
+                    isShowingCamera = true
                 },
                 onOpenFile: {
-                    keyboard.dismiss(); isShowingFileImporter = true
+                    keyboard.dismiss()
+                    isShowingFileImporter = true
                 },
-                onSend: { viewModel.sendMessage($0) },
+                onSend: { text in viewModel.sendMessage(text) },
                 onCancel: { viewModel.cancelCurrentGeneration() },
                 onToggleMic: { viewModel.toggleMicrophone() },
                 onOpenVoiceOrb: {
                     keyboard.dismiss()
                     viewModel.isShowingVoiceOrbModal = true
                 },
-                onOpenVAICoding: { viewModel.isShowingVAICodingStudio = true }
+                onOpenVAICoding: {
+                    viewModel.isShowingVAICodingStudio = true
+                }
             )
         }
         .padding(.top, 3)
@@ -242,7 +284,11 @@ public struct ChatScreenView: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 44)
-                .sarahLiquidGlass(cornerRadius: 22, tint: viewModel.activeAgent.themeColor, intensity: 0.12)
+                .sarahLiquidGlass(
+                    cornerRadius: 22,
+                    tint: viewModel.activeAgent.themeColor,
+                    intensity: 0.12
+                )
             }
             .buttonStyle(PlainButtonStyle())
 
@@ -256,19 +302,26 @@ public struct ChatScreenView: View {
         }
     }
 
-    private func glassCircleButton(systemName: String, action: @escaping () -> Void) -> some View {
+    private func glassCircleButton(
+        systemName: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(width: 44, height: 44)
-                .sarahLiquidGlass(cornerRadius: 22, tint: viewModel.activeAgent.themeColor, intensity: 0.10)
+                .sarahLiquidGlass(
+                    cornerRadius: 22,
+                    tint: viewModel.activeAgent.themeColor,
+                    intensity: 0.10
+                )
         }
         .buttonStyle(ScaleBounceButtonStyle())
     }
 }
 
-/// Brief conservé entre une première maquette et ses améliorations.
+/// Brief utilisé par la détection de demandes de création de site.
 public struct WebsiteBrief {
     public var category: String
     public var name: String
@@ -278,7 +331,15 @@ public struct WebsiteBrief {
     public var accent: String
     public var sections: [String]
 
-    public init(category: String, name: String, purpose: String, audience: String, visualStyle: String, accent: String, sections: [String]) {
+    public init(
+        category: String,
+        name: String,
+        purpose: String,
+        audience: String,
+        visualStyle: String,
+        accent: String,
+        sections: [String]
+    ) {
         self.category = category
         self.name = name
         self.purpose = purpose
@@ -289,89 +350,76 @@ public struct WebsiteBrief {
     }
 
     public static func shouldOpenBuilder(for text: String) -> Bool {
-        let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        let creationWords = ["site internet", "site web", "site e-commerce", "site ecommerce", "genere un site", "creer un site", "creation de site", "fabrique un site", "faire un site", "lance un site"]
+        let normalized = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+        let creationWords = [
+            "site internet", "site web", "site e-commerce", "site ecommerce",
+            "genere un site", "creer un site", "creation de site",
+            "fabrique un site", "faire un site", "lance un site"
+        ]
         return creationWords.contains { normalized.contains($0) } || isRefinementRequest(text)
     }
 
     public static func isRefinementRequest(_ text: String) -> Bool {
-        let normalized = text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return ["ameliore le site", "ameliorer le site", "modifie le site", "modifier le site", "refais le site", "maquette"].contains { normalized.contains($0) }
+        let normalized = text.folding(
+            options: [.diacriticInsensitive, .caseInsensitive],
+            locale: .current
+        )
+        let words = [
+            "ameliore le site", "ameliorer le site", "modifie le site",
+            "modifier le site", "refais le site", "maquette"
+        ]
+        return words.contains { normalized.contains($0) }
     }
 }
 
+/// Parcours volontairement léger : il prépare un brief puis ouvre Raphaël.
+/// Aucun état supplémentaire n'est injecté dans ChatViewModel, ce qui protège
+/// la logique vocale et évite de coupler le builder au moteur de conversation.
 @available(iOS 15.0, *)
 private struct WebsiteBuilderFlowView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var step = 0
-    @State private var category: String
-    @State private var name: String
-    @State private var purpose: String
-    @State private var audience: String
-    @State private var visualStyle: String
-    @State private var accent: String
-    @State private var sections: Set<String>
-
-    private let categories = [
-        WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Vendre des produits"),
-        WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Inspirer et réserver"),
-        WebsiteChoice(title: "Restaurant", icon: "fork.knife", detail: "Menu et réservation"),
-        WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Présenter son travail"),
-        WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Présenter une activité")
-    ]
-    private let styles = ["Apple épuré", "Éditorial", "Minimal sombre", "Coloré", "Premium"]
-    private let accents = ["Bleu", "Violet", "Vert", "Orange", "Rose", "Monochrome"]
-    private let availableSections = ["Accueil", "À propos", "Services", "Produits", "Galerie", "Témoignages", "FAQ", "Contact"]
-
-    init(viewModel: ChatViewModel) {
-        self.viewModel = viewModel
-        let brief = viewModel.websiteBrief ?? WebsiteBrief(category: "Entreprise", name: "", purpose: "", audience: "", visualStyle: "Apple épuré", accent: "Bleu", sections: ["Accueil", "À propos", "Services", "Contact"])
-        _category = State(initialValue: brief.category)
-        _name = State(initialValue: brief.name)
-        _purpose = State(initialValue: brief.purpose)
-        _audience = State(initialValue: brief.audience)
-        _visualStyle = State(initialValue: brief.visualStyle)
-        _accent = State(initialValue: brief.accent)
-        _sections = State(initialValue: Set(brief.sections))
-    }
+    @State private var category = "Entreprise"
+    @State private var name = ""
+    @State private var purpose = ""
+    @State private var visualStyle = "Apple épuré"
 
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 18) {
                         Text("Créer un site")
-                            .font(.system(size: 32, weight: .bold))
+                            .font(.system(size: 30, weight: .bold))
                             .foregroundColor(.white)
-                        Text("Raphaël prépare une maquette locale. Rien n'est publié sans ton accord.")
-                            .foregroundColor(.gray)
 
-                        Group {
-                            if step == 0 { categoryStep }
-                            else if step == 1 { identityStep }
-                            else if step == 2 { styleStep }
-                            else { summaryStep }
-                        }
+                        Text("Raphaël prépare une maquette locale. Rien n'est publié automatiquement.")
+                            .foregroundColor(.white.opacity(0.58))
 
-                        HStack {
-                            if step > 0 {
-                                Button("Retour") { withAnimation { step -= 1 } }
-                                    .foregroundColor(.white)
+                        builderField("Type de site", text: $category)
+                        builderField("Nom du site", text: $name)
+                        builderField("Objectif", text: $purpose)
+                        builderField("Style visuel", text: $visualStyle)
+
+                        Button {
+                            generate()
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                Text("Créer avec Raphaël")
+                                    .fontWeight(.semibold)
                             }
-                            Spacer()
-                            Button(step < 3 ? "Continuer" : "Générer la maquette") {
-                                if step < 3 { withAnimation { step += 1 } } else { generate() }
-                            }
-                            .font(.headline)
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 12)
-                            .background(Color.white)
-                            .clipShape(Capsule())
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .sarahLiquidGlass(cornerRadius: 18, tint: .sarahCyan, intensity: 0.16)
                         }
+                        .buttonStyle(ScaleBounceButtonStyle())
                     }
                     .padding(24)
                 }
@@ -380,112 +428,64 @@ private struct WebsiteBuilderFlowView: View {
         }
     }
 
-    private var categoryStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Quel type de site ?").font(.title2.bold()).foregroundColor(.white)
-            ForEach(categories) { choice in
-                Button { category = choice.title } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: choice.icon).frame(width: 28)
-                        VStack(alignment: .leading) {
-                            Text(choice.title).font(.headline)
-                            Text(choice.detail).font(.caption).foregroundColor(.gray)
-                        }
-                        Spacer()
-                        if category == choice.title { Image(systemName: "checkmark.circle.fill") }
-                    }
-                    .foregroundColor(.white)
-                    .padding(16)
-                    .background(Color.white.opacity(category == choice.title ? 0.12 : 0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-            }
-        }
-    }
-
-    private var identityStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Parle-moi du projet").font(.title2.bold()).foregroundColor(.white)
-            builderField("Nom du site", text: $name)
-            builderField("Objectif principal", text: $purpose)
-            builderField("Public visé", text: $audience)
-        }
-    }
-
-    private var styleStep: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Direction visuelle").font(.title2.bold()).foregroundColor(.white)
-            Text("Style").font(.headline).foregroundColor(.white)
-            choiceChips(styles, selection: $visualStyle)
-            Text("Couleur d'accent").font(.headline).foregroundColor(.white)
-            choiceChips(accents, selection: $accent)
-            Text("Sections").font(.headline).foregroundColor(.white)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 10) {
-                ForEach(availableSections, id: \.self) { section in
-                    Button {
-                        if sections.contains(section) { sections.remove(section) } else { sections.insert(section) }
-                    } label: {
-                        Text(section).font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 10)
-                            .background(Color.white.opacity(sections.contains(section) ? 0.18 : 0.06))
-                            .clipShape(Capsule()).foregroundColor(.white)
-                    }
-                }
-            }
-        }
-    }
-
-    private var summaryStep: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Prêt pour la première maquette").font(.title2.bold()).foregroundColor(.white)
-            summary("Type", category); summary("Nom", name.isEmpty ? "À proposer" : name)
-            summary("Objectif", purpose.isEmpty ? "À préciser" : purpose)
-            summary("Public", audience.isEmpty ? "Grand public" : audience)
-            summary("Style", visualStyle); summary("Accent", accent)
-            summary("Sections", sections.sorted().joined(separator: ", "))
-        }
-        .padding(18).background(Color.white.opacity(0.06)).clipShape(RoundedRectangle(cornerRadius: 18))
-    }
-
     private func builderField(_ placeholder: String, text: Binding<String>) -> some View {
-        TextField(placeholder, text: text).foregroundColor(.white).padding(14)
-            .background(Color.white.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-
-    private func choiceChips(_ values: [String], selection: Binding<String>) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 10) {
-            ForEach(values, id: \.self) { value in
-                Button { selection.wrappedValue = value } label: {
-                    Text(value).font(.caption.bold()).frame(maxWidth: .infinity).padding(.vertical, 10)
-                        .background(Color.white.opacity(selection.wrappedValue == value ? 0.18 : 0.06))
-                        .clipShape(Capsule()).foregroundColor(.white)
-                }
-            }
-        }
-    }
-
-    private func summary(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label).foregroundColor(.gray).frame(width: 82, alignment: .leading)
-            Text(value).foregroundColor(.white)
-            Spacer()
-        }
+        TextField(placeholder, text: text)
+            .foregroundColor(.white)
+            .padding(.horizontal, 15)
+            .frame(height: 50)
+            .sarahLiquidGlass(cornerRadius: 16, tint: .white, intensity: 0.06)
     }
 
     private func generate() {
-        let brief = WebsiteBrief(category: category, name: name, purpose: purpose, audience: audience, visualStyle: visualStyle, accent: accent, sections: sections.sorted())
-        viewModel.websiteBrief = brief
+        let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalPurpose = purpose.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prompt = "Raphaël, crée une première maquette locale pour un site \(category), nom \(finalName.isEmpty ? "à proposer" : finalName), objectif \(finalPurpose.isEmpty ? "à préciser" : finalPurpose), style \(visualStyle). Ne publie rien sans mon accord."
+
         viewModel.activeAgent = .esther
         dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             viewModel.isShowingVAICodingStudio = true
-            viewModel.sendMessage("Raphaël, crée une première maquette locale pour ce site : \(category), nom \(name.isEmpty ? "à proposer" : name), objectif \(purpose), public \(audience), style \(visualStyle), accent \(accent), sections \(sections.sorted().joined(separator: ", ")). Ne publie rien sans mon accord.")
+            viewModel.sendMessage(prompt)
         }
     }
 }
 
-private struct WebsiteChoice: Identifiable {
-    let id = UUID()
-    let title: String
-    let icon: String
-    let detail: String
+/// Sélecteur UIKit minimal utilisé par le bouton appareil photo.
+@available(iOS 15.0, *)
+private struct SarahCameraPicker: UIViewControllerRepresentable {
+    let onImage: (UIImage?) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onImage: onImage)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let onImage: (UIImage?) -> Void
+
+        init(onImage: @escaping (UIImage?) -> Void) {
+            self.onImage = onImage
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            onImage(info[.originalImage] as? UIImage)
+            picker.dismiss(animated: true)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onImage(nil)
+            picker.dismiss(animated: true)
+        }
+    }
 }
