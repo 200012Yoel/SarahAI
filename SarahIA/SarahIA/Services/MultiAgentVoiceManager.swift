@@ -55,14 +55,19 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         for agent in orderedAgents {
             var selectedVoice: AVSpeechSynthesisVoice? = nil
 
-            for identifier in agent.preferredSpeechVoiceIdentifiers where selectedVoice == nil {
-                if let directVoice = AVSpeechSynthesisVoice(identifier: identifier),
-                   !usedIdentifiers.contains(directVoice.identifier) {
-                    selectedVoice = directVoice
+            // L'identifiant historique d'Esther pointe vers Audrey. Comme cet agent
+            // est affiché comme Raphaël, on ignore ce vieux choix et on cherche une
+            // voix masculine plus bas.
+            if agent != .esther {
+                for identifier in agent.preferredSpeechVoiceIdentifiers where selectedVoice == nil {
+                    if let directVoice = AVSpeechSynthesisVoice(identifier: identifier),
+                       !usedIdentifiers.contains(directVoice.identifier) {
+                        selectedVoice = directVoice
+                    }
                 }
             }
 
-            if selectedVoice == nil {
+            if selectedVoice == nil, agent != .esther {
                 for identifier in agent.preferredSpeechVoiceIdentifiers {
                     let enhancedId = identifier.replacingOccurrences(of: "compact", with: "enhanced")
                     if let enhancedVoice = AVSpeechSynthesisVoice(identifier: enhancedId),
@@ -75,8 +80,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
             // Nathan peut utiliser la voix française système par défaut.
             // Sarah ne passe volontairement pas ici : si son identifiant préféré
-            // n'existe pas sur l'iPhone, on cherche d'abord une voix féminine connue
-            // (Amélie, Marie, Audrey) au lieu de risquer une voix masculine par défaut.
+            // n'existe pas sur l'iPhone, on cherche d'abord une voix féminine connue.
             if selectedVoice == nil,
                agent == .nathan,
                let systemFrenchVoice = AVSpeechSynthesisVoice(language: agent.localeCode),
@@ -90,7 +94,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
                 switch agent {
                 case .sarah:  targetNames = ["amélie", "amelie", "marie", "audrey"]
                 case .nathan: targetNames = ["thomas", "nicolas", "lucas", "paul"]
-                case .esther: targetNames = ["audrey", "celine", "céline", "aurelie", "aurélie", "claire"]
+                case .esther: targetNames = ["nicolas", "antoine", "paul", "thomas", "rémi", "remi"]
                 case .tom:    targetNames = ["rémi", "remi", "alain", "pierre", "antoine"]
                 case .yohan:  targetNames = ["jean", "felix", "félix", "nicolas"]
                 case .ethel:  targetNames = ["chantal", "juliette", "hortense", "geneviève", "genevieve"]
@@ -109,8 +113,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             }
 
             if selectedVoice == nil {
-                let isFemale = (agent == .sarah || agent == .esther || agent == .ethel)
-                let maleKeywords = ["thomas", "nicolas", "paul", "antoine", "remi", "alain", "jean", "felix"]
+                let isFemale = (agent == .sarah || agent == .ethel)
+                let maleKeywords = ["thomas", "nicolas", "lucas", "paul", "antoine", "remi", "rémi", "alain", "pierre", "jean", "felix", "félix"]
                 let freeVoices = frenchVoices.filter { !usedIdentifiers.contains($0.identifier) }
 
                 if let matchGender = freeVoices.first(where: { voice in
@@ -214,8 +218,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             utterance.pitchMultiplier = 0.95
             utterance.rate = 0.53
         case .esther:
-            utterance.pitchMultiplier = 1.12
-            utterance.rate = 0.49
+            utterance.pitchMultiplier = 0.93
+            utterance.rate = 0.50
         case .tom:
             utterance.pitchMultiplier = 0.84
             utterance.rate = 0.46
@@ -229,8 +233,6 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
-        // Le micro est arrêté, mais la session AVAudioSession reste active quand
-        // le mode vocal continu est ouvert.
         AppleSpeechRecognizer.shared.stopListening()
         stop()
         pendingSpeechBlock = nil
