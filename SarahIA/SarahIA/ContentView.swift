@@ -1,9 +1,14 @@
 import SwiftUI
 
-/// Vue racine moderne de Sarah IA.
-/// Le chat reste plein écran et le menu latéral glisse par-dessus sans
-/// modifier la géométrie du contenu. La largeur du tiroir s'adapte aux
-/// différents formats d'iPhone.
+/// Vue racine stable de SarahIA.
+///
+/// Règles importantes :
+/// - le chat respecte les safe areas iOS afin que la barre de saisie reste
+///   toujours au-dessus du Home Indicator et du clavier ;
+/// - seuls les fonds visuels et le tiroir peuvent déborder dans les safe areas ;
+/// - le mode vocal est présenté ici, au niveau racine, pour qu'aucune évolution
+///   interne de ChatScreenView ne puisse faire disparaître sa présentation ;
+/// - le geste du tiroir est simultané et ne vole pas le focus du TextField.
 @available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -19,6 +24,9 @@ public struct ContentView: View {
             )
 
             ZStack(alignment: .leading) {
+                // Le chat n'ignore PAS les safe areas. C'est volontaire :
+                // SwiftUI peut ainsi remonter automatiquement le composer
+                // lorsque le clavier apparaît.
                 ChatScreenView(
                     viewModel: viewModel,
                     isShowingSettings: $isShowingSettings
@@ -27,20 +35,7 @@ public struct ContentView: View {
                 .disabled(viewModel.isDrawerOpen)
 
                 if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
-                    Color.black
-                        .opacity(
-                            Double(
-                                viewModel.drawerProgress > 0.001
-                                    ? viewModel.drawerProgress
-                                    : (viewModel.isDrawerOpen ? 1.0 : 0.0)
-                            ) * 0.40
-                        )
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                                viewModel.closeDrawer()
-                            }
-                        }
+                    drawerOverlay
 
                     SidebarView(
                         viewModel: viewModel,
@@ -49,68 +44,35 @@ public struct ContentView: View {
                     .frame(width: sidebarWidth)
                     .frame(maxHeight: .infinity)
                     .background(Color.black)
-                    .ignoresSafeArea(.all, edges: [.top, .bottom])
-                    .offset(
-                        x: (
-                            viewModel.drawerProgress > 0.001
-                                ? viewModel.drawerProgress - 1.0
-                                : (viewModel.isDrawerOpen ? 0.0 : -1.0)
-                        ) * sidebarWidth
-                    )
+                    .ignoresSafeArea(.container, edges: [.top, .bottom])
+                    .offset(x: drawerOffset(width: sidebarWidth))
                     .transition(.move(edge: .leading))
-                    .zIndex(1)
+                    .zIndex(2)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
-            .highPriorityGesture(
-                DragGesture(minimumDistance: 12)
-                    .onChanged { value in
-                        let horizontal = value.translation.width
-                        let vertical = value.translation.height
-
-                        if !viewModel.isDrawerOpen {
-                            if value.startLocation.x <= 28,
-                               horizontal > 0,
-                               abs(horizontal) > abs(vertical) * 0.6 {
-                                viewModel.drawerProgress = min(horizontal / sidebarWidth, 1.0)
-                            }
-                        } else if horizontal < 0 {
-                            viewModel.drawerProgress = max(
-                                0.0,
-                                1.0 + horizontal / sidebarWidth
-                            )
-                        }
-                    }
-                    .onEnded { value in
-                        let horizontal = value.translation.width
-                        let vertical = value.translation.height
-
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                            if !viewModel.isDrawerOpen,
-                               value.startLocation.x <= 28,
-                               horizontal > 40,
-                               abs(horizontal) > abs(vertical) * 0.6 {
-                                viewModel.openDrawer()
-                            } else if viewModel.isDrawerOpen && horizontal < -40 {
-                                viewModel.closeDrawer()
-                            } else if viewModel.isDrawerOpen && viewModel.drawerProgress > 0.4 {
-                                viewModel.openDrawer()
-                            } else {
-                                viewModel.closeDrawer()
-                            }
-                        }
-                    }
-            )
+            .contentShape(Rectangle())
+            .simultaneousGesture(drawerGesture(width: sidebarWidth))
         }
+        .background(Color.black.ignoresSafeArea())
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        // Présentation vocale centralisée au niveau racine.
+        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.openDrawer()
+                },
+                onOpenSettings: {
+                    isShowingSettings = true
+                }
+            )
+        }
         .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
-            // Chaque ouverture du mode vocal repart de Sarah, qui reste l'agent
-            // pilote. Le routeur peut ensuite passer la main à Raphaël, Tom,
-            // Yohan, Nathan ou Ethel selon la demande prononcée.
             if isPresented {
+                // Sarah reste l'agent pilote à chaque nouvelle session vocale.
                 viewModel.activeAgent = .sarah
             }
         }
@@ -131,5 +93,68 @@ public struct ContentView: View {
                 break
             }
         }
+    }
+
+    private var drawerOverlay: some View {
+        Color.black
+            .opacity(
+                Double(
+                    viewModel.drawerProgress > 0.001
+                        ? viewModel.drawerProgress
+                        : (viewModel.isDrawerOpen ? 1.0 : 0.0)
+                ) * 0.40
+            )
+            .ignoresSafeArea()
+            .zIndex(1)
+            .onTapGesture {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                    viewModel.closeDrawer()
+                }
+            }
+    }
+
+    private func drawerOffset(width: CGFloat) -> CGFloat {
+        let progress = viewModel.drawerProgress > 0.001
+            ? viewModel.drawerProgress
+            : (viewModel.isDrawerOpen ? 1.0 : 0.0)
+        return (progress - 1.0) * width
+    }
+
+    private func drawerGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+
+                guard abs(horizontal) > abs(vertical) * 0.6 else { return }
+
+                if !viewModel.isDrawerOpen {
+                    guard value.startLocation.x <= 28, horizontal > 0 else { return }
+                    viewModel.drawerProgress = min(max(horizontal / width, 0), 1)
+                } else if horizontal < 0 {
+                    viewModel.drawerProgress = min(max(1.0 + horizontal / width, 0), 1)
+                }
+            }
+            .onEnded { value in
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                    if !viewModel.isDrawerOpen,
+                       value.startLocation.x <= 28,
+                       horizontal > 40,
+                       abs(horizontal) > abs(vertical) * 0.6 {
+                        viewModel.openDrawer()
+                    } else if viewModel.isDrawerOpen,
+                              horizontal < -40,
+                              abs(horizontal) > abs(vertical) * 0.6 {
+                        viewModel.closeDrawer()
+                    } else if viewModel.isDrawerOpen && viewModel.drawerProgress > 0.4 {
+                        viewModel.openDrawer()
+                    } else {
+                        viewModel.closeDrawer()
+                    }
+                }
+            }
     }
 }
