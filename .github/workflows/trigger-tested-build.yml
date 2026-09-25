@@ -15,22 +15,22 @@ jobs:
         with:
           ref: main
 
-      - name: Apply voice mode stability repair
-        run: python3 .github/scripts/fix_voice_mode_stability.py
+      - name: Repair continuous spoken reply routing
+        run: python3 .github/scripts/fix_voice_reply_routing.py
 
-      - name: Commit repaired voice runtime
+      - name: Commit voice reply repair
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
-            git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-            git commit -m "Repair continuous voice mode audio lifecycle"
+            git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+            git commit -m "Fix continuous voice reply and sheet state race"
             git push origin main
           fi
 
-      - name: Start repaired SarahIA iOS device build
+      - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting stable continuous voice compile v6"
+          echo "Starting compact draggable voice compile v7"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
