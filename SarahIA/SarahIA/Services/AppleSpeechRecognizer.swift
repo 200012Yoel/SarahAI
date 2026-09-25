@@ -111,11 +111,17 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        // Une seule source audio doit être active à la fois.
-        TTSManager.shared.stop()
-        SpeechManager.shared.stopSpeaking()
+        // Une seule source audio doit être active à la fois. On coupe les lecteurs
+        // réellement actifs, sans réveiller l'ancien moteur audio juste pour appeler stop().
+        MultiAgentVoiceManager.shared.stop()
+        if SpeechManager.shared.isSpeaking {
+            SpeechManager.shared.stopSpeaking()
+        }
         if #available(iOS 13.0, *) {
-            TTSService.shared.stopSpeaking()
+            let legacyTTS = TTSService.shared
+            if legacyTTS.isSpeaking {
+                legacyTTS.stopSpeaking()
+            }
         }
 
         // Nettoie une éventuelle ancienne tâche puis crée une nouvelle génération.
