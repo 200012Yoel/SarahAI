@@ -12,6 +12,10 @@ public enum VoiceActivityState: Equatable {
 }
 
 /// Gestionnaire audio temps réel pour capture micro, VAD et barge-in interruption.
+///
+/// IMPORTANT : ce composant ne possède plus AVAudioSession. Toute la configuration
+/// de catégorie, mode, activation et route passe par AudioSessionManager afin
+/// d'éviter que plusieurs services se battent pour la sortie audio de l'iPhone.
 @available(iOS 13.0, *)
 public final class AudioEngineManager: NSObject, ObservableObject {
     
@@ -24,9 +28,9 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     @Published public private(set) var hasMicrophonePermission: Bool = false
     
     // MARK: - Configuration & Thresholds
-    public var vadEnergyThreshold: Float = 0.040 // Seuil RMS de détection de voix optimisé
-    public var silenceDurationThreshold: TimeInterval = 1.2 // Secondes de silence pour fin de phrase
-    public var isTTSCurrentlyActive: Bool = false // Marqueur quand Sarah parle
+    public var vadEnergyThreshold: Float = 0.040
+    public var silenceDurationThreshold: TimeInterval = 1.2
+    public var isTTSCurrentlyActive: Bool = false
     
     // MARK: - Callbacks
     public var onVoiceActivityChanged: ((VoiceActivityState) -> Void)?
@@ -45,7 +49,6 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     private var consecutiveVoiceFrames: Int = 0
     private let requiredConsecutiveFramesForOnset: Int = 2
     
-    // Throttling pour éviter de saturer le thread principal à chaque buffer
     private var lastLevelUpdateTime: TimeInterval = 0
     private let audioProcessingQueue = DispatchQueue(label: "com.sarahia.audioprocessing", qos: .userInteractive)
     
@@ -57,6 +60,7 @@ public final class AudioEngineManager: NSObject, ObservableObject {
     
     deinit {
         stopAudioEngine()
+        NotificationCenter.default.removeObserver(self)
     }
     
     private func checkInitialPermission() {
@@ -64,30 +68,21 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         self.hasMicrophonePermission = (status == .granted)
     }
     
-    // MARK: - Configuration de la Session Audio
+    // MARK: - Session Audio centralisée
     
-    /// Configure la session audio pour lecture/enregistrement simultané avec support arrière-plan
+    /// Ne configure jamais AVAudioSession directement. En mode vocal continu,
+    /// on conserve exactement la même session écouter -> répondre -> écouter.
+    /// Hors mode vocal, on demande simplement une session d'enregistrement.
     public func setupAudioSession() {
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(
-                .playAndRecord,
-                mode: .voiceChat,
-                options: [
-                    .defaultToSpeaker,
-                    .allowBluetooth
-                ]
-            )
-            try session.setPreferredIOBufferDuration(0.02) // 20ms basse latence
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("⚠️ [AudioEngineManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
+        if AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+        } else {
+            AudioSessionManager.shared.configureRecordingSession()
         }
     }
     
     // MARK: - Gestion des Permissions & Démarrage
     
-    /// Demande la permission microphone puis démarre le moteur audio si accordée
     public func requestPermissionAndStart(completion: ((Bool) -> Void)? = nil) {
         let session = AVAudioSession.sharedInstance()
         switch session.recordPermission {
@@ -114,7 +109,7 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    /// Démarre la capture micro et l'analyse VAD en temps réel
+    /// Démarre la capture micro et l'analyse VAD en temps réel.
     public func startAudioEngine() {
         guard !audioEngine.isRunning else { return }
         
@@ -134,9 +129,8 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
         self.audioFormat = recordingFormat
         
-        // Installer le Tap audio
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] (buffer, time) in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             self?.audioProcessingQueue.async {
                 self?.processAudioBuffer(buffer)
             }
@@ -148,26 +142,27 @@ public final class AudioEngineManager: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 self.isRunning = true
             }
-            print("🎙️ [AudioEngineManager] Moteur audio démarré avec succès.")
+            print("🎙️ [AudioEngineManager] Moteur audio démarré avec la session centralisée.")
         } catch {
+            inputNode.removeTap(onBus: 0)
             print("❌ [AudioEngineManager] Erreur démarrage AVAudioEngine: \(error.localizedDescription)")
         }
     }
     
-    /// Arrête le moteur audio
+    /// Arrête uniquement le moteur de capture. La session audio appartient à
+    /// AudioSessionManager et n'est donc jamais désactivée ici.
     public func stopAudioEngine() {
         if audioEngine.isRunning {
             inputNode?.removeTap(onBus: 0)
             audioEngine.stop()
-            DispatchQueue.main.async {
-                self.isRunning = false
-                self.currentInputLevel = 0.0
-                self.isUserSpeaking = false
-            }
+        }
+        DispatchQueue.main.async {
+            self.isRunning = false
+            self.currentInputLevel = 0.0
+            self.isUserSpeaking = false
         }
     }
     
-    /// Bascule le statut d'enregistrement du micro
     public func toggleAudioEngine() {
         if isRunning {
             stopAudioEngine()
@@ -176,14 +171,13 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Traitement du Signal Audio & VAD (Exécuté sur queue dédiée, UI throttled)
+    // MARK: - Traitement du Signal Audio & VAD
     
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let frameLength = Int(buffer.frameLength)
         guard frameLength > 0 else { return }
         
-        // Calcul du RMS (Root Mean Square)
         var sumSquares: Float = 0.0
         for i in 0..<frameLength {
             let sample = channelData[i]
@@ -192,7 +186,6 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         let rms = sqrt(sumSquares / Float(frameLength))
         let normalizedLevel = min(1.0, max(0.0, rms * 9.0))
         
-        // Throttling UI : mise à jour du niveau sonore à max 30 FPS pour préserver la fluidité
         let now = CACurrentMediaTime()
         if now - lastLevelUpdateTime > 0.033 {
             lastLevelUpdateTime = now
@@ -201,10 +194,8 @@ public final class AudioEngineManager: NSObject, ObservableObject {
             }
         }
         
-        // Transmettre le buffer brut pour la transcription Whisper / SFSpeechRecognizer
         onAudioBufferCaptured?(buffer)
         
-        // Évaluation VAD
         let isVoiceDetected = rms > vadEnergyThreshold
         
         if isVoiceDetected {
@@ -213,15 +204,13 @@ public final class AudioEngineManager: NSObject, ObservableObject {
             
             if consecutiveVoiceFrames >= requiredConsecutiveFramesForOnset {
                 if !isUserSpeaking {
-                    // Début de prise de parole détectée
                     speechStartTime = Date()
                     DispatchQueue.main.async {
                         self.isUserSpeaking = true
                     }
                     
-                    // --- BARGE-IN INTERRUPTION ---
                     if isTTSCurrentlyActive {
-                        print("⚡ [AudioEngineManager] BARGE-IN! L'utilisateur a interrompu Sarah.")
+                        print("⚡ [AudioEngineManager] BARGE-IN utilisateur détecté.")
                         DispatchQueue.main.async {
                             self.onBargeInTriggered?()
                             self.onVoiceActivityChanged?(.bargeInDetected)
@@ -237,8 +226,8 @@ public final class AudioEngineManager: NSObject, ObservableObject {
             consecutiveVoiceFrames = max(0, consecutiveVoiceFrames - 1)
             
             if isUserSpeaking {
-                if let lastTime = lastSpeechTime, Date().timeIntervalSince(lastTime) > silenceDurationThreshold {
-                    // Fin de parole / Silence détecté après une prise de parole
+                if let lastTime = lastSpeechTime,
+                   Date().timeIntervalSince(lastTime) > silenceDurationThreshold {
                     DispatchQueue.main.async {
                         self.isUserSpeaking = false
                         self.onVoiceActivityChanged?(.silenceDetected)
@@ -257,7 +246,7 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - Gestion des Interruptions Système
+    // MARK: - Interruptions système
     
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
@@ -284,22 +273,27 @@ public final class AudioEngineManager: NSObject, ObservableObject {
         
         switch type {
         case .began:
-            print("ℹ️ [AudioEngineManager] Interruption audio commencée.")
+            print("ℹ️ [AudioEngineManager] Interruption audio réelle commencée.")
             stopAudioEngine()
         case .ended:
-            print("ℹ️ [AudioEngineManager] Interruption audio terminée. Redémarrage.")
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    startAudioEngine()
-                }
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            guard options.contains(.shouldResume) else { return }
+            print("ℹ️ [AudioEngineManager] Interruption terminée, restauration centralisée.")
+            if AudioSessionManager.shared.isContinuousVoiceSessionActive {
+                AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
             }
+            startAudioEngine()
         @unknown default:
             break
         }
     }
     
     @objc private func handleRouteChange(notification: Notification) {
-        setupAudioSession()
+        // Un changement de route (haut-parleur, Bluetooth, écouteurs) ne doit plus
+        // recréer la catégorie audio. On laisse le gestionnaire central restaurer
+        // la session uniquement si le vocal continu est réellement actif.
+        guard AudioSessionManager.shared.isContinuousVoiceSessionActive else { return }
+        AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
     }
 }
