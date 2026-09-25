@@ -2,9 +2,8 @@ import SwiftUI
 
 /// Vue racine stable de SarahIA.
 ///
-/// Le chat respecte les safe areas iOS. Le mode vocal est présenté au niveau
-/// racine dans une feuille redimensionnable afin de pouvoir passer du plein
-/// écran au petit mode vocal sans interrompre la conversation.
+/// Le mode vocal vit maintenant dans la vue racine : il peut passer du plein
+/// écran au petit orbe sans fermer la session audio ni arrêter le micro.
 @available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -42,6 +41,20 @@ public struct ContentView: View {
                     .transition(.move(edge: .leading))
                     .zIndex(2)
                 }
+
+                if viewModel.isShowingVoiceOrbModal {
+                    VoiceOrbModalView(
+                        viewModel: viewModel,
+                        onOpenMenu: {
+                            viewModel.openDrawer()
+                        },
+                        onOpenSettings: {
+                            isShowingSettings = true
+                        }
+                    )
+                    .zIndex(20)
+                    .transition(.opacity)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -50,14 +63,6 @@ public struct ContentView: View {
         .background(Color.black.ignoresSafeArea())
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
-        }
-        .sheet(
-            isPresented: $viewModel.isShowingVoiceOrbModal,
-            onDismiss: {
-                viewModel.stopVoiceConversation()
-            }
-        ) {
-            voiceSheetContent
         }
         .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
             if isPresented {
@@ -76,50 +81,10 @@ public struct ContentView: View {
                 viewModel.activeAgent = .sarah
                 viewModel.isShowingVoiceOrbModal = true
             case "chat":
-                viewModel.isShowingVoiceOrbModal = false
+                viewModel.endVoiceConversation()
             default:
                 break
             }
-        }
-    }
-
-    @ViewBuilder
-    private var voiceSheetContent: some View {
-        if #available(iOS 16.0, *) {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.isShowingVoiceOrbModal = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        viewModel.openDrawer()
-                    }
-                },
-                onOpenSettings: {
-                    viewModel.isShowingVoiceOrbModal = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        isShowingSettings = true
-                    }
-                }
-            )
-            .presentationDetents([.height(255), .large])
-            .presentationDragIndicator(.visible)
-            .interactiveDismissDisabled(false)
-        } else {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.isShowingVoiceOrbModal = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        viewModel.openDrawer()
-                    }
-                },
-                onOpenSettings: {
-                    viewModel.isShowingVoiceOrbModal = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        isShowingSettings = true
-                    }
-                }
-            )
         }
     }
 
