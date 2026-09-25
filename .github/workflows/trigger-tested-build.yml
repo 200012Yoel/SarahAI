@@ -15,5 +15,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting SarahIA IPA after voice workflow repair v2"
+          echo "Starting SarahIA IPA after Liquid Glass shell migration"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
