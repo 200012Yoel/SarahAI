@@ -73,8 +73,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
                 }
             }
 
+            // Nathan peut utiliser la voix française système par défaut.
+            // Sarah ne passe volontairement pas ici : si son identifiant préféré
+            // n'existe pas sur l'iPhone, on cherche d'abord une voix féminine connue
+            // (Amélie, Marie, Audrey) au lieu de risquer une voix masculine par défaut.
             if selectedVoice == nil,
-               (agent == .sarah || agent == .nathan),
+               agent == .nathan,
                let systemFrenchVoice = AVSpeechSynthesisVoice(language: agent.localeCode),
                normalizedLanguageCode(systemFrenchVoice.language) == "fr-fr",
                !usedIdentifiers.contains(systemFrenchVoice.identifier) {
