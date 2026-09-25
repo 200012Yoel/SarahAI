@@ -63,14 +63,37 @@ public final class ModelSelectionEngine {
         }
     }
 
+    /// Le routeur SarahBrainEngine reçoit une requête utilisateur naturelle.
+    ///
+    /// L'ancienne implémentation emballait le texte dans un prompt ChatML complet
+    /// contenant le prompt système. SarahBrainEngine interprétait ensuite ce bloc
+    /// comme si l'utilisateur l'avait écrit. Résultat : les mots du prompt système
+    /// (musique, vidéo, code...) pouvaient déclencher un faux intent et les balises
+    /// <|im_start|>/<|im_end|> se retrouvaient affichées dans la conversation.
+    ///
+    /// Tant que le runtime GGUF n'expose pas une vraie API d'inférence séparée du
+    /// routeur applicatif, on transmet uniquement le message utilisateur nettoyé.
+    /// Le paramètre `system` est conservé dans la signature pour compatibilité avec
+    /// les appels existants, mais n'est jamais injecté dans le texte routé.
     public func formatChatMLPrompt(system: String, user: String) -> String {
-        """
-        <|im_start|>system
-        \(system)<|im_end|>
-        <|im_start|>user
-        \(user)<|im_end|>
-        <|im_start|>assistant
-        """
+        sanitizeUserText(user)
+    }
+
+    private func sanitizeUserText(_ text: String) -> String {
+        var clean = text
+            .replacingOccurrences(of: "<|im_start|>", with: "")
+            .replacingOccurrences(of: "<|im_end|>", with: "")
+            .replacingOccurrences(of: "<|endoftext|>", with: "")
+            .replacingOccurrences(of: "<|assistant|>", with: "")
+            .replacingOccurrences(of: "<|user|>", with: "")
+            .replacingOccurrences(of: "<|system|>", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Évite qu'une chaîne vide fasse tomber le routeur sur un chemin inattendu.
+        if clean.isEmpty {
+            clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return clean
     }
 
     public func getProfile(byId id: String) -> ModelProfile? { registeredProfiles.first { $0.profileId == id } }
