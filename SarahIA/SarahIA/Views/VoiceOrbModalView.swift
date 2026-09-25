@@ -190,7 +190,8 @@ public struct VoiceOrbModalView: View {
 
             Button {
                 HapticService.shared.buttonTap()
-                viewModel.endVoiceConversation()
+                viewModel.stopVoiceConversation()
+                viewModel.isShowingVoiceOrbModal = false
             } label: {
                 ZStack {
                     Circle()
