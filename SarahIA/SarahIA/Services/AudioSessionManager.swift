@@ -4,10 +4,9 @@ import UIKit
 
 /// Gestion centralisée de la session audio de Sarah.
 ///
-/// Le mode vocal continu garde UNE seule session `.playAndRecord / .voiceChat`
-/// du début à la fin. On ne change plus de catégorie entre l'écoute et la
-/// synthèse, ce qui évite les bascules de volume, de haut-parleur et de profil
-/// Bluetooth à chaque tour de conversation.
+/// Le mode vocal continu ouvre UNE seule session `.playAndRecord / .voiceChat`
+/// au début, puis la conserve telle quelle pendant écouter -> répondre -> écouter.
+/// Les passages micro/TTS ne reconfigurent plus la route audio du téléphone.
 public final class AudioSessionManager {
 
     public static let shared = AudioSessionManager()
@@ -30,23 +29,29 @@ public final class AudioSessionManager {
 
     // MARK: - Mode vocal continu
 
-    /// Ouvre une session audio stable pour tout le cycle écouter -> répondre -> écouter.
+    /// Ouvre la session audio une seule fois pour tout le cycle vocal.
     public func beginContinuousVoiceSession() {
         stateLock.lock()
+        let wasAlreadyActive = continuousVoiceSessionActive
         continuousVoiceSessionActive = true
         stateLock.unlock()
+
+        guard !wasAlreadyActive else { return }
         configureVoiceConversationSession()
     }
 
-    /// Ferme réellement la session lorsque l'écran vocal est quitté.
+    /// Ferme réellement la session uniquement lorsque l'utilisateur quitte le vocal.
     public func endContinuousVoiceSession() {
         stateLock.lock()
+        let wasActive = continuousVoiceSessionActive
         continuousVoiceSessionActive = false
         stateLock.unlock()
+
+        guard wasActive else { return }
         forceDeactivateSession()
     }
 
-    /// Réactive la même route après une interruption iOS sans changer de profil.
+    /// Réactive la même route uniquement après une vraie interruption iOS.
     public func restoreContinuousVoiceSessionIfNeeded() {
         guard isContinuousVoiceSessionActive else { return }
         configureVoiceConversationSession()
@@ -55,9 +60,6 @@ public final class AudioSessionManager {
     private func configureVoiceConversationSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            // Ne pas ajouter allowBluetoothA2DP ici : A2DP est une sortie haute
-            // fidélité sans micro et provoque des changements de profil pendant
-            // une conversation bidirectionnelle.
             try session.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
@@ -65,7 +67,7 @@ public final class AudioSessionManager {
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            print("🎙️🔊 [AudioSessionManager] Session vocale continue stable active.")
+            print("🎙️🔊 [AudioSessionManager] Session vocale continue active.")
         } catch {
             print("⚠️ [AudioSessionManager] Configuration vocale continue: \(error.localizedDescription)")
         }
@@ -73,11 +75,10 @@ public final class AudioSessionManager {
 
     // MARK: - Sessions ponctuelles
 
-    /// Lecture ponctuelle hors mode vocal. En mode vocal, conserve la session
-    /// conversationnelle existante au lieu de la reconfigurer.
+    /// Hors mode vocal, configure une lecture ponctuelle. Pendant une conversation
+    /// continue, ne touche surtout pas à la catégorie, au mode ou à la route.
     public func configurePlaybackSession() {
         if isContinuousVoiceSessionActive {
-            configureVoiceConversationSession()
             return
         }
 
@@ -95,11 +96,10 @@ public final class AudioSessionManager {
         }
     }
 
-    /// Dictée ponctuelle hors mode vocal. En mode vocal, réutilise exactement
-    /// la même session bidirectionnelle.
+    /// Hors mode vocal, configure une dictée ponctuelle. Pendant une conversation
+    /// continue, le micro réutilise la session déjà ouverte sans la reconfigurer.
     public func configureRecordingSession() {
         if isContinuousVoiceSessionActive {
-            configureVoiceConversationSession()
             return
         }
 
@@ -118,9 +118,7 @@ public final class AudioSessionManager {
         }
     }
 
-    /// Désactive une session ponctuelle. Pendant le mode vocal continu, cet
-    /// appel devient volontairement un no-op pour éviter les coupures entre
-    /// reconnaissance et synthèse.
+    /// En mode vocal continu, cet appel devient volontairement un no-op.
     public func deactivateSession() {
         guard !isContinuousVoiceSessionActive else { return }
         forceDeactivateSession()
@@ -193,8 +191,7 @@ public final class AudioSessionManager {
     }
 
     @objc private func handleAppWillResignActive() {
-        // Les vraies interruptions sont traitées par AVAudioSession. Ne pas
-        // arrêter/reconfigurer la session simplement parce que l'app perd le focus.
+        // Ne pas toucher à la session seulement parce que l'app perd le focus.
     }
 
     @objc private func handleSecondaryAudioHint(_ notification: Notification) {
