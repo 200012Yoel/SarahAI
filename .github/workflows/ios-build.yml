@@ -22,6 +22,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore reliable Sarah voice mode presentation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('SarahIA/SarahIA/Views/ChatScreenView.swift')
+          s = p.read_text(encoding='utf-8')
+          old = '''        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
+              VoiceOrbModalView(
+                  viewModel: viewModel,
+                  onOpenMenu: {
+                      viewModel.openDrawer()
+                  },
+                  onOpenSettings: {
+                      isShowingSettings = true
+                  }
+              )
+          }
+          '''
+          new = '''        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
+              voiceSheetContent
+          }
+          '''
+          if old not in s:
+              raise SystemExit('Voice presentation anchor not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          print('Reliable voice sheet restored')
+          PY
+
       - name: Xcode version
         run: xcodebuild -version
 
