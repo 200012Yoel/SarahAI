@@ -2,92 +2,156 @@ import Foundation
 import AVFoundation
 import UIKit
 
-/// Gestionnaire de session audio dédié garantissant :
-/// - Le contournement absolu du mode silencieux de l'iPhone (.playback)
-/// - La coupure automatique et instantanée du micro de Sarah dès que Siri, un appel ou une alarme se déclenche
+/// Gestion centralisée de la session audio de Sarah.
+///
+/// Le mode vocal continu garde UNE seule session `.playAndRecord / .voiceChat`
+/// du début à la fin. On ne change plus de catégorie entre l'écoute et la
+/// synthèse, ce qui évite les bascules de volume, de haut-parleur et de profil
+/// Bluetooth à chaque tour de conversation.
 public final class AudioSessionManager {
-    
+
     public static let shared = AudioSessionManager()
-    
+
     public var onInterruptionBegan: (() -> Void)?
     public var onInterruptionEnded: (() -> Void)?
-    
+
+    private let stateLock = NSLock()
+    private var continuousVoiceSessionActive = false
+
+    public var isContinuousVoiceSessionActive: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return continuousVoiceSessionActive
+    }
+
     private init() {
         setupInterruptionObservers()
-        // NOTE: On ne configure PAS la session au démarrage pour laisser iOS gérer par défaut
-        // La session est configurée uniquement au moment de parler ou d'écouter
     }
-    
-    // MARK: - Configuration des Sessions Audio
-    
-    /// Active la session audio en mode lecture haut-parleur (contourne le mode silencieux).
+
+    // MARK: - Mode vocal continu
+
+    /// Ouvre une session audio stable pour tout le cycle écouter -> répondre -> écouter.
+    public func beginContinuousVoiceSession() {
+        stateLock.lock()
+        continuousVoiceSessionActive = true
+        stateLock.unlock()
+        configureVoiceConversationSession()
+    }
+
+    /// Ferme réellement la session lorsque l'écran vocal est quitté.
+    public func endContinuousVoiceSession() {
+        stateLock.lock()
+        continuousVoiceSessionActive = false
+        stateLock.unlock()
+        forceDeactivateSession()
+    }
+
+    /// Réactive la même route après une interruption iOS sans changer de profil.
+    public func restoreContinuousVoiceSessionIfNeeded() {
+        guard isContinuousVoiceSessionActive else { return }
+        configureVoiceConversationSession()
+    }
+
+    private func configureVoiceConversationSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            // Ne pas ajouter allowBluetoothA2DP ici : A2DP est une sortie haute
+            // fidélité sans micro et provoque des changements de profil pendant
+            // une conversation bidirectionnelle.
+            try session.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.defaultToSpeaker, .allowBluetooth]
+            )
+            try session.setPreferredIOBufferDuration(0.02)
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+            print("🎙️🔊 [AudioSessionManager] Session vocale continue stable active.")
+        } catch {
+            print("⚠️ [AudioSessionManager] Configuration vocale continue: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Sessions ponctuelles
+
+    /// Lecture ponctuelle hors mode vocal. En mode vocal, conserve la session
+    /// conversationnelle existante au lieu de la reconfigurer.
     public func configurePlaybackSession() {
+        if isContinuousVoiceSessionActive {
+            configureVoiceConversationSession()
+            return
+        }
+
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth]
+                .playback,
+                mode: .spokenAudio,
+                options: [.allowBluetoothA2DP, .allowAirPlay]
             )
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🔊 [AudioSessionManager] Mode .playAndRecord (Haut-parleur forcé & Bluetooth actif).")
+            print("🔊 [AudioSessionManager] Lecture ponctuelle active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration playback: \(error.localizedDescription)")
         }
     }
-    
-    /// Configure la session audio pour l'enregistrement micro natif sans déclencher de mode appel téléphonique.
+
+    /// Dictée ponctuelle hors mode vocal. En mode vocal, réutilise exactement
+    /// la même session bidirectionnelle.
     public func configureRecordingSession() {
+        if isContinuousVoiceSessionActive {
+            configureVoiceConversationSession()
+            return
+        }
+
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
                 .playAndRecord,
-                mode: .default,
-                options: [
-                    .defaultToSpeaker,
-                    .allowBluetooth,
-                    .allowBluetoothA2DP
-                ]
+                mode: .measurement,
+                options: [.defaultToSpeaker, .allowBluetooth]
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-            print("🎙️ [AudioSessionManager] Session micro active.")
+            print("🎙️ [AudioSessionManager] Dictée ponctuelle active.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur configuration micro: \(error.localizedDescription)")
         }
     }
-    
-    /// Désactive la session audio proprement
+
+    /// Désactive une session ponctuelle. Pendant le mode vocal continu, cet
+    /// appel devient volontairement un no-op pour éviter les coupures entre
+    /// reconnaissance et synthèse.
     public func deactivateSession() {
+        guard !isContinuousVoiceSessionActive else { return }
+        forceDeactivateSession()
+    }
+
+    private func forceDeactivateSession() {
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            print("🔇 [AudioSessionManager] Session audio rendue à iOS.")
         } catch {
             print("⚠️ [AudioSessionManager] Erreur désactivation: \(error.localizedDescription)")
         }
     }
-    
-    // MARK: - Gestion de Siri, Appels Téléphoniques et Interruptions Système
-    
+
+    // MARK: - Interruptions système
+
     private func setupInterruptionObservers() {
-        // 1. Détection des interruptions audio iOS (Siri, Appel, Alarme, etc.)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAudioInterruption(_:)),
             name: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance()
         )
-        
-        // 2. Détection de l'apparition de Siri / Perte de focus de l'application
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleAppWillResignActive),
             name: UIApplication.willResignActiveNotification,
             object: nil
         )
-        
-        // 3. Détection de l'indice audio secondaire (quand Siri prend la parole)
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleSecondaryAudioHint(_:)),
@@ -95,54 +159,54 @@ public final class AudioSessionManager {
             object: nil
         )
     }
-    
+
     @objc private func handleAudioInterruption(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
         }
-        
+
         switch type {
         case .began:
-            print("⚡ [AudioSessionManager] Interruption système débutée (Siri / Appel / Alarme). Coupure immédiate du micro.")
             DispatchQueue.main.async {
                 self.onInterruptionBegan?()
             }
+
         case .ended:
-            print("🔄 [AudioSessionManager] Interruption système terminée.")
+            let shouldResume: Bool
             if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) {
-                    DispatchQueue.main.async {
-                        self.onInterruptionEnded?()
-                    }
-                }
+                shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume)
+            } else {
+                shouldResume = false
             }
+
+            guard shouldResume else { return }
+            restoreContinuousVoiceSessionIfNeeded()
+            DispatchQueue.main.async {
+                self.onInterruptionEnded?()
+            }
+
         @unknown default:
             break
         }
     }
-    
+
     @objc private func handleAppWillResignActive() {
-        // Ne pas couper le micro quand on passe en arrière-plan :
-        // iOS gère lui-même les interruptions audio via AVAudioSession.interruptionNotification.
-        // Déclencher onInterruptionBegan ici causait des crashs aléatoires à la fermeture de l'app.
-        print("ℹ️ [AudioSessionManager] App en arrière-plan - gestion audio laissée à iOS.")
+        // Les vraies interruptions sont traitées par AVAudioSession. Ne pas
+        // arrêter/reconfigurer la session simplement parce que l'app perd le focus.
     }
-    
+
     @objc private func handleSecondaryAudioHint(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let typeValue = userInfo[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt,
-              let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue) else {
+              let type = AVAudioSession.SilenceSecondaryAudioHintType(rawValue: typeValue),
+              type == .begin else {
             return
         }
-        
-        if type == .begin {
-            print("⚡ [AudioSessionManager] Audio externe prioritaire détecté (Siri parle) -> Coupure du micro de Sarah.")
-            DispatchQueue.main.async {
-                self.onInterruptionBegan?()
-            }
+
+        DispatchQueue.main.async {
+            self.onInterruptionBegan?()
         }
     }
 }
