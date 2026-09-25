@@ -6,14 +6,31 @@ on:
   workflow_dispatch:
 permissions:
   actions: write
-  contents: read
+  contents: write
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Start SarahIA iOS device build
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply voice mode stability repair
+        run: python3 .github/scripts/fix_voice_mode_stability.py
+
+      - name: Commit repaired voice runtime
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+            git commit -m "Repair continuous voice mode audio lifecycle"
+            git push origin main
+          fi
+
+      - name: Start repaired SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting SarahIA prompt-leak fix compile v5"
+          echo "Starting stable continuous voice compile v6"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
