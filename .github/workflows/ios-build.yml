@@ -82,14 +82,15 @@ jobs:
           path: dist/SarahIA.ipa
           retention-days: 14
 
-      - name: Publish release
+      - name: Publish permanent website IPA
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: 'Sarah IA - device build'
-          body: 'Build #${{ github.run_number }}. IPA compiled directly for iPhone.'
+          tag_name: sarah-ia-4.0-latest
+          name: 'Sarah IA 4.0 - iOS 26 Stable'
+          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}.'
           files: dist/SarahIA.ipa
+          overwrite_files: true
           draft: false
           prerelease: false
         env:
