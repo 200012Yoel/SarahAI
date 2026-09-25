@@ -8,6 +8,7 @@ import UIKit
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
     @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.scenePhase) private var scenePhase
 
     private let onOpenMenu: () -> Void
     private let onOpenSettings: () -> Void
@@ -140,8 +141,17 @@ public struct VoiceOrbModalView: View {
         .onDisappear {
             viewModel.stopVoiceConversation()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-            viewModel.stopVoiceConversation()
+        .onChange(of: scenePhase) { phase in
+            switch phase {
+            case .active:
+                if viewModel.isShowingVoiceOrbModal {
+                    viewModel.startVoiceConversation()
+                }
+            case .inactive, .background:
+                viewModel.stopVoiceConversation()
+            @unknown default:
+                break
+            }
         }
     }
 
