@@ -227,15 +227,6 @@ public struct ChatScreenView: View {
         )
         .padding(.top, 3)
         .padding(.bottom, 6)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) {
-            LinearGradient(
-                colors: [Color.white.opacity(0.16), Color.white.opacity(0.025), Color.clear],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(height: 0.7)
-        }
     }
 
     private var topBar: some View {
