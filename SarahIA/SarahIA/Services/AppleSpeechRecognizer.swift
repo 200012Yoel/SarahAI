@@ -104,12 +104,15 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
+        // Une seule source audio doit être active à la fois.
         TTSManager.shared.stop()
         SpeechManager.shared.stopSpeaking()
         if #available(iOS 13.0, *) {
             TTSService.shared.stopSpeaking()
         }
 
+        // Nettoie uniquement l'ancienne tâche Speech. En mode vocal continu,
+        // AudioSessionManager garde la session AVAudioSession ouverte.
         stopListening()
         automaticallyFinalizeOnSilence = autoFinalizeOnSilence
 
@@ -118,16 +121,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
-            try audioSession.setPreferredIOBufferDuration(0.046)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            state = .error("Micro indisponible")
-            print("⚠️ [AppleSpeechRecognizer] AVAudioSession: \(error.localizedDescription)")
-            return
-        }
+        AudioSessionManager.shared.configureRecordingSession()
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let request = recognitionRequest else {
@@ -175,9 +169,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                         if self.automaticallyFinalizeOnSilence {
                             self.finalizeTranscription(text)
                         } else {
-                            // En dictée, un résultat « final » provenant de Speech ne doit
-                            // jamais envoyer le message tout seul. On arrête simplement le
-                            // micro ; MessageBar remettra ce texte dans la zone de saisie.
                             self.stopListening()
                         }
                         return
@@ -232,13 +223,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             HapticService.shared.speechFinished()
         }
 
-        let session = AVAudioSession.sharedInstance()
+        // En conversation continue cet appel est volontairement ignoré par le
+        // gestionnaire, ce qui évite la coupure de route entre micro et voix.
         if !MultiAgentVoiceManager.shared.isSpeaking && !SpeechManager.shared.isSpeaking {
-            do {
-                try session.setActive(false, options: .notifyOthersOnDeactivation)
-            } catch {
-                print("⚠️ [AppleSpeechRecognizer] Désactivation audio: \(error.localizedDescription)")
-            }
+            AudioSessionManager.shared.deactivateSession()
         }
     }
 
