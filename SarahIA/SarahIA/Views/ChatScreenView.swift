@@ -4,8 +4,11 @@ import UniformTypeIdentifiers
 import UIKit
 
 /// Écran principal SarahIA.
-/// La présentation et la logique du mode vocal restent isolées afin que les
-/// évolutions Liquid Glass du chat ne puissent pas casser le vocal retrouvé.
+///
+/// La géométrie est volontairement simple : SwiftUI gère le clavier et les
+/// safe areas. Aucun calcul manuel de hauteur de clavier n'est utilisé pour
+/// déplacer la barre de saisie. Le mode vocal est présenté par ContentView au
+/// niveau racine afin de rester indépendant de cette vue.
 @available(iOS 15.0, *)
 public struct ChatScreenView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -54,23 +57,13 @@ public struct ChatScreenView: View {
         }
     }
 
-    private var topSafeArea: CGFloat {
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { scene in
-                let windows = (scene as? UIWindowScene)?.windows ?? []
-                return windows.first(where: { $0.isKeyWindow }) ?? windows.first
-            }
-            .first
-        return max(window?.safeAreaInsets.top ?? 20, 20)
-    }
-
     public var body: some View {
         ZStack {
             modernBackground
 
             VStack(spacing: 0) {
                 topBar
-                    .padding(.top, topSafeArea + 2)
+                    .padding(.top, 6)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
 
@@ -94,20 +87,14 @@ public struct ChatScreenView: View {
                         viewModel.isShowingVAICodingStudio = true
                     }
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .onTapGesture { keyboard.dismiss() }
             }
         }
+        // SwiftUI remonte automatiquement cet inset au-dessus du clavier.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             composerDock
-        }
-        // Ne pas convertir en sheet : c'est le mode vocal fonctionnel retrouvé.
-        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: { viewModel.openDrawer() },
-                onOpenSettings: { isShowingSettings = true }
-            )
         }
         .photosPicker(
             isPresented: $isShowingPhotoPicker,
@@ -181,6 +168,7 @@ public struct ChatScreenView: View {
                         viewModel.inputText = "Explique-moi "
                     },
                     .default(Text("🎙️ Mode vocal Sarah")) {
+                        keyboard.dismiss()
                         viewModel.isShowingVoiceOrbModal = true
                     },
                     .cancel(Text("Fermer"))
@@ -208,39 +196,37 @@ public struct ChatScreenView: View {
     }
 
     private var composerDock: some View {
-        VStack(spacing: 0) {
-            MessageBar(
-                text: $viewModel.inputText,
-                activeAgent: $viewModel.activeAgent,
-                isRecording: viewModel.isMicRunning,
-                isProcessing: viewModel.isGeneratingResponse,
-                onOpenPhotoLibrary: {
-                    keyboard.dismiss()
-                    selectedPhotoItem = nil
-                    isShowingPhotoPicker = true
-                },
-                onOpenCamera: {
-                    keyboard.dismiss()
-                    isShowingCamera = true
-                },
-                onOpenFile: {
-                    keyboard.dismiss()
-                    isShowingFileImporter = true
-                },
-                onSend: { text in viewModel.sendMessage(text) },
-                onCancel: { viewModel.cancelCurrentGeneration() },
-                onToggleMic: { viewModel.toggleMicrophone() },
-                onOpenVoiceOrb: {
-                    keyboard.dismiss()
-                    viewModel.isShowingVoiceOrbModal = true
-                },
-                onOpenVAICoding: {
-                    viewModel.isShowingVAICodingStudio = true
-                }
-            )
-        }
+        MessageBar(
+            text: $viewModel.inputText,
+            activeAgent: $viewModel.activeAgent,
+            isRecording: viewModel.isMicRunning,
+            isProcessing: viewModel.isGeneratingResponse,
+            onOpenPhotoLibrary: {
+                keyboard.dismiss()
+                selectedPhotoItem = nil
+                isShowingPhotoPicker = true
+            },
+            onOpenCamera: {
+                keyboard.dismiss()
+                isShowingCamera = true
+            },
+            onOpenFile: {
+                keyboard.dismiss()
+                isShowingFileImporter = true
+            },
+            onSend: { text in viewModel.sendMessage(text) },
+            onCancel: { viewModel.cancelCurrentGeneration() },
+            onToggleMic: { viewModel.toggleMicrophone() },
+            onOpenVoiceOrb: {
+                keyboard.dismiss()
+                viewModel.isShowingVoiceOrbModal = true
+            },
+            onOpenVAICoding: {
+                viewModel.isShowingVAICodingStudio = true
+            }
+        )
         .padding(.top, 3)
-        .padding(.bottom, keyboard.isVisible ? 6 : 8)
+        .padding(.bottom, 6)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             LinearGradient(
@@ -376,8 +362,6 @@ public struct WebsiteBrief {
 }
 
 /// Parcours volontairement léger : il prépare un brief puis ouvre Raphaël.
-/// Aucun état supplémentaire n'est injecté dans ChatViewModel, ce qui protège
-/// la logique vocale et évite de coupler le builder au moteur de conversation.
 @available(iOS 15.0, *)
 private struct WebsiteBuilderFlowView: View {
     @ObservedObject var viewModel: ChatViewModel
