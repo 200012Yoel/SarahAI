@@ -53,11 +53,12 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private let audioEngine = AVAudioEngine()
 
     private var silenceTimer: Timer?
-    private let silenceThreshold: TimeInterval = 1.25
+    private let silenceThreshold: TimeInterval = 1.0
     private var hasDetectedSpeechInCurrentSession = false
     private var automaticallyFinalizeOnSilence = true
     private var hasFinalizedCurrentSession = false
     private var recognitionGeneration = UUID()
+    private var lastMeaningfulPartialText = ""
 
     private var lastEnergyPublishTime: TimeInterval = 0
     private let energyPublishInterval: TimeInterval = 1.0 / 20.0
@@ -124,6 +125,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         automaticallyFinalizeOnSilence = autoFinalizeOnSilence
         hasFinalizedCurrentSession = false
         hasDetectedSpeechInCurrentSession = false
+        lastMeaningfulPartialText = ""
 
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
             state = .error("Reconnaissance vocale non disponible")
@@ -164,21 +166,28 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self = self else { return }
             DispatchQueue.main.async {
-                // Très important : les callbacks d'une tâche annulée peuvent arriver
-                // après qu'une nouvelle écoute a déjà démarré.
                 guard self.recognitionGeneration == generation else { return }
 
                 if let result = result {
                     let text = result.bestTranscription.formattedString
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.currentLiveText = text
 
-                    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if !trimmed.isEmpty {
                         self.hasDetectedSpeechInCurrentSession = true
                     }
 
                     self.onPartialTranscription?(text)
 
-                    if self.automaticallyFinalizeOnSilence {
+                    // Apple Speech peut renvoyer plusieurs fois exactement le même
+                    // résultat partiel. Avant, chacun de ces callbacks repoussait le
+                    // minuteur de silence et une phrase courte comme « Bonjour »
+                    // pouvait rester bloquée en écoute. On ne repousse désormais le
+                    // minuteur que lorsque le texte reconnu change réellement.
+                    if self.automaticallyFinalizeOnSilence,
+                       !trimmed.isEmpty,
+                       trimmed != self.lastMeaningfulPartialText {
+                        self.lastMeaningfulPartialText = trimmed
                         self.resetSilenceTimer(for: generation)
                     }
 
@@ -186,7 +195,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                         if self.automaticallyFinalizeOnSilence {
                             self.finalizeTranscription(text, generation: generation)
                         } else {
-                            // Dictée : conserver le texte, mais ne jamais envoyer tout seul.
                             self.stopListening()
                         }
                         return
@@ -226,8 +234,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     }
 
     public func stopListening() {
-        // Invalide immédiatement la génération courante. Tout callback qui arrive
-        // après cette ligne devient inoffensif.
         recognitionGeneration = UUID()
 
         silenceTimer?.invalidate()
@@ -286,8 +292,6 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        // Le résultat final Speech et le minuteur de silence peuvent arriver presque
-        // simultanément. Cette barrière garantit un seul message par tour vocal.
         hasFinalizedCurrentSession = true
         stopListening()
         state = .processing
