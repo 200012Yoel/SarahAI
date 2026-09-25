@@ -2,13 +2,9 @@ import SwiftUI
 
 /// Vue racine stable de SarahIA.
 ///
-/// Règles importantes :
-/// - le chat respecte les safe areas iOS afin que la barre de saisie reste
-///   toujours au-dessus du Home Indicator et du clavier ;
-/// - seuls les fonds visuels et le tiroir peuvent déborder dans les safe areas ;
-/// - le mode vocal est présenté ici, au niveau racine, pour qu'aucune évolution
-///   interne de ChatScreenView ne puisse faire disparaître sa présentation ;
-/// - le geste du tiroir est simultané et ne vole pas le focus du TextField.
+/// Le chat respecte les safe areas iOS. Le mode vocal est présenté au niveau
+/// racine dans une feuille redimensionnable afin de pouvoir passer du plein
+/// écran au petit mode vocal sans interrompre la conversation.
 @available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -24,9 +20,6 @@ public struct ContentView: View {
             )
 
             ZStack(alignment: .leading) {
-                // Le chat n'ignore PAS les safe areas. C'est volontaire :
-                // SwiftUI peut ainsi remonter automatiquement le composer
-                // lorsque le clavier apparaît.
                 ChatScreenView(
                     viewModel: viewModel,
                     isShowingSettings: $isShowingSettings
@@ -58,21 +51,16 @@ public struct ContentView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
-        // Présentation vocale centralisée au niveau racine.
-        .fullScreenCover(isPresented: $viewModel.isShowingVoiceOrbModal) {
-            VoiceOrbModalView(
-                viewModel: viewModel,
-                onOpenMenu: {
-                    viewModel.openDrawer()
-                },
-                onOpenSettings: {
-                    isShowingSettings = true
-                }
-            )
+        .sheet(
+            isPresented: $viewModel.isShowingVoiceOrbModal,
+            onDismiss: {
+                viewModel.stopVoiceConversation()
+            }
+        ) {
+            voiceSheetContent
         }
         .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
             if isPresented {
-                // Sarah reste l'agent pilote à chaque nouvelle session vocale.
                 viewModel.activeAgent = .sarah
             }
         }
@@ -92,6 +80,47 @@ public struct ContentView: View {
             default:
                 break
             }
+        }
+    }
+
+    @ViewBuilder
+    private var voiceSheetContent: some View {
+        if #available(iOS 16.0, *) {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        viewModel.openDrawer()
+                    }
+                },
+                onOpenSettings: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        isShowingSettings = true
+                    }
+                }
+            )
+            .presentationDetents([.height(255), .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(28)
+            .interactiveDismissDisabled(false)
+        } else {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        viewModel.openDrawer()
+                    }
+                },
+                onOpenSettings: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        isShowingSettings = true
+                    }
+                }
+            )
         }
     }
 
