@@ -78,23 +78,16 @@ public struct ChatBubbleView: View {
 
     private var aiBubble: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.35, green: 0.55, blue: 1.0),
-                                Color(red: 0.70, green: 0.30, blue: 0.95)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 28, height: 28)
-
-                Text("👩🏻‍💼")
-                    .font(.system(size: 14))
-            }
+            Image("SarahAvatar")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 28, height: 28)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
 
             VStack(alignment: .leading, spacing: 6) {
                 if !message.isVisionReport {
