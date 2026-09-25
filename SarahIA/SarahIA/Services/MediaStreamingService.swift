@@ -2,10 +2,9 @@ import Foundation
 import AVFoundation
 import UIKit
 
-/// Service de Streaming Radio & Lanceur Multimédia (Radios en direct, Apple Podcasts, Musique) :
-/// - Compatible 100% avec iOS 12.0 jusqu'à iOS 18.0+ (iPhone 5S, SE, 6, 7, 8, X, 11, 12, 13, 14, 15, 16)
-/// - Flux audio en direct (NRJ, France Inter, Skyrock, RTL, Nostalgie, FIP, Jazz Radio, etc.)
-/// - Intégration Apple Podcasts (podcasts://) & Apple Music / Spotify
+/// Service de Streaming Radio & Lanceur Multimédia (Radios en direct, Apple Podcasts, Musique).
+/// Toute la gestion de AVAudioSession passe par AudioSessionManager afin que le
+/// streaming ne puisse plus casser le mode vocal Sarah en changeant la route audio.
 public final class MediaStreamingService {
     
     public static let shared = MediaStreamingService()
@@ -14,7 +13,6 @@ public final class MediaStreamingService {
     public private(set) var isPlayingRadio: Bool = false
     public private(set) var currentStationName: String? = nil
     
-    // Dictionnaire des flux officiels Radio en direct (MP3 / AAC Streams)
     public let radioStations: [String: (name: String, streamUrl: String, icon: String)] = [
         "nrj": (name: "NRJ", streamUrl: "https://scdn.nrjaudio.fm/audio1/fr/30001/mp3_128.mp3", icon: "📻"),
         "france inter": (name: "France Inter", streamUrl: "https://icecast.radiofrance.fr/franceinter-midfi.mp3", icon: "🎙️"),
@@ -37,22 +35,16 @@ public final class MediaStreamingService {
     ]
     
     private init() {
-        configureAudioSession()
+        // Ne jamais prendre possession de la session audio à l'initialisation.
+        // Elle sera demandée seulement lorsqu'une lecture commence réellement.
     }
     
     private func configureAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.allowBluetooth, .duckOthers])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("MediaStreamingService audio session error: \(error)")
-        }
+        AudioSessionManager.shared.configurePlaybackSession()
     }
     
     // MARK: - 1. Lecture de la Radio en Direct
     
-    /// Lance la radio demandée par nom ou par défaut (NRJ / France Inter)
     public func playRadio(stationName: String? = nil) -> String {
         configureAudioSession()
         
@@ -72,6 +64,7 @@ public final class MediaStreamingService {
             stationInfo = radioStations["france inter"]!
         }
         
+        _ = targetKey
         guard let url = URL(string: stationInfo.streamUrl) else {
             return "Impossible de charger le flux audio de \(stationInfo.name)."
         }
@@ -87,7 +80,6 @@ public final class MediaStreamingService {
         return "Je lance la radio **\(stationInfo.name)** en direct pour vous ! \(stationInfo.icon)📻\nBonne écoute !"
     }
     
-    /// Arrête la lecture radio
     public func stopRadio() -> String {
         if isPlayingRadio {
             player?.pause()
@@ -95,6 +87,9 @@ public final class MediaStreamingService {
             isPlayingRadio = false
             let name = currentStationName ?? "la radio"
             currentStationName = nil
+            if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+                AudioSessionManager.shared.deactivateSession()
+            }
             return "J'ai arrêté \(name). ⏹️"
         }
         return "Aucune radio n'était en cours de lecture."
@@ -102,7 +97,6 @@ public final class MediaStreamingService {
     
     // MARK: - 2. Apple Podcasts Launcher & Recherche
     
-    /// Ouvre l'application Apple Podcasts ou effectue une recherche ciblée
     public func launchApplePodcasts(query: String? = nil) -> String {
         var urlToOpen: URL?
         let cleanQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -136,7 +130,6 @@ public final class MediaStreamingService {
     
     // MARK: - 3. Musique (Apple Music & Spotify)
     
-    /// Lance la musique via Apple Music ou Spotify
     public func launchMusic(query: String? = nil) -> String {
         let cleanQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var urlToOpen: URL?
