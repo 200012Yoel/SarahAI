@@ -51,6 +51,8 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isShowingVoiceOrbModal: Bool = false
     @Published public var isShowingVAICodingStudio: Bool = false
     @Published public var isShowingWebsiteBuilder: Bool = false
+    @Published public var websiteVoiceCommand: String = ""
+    @Published public var websiteVoiceCommandSequence: Int = 0
     @Published public var vaiCurrentCode: String? = nil
     @Published public var websiteDraft: WebsiteBrief? = nil
     
@@ -450,6 +452,16 @@ public final class ChatViewModel: ObservableObject {
             }
 
             self.liveTranscriptionText = ""
+
+            // Quand le créateur de site est ouvert, la voix pilote directement
+            // les cartes au lieu de repartir dans le chat et de casser le parcours.
+            if self.isShowingWebsiteBuilder {
+                self.websiteVoiceCommand = cleaned
+                self.websiteVoiceCommandSequence &+= 1
+                self.voiceStatus = .processing
+                return
+            }
+
             self.sendMessage(cleaned)
         }
 
@@ -654,6 +666,15 @@ public final class ChatViewModel: ObservableObject {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
         voiceManager.speak(text: text, for: activeAgent)
+    }
+
+    /// Lecture vocale dédiée au parcours de création de site. La session vocale
+    /// reste active afin que l'utilisateur puisse interrompre Raphaël à tout moment.
+    public func speakWebsiteGuide(_ text: String) {
+        ensureVoicePipelinePrepared()
+        guard isContinuousConversationActive else { return }
+        activeAgent = .esther
+        voiceManager.speak(text: text, for: .esther)
     }
     
     public func toggleSpeechForMessage(_ text: String) {

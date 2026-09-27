@@ -365,6 +365,8 @@ private struct WebsiteBuilderFlowView: View {
     @State private var designMood: String
     @State private var accent: String
     @State private var sections: Set<String>
+    @State private var voiceFocusedOption: String? = nil
+    @State private var voiceGuideGeneration = UUID()
 
     private let categories = [
         WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Vendre des produits"),
@@ -389,18 +391,86 @@ private struct WebsiteBuilderFlowView: View {
         WebsiteChoice(title: "Tech", icon: "cpu", detail: "Précis, moderne et numérique")
     ]
 
-    private let styleChoices = [
-        WebsiteStyleChoice(title: "Apple Premium", icon: "apple.logo", detail: "Grands espaces, verre discret et typographie monumentale"),
-        WebsiteStyleChoice(title: "Google Color", icon: "circle.grid.2x2.fill", detail: "Material lumineux, cartes douces et palette multicolore"),
-        WebsiteStyleChoice(title: "Tesla Minimal", icon: "bolt.car.fill", detail: "Minimalisme extrême, grands visuels et noir et blanc"),
-        WebsiteStyleChoice(title: "Microsoft Fluent", icon: "square.grid.2x2.fill", detail: "Surfaces Fluent, profondeur, transparence et bleu"),
-        WebsiteStyleChoice(title: "Stripe Commerce", icon: "creditcard.fill", detail: "Dégradés premium et hiérarchie orientée conversion"),
-        WebsiteStyleChoice(title: "Airbnb Travel", icon: "house.fill", detail: "Chaleureux, photographique et arrondis généreux"),
-        WebsiteStyleChoice(title: "Shopify Store", icon: "bag.badge.plus", detail: "Boutique claire, fiches produit et accents verts"),
-        WebsiteStyleChoice(title: "Notion Editorial", icon: "doc.text.fill", detail: "Noir et blanc, éditorial et blocs très sobres"),
-        WebsiteStyleChoice(title: "Linear Tech", icon: "sparkle", detail: "Dark mode précis, halos subtils et finition SaaS"),
-        WebsiteStyleChoice(title: "Sarah Signature", icon: "wand.and.stars", detail: "Verre sombre, cyan lumineux et détails futuristes")
-    ]
+    /// Les directions visuelles sont adaptées au type de site choisi.
+    /// Elles s'inspirent de grands langages graphiques sans copier leurs pages,
+    /// logos, textes ou ressources propriétaires.
+    private var styleChoices: [WebsiteStyleChoice] {
+        switch category {
+        case "E-commerce":
+            return [
+                WebsiteStyleChoice(title: "Apple Store Premium", icon: "apple.logo", detail: "Produit star, grands visuels, espace et finition premium"),
+                WebsiteStyleChoice(title: "Amazon Marketplace", icon: "shippingbox.fill", detail: "Catalogue dense, recherche visible, prix, avis et achat rapide"),
+                WebsiteStyleChoice(title: "Shopify Store", icon: "bag.badge.plus", detail: "Boutique claire, fiches produit, panier et conversion"),
+                WebsiteStyleChoice(title: "Google Shopping", icon: "circle.grid.2x2.fill", detail: "Cartes colorées, filtres simples et découverte visuelle"),
+                WebsiteStyleChoice(title: "Nike Product", icon: "figure.run", detail: "Grand produit, contraste noir et blanc et appels à l'action nets"),
+                WebsiteStyleChoice(title: "Microsoft Store", icon: "square.grid.2x2.fill", detail: "Grille Fluent, catégories nettes et surfaces structurées"),
+                WebsiteStyleChoice(title: "Stripe Checkout", icon: "creditcard.fill", detail: "Dégradés premium, confiance et parcours d'achat fluide"),
+                WebsiteStyleChoice(title: "Sarah Commerce", icon: "wand.and.stars", detail: "Verre sombre, cyan lumineux et boutique futuriste")
+            ]
+        case "Voyage":
+            return [
+                WebsiteStyleChoice(title: "Airbnb Travel", icon: "house.fill", detail: "Photographies immersives, destinations et cartes chaleureuses"),
+                WebsiteStyleChoice(title: "Booking Explorer", icon: "bed.double.fill", detail: "Recherche immédiate, disponibilité et fiches destination efficaces"),
+                WebsiteStyleChoice(title: "Google Travel", icon: "map.fill", detail: "Couleurs légères, cartes, itinéraires et informations rapides"),
+                WebsiteStyleChoice(title: "Apple Travel", icon: "apple.logo", detail: "Carnet de voyage très épuré, photos plein écran et narration premium"),
+                WebsiteStyleChoice(title: "Expedia Cards", icon: "airplane", detail: "Offres, vols, hôtels et cartes comparatives faciles à parcourir"),
+                WebsiteStyleChoice(title: "National Geographic Editorial", icon: "photo.on.rectangle.angled", detail: "Grand récit visuel, photographie et lecture éditoriale"),
+                WebsiteStyleChoice(title: "Tesla Journey", icon: "car.fill", detail: "Minimalisme noir et blanc, grands paysages et parcours direct"),
+                WebsiteStyleChoice(title: "Sarah Explorer", icon: "sparkles", detail: "Voyage immersif sombre, halos et cartes translucides")
+            ]
+        case "Restaurant":
+            return [
+                WebsiteStyleChoice(title: "Michelin Fine Dining", icon: "fork.knife", detail: "Éditorial sobre, photos culinaires et sensation haut de gamme"),
+                WebsiteStyleChoice(title: "Uber Eats", icon: "takeoutbag.and.cup.and.straw.fill", detail: "Menu rapide, catégories visibles et commande en quelques gestes"),
+                WebsiteStyleChoice(title: "Deliveroo Fresh", icon: "bicycle", detail: "Cartes vivantes, visuels généreux et commande très lisible"),
+                WebsiteStyleChoice(title: "Apple Minimal", icon: "apple.logo", detail: "Carte courte, typographie nette et photos très premium"),
+                WebsiteStyleChoice(title: "Google Local", icon: "mappin.and.ellipse", detail: "Informations pratiques, horaires, carte et avis mis en avant"),
+                WebsiteStyleChoice(title: "OpenTable Dining", icon: "calendar.badge.clock", detail: "Réservation au centre, disponibilités et ambiance élégante"),
+                WebsiteStyleChoice(title: "Notion Menu", icon: "doc.text.fill", detail: "Menu éditorial, noir et blanc et lecture ultra claire"),
+                WebsiteStyleChoice(title: "Sarah Bistro", icon: "wand.and.stars", detail: "Verre sombre, photos chaudes et réservations lumineuses")
+            ]
+        case "Portfolio":
+            return [
+                WebsiteStyleChoice(title: "Apple Creative", icon: "apple.logo", detail: "Très grands visuels, espace et présentation cinématographique"),
+                WebsiteStyleChoice(title: "Behance Grid", icon: "square.grid.3x3.fill", detail: "Mosaïque de projets, tags et découverte rapide du travail"),
+                WebsiteStyleChoice(title: "Adobe Portfolio", icon: "paintbrush.pointed.fill", detail: "Galeries propres, séries de projets et typographie créative"),
+                WebsiteStyleChoice(title: "Notion Editorial", icon: "doc.text.fill", detail: "Portfolio texte-image sobre, structuré et très lisible"),
+                WebsiteStyleChoice(title: "Linear Tech", icon: "sparkle", detail: "Dark mode précis, halos froids et rendu produit moderne"),
+                WebsiteStyleChoice(title: "Microsoft Fluent", icon: "square.grid.2x2.fill", detail: "Cartes transparentes, profondeur et présentation structurée"),
+                WebsiteStyleChoice(title: "Tesla Minimal", icon: "rectangle.portrait.fill", detail: "Une œuvre à la fois, contraste fort et presque aucun bruit visuel"),
+                WebsiteStyleChoice(title: "Sarah Signature", icon: "wand.and.stars", detail: "Identité originale Sarah, verre sombre et accents cyan")
+            ]
+        case "Entreprise":
+            return [
+                WebsiteStyleChoice(title: "Microsoft Fluent", icon: "square.grid.2x2.fill", detail: "Structure professionnelle, profondeur et surfaces Fluent"),
+                WebsiteStyleChoice(title: "Apple Corporate", icon: "apple.logo", detail: "Institutionnel premium, grands messages et beaucoup d'espace"),
+                WebsiteStyleChoice(title: "Google Workspace", icon: "circle.grid.2x2.fill", detail: "Clair, accessible, coloré et orienté collaboration"),
+                WebsiteStyleChoice(title: "Stripe Business", icon: "creditcard.fill", detail: "Dégradés nets, chiffres clés et hiérarchie SaaS premium"),
+                WebsiteStyleChoice(title: "Salesforce Cloud", icon: "cloud.fill", detail: "Bleu lumineux, données, confiance et blocs orientés services"),
+                WebsiteStyleChoice(title: "Notion Company", icon: "doc.text.fill", detail: "Entreprise éditoriale, transparente et très lisible"),
+                WebsiteStyleChoice(title: "Linear SaaS", icon: "sparkle", detail: "Dark mode technique, précision et interface produit"),
+                WebsiteStyleChoice(title: "Sarah Pro", icon: "wand.and.stars", detail: "Corporate futuriste, verre, cyan et métriques élégantes")
+            ]
+        case "Événement":
+            return [
+                WebsiteStyleChoice(title: "Apple Keynote", icon: "apple.logo", detail: "Annonce spectaculaire, grand titre et mise en scène premium"),
+                WebsiteStyleChoice(title: "Eventbrite Live", icon: "ticket.fill", detail: "Billets, horaires, intervenants et inscription immédiate"),
+                WebsiteStyleChoice(title: "Ticketmaster", icon: "ticket.fill", detail: "Programme dense, places, catégories et appel à l'achat direct"),
+                WebsiteStyleChoice(title: "Spotify Festival", icon: "music.note.list", detail: "Dark mode musical, affiches colorées et line-up très visuel"),
+                WebsiteStyleChoice(title: "Microsoft Events", icon: "person.3.fill", detail: "Agenda structuré, sessions et cartes professionnelles"),
+                WebsiteStyleChoice(title: "Google I/O Color", icon: "circle.grid.2x2.fill", detail: "Couleurs franches, conférences en cartes et navigation ludique"),
+                WebsiteStyleChoice(title: "Tesla Launch", icon: "bolt.fill", detail: "Lancement minimaliste, noir profond et révélation du produit"),
+                WebsiteStyleChoice(title: "Sarah Live", icon: "wand.and.stars", detail: "Scène numérique sombre, halos et programme interactif")
+            ]
+        default:
+            return [
+                WebsiteStyleChoice(title: "Apple Premium", icon: "apple.logo", detail: "Épuré, spacieux et premium"),
+                WebsiteStyleChoice(title: "Google Color", icon: "circle.grid.2x2.fill", detail: "Lumineux, coloré et accessible"),
+                WebsiteStyleChoice(title: "Microsoft Fluent", icon: "square.grid.2x2.fill", detail: "Structuré, profond et professionnel"),
+                WebsiteStyleChoice(title: "Sarah Signature", icon: "wand.and.stars", detail: "Verre sombre et accents cyan")
+            ]
+        }
+    }
 
     private let accentOptions = ["Bleu", "Violet", "Rose", "Orange", "Vert", "Noir & blanc"]
     private let sectionOptions = [
@@ -462,6 +532,16 @@ private struct WebsiteBuilderFlowView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            if viewModel.isContinuousConversationActive {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    readCurrentVoiceOptions()
+                }
+            }
+        }
+        .onChange(of: viewModel.websiteVoiceCommandSequence) { _ in
+            handleWebsiteVoiceCommand(viewModel.websiteVoiceCommand)
+        }
     }
 
     private var header: some View {
@@ -519,7 +599,8 @@ private struct WebsiteBuilderFlowView: View {
                         title: choice.title,
                         detail: choice.detail,
                         icon: choice.icon,
-                        selected: category == choice.title
+                        selected: category == choice.title,
+                        focused: voiceFocusedOption == choice.title
                     ) {
                         HapticService.shared.buttonTap()
                         category = choice.title
@@ -553,7 +634,8 @@ private struct WebsiteBuilderFlowView: View {
                         title: choice.title,
                         detail: choice.detail,
                         icon: choice.icon,
-                        selected: designMood == choice.title
+                        selected: designMood == choice.title,
+                        focused: voiceFocusedOption == choice.title
                     ) {
                         HapticService.shared.buttonTap()
                         designMood = choice.title
@@ -571,7 +653,7 @@ private struct WebsiteBuilderFlowView: View {
 
             VStack(spacing: 12) {
                 ForEach(Array(styleChoices.enumerated()), id: \.element.id) { index, choice in
-                    styleCard(number: index + 1, choice: choice, selected: visualStyle == choice.title) {
+                    styleCard(number: index + 1, choice: choice, selected: visualStyle == choice.title, focused: voiceFocusedOption == choice.title) {
                         HapticService.shared.buttonTap()
                         visualStyle = choice.title
                     }
@@ -604,12 +686,13 @@ private struct WebsiteBuilderFlowView: View {
                         .padding(13)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(sections.contains(section) ? Color.purple.opacity(0.24) : Color.white.opacity(0.06))
+                                .fill(sections.contains(section) ? Color.purple.opacity(0.24) : (voiceFocusedOption == section ? Color.purple.opacity(0.14) : Color.white.opacity(0.06)))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(sections.contains(section) ? Color.purple.opacity(0.85) : Color.white.opacity(0.10), lineWidth: 1)
+                                .stroke((sections.contains(section) || voiceFocusedOption == section) ? Color.purple.opacity(0.95) : Color.white.opacity(0.10), lineWidth: voiceFocusedOption == section ? 2 : 1)
                         )
+                        .shadow(color: voiceFocusedOption == section ? Color.purple.opacity(0.55) : .clear, radius: 18)
                     }
                     .buttonStyle(.plain)
                 }
@@ -713,20 +796,22 @@ private struct WebsiteBuilderFlowView: View {
         detail: String,
         icon: String,
         selected: Bool,
+        focused: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let active = selected || focused
+        return Button(action: action) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Image(systemName: icon)
                         .font(.title3)
-                        .foregroundColor(selected ? .white : .purple)
+                        .foregroundColor(active ? .white : .purple)
                     Spacer()
                     Text("\(number)")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(selected ? .black : .white.opacity(0.66))
+                        .foregroundColor(active ? .black : .white.opacity(0.66))
                         .frame(width: 24, height: 24)
-                        .background(Circle().fill(selected ? Color.white : Color.white.opacity(0.08)))
+                        .background(Circle().fill(active ? Color.white : Color.white.opacity(0.08)))
                 }
 
                 Text(title)
@@ -735,7 +820,7 @@ private struct WebsiteBuilderFlowView: View {
 
                 Text(detail)
                     .font(.caption)
-                    .foregroundColor(selected ? .white.opacity(0.88) : .white.opacity(0.48))
+                    .foregroundColor(active ? .white.opacity(0.88) : .white.opacity(0.48))
                     .multilineTextAlignment(.leading)
 
                 Spacer(minLength: 0)
@@ -744,13 +829,13 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.purple.opacity(0.23) : Color.white.opacity(0.055))
+                    .fill(selected ? Color.purple.opacity(0.23) : (focused ? Color.purple.opacity(0.13) : Color.white.opacity(0.055)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(selected ? Color.purple.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
+                    .stroke((selected || focused) ? Color.purple.opacity(0.98) : Color.white.opacity(0.10), lineWidth: focused ? 2.2 : (selected ? 1.5 : 1))
             )
-            .shadow(color: selected ? Color.purple.opacity(0.16) : .clear, radius: 15)
+            .shadow(color: focused ? Color.purple.opacity(0.60) : (selected ? Color.purple.opacity(0.16) : .clear), radius: focused ? 24 : 15)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Option \(number), \(title), \(detail)")
@@ -760,16 +845,18 @@ private struct WebsiteBuilderFlowView: View {
         number: Int,
         choice: WebsiteStyleChoice,
         selected: Bool,
+        focused: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let active = selected || focused
+        return Button(action: action) {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(selected ? Color.white.opacity(0.15) : Color.white.opacity(0.07))
+                        .fill(active ? Color.white.opacity(0.15) : Color.white.opacity(0.07))
                     Image(systemName: choice.icon)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(selected ? .white : .purple)
+                        .foregroundColor(active ? .white : .purple)
                 }
                 .frame(width: 52, height: 52)
 
@@ -779,7 +866,7 @@ private struct WebsiteBuilderFlowView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                         Spacer()
-                        if selected {
+                        if selected || focused {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.purple)
                         }
@@ -793,15 +880,227 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.purple.opacity(0.18) : Color.white.opacity(0.045))
+                    .fill(selected ? Color.purple.opacity(0.18) : (focused ? Color.purple.opacity(0.12) : Color.white.opacity(0.045)))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(selected ? Color.purple.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
+                    .stroke((selected || focused) ? Color.purple.opacity(0.98) : Color.white.opacity(0.10), lineWidth: focused ? 2.2 : (selected ? 1.5 : 1))
             )
+            .shadow(color: focused ? Color.purple.opacity(0.60) : .clear, radius: focused ? 24 : 0)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Style \(number), \(choice.title). \(choice.detail)")
+    }
+
+    private func normalizedVoiceText(_ text: String) -> String {
+        text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "’", with: " ")
+            .replacingOccurrences(of: "'", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private var currentVoiceChoices: [WebsiteChoice] {
+        switch step {
+        case 0:
+            return categories
+        case 1:
+            return audiences.map { WebsiteChoice(title: $0, icon: "person.2.fill", detail: "Public visé") }
+        case 2:
+            return moodChoices
+        case 3:
+            return styleChoices.map { WebsiteChoice(title: $0.title, icon: $0.icon, detail: $0.detail) }
+        default:
+            return sectionOptions.map { WebsiteChoice(title: $0, icon: "square.grid.2x2", detail: "Ajouter cette section au site") }
+        }
+    }
+
+    private func estimatedSpeechDuration(_ text: String) -> Double {
+        let words = max(1, text.split(whereSeparator: { $0.isWhitespace }).count)
+        return max(2.3, Double(words) / 2.55 + 0.9)
+    }
+
+    private func readCurrentVoiceOptions() {
+        guard viewModel.isContinuousConversationActive else { return }
+        let generation = UUID()
+        voiceGuideGeneration = generation
+
+        if step == 1 {
+            voiceFocusedOption = nil
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                viewModel.speakWebsiteGuide("Dis-moi le nom du site. Tu peux dire par exemple : le site s'appelle Horizon.")
+            } else if audience.isEmpty {
+                viewModel.speakWebsiteGuide("Quel est le public visé ? Tu peux dire grand public, professionnels, familles, jeunes adultes, clients locaux ou international.")
+            }
+            return
+        }
+
+        let choices = currentVoiceChoices
+        var delay: Double = 0
+        for (index, choice) in choices.enumerated() {
+            let spoken = "Option \(index + 1). \(choice.title). \(choice.detail)."
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                guard voiceGuideGeneration == generation,
+                      viewModel.isShowingWebsiteBuilder,
+                      viewModel.isContinuousConversationActive else { return }
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    voiceFocusedOption = choice.title
+                }
+                viewModel.speakWebsiteGuide(spoken)
+            }
+            delay += estimatedSpeechDuration(spoken)
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard voiceGuideGeneration == generation,
+                  viewModel.isShowingWebsiteBuilder,
+                  viewModel.isContinuousConversationActive else { return }
+            withAnimation(.easeInOut(duration: 0.22)) {
+                voiceFocusedOption = nil
+            }
+            viewModel.speakWebsiteGuide("Tu peux me dire le nom de l'option ou son numéro. Tu peux aussi dire répète.")
+        }
+    }
+
+    private func voiceChoiceIndex(from normalized: String, count: Int) -> Int? {
+        let aliases: [(String, Int)] = [
+            ("premier", 0), ("premiere", 0), ("un", 0), ("1", 0),
+            ("deuxieme", 1), ("deux", 1), ("2", 1),
+            ("troisieme", 2), ("trois", 2), ("3", 2),
+            ("quatrieme", 3), ("quatre", 3), ("4", 3),
+            ("cinquieme", 4), ("cinq", 4), ("5", 4),
+            ("sixieme", 5), ("six", 5), ("6", 5),
+            ("septieme", 6), ("sept", 6), ("7", 6),
+            ("huitieme", 7), ("huit", 7), ("8", 7)
+        ]
+        for (word, index) in aliases where index < count {
+            if normalized == word || normalized.contains("option \(word)") || normalized.contains("la \(word)") || normalized.contains("le \(word)") {
+                return index
+            }
+        }
+        return nil
+    }
+
+    private func applyVoiceChoice(_ choice: WebsiteChoice) {
+        voiceFocusedOption = choice.title
+        switch step {
+        case 0:
+            category = choice.title
+            viewModel.speakWebsiteGuide("Très bien. \(choice.title) est sélectionné.")
+            let captured = step
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                guard step == captured else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { step = 1 }
+                readCurrentVoiceOptions()
+            }
+        case 1:
+            audience = choice.title
+            viewModel.speakWebsiteGuide("Public \(choice.title) sélectionné.")
+            if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation(.easeInOut(duration: 0.18)) { step = 2 }
+                    readCurrentVoiceOptions()
+                }
+            }
+        case 2:
+            designMood = choice.title
+            viewModel.speakWebsiteGuide("Ambiance \(choice.title) sélectionnée.")
+            let captured = step
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                guard step == captured else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { step = 3 }
+                readCurrentVoiceOptions()
+            }
+        case 3:
+            visualStyle = choice.title
+            viewModel.speakWebsiteGuide("Style \(choice.title) sélectionné.")
+            let captured = step
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                guard step == captured else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { step = 4 }
+                readCurrentVoiceOptions()
+            }
+        default:
+            if sections.contains(choice.title) {
+                sections.remove(choice.title)
+                viewModel.speakWebsiteGuide("J'enlève la section \(choice.title).")
+            } else {
+                sections.insert(choice.title)
+                viewModel.speakWebsiteGuide("J'ajoute la section \(choice.title).")
+            }
+        }
+    }
+
+    private func handleWebsiteVoiceCommand(_ raw: String) {
+        let normalized = normalizedVoiceText(raw)
+        guard !normalized.isEmpty else { return }
+
+        // Une nouvelle phrase utilisateur annule immédiatement les lectures planifiées.
+        voiceGuideGeneration = UUID()
+
+        if normalized.contains("repete") || normalized.contains("lis moi") || normalized.contains("lire les") ||
+            normalized.contains("quelles options") || normalized.contains("quels choix") ||
+            normalized.contains("quels styles") || normalized.contains("formes de site") ||
+            normalized.contains("types de site") || normalized.contains("propose moi") {
+            readCurrentVoiceOptions()
+            return
+        }
+
+        if normalized.contains("retour") || normalized.contains("precedent") || normalized.contains("reviens") {
+            if step > 0 {
+                withAnimation(.easeInOut(duration: 0.18)) { step -= 1 }
+                readCurrentVoiceOptions()
+            }
+            return
+        }
+
+        if normalized == "suivant" || normalized.contains("continue") || normalized.contains("valide") || normalized.contains("c est bon") {
+            if canContinue {
+                if step == 4 {
+                    completeBrief()
+                } else {
+                    withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
+                    readCurrentVoiceOptions()
+                }
+            } else {
+                viewModel.speakWebsiteGuide("Il me manque encore un choix avant de continuer.")
+            }
+            return
+        }
+
+        if step == 1 {
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let prefixes = ["le site s appelle ", "le site sapelle ", "il s appelle ", "nom du site ", "appelle le site "]
+                var proposed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                for prefix in prefixes {
+                    if let range = normalized.range(of: prefix) {
+                        let suffix = normalized[range.upperBound...]
+                        proposed = String(suffix).trimmingCharacters(in: .whitespacesAndNewlines)
+                        break
+                    }
+                }
+                if !proposed.isEmpty {
+                    name = proposed.prefix(1).uppercased() + proposed.dropFirst()
+                    viewModel.speakWebsiteGuide("Parfait. Le site s'appellera \(name). Quel est le public visé ?")
+                    return
+                }
+            }
+        }
+
+        let choices = currentVoiceChoices
+        if let exact = choices.first(where: { normalized.contains(normalizedVoiceText($0.title)) }) {
+            applyVoiceChoice(exact)
+            return
+        }
+        if let index = voiceChoiceIndex(from: normalized, count: choices.count) {
+            applyVoiceChoice(choices[index])
+            return
+        }
+
+        viewModel.speakWebsiteGuide("Je n'ai pas reconnu ce choix. Dis répète pour que je relise les cartes, ou dis directement le nom de l'option.")
     }
 
     private func completeBrief() {
@@ -944,7 +1243,16 @@ private struct WebsiteBuilderFlowView: View {
     }
 
     private func designProfile(style: String, primary: String, secondary: String) -> (themeColor: String, css: String) {
-        let n = style.lowercased()
+        var n = style.lowercased()
+        let originalStyle = n
+        if n.contains("nike") || n.contains("tesla") { n = "tesla" }
+        else if n.contains("booking") || n.contains("expedia") || n.contains("opentable") { n = "airbnb" }
+        else if n.contains("national geographic") || n.contains("michelin") { n = "notion" }
+        else if n.contains("uber eats") || n.contains("deliveroo") { n = "shopify" }
+        else if n.contains("behance") || n.contains("adobe") { n = "linear" }
+        else if n.contains("salesforce") || n.contains("ticketmaster") { n = "microsoft" }
+        else if n.contains("eventbrite") { n = "stripe" }
+        else if n.contains("spotify") { n = "linear" }
         var theme = "#000000"
         var ink = "#f5f5f7"
         var muted = "#a1a1a6"
@@ -960,6 +1268,24 @@ private struct WebsiteBuilderFlowView: View {
         var bodyBackground = "radial-gradient(circle at 50% -10%, rgba(10,132,255,.18), transparent 34%), #000"
         var heroBackground = "linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.025))"
         var shadow = "0 34px 90px rgba(0,0,0,.42)"
+
+        if originalStyle.contains("amazon") {
+            return (
+                "#FFFFFF",
+                """
+                :root { --primary: #FF9900; --secondary: #146EB4; --ink: #0F1111; --muted: #565959; --surface: #ffffff; --soft: #f3f3f3; --line: #d5d9d9; }
+                body { color: var(--ink); background: #eaeded; font-family: Arial, "Helvetica Neue", sans-serif; }
+                nav { background: #131921; color: #fff; padding: 14px 18px; border-radius: 10px; }
+                .links a { color: #fff; padding: 7px 10px; border-radius: 4px; }
+                .hero { border-radius: 14px; color: #111; background: linear-gradient(135deg, #fff 0%, #fff8eb 100%); border: 1px solid #d5d9d9; box-shadow: 0 8px 28px rgba(15,17,17,.10); }
+                .eyebrow { color: #146EB4; }
+                .hero p, .intro, .card p { color: var(--muted); }
+                .cta { color: #111; background: #FFD814; border-radius: 999px; box-shadow: 0 2px 5px rgba(213,217,217,.55); }
+                section { border-radius: 12px; background: #fff; border: 1px solid #d5d9d9; }
+                .card { border-radius: 10px; background: #fff; border: 1px solid #d5d9d9; }
+                """
+            )
+        }
 
         if n.contains("google") {
             theme = "#F8FAFD"; ink = "#202124"; muted = "#5f6368"; surface = "#ffffff"; soft = "#f8fafd"; line = "#e1e3e7"
