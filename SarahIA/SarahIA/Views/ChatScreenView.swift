@@ -542,12 +542,6 @@ private struct WebsiteBuilderFlowView: View {
         .onChange(of: viewModel.websiteVoiceCommandSequence) { _ in
             handleWebsiteVoiceCommand(viewModel.websiteVoiceCommand)
         }
-        .onChange(of: step) { _ in
-            // Une navigation manuelle ou vocale invalide les lectures programmées
-            // de l'étape précédente. Raphaël reste ainsi synchronisé avec l'écran.
-            voiceGuideGeneration = UUID()
-            voiceFocusedOption = nil
-        }
     }
 
     private var header: some View {
