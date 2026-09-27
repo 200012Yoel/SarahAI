@@ -1,4 +1,4 @@
-name: Trigger SarahIA IPA Build
+name: Apply Website Voice Context Improvements
 on:
   push:
     branches: [main]
@@ -6,14 +6,31 @@ on:
   workflow_dispatch:
 permissions:
   actions: write
-  contents: read
+  contents: write
 jobs:
-  trigger:
+  patch-and-build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply website voice context improvements
+        run: python3 scripts/improve_website_voice_context.py
+      - name: Commit website voice improvements
+        run: |
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add SarahIA/SarahIA/Views/ChatScreenView.swift
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Improve website voice pacing and context awareness"
+            git push origin HEAD:main
+          fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting adaptive site styles and voice-guided cards compile v18"
+          echo "Starting website voice pacing and context-aware build v19"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
