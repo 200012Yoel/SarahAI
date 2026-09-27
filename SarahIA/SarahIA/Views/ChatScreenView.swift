@@ -800,18 +800,37 @@ private struct WebsiteBuilderFlowView: View {
         action: @escaping () -> Void
     ) -> some View {
         let active = selected || focused
+        let iconColor: Color = active ? .white : .purple
+        let badgeForeground: Color = active ? .black : .white.opacity(0.66)
+        let badgeBackground: Color = active ? .white : .white.opacity(0.08)
+        let detailColor: Color = active ? .white.opacity(0.88) : .white.opacity(0.48)
+
+        let fillColor: Color
+        if selected {
+            fillColor = .purple.opacity(0.23)
+        } else if focused {
+            fillColor = .purple.opacity(0.13)
+        } else {
+            fillColor = .white.opacity(0.055)
+        }
+
+        let strokeColor: Color = active ? .purple.opacity(0.98) : .white.opacity(0.10)
+        let strokeWidth: CGFloat = focused ? 2.2 : (selected ? 1.5 : 1.0)
+        let shadowColor: Color = focused ? .purple.opacity(0.60) : (selected ? .purple.opacity(0.16) : .clear)
+        let shadowRadius: CGFloat = focused ? 24 : 15
+
         return Button(action: action) {
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
                     Image(systemName: icon)
                         .font(.title3)
-                        .foregroundColor(active ? .white : .purple)
+                        .foregroundColor(iconColor)
                     Spacer()
                     Text("\(number)")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(active ? .black : .white.opacity(0.66))
+                        .foregroundColor(badgeForeground)
                         .frame(width: 24, height: 24)
-                        .background(Circle().fill(active ? Color.white : Color.white.opacity(0.08)))
+                        .background(Circle().fill(badgeBackground))
                 }
 
                 Text(title)
@@ -820,7 +839,7 @@ private struct WebsiteBuilderFlowView: View {
 
                 Text(detail)
                     .font(.caption)
-                    .foregroundColor(active ? .white.opacity(0.88) : .white.opacity(0.48))
+                    .foregroundColor(detailColor)
                     .multilineTextAlignment(.leading)
 
                 Spacer(minLength: 0)
@@ -829,13 +848,13 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.purple.opacity(0.23) : (focused ? Color.purple.opacity(0.13) : Color.white.opacity(0.055)))
+                    .fill(fillColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke((selected || focused) ? Color.purple.opacity(0.98) : Color.white.opacity(0.10), lineWidth: focused ? 2.2 : (selected ? 1.5 : 1))
+                    .stroke(strokeColor, lineWidth: strokeWidth)
             )
-            .shadow(color: focused ? Color.purple.opacity(0.60) : (selected ? Color.purple.opacity(0.16) : .clear), radius: focused ? 24 : 15)
+            .shadow(color: shadowColor, radius: shadowRadius)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Option \(number), \(title), \(detail)")
@@ -849,14 +868,31 @@ private struct WebsiteBuilderFlowView: View {
         action: @escaping () -> Void
     ) -> some View {
         let active = selected || focused
+        let iconBackground: Color = active ? .white.opacity(0.15) : .white.opacity(0.07)
+        let iconColor: Color = active ? .white : .purple
+
+        let fillColor: Color
+        if selected {
+            fillColor = .purple.opacity(0.18)
+        } else if focused {
+            fillColor = .purple.opacity(0.12)
+        } else {
+            fillColor = .white.opacity(0.045)
+        }
+
+        let strokeColor: Color = active ? .purple.opacity(0.98) : .white.opacity(0.10)
+        let strokeWidth: CGFloat = focused ? 2.2 : (selected ? 1.5 : 1.0)
+        let shadowColor: Color = focused ? .purple.opacity(0.60) : .clear
+        let shadowRadius: CGFloat = focused ? 24 : 0
+
         return Button(action: action) {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(active ? Color.white.opacity(0.15) : Color.white.opacity(0.07))
+                        .fill(iconBackground)
                     Image(systemName: choice.icon)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(active ? .white : .purple)
+                        .foregroundColor(iconColor)
                 }
                 .frame(width: 52, height: 52)
 
@@ -866,7 +902,7 @@ private struct WebsiteBuilderFlowView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                         Spacer()
-                        if selected || focused {
+                        if active {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.purple)
                         }
@@ -880,13 +916,13 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.purple.opacity(0.18) : (focused ? Color.purple.opacity(0.12) : Color.white.opacity(0.045)))
+                    .fill(fillColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke((selected || focused) ? Color.purple.opacity(0.98) : Color.white.opacity(0.10), lineWidth: focused ? 2.2 : (selected ? 1.5 : 1))
+                    .stroke(strokeColor, lineWidth: strokeWidth)
             )
-            .shadow(color: focused ? Color.purple.opacity(0.60) : .clear, radius: focused ? 24 : 0)
+            .shadow(color: shadowColor, radius: shadowRadius)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Style \(number), \(choice.title). \(choice.detail)")
@@ -1083,7 +1119,7 @@ private struct WebsiteBuilderFlowView: View {
                     }
                 }
                 if !proposed.isEmpty {
-                    name = proposed.prefix(1).uppercased() + proposed.dropFirst()
+                    name = proposed.prefix(1).uppercased() + String(proposed.dropFirst())
                     viewModel.speakWebsiteGuide("Parfait. Le site s'appellera \(name). Quel est le public visé ?")
                     return
                 }
