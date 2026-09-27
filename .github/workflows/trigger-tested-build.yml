@@ -1,28 +1,19 @@
-name: Apply Adaptive Site Styles and Voice Cards
+name: Trigger SarahIA IPA Build
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/trigger-tested-build.yml']
+  workflow_dispatch:
 permissions:
-  contents: write
+  actions: write
+  contents: read
 jobs:
-  patch:
+  trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply adaptive site styles and voice cards
-        run: python3 scripts/adaptive_site_styles_voice_cards.py
-      - name: Commit SarahIA changes
+      - name: Start SarahIA iOS device build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "SarahIA Build Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add SarahIA/SarahIA/Views/ChatScreenView.swift SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "No changes needed"
-          else
-            git commit -m "Add adaptive website styles and voice-guided cards"
-            git push origin HEAD:main
-          fi
+          echo "Starting adaptive website styles and voice-guided cards compile v17"
+          gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
