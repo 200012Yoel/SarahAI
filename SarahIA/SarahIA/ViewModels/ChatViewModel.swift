@@ -441,6 +441,14 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
 
+            // Tant que la synthèse parle encore, un résultat final peut être l'écho
+            // du haut-parleur. Un vrai barge-in coupe la synthèse dès le partiel,
+            // donc son résultat final arrive ensuite avec isSpeaking == false.
+            guard !self.voiceManager.isSpeaking else {
+                self.liveTranscriptionText = ""
+                return
+            }
+
             self.liveTranscriptionText = ""
             self.sendMessage(cleaned)
         }
