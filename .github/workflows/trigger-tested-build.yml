@@ -1,19 +1,28 @@
-name: Trigger SarahIA IPA Build
+name: Apply SarahIA Site Card Compile Fix
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/trigger-tested-build.yml']
-  workflow_dispatch:
 permissions:
-  actions: write
-  contents: read
+  contents: write
 jobs:
-  trigger:
+  patch:
     runs-on: ubuntu-latest
     steps:
-      - name: Start SarahIA iOS device build
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Simplify voice-guided website cards
+        run: python3 scripts/fix_site_card_compile.py
+      - name: Commit compile fix
         run: |
-          echo "Starting adaptive website styles and voice-guided cards compile v17"
-          gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
+          git config user.name "SarahIA Build Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add SarahIA/SarahIA/Views/ChatScreenView.swift
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "Fix Swift compile for voice-guided website cards"
+            git push origin HEAD:main
+          fi
