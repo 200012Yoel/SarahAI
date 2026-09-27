@@ -362,18 +362,17 @@ private struct WebsiteBuilderFlowView: View {
     @State private var purpose: String
     @State private var audience: String
     @State private var visualStyle: String
+    @State private var designMood: String
     @State private var accent: String
     @State private var sections: Set<String>
 
     private let categories = [
-        WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Boutique, produits et achat"),
-        WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Services, équipe et contact"),
-        WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Destinations et réservation"),
-        WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Projets et réalisations"),
-        WebsiteChoice(title: "Personnel", icon: "person.crop.circle", detail: "Présentation et univers personnel"),
-        WebsiteChoice(title: "Blog / Magazine", icon: "newspaper.fill", detail: "Articles et actualités"),
+        WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Vendre des produits"),
+        WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Inspirer et réserver"),
         WebsiteChoice(title: "Restaurant", icon: "fork.knife", detail: "Menu et réservation"),
-        WebsiteChoice(title: "Événement", icon: "calendar", detail: "Programme et inscription")
+        WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Présenter son travail"),
+        WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Services et contact"),
+        WebsiteChoice(title: "Événement", icon: "calendar", detail: "Informer et inscrire")
     ]
 
     private let audiences = [
@@ -381,22 +380,26 @@ private struct WebsiteBuilderFlowView: View {
         "Clients locaux", "International"
     ]
 
+    private let moodChoices = [
+        WebsiteChoice(title: "Minimaliste", icon: "rectangle.compress.vertical", detail: "Simple, calme et très lisible"),
+        WebsiteChoice(title: "Élégant", icon: "sparkles", detail: "Raffiné, équilibré et premium"),
+        WebsiteChoice(title: "Énergique", icon: "bolt.fill", detail: "Contrastes forts et rythme visuel"),
+        WebsiteChoice(title: "Luxe", icon: "crown.fill", detail: "Sobre, éditorial et haut de gamme"),
+        WebsiteChoice(title: "Naturel", icon: "leaf.fill", detail: "Doux, organique et chaleureux"),
+        WebsiteChoice(title: "Tech", icon: "cpu", detail: "Précis, moderne et numérique")
+    ]
+
     private let styleChoices = [
-        WebsiteStyleChoice(
-            title: "Apple",
-            icon: "apple.logo",
-            detail: "Minimal, grands espaces, verre discret, typographie nette"
-        ),
-        WebsiteStyleChoice(
-            title: "Google",
-            icon: "circle.grid.2x2.fill",
-            detail: "Material, cartes douces, couleurs franches et hiérarchie claire"
-        ),
-        WebsiteStyleChoice(
-            title: "Microsoft",
-            icon: "square.grid.2x2.fill",
-            detail: "Fluent, surfaces translucides, Segoe et accents bleus"
-        )
+        WebsiteStyleChoice(title: "Apple Premium", icon: "apple.logo", detail: "Grands espaces, verre discret et typographie monumentale"),
+        WebsiteStyleChoice(title: "Google Color", icon: "circle.grid.2x2.fill", detail: "Material lumineux, cartes douces et palette multicolore"),
+        WebsiteStyleChoice(title: "Tesla Minimal", icon: "bolt.car.fill", detail: "Minimalisme extrême, grands visuels et noir et blanc"),
+        WebsiteStyleChoice(title: "Microsoft Fluent", icon: "square.grid.2x2.fill", detail: "Surfaces Fluent, profondeur, transparence et bleu"),
+        WebsiteStyleChoice(title: "Stripe Commerce", icon: "creditcard.fill", detail: "Dégradés premium et hiérarchie orientée conversion"),
+        WebsiteStyleChoice(title: "Airbnb Travel", icon: "house.fill", detail: "Chaleureux, photographique et arrondis généreux"),
+        WebsiteStyleChoice(title: "Shopify Store", icon: "bag.badge.plus", detail: "Boutique claire, fiches produit et accents verts"),
+        WebsiteStyleChoice(title: "Notion Editorial", icon: "doc.text.fill", detail: "Noir et blanc, éditorial et blocs très sobres"),
+        WebsiteStyleChoice(title: "Linear Tech", icon: "sparkle", detail: "Dark mode précis, halos subtils et finition SaaS"),
+        WebsiteStyleChoice(title: "Sarah Signature", icon: "wand.and.stars", detail: "Verre sombre, cyan lumineux et détails futuristes")
     ]
 
     private let accentOptions = ["Bleu", "Violet", "Rose", "Orange", "Vert", "Noir & blanc"]
@@ -412,8 +415,11 @@ private struct WebsiteBuilderFlowView: View {
         _name = State(initialValue: draft?.name ?? "")
         _purpose = State(initialValue: draft?.purpose ?? "")
         _audience = State(initialValue: draft?.audience ?? "")
-        _visualStyle = State(initialValue: draft?.visualStyle ?? "")
-        _accent = State(initialValue: draft?.accent ?? "Bleu")
+        let savedStyle = draft?.visualStyle ?? ""
+        let savedParts = savedStyle.components(separatedBy: " · ")
+        _designMood = State(initialValue: savedParts.count > 1 ? savedParts[0] : "")
+        _visualStyle = State(initialValue: savedParts.count > 1 ? savedParts.dropFirst().joined(separator: " · ") : savedStyle)
+        _accent = State(initialValue: draft?.accent ?? "Violet")
         _sections = State(initialValue: Set(draft?.sections ?? ["Accueil", "À propos", "Contact"]))
     }
 
@@ -423,7 +429,7 @@ private struct WebsiteBuilderFlowView: View {
                 Color.black.ignoresSafeArea()
 
                 RadialGradient(
-                    colors: [Color.sarahCyan.opacity(0.12), Color.clear],
+                    colors: [Color.purple.opacity(0.12), Color.clear],
                     center: .topTrailing,
                     startRadius: 10,
                     endRadius: 520
@@ -460,7 +466,7 @@ private struct WebsiteBuilderFlowView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(step == 3 ? "Derniers réglages" : "Construisons ton site")
+            Text(step == 4 ? "Derniers réglages" : "Construisons ton site")
                 .font(.system(size: 29, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
 
@@ -473,30 +479,27 @@ private struct WebsiteBuilderFlowView: View {
 
     private var headerSubtitle: String {
         switch step {
-        case 0:
-            return "Choisis une carte. Raphaël adaptera ensuite les questions au type de site."
-        case 1:
-            return "Donne le nom, l'objectif et le public. Tu pourras tout modifier ensuite."
-        case 2:
-            return "Choisis une vraie direction graphique : Apple, Google ou Microsoft."
-        default:
-            return "Sélectionne les sections à afficher avant la première maquette locale."
+        case 0: return "Choisis le type de site avec les mêmes cartes que la build 502."
+        case 1: return "Donne le nom, l’objectif et le public du site."
+        case 2: return "Choisis l’ambiance graphique du parcours original."
+        case 3: return "Choisis ensuite une grande direction visuelle pour guider Raphaël."
+        default: return "Sélectionne les sections à afficher avant la première maquette locale."
         }
     }
 
     private var progress: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Question \(step + 1) sur 4")
+                Text("Question \(step + 1) sur 5")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.sarahCyan)
+                    .foregroundColor(.purple)
                 Spacer()
-                Text("\((step + 1) * 25) %")
+                Text("\((step + 1) * 20) %")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.45))
             }
-            ProgressView(value: Double(step + 1), total: 4)
-                .tint(.sarahCyan)
+            ProgressView(value: Double(step + 1), total: 5)
+                .tint(.purple)
         }
     }
 
@@ -539,24 +542,41 @@ private struct WebsiteBuilderFlowView: View {
 
         case 2:
             questionTitle(
-                "Quel style graphique veux-tu ?",
-                subtitle: "Ce choix change réellement la typographie, les formes, les surfaces, les boutons et les espacements de la maquette."
+                "Quelle ambiance veux-tu ?",
+                subtitle: "Le menu original : Minimaliste, Élégant, Énergique, Luxe, Naturel ou Tech."
+            )
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(Array(moodChoices.enumerated()), id: \.element.id) { index, choice in
+                    choiceCard(
+                        number: index + 1,
+                        title: choice.title,
+                        detail: choice.detail,
+                        icon: choice.icon,
+                        selected: designMood == choice.title
+                    ) {
+                        HapticService.shared.buttonTap()
+                        designMood = choice.title
+                    }
+                }
+            }
+
+            chipSection(title: "Couleur d’accent", options: accentOptions, selection: $accent)
+
+        case 3:
+            questionTitle(
+                "Quelle direction graphique veux-tu ?",
+                subtitle: "Chaque style change réellement les couleurs, la typographie, les formes, les surfaces et le rythme du site."
             )
 
             VStack(spacing: 12) {
                 ForEach(Array(styleChoices.enumerated()), id: \.element.id) { index, choice in
-                    styleCard(
-                        number: index + 1,
-                        choice: choice,
-                        selected: visualStyle == choice.title
-                    ) {
+                    styleCard(number: index + 1, choice: choice, selected: visualStyle == choice.title) {
                         HapticService.shared.buttonTap()
                         visualStyle = choice.title
                     }
                 }
             }
-
-            chipSection(title: "Couleur d'accent", options: accentOptions, selection: $accent)
 
         default:
             questionTitle(
@@ -584,11 +604,11 @@ private struct WebsiteBuilderFlowView: View {
                         .padding(13)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(sections.contains(section) ? Color.sarahCyan.opacity(0.24) : Color.white.opacity(0.06))
+                                .fill(sections.contains(section) ? Color.purple.opacity(0.24) : Color.white.opacity(0.06))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(sections.contains(section) ? Color.sarahCyan.opacity(0.85) : Color.white.opacity(0.10), lineWidth: 1)
+                                .stroke(sections.contains(section) ? Color.purple.opacity(0.85) : Color.white.opacity(0.10), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -607,9 +627,9 @@ private struct WebsiteBuilderFlowView: View {
                 .buttonStyle(WebsiteSecondaryButtonStyle())
             }
 
-            Button(step == 3 ? "Créer avec Raphaël" : "Continuer") {
+            Button(step == 4 ? "Créer avec Raphaël" : "Continuer") {
                 HapticService.shared.buttonTap()
-                if step == 3 {
+                if step == 4 {
                     completeBrief()
                 } else {
                     withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
@@ -628,7 +648,9 @@ private struct WebsiteBuilderFlowView: View {
         case 1:
             return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !audience.isEmpty
         case 2:
-            return !visualStyle.isEmpty && !accent.isEmpty
+            return !designMood.isEmpty && !accent.isEmpty
+        case 3:
+            return !visualStyle.isEmpty
         default:
             return !sections.isEmpty
         }
@@ -673,11 +695,11 @@ private struct WebsiteBuilderFlowView: View {
                     .padding(.vertical, 10)
                     .background(
                         Capsule()
-                            .fill(selection.wrappedValue == option ? Color.sarahCyan.opacity(0.28) : Color.white.opacity(0.06))
+                            .fill(selection.wrappedValue == option ? Color.purple.opacity(0.28) : Color.white.opacity(0.06))
                     )
                     .overlay(
                         Capsule()
-                            .stroke(selection.wrappedValue == option ? Color.sarahCyan.opacity(0.90) : Color.white.opacity(0.10), lineWidth: 1)
+                            .stroke(selection.wrappedValue == option ? Color.purple.opacity(0.90) : Color.white.opacity(0.10), lineWidth: 1)
                     )
                     .buttonStyle(.plain)
                 }
@@ -698,7 +720,7 @@ private struct WebsiteBuilderFlowView: View {
                 HStack {
                     Image(systemName: icon)
                         .font(.title3)
-                        .foregroundColor(selected ? .white : .sarahCyan)
+                        .foregroundColor(selected ? .white : .purple)
                     Spacer()
                     Text("\(number)")
                         .font(.caption.weight(.bold))
@@ -722,13 +744,13 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.sarahCyan.opacity(0.23) : Color.white.opacity(0.055))
+                    .fill(selected ? Color.purple.opacity(0.23) : Color.white.opacity(0.055))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(selected ? Color.sarahCyan.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
+                    .stroke(selected ? Color.purple.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
             )
-            .shadow(color: selected ? Color.sarahCyan.opacity(0.16) : .clear, radius: 15)
+            .shadow(color: selected ? Color.purple.opacity(0.16) : .clear, radius: 15)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Option \(number), \(title), \(detail)")
@@ -747,7 +769,7 @@ private struct WebsiteBuilderFlowView: View {
                         .fill(selected ? Color.white.opacity(0.15) : Color.white.opacity(0.07))
                     Image(systemName: choice.icon)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(selected ? .white : .sarahCyan)
+                        .foregroundColor(selected ? .white : .purple)
                 }
                 .frame(width: 52, height: 52)
 
@@ -759,7 +781,7 @@ private struct WebsiteBuilderFlowView: View {
                         Spacer()
                         if selected {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.sarahCyan)
+                                .foregroundColor(.purple)
                         }
                     }
                     Text(choice.detail)
@@ -771,11 +793,11 @@ private struct WebsiteBuilderFlowView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(selected ? Color.sarahCyan.opacity(0.18) : Color.white.opacity(0.045))
+                    .fill(selected ? Color.purple.opacity(0.18) : Color.white.opacity(0.045))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(selected ? Color.sarahCyan.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
+                    .stroke(selected ? Color.purple.opacity(0.95) : Color.white.opacity(0.10), lineWidth: selected ? 1.5 : 1)
             )
         }
         .buttonStyle(.plain)
@@ -792,7 +814,7 @@ private struct WebsiteBuilderFlowView: View {
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             purpose: purpose.trimmingCharacters(in: .whitespacesAndNewlines),
             audience: audience,
-            visualStyle: visualStyle,
+            visualStyle: "\(designMood) · \(visualStyle)",
             accent: accent,
             sections: finalSections
         )
@@ -922,55 +944,69 @@ private struct WebsiteBuilderFlowView: View {
     }
 
     private func designProfile(style: String, primary: String, secondary: String) -> (themeColor: String, css: String) {
-        switch style.lowercased() {
-        case "google":
-            return (
-                "#F8FAFD",
-                """
-                :root { --primary: \(primary); --secondary: \(secondary); --ink: #1f1f1f; --muted: #5f6368; --surface: #ffffff; --soft: #f8fafd; --line: #e1e3e7; }
-                body { color: var(--ink); background: var(--soft); font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-                .links a { color: var(--muted); padding: 8px 12px; border-radius: 999px; }
-                .hero { border-radius: 32px; color: var(--ink); background: color-mix(in srgb, var(--primary) 10%, #ffffff); border: 1px solid color-mix(in srgb, var(--primary) 18%, #e1e3e7); }
-                .eyebrow { color: var(--primary); }
-                .hero p, .intro, .card p { color: var(--muted); }
-                .cta { color: #fff; background: var(--primary); border-radius: 999px; box-shadow: 0 2px 5px rgba(60,64,67,.20); }
-                section { border-radius: 28px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(60,64,67,.08); }
-                .card { border-radius: 22px; background: var(--soft); border: 1px solid var(--line); }
-                """
-            )
+        let n = style.lowercased()
+        var theme = "#000000"
+        var ink = "#f5f5f7"
+        var muted = "#a1a1a6"
+        var surface = "rgba(28,28,30,.78)"
+        var soft = "#000000"
+        var line = "rgba(255,255,255,.12)"
+        var a1 = primary
+        var a2 = secondary
+        var font = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif"
+        var radius = "30px"
+        var cardRadius = "20px"
+        var buttonRadius = "999px"
+        var bodyBackground = "radial-gradient(circle at 50% -10%, rgba(10,132,255,.18), transparent 34%), #000"
+        var heroBackground = "linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.025))"
+        var shadow = "0 34px 90px rgba(0,0,0,.42)"
 
-        case "microsoft":
-            return (
-                "#0F1115",
-                """
-                :root { --primary: \(primary); --secondary: \(secondary); --ink: #f5f5f5; --muted: #b6bbc4; --surface: rgba(35,38,44,.82); --soft: #111318; --line: rgba(255,255,255,.10); }
-                body { color: var(--ink); background: radial-gradient(circle at 85% -10%, color-mix(in srgb, var(--primary) 25%, transparent), transparent 34%), #0f1115; font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif; }
-                .links a { color: #d8dbe0; padding: 8px 11px; border-radius: 8px; }
-                .hero { border-radius: 16px; color: #fff; background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035)); border: 1px solid var(--line); backdrop-filter: blur(22px); box-shadow: 0 22px 70px rgba(0,0,0,.35); }
-                .eyebrow { color: color-mix(in srgb, var(--primary) 70%, white); }
-                .hero p, .intro, .card p { color: var(--muted); }
-                .cta { color: #fff; background: var(--primary); border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), 0 4px 16px rgba(0,0,0,.24); }
-                section { border-radius: 14px; background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(18px); }
-                .card { border-radius: 10px; background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.08); }
-                """
-            )
-
-        default:
-            return (
-                "#000000",
-                """
-                :root { --primary: \(primary); --secondary: \(secondary); --ink: #f5f5f7; --muted: #a1a1a6; --surface: rgba(28,28,30,.78); --soft: #000000; --line: rgba(255,255,255,.12); }
-                body { color: var(--ink); background: radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 34%), #000; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; }
-                .links a { color: #e8e8ed; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.055); backdrop-filter: blur(20px); }
-                .hero { border-radius: 34px; color: #fff; background: linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.025)); border: 1px solid var(--line); backdrop-filter: saturate(160%) blur(28px); box-shadow: 0 34px 90px rgba(0,0,0,.42); }
-                .eyebrow { color: color-mix(in srgb, var(--primary) 68%, white); }
-                .hero p, .intro, .card p { color: var(--muted); }
-                .cta { color: #fff; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: 999px; box-shadow: 0 8px 28px color-mix(in srgb, var(--primary) 26%, transparent); }
-                section { border-radius: 28px; background: var(--surface); border: 1px solid var(--line); backdrop-filter: saturate(140%) blur(22px); }
-                .card { border-radius: 20px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); }
-                """
-            )
+        if n.contains("google") {
+            theme = "#F8FAFD"; ink = "#202124"; muted = "#5f6368"; surface = "#ffffff"; soft = "#f8fafd"; line = "#e1e3e7"
+            a1 = "#4285F4"; a2 = "#34A853"; font = "Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            radius = "34px"; cardRadius = "22px"; bodyBackground = "radial-gradient(circle at 12% 0%, rgba(66,133,244,.15), transparent 22%), radial-gradient(circle at 82% 4%, rgba(234,67,53,.12), transparent 20%), radial-gradient(circle at 64% 28%, rgba(251,188,5,.11), transparent 18%), #f8fafd"; heroBackground = "linear-gradient(135deg, rgba(66,133,244,.10), rgba(52,168,83,.08) 45%, rgba(251,188,5,.10))"; shadow = "0 2px 10px rgba(60,64,67,.10)"
+        } else if n.contains("tesla") {
+            theme = "#F4F4F4"; ink = "#111111"; muted = "#666666"; surface = "#ffffff"; soft = "#f4f4f4"; line = "#dedede"
+            a1 = "#111111"; a2 = "#666666"; font = "Arial, 'Helvetica Neue', sans-serif"; radius = "4px"; cardRadius = "3px"; buttonRadius = "3px"; bodyBackground = "#f4f4f4"; heroBackground = "linear-gradient(180deg, #202020 0%, #060606 100%)"; shadow = "none"
+        } else if n.contains("microsoft") {
+            theme = "#0F1115"; ink = "#f5f5f5"; muted = "#b6bbc4"; surface = "rgba(35,38,44,.82)"; soft = "#111318"; line = "rgba(255,255,255,.10)"
+            a1 = "#0078D4"; a2 = "#4CC2FF"; font = "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif"; radius = "16px"; cardRadius = "10px"; buttonRadius = "8px"; bodyBackground = "radial-gradient(circle at 85% -10%, rgba(0,120,212,.30), transparent 36%), #0f1115"; heroBackground = "linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035))"; shadow = "0 22px 70px rgba(0,0,0,.35)"
+        } else if n.contains("stripe") {
+            theme = "#F6F9FC"; ink = "#0A2540"; muted = "#425466"; surface = "rgba(255,255,255,.90)"; soft = "#f6f9fc"; line = "rgba(10,37,64,.10)"
+            a1 = "#635BFF"; a2 = "#00D4FF"; cardRadius = "18px"; bodyBackground = "linear-gradient(140deg, #f6f9fc 0%, #eef4ff 55%, #f9f2ff 100%)"; heroBackground = "linear-gradient(120deg, rgba(99,91,255,.18), rgba(0,212,255,.15), rgba(255,82,191,.12))"; shadow = "0 30px 80px rgba(50,50,93,.13)"
+        } else if n.contains("airbnb") {
+            theme = "#FFFDFC"; ink = "#222222"; muted = "#717171"; surface = "#ffffff"; soft = "#fffdfc"; line = "#e7e7e7"
+            a1 = "#FF385C"; a2 = "#E31C5F"; radius = "34px"; buttonRadius = "12px"; bodyBackground = "#fffdfc"; heroBackground = "linear-gradient(145deg, #4b2730, #b82647 58%, #ff6b81)"; shadow = "0 22px 60px rgba(0,0,0,.14)"
+        } else if n.contains("shopify") {
+            theme = "#F4F7F2"; ink = "#202223"; muted = "#6D7175"; surface = "#ffffff"; soft = "#f4f7f2"; line = "#dfe3df"
+            a1 = "#008060"; a2 = "#95BF47"; radius = "22px"; cardRadius = "14px"; buttonRadius = "8px"; bodyBackground = "#f4f7f2"; heroBackground = "linear-gradient(135deg, #004c3f, #008060 62%, #95BF47)"; shadow = "0 18px 50px rgba(0,76,63,.14)"
+        } else if n.contains("notion") {
+            theme = "#FFFFFF"; ink = "#111111"; muted = "#6b6b6b"; surface = "#ffffff"; soft = "#ffffff"; line = "#e5e5e5"
+            a1 = "#111111"; a2 = "#555555"; font = "Georgia, 'Times New Roman', serif"; radius = "8px"; cardRadius = "5px"; buttonRadius = "5px"; bodyBackground = "#fff"; heroBackground = "#fff"; shadow = "0 8px 26px rgba(0,0,0,.04)"
+        } else if n.contains("linear") {
+            theme = "#08090B"; ink = "#f4f4f5"; muted = "#9b9ba4"; surface = "rgba(18,18,24,.86)"; soft = "#08090b"; line = "rgba(255,255,255,.09)"
+            a1 = "#5E6AD2"; a2 = "#8B7CFF"; radius = "24px"; cardRadius = "14px"; buttonRadius = "9px"; bodyBackground = "radial-gradient(circle at 50% -12%, rgba(94,106,210,.32), transparent 36%), #08090b"; heroBackground = "linear-gradient(145deg, rgba(94,106,210,.13), rgba(255,255,255,.025))"; shadow = "0 30px 90px rgba(0,0,0,.46)"
+        } else if n.contains("sarah") {
+            theme = "#05070A"; ink = "#f7fbff"; muted = "#aeb8c6"; surface = "rgba(16,22,30,.76)"; soft = "#05070a"; line = "rgba(148,220,255,.14)"
+            a1 = "#64D2FF"; a2 = "#7D6CFF"; radius = "34px"; cardRadius = "18px"; bodyBackground = "radial-gradient(circle at 12% 0%, rgba(100,210,255,.18), transparent 30%), radial-gradient(circle at 90% 10%, rgba(125,108,255,.17), transparent 30%), #05070a"; heroBackground = "linear-gradient(145deg, rgba(100,210,255,.10), rgba(125,108,255,.07), rgba(255,255,255,.02))"; shadow = "0 32px 90px rgba(0,0,0,.48)"
         }
+
+        let darkHero = n.contains("tesla") || n.contains("microsoft") || n.contains("airbnb") || n.contains("shopify") || n.contains("linear") || n.contains("sarah") || n.contains("apple")
+        let heroInk = darkHero ? "#ffffff" : ink
+        let heroMuted = darkHero ? "rgba(255,255,255,.82)" : muted
+
+        return (theme, """
+        :root { --primary: \(a1); --secondary: \(a2); --ink: \(ink); --muted: \(muted); --surface: \(surface); --soft: \(soft); --line: \(line); }
+        body { color: var(--ink); background: \(bodyBackground); font-family: \(font); }
+        .links a { color: var(--ink); padding: 8px 12px; border-radius: \(buttonRadius); background: color-mix(in srgb, var(--surface) 75%, transparent); }
+        .hero { border-radius: \(radius); color: \(heroInk); background: \(heroBackground); border: 1px solid var(--line); box-shadow: \(shadow); backdrop-filter: blur(22px); }
+        .eyebrow { color: var(--primary); }
+        .hero p { color: \(heroMuted); }
+        .intro, .card p { color: var(--muted); }
+        .cta { color: #fff; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: \(buttonRadius); box-shadow: 0 8px 26px color-mix(in srgb, var(--primary) 22%, transparent); }
+        section { border-radius: \(radius); background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(16px); }
+        .card { border-radius: \(cardRadius); background: color-mix(in srgb, var(--surface) 82%, var(--soft)); border: 1px solid var(--line); }
+        """)
     }
 
     private func accentColors(_ accent: String) -> (String, String) {
@@ -1020,7 +1056,7 @@ private struct WebsitePrimaryButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.sarahCyan.opacity(configuration.isPressed ? 0.62 : 0.90))
+                    .fill(Color.purple.opacity(configuration.isPressed ? 0.62 : 0.90))
             )
             .opacity(configuration.isPressed ? 0.86 : 1)
     }

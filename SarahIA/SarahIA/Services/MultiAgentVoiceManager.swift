@@ -233,7 +233,9 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
-        AppleSpeechRecognizer.shared.stopListening()
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            AppleSpeechRecognizer.shared.stopListening()
+        }
         stop()
         pendingSpeechBlock = nil
 
@@ -257,7 +259,9 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         agentGreeting: String,
         targetAgent: AgentType
     ) {
-        AppleSpeechRecognizer.shared.stopListening()
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            AppleSpeechRecognizer.shared.stopListening()
+        }
         stop()
 
         let cleanTransition = cleanTextForSpeech(transitionText)

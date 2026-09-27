@@ -411,7 +411,22 @@ public final class ChatViewModel: ObservableObject {
     private func setupVoicePipeline() {
         AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
             guard let self = self, self.isContinuousConversationActive else { return }
+            let cleanedPartial = partial.trimmingCharacters(in: .whitespacesAndNewlines)
             self.liveTranscriptionText = partial
+
+            if self.voiceManager.isSpeaking, !cleanedPartial.isEmpty {
+                let normalized = cleanedPartial.lowercased().folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+                let words = normalized.split(separator: " ")
+                let explicitInterrupt = normalized == "non" || normalized.hasPrefix("non ") ||
+                    normalized.hasPrefix("attends") || normalized.hasPrefix("attend") ||
+                    normalized.hasPrefix("stop") || normalized.hasPrefix("pardon") ||
+                    normalized.hasPrefix("sarah") || normalized.contains("c est pas ca") ||
+                    normalized.contains("ce n est pas ca") || words.count >= 3
+                if explicitInterrupt {
+                    self.interruptVoiceResponse()
+                    self.liveTranscriptionText = partial
+                }
+            }
         }
 
         AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
@@ -433,7 +448,7 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.onSpeechStarted = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = true
-            self.isMicRunning = false
+            self.isMicRunning = AppleSpeechRecognizer.shared.isListening
             self.voiceStatus = .speaking
             self.haptics.speechStarted()
         }
@@ -458,8 +473,12 @@ public final class ChatViewModel: ObservableObject {
                       self.isShowingVoiceOrbModal,
                       !self.isVoiceMicrophoneMuted,
                       !self.shouldResumeVoiceAfterSystemInterruption,
-                      !self.voiceManager.isSpeaking,
-                      !AppleSpeechRecognizer.shared.isListening else { return }
+                      !self.voiceManager.isSpeaking else { return }
+                if AppleSpeechRecognizer.shared.isListening {
+                    self.isMicRunning = true
+                    self.voiceStatus = .listening(level: self.micInputLevel)
+                    return
+                }
                 self.resumeVoiceMicrophone()
             }
         }

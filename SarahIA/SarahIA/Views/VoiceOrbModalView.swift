@@ -134,13 +134,15 @@ public struct VoiceOrbModalView: View {
                 emphasized: viewModel.isMicRunning
             ) {
                 HapticService.shared.buttonTap()
-                if viewModel.isMicRunning {
+                if viewModel.isSpeaking {
+                    viewModel.interruptVoiceResponse()
+                } else if viewModel.isMicRunning {
                     viewModel.pauseVoiceMicrophone()
                 } else {
                     viewModel.resumeVoiceMicrophone()
                 }
             }
-            .accessibilityLabel(viewModel.isMicRunning ? "Couper le micro" : "Réactiver le micro")
+            .accessibilityLabel(viewModel.isSpeaking ? "Interrompre Sarah" : (viewModel.isMicRunning ? "Couper le micro" : "Réactiver le micro"))
 
             Button {
                 HapticService.shared.buttonTap()

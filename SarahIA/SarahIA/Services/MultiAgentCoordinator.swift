@@ -221,7 +221,7 @@ public final class MultiAgentCoordinator {
         
         let yohanTokens = ["yoann", "yohan", "yoan", "johan", "yohan traducteur", "yoann traducteur"]
         let tomTokens = ["tom", "thomas"]
-        let estherTokens = ["esther", "ester", "esther code", "raphael", "raphaël", "raph", "rafael"]
+        let estherTokens = ["l agent developpeur", "le developpeur", "agent developpeur", "developpeur", "agent de codage", "agent code", "esther", "ester", "esther code", "raphael", "raphaël", "raph", "rafael"]
         let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
         let nathanTokens = ["nathan", "natan", "l expert ia", "expert ia"]
         let ethelTokens = ["ethel", "etel", "aethel", "ehtel"]
@@ -365,6 +365,8 @@ public final class MultiAgentCoordinator {
         
         // Esther (Code, VAI Coding, Shortcuts, HTML/JS, Swift, Python, Figma)
         if normalized.contains("esther") || normalized.contains("raphael") ||
+           normalized.contains("agent developpeur") || normalized.contains("developpeur") ||
+           normalized.contains("agent de codage") || normalized.contains("agent code") ||
            normalized.contains("code") || normalized.contains("programme") ||
            normalized.contains("site web") || normalized.contains("site internet") ||
            normalized.contains("website") || normalized.contains("page web") ||
