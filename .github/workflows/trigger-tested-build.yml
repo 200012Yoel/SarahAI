@@ -3,21 +3,17 @@ on:
   push:
     branches: [main]
     paths: ['.github/workflows/trigger-tested-build.yml']
+  workflow_dispatch:
 permissions:
-  contents: write
+  actions: write
+  contents: read
 jobs:
-  patch:
+  trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply voice echo guard
-        run: python3 scripts/finalize_voice_bargein.py
-      - name: Commit voice guard
+      - name: Start SarahIA iOS device build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "SarahIA Build Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          git commit -m "Ignore speaker echo during voice barge-in"
-          git push origin main
+          echo "Starting restored build 502 menus and voice barge-in compile v16"
+          gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
