@@ -1,4 +1,4 @@
-name: Minimal Studio Real Generator Voice Fix
+name: Fix Coordinator And Rebuild SarahIA
 on:
   push:
     branches: [main]
@@ -8,30 +8,29 @@ permissions:
   actions: write
   contents: write
 jobs:
-  patch-and-build:
+  fix-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply real generator and voice interruption fix
-        run: python3 scripts/final_site_voice_studio_fix.py
-      - name: Validate and commit final changes
+      - name: Fix coordinator string
+        run: python3 scripts/fix_coordinator_multiline.py
+      - name: Commit compile fix
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift \
-                  SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          git add SarahIA/SarahIA/Services/MultiAgentCoordinator.swift
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo "No additional patch changes needed"
+            echo "Compile fix already applied"
           else
-            git commit -m "Use real code generation and natural voice interruption"
+            git commit -m "Fix Raphael publish message compilation"
             git push origin HEAD:main
           fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting minimal Studio and real generator build"
+          echo "Starting SarahIA rebuild after coordinator fix"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
