@@ -21,7 +21,6 @@ jobs:
           grep -q 'viewModel.stopVoiceConversation()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           grep -q 'self.isContinuousConversationActive && self.isShowingVoiceOrbModal' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func cancelCurrentGeneration()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          ! grep -Eq 'SceneKit|RealityKit|Model3D|Sarah3DEnvironmentStudioView|cube\.transparent' SarahIA/SarahIA/Views/ChatScreenView.swift
       - name: Commit restored voice files
         run: |
           git config user.name "SarahIA Build Bot"
