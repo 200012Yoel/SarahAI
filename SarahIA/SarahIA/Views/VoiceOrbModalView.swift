@@ -1,16 +1,16 @@
 import SwiftUI
+import UIKit
 
-/// Mode vocal Sarah inspiré du comportement ChatGPT :
-/// - ouverture plein écran ;
-/// - trois commandes seulement : chat, micro, fermer ;
-/// - glissement vers le bas = retour au chat avec un petit orbe centré ;
-/// - la conversation vocale continue reste active pendant la réduction.
-@available(iOS 15.0, *)
+/// Interface vocale Sarah.
+/// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
+@available(iOS 14.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @Environment(\.presentationMode) private var presentationMode
 
-    @State private var isExpanded = true
-    @State private var dragOffset: CGFloat = 0
+    private let onOpenMenu: () -> Void
+    private let onOpenSettings: () -> Void
+
     @State private var pulse = false
     @State private var drift = false
 
@@ -20,262 +20,20 @@ public struct VoiceOrbModalView: View {
         onOpenSettings: @escaping () -> Void = {}
     ) {
         self.viewModel = viewModel
-        _ = onOpenMenu
-        _ = onOpenSettings
+        self.onOpenMenu = onOpenMenu
+        self.onOpenSettings = onOpenSettings
     }
 
-    private let orbTint = Color(red: 0.60, green: 0.72, blue: 0.86)
+    private var accent: Color {
+        viewModel.activeAgent.themeColor
+    }
 
     private var normalizedLevel: CGFloat {
         min(max(CGFloat(viewModel.micInputLevel), 0), 1)
     }
 
-    public var body: some View {
-        GeometryReader { proxy in
-            Group {
-                if isExpanded {
-                    expandedScreen(proxy: proxy)
-                        .offset(y: max(0, dragOffset))
-                        .gesture(expandedDragGesture)
-                        .transition(.opacity)
-                } else {
-                    compactOverlay
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            pulse = true
-            drift = true
-            if !viewModel.isContinuousConversationActive {
-                DispatchQueue.main.async {
-                    viewModel.startVoiceConversation()
-                }
-            }
-        }
-    }
-
-    // MARK: - Plein écran
-
-    private func expandedScreen(proxy: GeometryProxy) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.055),
-                    orbTint.opacity(0.035),
-                    Color.clear
-                ]),
-                center: .center,
-                startRadius: 45,
-                endRadius: 470
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                Spacer(minLength: max(32, proxy.safeAreaInsets.top + 20))
-
-                orb(size: min(proxy.size.width * 0.50, 208))
-
-                Spacer(minLength: 24)
-
-                statusBlock
-                    .frame(minHeight: 88)
-
-                Spacer()
-
-                voiceControls
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, max(22, proxy.safeAreaInsets.bottom + 14))
-            }
-        }
-    }
-
-    private var statusBlock: some View {
-        VStack(spacing: 8) {
-            Text(statusTitle)
-                .font(.system(size: 23, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-
-            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(viewModel.liveTranscriptionText)
-                    .font(.system(size: 16))
-                    .foregroundColor(.white.opacity(0.70))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .padding(.horizontal, 30)
-            } else {
-                Text(statusSubtitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.46))
-                    .multilineTextAlignment(.center)
-            }
-        }
-    }
-
-    /// Trois boutons, rien d'autre : chat, micro, fermer.
-    private var voiceControls: some View {
-        HStack(spacing: 28) {
-            controlButton(systemName: "text.bubble.fill") {
-                HapticService.shared.buttonTap()
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                    isExpanded = false
-                    dragOffset = 0
-                }
-            }
-            .accessibilityLabel("Revenir au chat")
-
-            controlButton(
-                systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
-                emphasized: viewModel.isMicRunning
-            ) {
-                HapticService.shared.buttonTap()
-                if viewModel.isSpeaking {
-                    viewModel.interruptVoiceResponse()
-                } else if viewModel.isMicRunning {
-                    viewModel.pauseVoiceMicrophone()
-                } else {
-                    viewModel.resumeVoiceMicrophone()
-                }
-            }
-            .accessibilityLabel(viewModel.isSpeaking ? "Interrompre Sarah" : (viewModel.isMicRunning ? "Couper le micro" : "Réactiver le micro"))
-
-            Button {
-                HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                viewModel.isShowingVoiceOrbModal = false
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 58, height: 58)
-                    Image(systemName: "xmark")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundColor(.black)
-                }
-            }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Fermer le mode vocal")
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Petit orbe au-dessus de la vraie barre du chat
-
-    private var compactOverlay: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Button {
-                HapticService.shared.buttonTap()
-                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
-                    isExpanded = true
-                    dragOffset = 0
-                }
-            } label: {
-                orb(size: 82)
-                    .frame(width: 96, height: 96)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Rouvrir le mode vocal Sarah")
-            .padding(.bottom, 88)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var expandedDragGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                if value.translation.height > 0 {
-                    dragOffset = value.translation.height
-                }
-            }
-            .onEnded { value in
-                if value.translation.height > 90 || value.predictedEndTranslation.height > 150 {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                        isExpanded = false
-                        dragOffset = 0
-                    }
-                } else {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                        dragOffset = 0
-                    }
-                }
-            }
-    }
-
-    // MARK: - Orbe
-
-    private func orb(size: CGFloat) -> some View {
-        let core = size * 0.78
-        let voiceBoost = 1.0 + normalizedLevel * 0.07
-
-        return ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            orbTint.opacity(0.30),
-                            orbTint.opacity(0.07),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: core * 0.16,
-                        endRadius: size * 0.54
-                    )
-                )
-                .frame(width: size, height: size)
-                .blur(radius: size > 120 ? 15 : 7)
-
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.95),
-                                Color(red: 0.74, green: 0.80, blue: 0.87),
-                                Color(red: 0.42, green: 0.52, blue: 0.64)
-                            ]),
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-
-                Circle()
-                    .fill(Color.white.opacity(0.46))
-                    .frame(width: core * 0.58, height: core * 0.30)
-                    .blur(radius: size > 120 ? 18 : 8)
-                    .offset(
-                        x: drift ? -core * 0.05 : core * 0.07,
-                        y: drift ? core * 0.13 : -core * 0.10
-                    )
-                    .animation(
-                        Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
-                        value: drift
-                    )
-            }
-            .frame(width: core, height: core)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.38), lineWidth: 1))
-            .shadow(color: orbTint.opacity(0.22), radius: size > 120 ? 18 : 9)
-            .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
-            .animation(
-                Animation.easeInOut(duration: 1.55).repeatForever(autoreverses: true),
-                value: pulse
-            )
-            .animation(.spring(response: 0.25, dampingFraction: 0.74), value: normalizedLevel)
-        }
-        .frame(width: size, height: size)
-    }
-
     private var statusTitle: String {
         switch viewModel.voiceStatus {
-        case .starting:
-            return "Activation…"
         case .processing:
             return "Je réfléchis…"
         case .speaking:
@@ -283,43 +41,360 @@ public struct VoiceOrbModalView: View {
         case .error:
             return "Micro indisponible"
         default:
+            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Je t’écoute."
+            }
             return viewModel.isMicRunning ? "Je t’écoute." : "Micro coupé"
         }
     }
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .starting:
-            return "Activation de la voix"
+        case .error:
+            return "Touchez le micro pour réessayer"
         case .processing:
             return "Un instant…"
         case .speaking:
-            return "Sarah te répond"
-        case .error(let message):
-            return message.isEmpty ? "Touchez le micro pour réessayer" : message
+            return "Tu peux interrompre Sarah en touchant le micro"
         default:
             return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
         }
     }
 
-    private func controlButton(
+    public var body: some View {
+        GeometryReader { proxy in
+            let compact = proxy.size.height < 430
+
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
+
+                RadialGradient(
+                    gradient: Gradient(colors: [
+                        accent.opacity(compact ? 0.08 : 0.14),
+                        accent.opacity(0.025),
+                        Color.clear
+                    ]),
+                    center: compact ? .bottom : .center,
+                    startRadius: 40,
+                    endRadius: compact ? 260 : 430
+                )
+                .ignoresSafeArea()
+
+                if compact {
+                    compactLayout
+                } else {
+                    expandedLayout
+                }
+            }
+        }
+        .onAppear {
+            pulse = true
+            drift = true
+            viewModel.startVoiceConversation()
+        }
+        .onDisappear {
+            viewModel.stopVoiceConversation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            // Sarah ne doit jamais conserver une route audio active quand
+            // l'utilisateur quitte l'app ou ouvre Siri / un appel.
+            viewModel.stopVoiceConversation()
+        }
+    }
+
+    // MARK: - Grand mode vocal
+
+    private var expandedLayout: some View {
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+            Spacer(minLength: 20)
+
+            orb(size: 292)
+                .frame(width: 320, height: 320)
+
+            Spacer(minLength: 22)
+
+            VStack(spacing: 8) {
+                Text(statusTitle)
+                    .font(.system(size: 25, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(viewModel.liveTranscriptionText)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.70))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .padding(.horizontal, 24)
+                } else {
+                    Text(statusSubtitle)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.46))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .frame(minHeight: 76)
+
+            Spacer(minLength: 24)
+
+            composer
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
+        }
+    }
+
+    // MARK: - Mode réduit quand la feuille est baissée
+
+    private var compactLayout: some View {
+        VStack(spacing: 10) {
+            Spacer(minLength: 8)
+
+            orb(size: 86)
+                .frame(width: 112, height: 112)
+
+            Text(statusTitle)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(Color.white.opacity(0.82))
+                .lineLimit(1)
+
+            composer
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
+        }
+    }
+
+    // MARK: - En-tête
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            circleButton(systemName: "line.3.horizontal") {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+                presentationMode.wrappedValue.dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    onOpenMenu()
+                }
+            }
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text(viewModel.activeAgent.displayName)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Text("Mode vocal")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.46))
+            }
+
+            Spacer()
+
+            circleButton(systemName: "slider.horizontal.3") {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+                presentationMode.wrappedValue.dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    onOpenSettings()
+                }
+            }
+        }
+    }
+
+    // MARK: - Orbe Sarah
+
+    private func orb(size: CGFloat) -> some View {
+        let core = size * 0.72
+        let voiceBoost = 1.0 + normalizedLevel * 0.065
+
+        return ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            accent.opacity(0.30),
+                            accent.opacity(0.08),
+                            Color.clear
+                        ]),
+                        center: .center,
+                        startRadius: core * 0.20,
+                        endRadius: size * 0.52
+                    )
+                )
+                .frame(width: size, height: size)
+                .blur(radius: size > 150 ? 15 : 8)
+
+            ForEach(0..<2) { index in
+                Circle()
+                    .stroke(
+                        accent.opacity(index == 0 ? 0.40 : 0.18),
+                        lineWidth: 1
+                    )
+                    .frame(
+                        width: core + CGFloat(index * 30),
+                        height: core + CGFloat(index * 30)
+                    )
+                    .scaleEffect(
+                        (pulse ? 1.025 : 0.985)
+                        + normalizedLevel * CGFloat(index + 1) * 0.014
+                    )
+                    .animation(
+                        Animation.easeInOut(duration: 1.7 + Double(index) * 0.25)
+                            .repeatForever(autoreverses: true),
+                        value: pulse
+                    )
+            }
+
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.96),
+                                accent.opacity(0.94),
+                                accent
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                Circle()
+                    .fill(Color.white.opacity(0.54))
+                    .frame(width: core * 0.48, height: core * 0.48)
+                    .blur(radius: size > 150 ? 17 : 8)
+                    .offset(
+                        x: drift ? -core * 0.08 : core * 0.09,
+                        y: drift ? core * 0.07 : -core * 0.07
+                    )
+                    .animation(
+                        Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
+                        value: drift
+                    )
+
+                Image(systemName: viewModel.activeAgent.iconName)
+                    .font(.system(size: max(18, core * 0.16), weight: .bold))
+                    .foregroundColor(.white)
+                    .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 2)
+            }
+            .frame(width: core, height: core)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
+            )
+            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
+            .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
+            .animation(
+                Animation.spring(response: 0.26, dampingFraction: 0.76),
+                value: normalizedLevel
+            )
+        }
+        .contentShape(Circle())
+        .onTapGesture {
+            HapticService.shared.buttonTap()
+            if viewModel.isMicRunning {
+                viewModel.toggleMicrophone()
+            } else {
+                viewModel.startVoiceConversation()
+            }
+        }
+    }
+
+    // MARK: - Barre inférieure
+
+    private var composer: some View {
+        HStack(spacing: 10) {
+            circleButton(systemName: "plus", size: 50) {
+                HapticService.shared.buttonTap()
+            }
+
+            HStack(spacing: 10) {
+                TextField("Demander à Sarah…", text: $viewModel.inputText)
+                    .foregroundColor(.white)
+                    .accentColor(accent)
+                    .font(.system(size: 16))
+                    .submitLabel(.send)
+                    .onSubmit {
+                        sendTextIfNeeded()
+                    }
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if viewModel.isMicRunning {
+                            viewModel.toggleMicrophone()
+                        } else {
+                            viewModel.startVoiceConversation()
+                        }
+                    } else {
+                        sendTextIfNeeded()
+                    }
+                }) {
+                    Image(systemName: viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "waveform" : "arrow.up")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(accent)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(accent.opacity(0.11)))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 7)
+            .frame(height: 52)
+            .background(
+                RoundedRectangle(cornerRadius: 26)
+                    .fill(Color.white.opacity(0.09))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 26)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+
+            circleButton(
+                systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
+                size: 50,
+                highlighted: viewModel.isMicRunning
+            ) {
+                HapticService.shared.buttonTap()
+                viewModel.toggleMicrophone()
+            }
+        }
+    }
+
+    private func sendTextIfNeeded() {
+        let text = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        viewModel.sendMessage(text)
+    }
+
+    private func circleButton(
         systemName: String,
-        emphasized: Bool = false,
+        size: CGFloat = 48,
+        highlighted: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(emphasized ? Color.white.opacity(0.18) : Color.white.opacity(0.10))
-                    .frame(width: 58, height: 58)
+                    .fill(highlighted ? accent.opacity(0.24) : Color.white.opacity(0.10))
+                    .frame(width: size, height: size)
 
                 Circle()
-                    .stroke(Color.white.opacity(emphasized ? 0.22 : 0.08), lineWidth: 1)
-                    .frame(width: 58, height: 58)
+                    .stroke(
+                        highlighted ? accent.opacity(0.44) : Color.white.opacity(0.08),
+                        lineWidth: 1
+                    )
+                    .frame(width: size, height: size)
 
                 Image(systemName: systemName)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundColor(highlighted ? accent : .white)
             }
         }
         .buttonStyle(PlainButtonStyle())
