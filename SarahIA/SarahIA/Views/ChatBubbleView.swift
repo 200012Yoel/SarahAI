@@ -113,7 +113,7 @@ public struct ChatBubbleView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 if !message.isVisionReport {
-                    let rawContent = message.content
+                    let rawContent = message.contentWithoutInlinePayloads
                     let displayContent: String = {
                         if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
                             let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -140,6 +140,11 @@ public struct ChatBubbleView: View {
                             )
                             .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8)
                     }
+                }
+
+                if let youtube = message.detectedYouTubeCard {
+                    InlineYouTubeCardView(payload: youtube)
+                        .frame(maxWidth: 290)
                 }
 
                 if let imageURL = message.detectedImageURL {
@@ -205,6 +210,182 @@ public struct ChatBubbleView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Carte YouTube inline / mini-ordinateur Sarah
+
+@available(iOS 14.0, *)
+private struct InlineYouTubeCardView: View {
+    let payload: SarahYouTubeCardPayload
+    @State private var isPlaying = false
+    @State private var thumbnailImage: UIImage?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.red.opacity(0.18))
+                        .frame(width: 30, height: 30)
+                    Image(systemName: "play.rectangle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.red)
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Sarah · Recherche vidéo")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(payload.query.isEmpty ? "YouTube" : payload.query)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+
+            HStack(spacing: 6) {
+                MiniActionStep(text: "Compris")
+                MiniActionStep(text: "YouTube")
+                MiniActionStep(text: "Trouvé")
+            }
+
+            if isPlaying {
+                YouTubeInlinePlayerRepresentable(videoId: payload.videoId)
+                    .frame(height: 164)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    isPlaying = true
+                }) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.black)
+                            .frame(height: 164)
+
+                        if let image = thumbnailImage {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 164)
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+
+                        Color.black.opacity(thumbnailImage == nil ? 0.0 : 0.18)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 23, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(Circle().fill(Color.black.opacity(0.72)))
+                    }
+                }
+                .buttonStyle(BorderlessButtonStyle())
+                .accessibilityLabel("Lire la vidéo \(payload.title)")
+                .onAppear(perform: loadThumbnail)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(payload.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+
+                HStack(spacing: 6) {
+                    Text(payload.channel)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.58))
+                        .lineLimit(1)
+
+                    if !payload.duration.isEmpty {
+                        Text("•")
+                            .foregroundColor(.white.opacity(0.35))
+                        Text(payload.duration)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.58))
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(red: 0.10, green: 0.11, blue: 0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.7)
+        )
+    }
+
+    private func loadThumbnail() {
+        guard thumbnailImage == nil, let url = URL(string: payload.thumbnailURL) else { return }
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            guard let data = data, let image = UIImage(data: data) else { return }
+            DispatchQueue.main.async {
+                thumbnailImage = image
+            }
+        }.resume()
+    }
+}
+
+@available(iOS 14.0, *)
+private struct MiniActionStep: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 9))
+            Text(text)
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundColor(.white.opacity(0.62))
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(Color.white.opacity(0.055))
+        .clipShape(Capsule())
+    }
+}
+
+@available(iOS 14.0, *)
+private struct YouTubeInlinePlayerRepresentable: UIViewRepresentable {
+    let videoId: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.isOpaque = false
+        webView.backgroundColor = .black
+        webView.scrollView.isScrollEnabled = false
+        load(videoId: videoId, in: webView)
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+
+    private func load(videoId: String, in webView: WKWebView) {
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>
+        html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+        iframe { width:100%; height:100%; border:0; }
+        </style>
+        </head>
+        <body>
+        <iframe src="https://www.youtube-nocookie.com/embed/\(videoId)?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        </body>
+        </html>
+        """
+        webView.loadHTMLString(html, baseURL: URL(string: "https://www.youtube-nocookie.com"))
     }
 }
 
