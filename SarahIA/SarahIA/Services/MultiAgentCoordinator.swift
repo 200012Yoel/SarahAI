@@ -736,43 +736,45 @@ public final class MultiAgentCoordinator {
                 generatedCode: python
             ))
         }
-        // 7. Projet web agentique : Raphaël conserve le projet et ses révisions.
+        // 7. Projet web agentique : uniquement le vrai moteur de code.
         else {
-            VAICodeEngine.shared.buildAndTestWebsite(prompt: prompt) { build in
-                DevCodeInjector.injectRender(html: build.html, css: "", js: "")
+            VAICodeEngine.shared.buildAndTestWebsite(prompt: prompt) { result in
+                switch result {
+                case .failure(let error):
+                    completion(AgentResponse(
+                        agent: .esther,
+                        text: "💻 **Raphaël · génération réelle indisponible**\n\n\(error.localizedDescription)\n\nAucun dashboard ou template de secours n'a été créé.",
+                        spokenText: "La génération réelle n'est pas disponible. Je n'ai pas créé de faux site à la place.",
+                        openStudio: false,
+                        generatedCode: nil
+                    ))
 
-                let browserStatus: String
-                if let browser = build.browserAudit {
-                    browserStatus = browser.passed
-                        ? "✅ WebKit : DOM chargé, JavaScript propre et largeur mobile valide."
-                        : "⚠️ WebKit : \(browser.details)"
-                } else {
-                    browserStatus = "⚠️ Test WebKit indisponible."
+                case .success(let build):
+                    DevCodeInjector.injectRender(html: build.html, css: "", js: "")
+                    let browserStatus = build.browserAudit?.passed == true
+                        ? "✅ WebKit : rendu mobile et JavaScript validés."
+                        : "⚠️ WebKit : contrôle incomplet."
+                    let action = build.wasRefinement ? "mise à jour" : "création"
+                    let responseText = """
+                    💻 **Raphaël · Atelier Web génératif**
+
+                    Révision **#\(build.revision)** · \(action) terminée.
+                    **Moteurs :** \(build.architectModel.displayName) → \(build.implementerModel.displayName)
+                    \(browserStatus)
+
+                    Le fichier généré est `Documents/VAI_Workspace/index.html`. Tu peux maintenant demander une correction et Raphaël repartira de cette révision.
+                    """
+
+                    completion(AgentResponse(
+                        agent: .esther,
+                        text: responseText,
+                        spokenText: "La révision \(build.revision) est réellement générée et vérifiée. Tu peux me demander une modification.",
+                        openStudio: true,
+                        generatedCode: build.html
+                    ))
                 }
-
-                let modelStatus = build.usedRemoteModels
-                    ? "\(build.architectModel.displayName) → \(build.implementerModel.displayName)"
-                    : "Moteur local de secours. Configure un endpoint OpenAI-compatible dans Réglages > Sarah Engine pour activer les deux modèles de code."
-
-                let action = build.wasRefinement ? "mise à jour" : "création"
-                let responseText = """
-                💻 **Raphaël [Atelier Web Agentique]**
-
-                Révision **#\(build.revision)** · \(action) terminée.
-                **Pipeline :** \(modelStatus)
-                \(browserStatus)
-
-                Le fichier courant est `Documents/VAI_Workspace/index.html`. Tu peux maintenant dire « corrige ce bouton », « change ce texte », « ajoute une section » ou « rends-le plus Apple » dans la même discussion : Raphaël repartira de cette révision.
-                """
-
-                completion(AgentResponse(
-                    agent: .esther,
-                    text: responseText,
-                    spokenText: "La révision \(build.revision) est prête. Le site a été chargé et testé dans WebKit. Tu peux me demander une nouvelle correction dans la même discussion.",
-                    openStudio: true,
-                    generatedCode: build.html
-                ))
             }
+        }
         }
     }
     

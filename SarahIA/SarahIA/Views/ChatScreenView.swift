@@ -1440,13 +1440,10 @@ private struct WebsiteBuilderFlowView: View {
             let freeAudience = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !freeAudience.isEmpty {
                 audience = freeAudience
-                viewModel.speakWebsiteGuide("D'accord. Je retiens comme public : \(freeAudience). On passe maintenant à l'ambiance graphique.")
-                let captured = step
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
-                    guard step == captured else { return }
-                    withAnimation(.easeInOut(duration: 0.18)) { step = 2 }
-                    readCurrentVoiceOptions()
-                }
+                confirmVoiceChoiceAndAdvance(
+                    "D'accord. Je retiens comme public : \(freeAudience). On passe maintenant à l'ambiance graphique.",
+                    to: 2
+                )
                 return
             }
         }
