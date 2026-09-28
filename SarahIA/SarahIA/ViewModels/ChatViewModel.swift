@@ -76,6 +76,7 @@ public final class ChatViewModel: ObservableObject {
     private var isVoicePipelinePrepared = false
     private var shouldResumeVoiceAfterSystemInterruption = false
     private var websiteGenerationID = UUID()
+    private var isBargeInMonitorActive = false
     
     public init() {
         restorePersistedState()
@@ -445,12 +446,18 @@ public final class ChatViewModel: ObservableObject {
                 let overlapCount = partialWords.intersection(spokenWords).count
                 let overlapRatio = partialWords.isEmpty ? 1.0 : Double(overlapCount) / Double(partialWords.count)
 
-                // Deux mots réellement nouveaux suffisent pour prendre la parole,
-                // mais une transcription qui ressemble fortement à la voix du haut-parleur
-                // est ignorée pour éviter les auto-interruptions.
-                let naturalBargeIn = partialWords.count >= 2 && overlapRatio < 0.45
+                // Barge-in conversationnel : un mot net qui n'appartient pas à la
+                // phrase de Sarah, ou deux mots faiblement ressemblants, suffisent pour
+                // couper la synthèse. Le mode voiceChat de la session audio réduit l'écho.
+                let hasStrongNovelWord = partialWords.contains { word in
+                    word.count >= 3 && !spokenWords.contains(word)
+                }
+                let naturalBargeIn =
+                    (hasStrongNovelWord && overlapRatio < 0.34) ||
+                    (partialWords.count >= 2 && overlapRatio < 0.58)
 
                 if explicitInterrupt || naturalBargeIn {
+                    self.isBargeInMonitorActive = false
                     self.interruptVoiceResponse()
                     self.liveTranscriptionText = partial
                 }
@@ -469,11 +476,25 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
 
-            // Tant que la synthèse parle encore, un résultat final peut être l'écho
-            // du haut-parleur. Un vrai barge-in coupe la synthèse dès le partiel,
-            // donc son résultat final arrive ensuite avec isSpeaking == false.
+            // Tant que Sarah parle encore, un résultat final peut être un reste
+            // d'écho. On le jette puis on réarme immédiatement l'écoute barge-in
+            // au lieu de laisser le micro muet jusqu'à la fin de la réponse.
             guard !self.voiceManager.isSpeaking else {
                 self.liveTranscriptionText = ""
+                self.isBargeInMonitorActive = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    guard self.isContinuousConversationActive,
+                          self.voiceManager.isSpeaking,
+                          !self.isVoiceMicrophoneMuted,
+                          !AppleSpeechRecognizer.shared.isListening else { return }
+                    self.isBargeInMonitorActive = true
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true,
+                        preserveActiveSpeech: true
+                    )
+                    self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+                    self.voiceStatus = .speaking
+                }
                 return
             }
 
@@ -494,9 +515,23 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.onSpeechStarted = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = true
-            self.isMicRunning = AppleSpeechRecognizer.shared.isListening
             self.voiceStatus = .speaking
             self.haptics.speechStarted()
+
+            // Le micro reste en veille pendant la synthèse. C'est le vrai barge-in :
+            // parler pendant la réponse déclenche onPartialTranscription puis coupe Sarah.
+            if self.isContinuousConversationActive,
+               !self.isVoiceMicrophoneMuted {
+                self.isBargeInMonitorActive = true
+                AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+                if !AppleSpeechRecognizer.shared.isListening {
+                    AppleSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true,
+                        preserveActiveSpeech: true
+                    )
+                }
+            }
+            self.isMicRunning = AppleSpeechRecognizer.shared.isListening
         }
 
         voiceManager.onSpeechFinished = { [weak self] in
@@ -509,12 +544,21 @@ public final class ChatViewModel: ObservableObject {
                   self.isShowingVoiceOrbModal,
                   !self.isVoiceMicrophoneMuted,
                   !self.shouldResumeVoiceAfterSystemInterruption else {
+                self.isBargeInMonitorActive = false
                 self.voiceStatus = .idle
                 return
             }
 
+            // Si l'écoute en cours servait uniquement à détecter une interruption,
+            // on la recrée proprement pour effacer tout éventuel écho de la phrase
+            // de Sarah avant d'attendre la prochaine vraie demande utilisateur.
+            if self.isBargeInMonitorActive {
+                self.isBargeInMonitorActive = false
+                AppleSpeechRecognizer.shared.stopListening()
+            }
+
             self.voiceStatus = .starting
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                 guard self.isContinuousConversationActive,
                       self.isShowingVoiceOrbModal,
                       !self.isVoiceMicrophoneMuted,
@@ -594,6 +638,7 @@ public final class ChatViewModel: ObservableObject {
 
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
+        isBargeInMonitorActive = false
         shouldResumeVoiceAfterSystemInterruption = false
         liveTranscriptionText = ""
         micInputLevel = 0
@@ -644,6 +689,7 @@ public final class ChatViewModel: ObservableObject {
     /// Interrompt la voix de Sarah mais conserve la conversation vocale ouverte.
     public func interruptVoiceResponse() {
         ensureVoicePipelinePrepared()
+        isBargeInMonitorActive = false
         voiceManager.stop()
         isSpeaking = false
         currentSpeakingText = nil
@@ -671,6 +717,7 @@ public final class ChatViewModel: ObservableObject {
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = true
+        isBargeInMonitorActive = false
         shouldResumeVoiceAfterSystemInterruption = false
 
         if stopSpeech {
@@ -701,6 +748,11 @@ public final class ChatViewModel: ObservableObject {
         guard isContinuousConversationActive else { return }
         activeAgent = .esther
         voiceManager.speak(text: text, for: .esther)
+    }
+
+    public func cancelWebsiteGuideSpeech() {
+        guard isContinuousConversationActive else { return }
+        interruptVoiceResponse()
     }
 
     /// Lit une suite de cartes sans minuterie artificielle. La carte suivante ne

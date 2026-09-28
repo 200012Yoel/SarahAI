@@ -799,6 +799,9 @@ private struct WebsiteBuilderFlowView: View {
                 Button("Retour") {
                     HapticService.shared.buttonTap()
                     voiceGuideGeneration = UUID()
+                    if viewModel.isContinuousConversationActive {
+                        viewModel.cancelWebsiteGuideSpeech()
+                    }
                     withAnimation(.easeInOut(duration: 0.18)) { step -= 1 }
                     announceCurrentStepAfterManualNavigation()
                 }
@@ -808,6 +811,9 @@ private struct WebsiteBuilderFlowView: View {
             Button(step == 4 ? "Créer avec Raphaël" : "Continuer") {
                 HapticService.shared.buttonTap()
                 voiceGuideGeneration = UUID()
+                if viewModel.isContinuousConversationActive {
+                    viewModel.cancelWebsiteGuideSpeech()
+                }
                 if step == 4 {
                     completeBrief()
                 } else {
@@ -1294,19 +1300,10 @@ private struct WebsiteBuilderFlowView: View {
         return nil
     }
 
-    private func confirmVoiceChoiceAndAdvance(_ text: String, to nextStep: Int) {
-        let generation = UUID()
-        voiceGuideGeneration = generation
-        viewModel.speakWebsiteGuideSequence(
-            [text],
-            onItemStart: { _ in },
-            completion: {
-                guard voiceGuideGeneration == generation,
-                      viewModel.isShowingWebsiteBuilder else { return }
-                withAnimation(.easeInOut(duration: 0.18)) { step = nextStep }
-                readCurrentVoiceOptions()
-            }
-        )
+    private func confirmVoiceChoiceWithoutAdvance(_ text: String) {
+        voiceGuideGeneration = UUID()
+        voiceFocusedOption = nil
+        viewModel.speakWebsiteGuide(text + " Je reste sur cette question. Dis suivant quand tu veux continuer.")
     }
 
     private func applyVoiceChoice(_ choice: WebsiteChoice) {
@@ -1314,21 +1311,21 @@ private struct WebsiteBuilderFlowView: View {
         switch step {
         case 0:
             category = choice.title
-            confirmVoiceChoiceAndAdvance("Très bien. \(choice.title) est sélectionné.", to: 1)
+            confirmVoiceChoiceWithoutAdvance("Très bien. \(choice.title) est sélectionné.")
         case 1:
             audience = choice.title
             if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                 !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                confirmVoiceChoiceAndAdvance("Public \(choice.title) sélectionné.", to: 2)
+                confirmVoiceChoiceWithoutAdvance("Public \(choice.title) sélectionné.")
             } else {
                 viewModel.speakWebsiteGuide("Public \(choice.title) sélectionné. Il me manque encore le nom ou l'objectif du site.")
             }
         case 2:
             designMood = choice.title
-            confirmVoiceChoiceAndAdvance("Ambiance \(choice.title) sélectionnée.", to: 3)
+            confirmVoiceChoiceWithoutAdvance("Ambiance \(choice.title) sélectionnée.")
         case 3:
             visualStyle = choice.title
-            confirmVoiceChoiceAndAdvance("Style \(choice.title) sélectionné. Cette direction sera réellement utilisée dans le rendu.", to: 4)
+            confirmVoiceChoiceWithoutAdvance("Style \(choice.title) sélectionné. Cette direction sera réellement utilisée dans le rendu.")
         default:
             if sections.contains(choice.title) {
                 sections.remove(choice.title)
@@ -1367,19 +1364,27 @@ private struct WebsiteBuilderFlowView: View {
 
         if normalized.contains("retour") || normalized.contains("precedent") || normalized.contains("reviens") {
             if step > 0 {
+                viewModel.cancelWebsiteGuideSpeech()
                 withAnimation(.easeInOut(duration: 0.18)) { step -= 1 }
-                readCurrentVoiceOptions()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    guard viewModel.isShowingWebsiteBuilder else { return }
+                    readCurrentVoiceOptions()
+                }
             }
             return
         }
 
         if normalized == "suivant" || normalized.contains("continue") || normalized.contains("valide") || normalized.contains("c est bon") {
             if canContinue {
+                viewModel.cancelWebsiteGuideSpeech()
                 if step == 4 {
                     completeBrief()
                 } else {
                     withAnimation(.easeInOut(duration: 0.18)) { step += 1 }
-                    readCurrentVoiceOptions()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        guard viewModel.isShowingWebsiteBuilder else { return }
+                        readCurrentVoiceOptions()
+                    }
                 }
             } else {
                 viewModel.speakWebsiteGuide("Il me manque encore un choix avant de continuer.")
@@ -1440,9 +1445,8 @@ private struct WebsiteBuilderFlowView: View {
             let freeAudience = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !freeAudience.isEmpty {
                 audience = freeAudience
-                confirmVoiceChoiceAndAdvance(
-                    "D'accord. Je retiens comme public : \(freeAudience). On passe maintenant à l'ambiance graphique.",
-                    to: 2
+                confirmVoiceChoiceWithoutAdvance(
+                    "D'accord. Je retiens comme public : \(freeAudience)."
                 )
                 return
             }

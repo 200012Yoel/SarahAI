@@ -53,7 +53,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
     private let audioEngine = AVAudioEngine()
 
     private var silenceTimer: Timer?
-    private let silenceThreshold: TimeInterval = 1.0
+    private let silenceThreshold: TimeInterval = 0.82
     private var hasDetectedSpeechInCurrentSession = false
     private var automaticallyFinalizeOnSilence = true
     private var hasFinalizedCurrentSession = false
@@ -89,7 +89,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
     /// `true` valide automatiquement après un court silence pour le mode vocal.
     /// `false` laisse la dictée attendre la validation de l'utilisateur.
-    public func startListening(autoFinalizeOnSilence: Bool = true) {
+    public func startListening(autoFinalizeOnSilence: Bool = true, preserveActiveSpeech: Bool = false) {
         guard !isListening else { return }
 
         let speechStatus = SFSpeechRecognizer.authorizationStatus()
@@ -100,7 +100,7 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
                     self.state = .error("Autorisation microphone ou dictée refusée")
                     return
                 }
-                self.startListening(autoFinalizeOnSilence: autoFinalizeOnSilence)
+                self.startListening(autoFinalizeOnSilence: autoFinalizeOnSilence, preserveActiveSpeech: preserveActiveSpeech)
             }
             return
         }
@@ -111,16 +111,19 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
             return
         }
 
-        // Une seule source audio doit être active à la fois. On coupe les lecteurs
-        // réellement actifs, sans réveiller l'ancien moteur audio juste pour appeler stop().
-        MultiAgentVoiceManager.shared.stop()
-        if SpeechManager.shared.isSpeaking {
-            SpeechManager.shared.stopSpeaking()
-        }
-        if #available(iOS 13.0, *) {
-            let legacyTTS = TTSService.shared
-            if legacyTTS.isSpeaking {
-                legacyTTS.stopSpeaking()
+        // En conversation normale, une seule source vocale est active. En mode
+        // barge-in, on garde volontairement la synthèse en cours : le micro écoute
+        // pendant que Sarah parle afin que l'utilisateur puisse l'interrompre.
+        if !preserveActiveSpeech {
+            MultiAgentVoiceManager.shared.stop()
+            if SpeechManager.shared.isSpeaking {
+                SpeechManager.shared.stopSpeaking()
+            }
+            if #available(iOS 13.0, *) {
+                let legacyTTS = TTSService.shared
+                if legacyTTS.isSpeaking {
+                    legacyTTS.stopSpeaking()
+                }
             }
         }
 
@@ -148,7 +151,10 @@ public final class AppleSpeechRecognizer: NSObject, SFSpeechRecognizerDelegate {
 
         request.shouldReportPartialResults = true
         if #available(iOS 13.0, *) {
-            request.requiresOnDeviceRecognition = false
+            // Équivalent local à un petit Whisper pour le français quand iOS le
+            // permet : aucune requête serveur n'est nécessaire sur les appareils
+            // qui exposent la reconnaissance Speech hors-ligne.
+            request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         }
 
         let inputNode = audioEngine.inputNode
