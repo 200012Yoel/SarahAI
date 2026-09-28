@@ -9,6 +9,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public static let shared = AgentVoiceManager()
 
     private let synthesizer = AVSpeechSynthesizer()
+    public private(set) var currentSpokenText: String = ""
 
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -265,6 +266,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
         let currentIndex = sequenceIndex
         sequenceItemStarted?(currentIndex)
+        currentSpokenText = sequenceTexts[currentIndex]
         let utterance = makeUtterance(text: sequenceTexts[currentIndex])
         configureUtterance(utterance, for: agent)
         synthesizer.speak(utterance)
@@ -309,6 +311,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
+        currentSpokenText = cleaned
 
         AudioSessionManager.shared.configurePlaybackSession()
 
@@ -344,11 +347,13 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
         pendingSpeechBlock = { [weak self] in
             guard let self = self, !cleanAgent.isEmpty else { return }
+            self.currentSpokenText = cleanAgent
             let agentUtterance = self.makeUtterance(text: cleanAgent)
             self.configureUtterance(agentUtterance, for: targetAgent)
             self.synthesizer.speak(agentUtterance)
         }
 
+        currentSpokenText = cleanTransition
         let sourceUtterance = makeUtterance(text: cleanTransition)
         configureUtterance(sourceUtterance, for: sourceAgent)
         synthesizer.speak(sourceUtterance)
@@ -356,6 +361,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
     public func stop() {
         pendingSpeechBlock = nil
+        currentSpokenText = ""
         clearSpeechSequence()
         suppressNextCancelCallback = false
         if synthesizer.isSpeaking {
@@ -386,6 +392,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             }
 
             let completion = sequenceCompletion
+            currentSpokenText = ""
             clearSpeechSequence()
             completion?()
             // La completion peut démarrer immédiatement la voix de l'étape suivante.
@@ -401,6 +408,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             pendingSpeechBlock = nil
             next()
         } else {
+            currentSpokenText = ""
             AudioSessionManager.shared.deactivateSession()
             onSpeechFinished?()
         }
@@ -411,6 +419,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             suppressNextCancelCallback = false
             return
         }
+        currentSpokenText = ""
         clearSpeechSequence()
         AudioSessionManager.shared.deactivateSession()
         onSpeechFinished?()
