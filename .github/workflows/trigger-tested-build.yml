@@ -1,4 +1,4 @@
-name: Rebuild Real Website Generation And Voice V2
+name: Minimal Studio Real Generator Voice Fix
 on:
   push:
     branches: [main]
@@ -14,28 +14,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply no-fallback site and voice overhaul
-        run: python3 scripts/rebuild_real_website_generation_and_voice_v2.py
-      - name: Validate and commit overhaul
+      - name: Apply real generator and voice interruption fix
+        run: python3 scripts/final_site_voice_studio_fix.py
+      - name: Validate and commit final changes
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@users.noreply.github.com"
           git add SarahIA/SarahIA/ViewModels/ChatViewModel.swift \
-                  SarahIA/SarahIA/Views/ChatScreenView.swift \
-                  SarahIA/SarahIA/Views/VAICodingStudioView.swift \
-                  SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift \
-                  SarahIA/SarahIA/Services/MultiAgentCoordinator.swift \
-                  SarahIA/SarahIA/Services/VAICodeEngine.swift
+                  SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo "No changes needed"
+            echo "No additional patch changes needed"
           else
-            git commit -m "Remove fake dashboard fallback and rebuild site flow"
+            git commit -m "Use real code generation and natural voice interruption"
             git push origin HEAD:main
           fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting no-fallback site generator build v25"
+          echo "Starting minimal Studio and real generator build"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
