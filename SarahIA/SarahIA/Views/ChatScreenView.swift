@@ -510,6 +510,7 @@ private struct WebsiteBuilderFlowView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         header
                         progress
+                        contextRibbon
                         questionContent
                         navigationButtons
                     }
@@ -583,6 +584,81 @@ private struct WebsiteBuilderFlowView: View {
         }
     }
 
+    private var stepTitle: String {
+        switch step {
+        case 0: return "Type de site"
+        case 1: return "Identité et public"
+        case 2: return "Ambiance"
+        case 3: return "Style du site"
+        default: return "Sections"
+        }
+    }
+
+    private var selectedContextSummary: String {
+        switch step {
+        case 0:
+            return category.isEmpty ? "Aucun type choisi" : category
+        case 1:
+            if name.isEmpty { return "Nom à définir" }
+            if audience.isEmpty { return "\(name) · public à définir" }
+            return "\(name) · \(audience)"
+        case 2:
+            return designMood.isEmpty ? "Ambiance à choisir" : "\(designMood) · \(accent)"
+        case 3:
+            return visualStyle.isEmpty ? "Style adapté à \(category.isEmpty ? "ton site" : category)" : visualStyle
+        default:
+            return sections.isEmpty ? "Aucune section" : "\(sections.count) section\(sections.count > 1 ? "s" : "") sélectionnée\(sections.count > 1 ? "s" : "")"
+        }
+    }
+
+    private var contextRibbon: some View {
+        HStack(spacing: 11) {
+            ZStack {
+                Circle()
+                    .fill(Color.purple.opacity(0.18))
+                Image(systemName: viewModel.isContinuousConversationActive ? "waveform" : "wand.and.stars")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.purple)
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(stepTitle)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(.white)
+                Text(selectedContextSummary)
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.56))
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            if viewModel.isContinuousConversationActive {
+                Text("Voix active")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.purple)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(Color.purple.opacity(0.13)))
+            } else {
+                Text("Touchez ou parlez")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(.white.opacity(0.44))
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(Color.white.opacity(0.045))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
     @ViewBuilder
     private var questionContent: some View {
         switch step {
@@ -606,6 +682,9 @@ private struct WebsiteBuilderFlowView: View {
                         voiceGuideGeneration = UUID()
                         voiceFocusedOption = nil
                         category = choice.title
+                        if viewModel.isContinuousConversationActive {
+                            viewModel.speakWebsiteGuide("\(choice.title) sélectionné. Tu peux continuer quand tu veux.")
+                        }
                     }
                 }
             }
@@ -643,6 +722,9 @@ private struct WebsiteBuilderFlowView: View {
                         voiceGuideGeneration = UUID()
                         voiceFocusedOption = nil
                         designMood = choice.title
+                        if viewModel.isContinuousConversationActive {
+                            viewModel.speakWebsiteGuide("Ambiance \(choice.title) sélectionnée.")
+                        }
                     }
                 }
             }
@@ -652,7 +734,7 @@ private struct WebsiteBuilderFlowView: View {
         case 3:
             questionTitle(
                 "Quelle direction graphique veux-tu ?",
-                subtitle: "Chaque style change réellement les couleurs, la typographie, les formes, les surfaces et le rythme du site."
+                subtitle: "Les styles ci-dessous sont adaptés à \(category.isEmpty ? "ton type de site" : category). Tu peux dire simplement Apple, Amazon, Microsoft ou le nom partiel d'un style."
             )
 
             VStack(spacing: 12) {
@@ -662,6 +744,9 @@ private struct WebsiteBuilderFlowView: View {
                         voiceGuideGeneration = UUID()
                         voiceFocusedOption = nil
                         visualStyle = choice.title
+                        if viewModel.isContinuousConversationActive {
+                            viewModel.speakWebsiteGuide("Style \(choice.title) sélectionné. Je garde cette direction graphique pour le site.")
+                        }
                     }
                 }
             }
@@ -1073,6 +1158,128 @@ private struct WebsiteBuilderFlowView: View {
         }
     }
 
+    private func aliasesForVoiceChoice(_ choice: WebsiteChoice) -> [String] {
+        let title = normalizedVoiceText(choice.title)
+        var aliases = [title]
+
+        switch step {
+        case 0:
+            if title.contains("e commerce") { aliases += ["e commerce", "ecommerce", "commerce", "boutique", "magasin", "shop"] }
+            if title.contains("voyage") { aliases += ["voyage", "travel", "vacances", "tourisme"] }
+            if title.contains("restaurant") { aliases += ["restaurant", "resto", "cuisine", "menu"] }
+            if title.contains("portfolio") { aliases += ["portfolio", "book", "projets", "travaux"] }
+            if title.contains("entreprise") { aliases += ["entreprise", "societe", "business", "corporate", "pro"] }
+            if title.contains("evenement") { aliases += ["evenement", "event", "concert", "conference"] }
+        case 2:
+            if title.contains("minimaliste") { aliases += ["minimaliste", "minimal", "simple", "epure", "epuree"] }
+            if title.contains("elegant") { aliases += ["elegant", "elegance", "raffine", "raffinee", "premium"] }
+            if title.contains("energique") { aliases += ["energique", "dynamique", "vif", "colore", "coloree"] }
+            if title.contains("luxe") { aliases += ["luxe", "luxueux", "haut de gamme", "prestige"] }
+            if title.contains("naturel") { aliases += ["naturel", "nature", "organique", "doux"] }
+            if title.contains("tech") { aliases += ["tech", "technologie", "futuriste", "numerique"] }
+        case 3:
+            let brandAliases: [(String, [String])] = [
+                ("apple", ["apple", "iphone", "ios"]),
+                ("amazon", ["amazon", "amazone", "marketplace"]),
+                ("shopify", ["shopify", "shopi"]),
+                ("google", ["google", "material"]),
+                ("nike", ["nike"]),
+                ("microsoft", ["microsoft", "fluent", "windows"]),
+                ("stripe", ["stripe"]),
+                ("sarah", ["sarah", "sara"]),
+                ("airbnb", ["airbnb", "air bnb"]),
+                ("booking", ["booking"]),
+                ("expedia", ["expedia"]),
+                ("national geographic", ["national geographic", "national geo"]),
+                ("tesla", ["tesla"]),
+                ("michelin", ["michelin"]),
+                ("uber eats", ["uber eats", "ubereats", "uber"]),
+                ("deliveroo", ["deliveroo"]),
+                ("opentable", ["opentable", "open table"]),
+                ("notion", ["notion"]),
+                ("behance", ["behance"]),
+                ("adobe", ["adobe"]),
+                ("linear", ["linear"]),
+                ("salesforce", ["salesforce"]),
+                ("eventbrite", ["eventbrite"]),
+                ("ticketmaster", ["ticketmaster"]),
+                ("spotify", ["spotify"])
+            ]
+            for (brand, words) in brandAliases where title.contains(brand) {
+                aliases += words
+            }
+        default:
+            if title.contains("accueil") { aliases += ["accueil", "home"] }
+            if title.contains("a propos") { aliases += ["a propos", "presentation", "qui sommes nous"] }
+            if title.contains("produits") { aliases += ["produits", "services", "catalogue"] }
+            if title.contains("galerie") { aliases += ["galerie", "photos", "images"] }
+            if title.contains("avis") { aliases += ["avis", "temoignages", "clients"] }
+            if title.contains("faq") { aliases += ["faq", "questions", "questions frequentes"] }
+            if title.contains("contact") { aliases += ["contact", "nous contacter"] }
+        }
+
+        return Array(Set(aliases.map(normalizedVoiceText).filter { !$0.isEmpty }))
+    }
+
+    private func editDistance(_ lhs: String, _ rhs: String) -> Int {
+        let a = Array(lhs)
+        let b = Array(rhs)
+        if a.isEmpty { return b.count }
+        if b.isEmpty { return a.count }
+        var previous = Array(0...b.count)
+        for (i, ca) in a.enumerated() {
+            var current = [i + 1] + Array(repeating: 0, count: b.count)
+            for (j, cb) in b.enumerated() {
+                let cost = ca == cb ? 0 : 1
+                current[j + 1] = min(
+                    current[j] + 1,
+                    previous[j + 1] + 1,
+                    previous[j] + cost
+                )
+            }
+            previous = current
+        }
+        return previous[b.count]
+    }
+
+    private func bestVoiceChoice(for normalized: String, choices: [WebsiteChoice]) -> WebsiteChoice? {
+        for choice in choices {
+            let aliases = aliasesForVoiceChoice(choice)
+            if aliases.contains(where: { alias in
+                normalized == alias || normalized.contains(" " + alias + " ") ||
+                normalized.hasPrefix(alias + " ") || normalized.hasSuffix(" " + alias) ||
+                normalized.contains(alias)
+            }) {
+                return choice
+            }
+        }
+
+        let spokenWords = normalized.split(separator: " ").map(String.init)
+        var best: (choice: WebsiteChoice, distance: Int)? = nil
+        for choice in choices {
+            for alias in aliasesForVoiceChoice(choice) {
+                guard !alias.contains(" "), alias.count >= 5 else { continue }
+                for word in spokenWords where word.count >= 5 {
+                    let distance = editDistance(word, alias)
+                    let allowed = max(word.count, alias.count) >= 8 ? 2 : 1
+                    if distance <= allowed && (best == nil || distance < best!.distance) {
+                        best = (choice, distance)
+                    }
+                }
+            }
+        }
+        return best?.choice
+    }
+
+    private func refersToFocusedChoice(_ normalized: String) -> Bool {
+        let phrases = [
+            "celui la", "celle la", "ce style", "ce mode", "cette option", "cette carte",
+            "je prends celui", "je prends celle", "je veux celui", "je veux celle",
+            "garde celui", "garde celle", "choisis celui", "choisis celle"
+        ]
+        return phrases.contains(where: normalized.contains)
+    }
+
     private func voiceChoiceIndex(from normalized: String, count: Int) -> Int? {
         let aliases: [(String, Int)] = [
             ("premier", 0), ("premiere", 0), ("un", 0), ("1", 0),
@@ -1209,8 +1416,16 @@ private struct WebsiteBuilderFlowView: View {
         }
 
         let choices = currentVoiceChoices
-        if let exact = choices.first(where: { normalized.contains(normalizedVoiceText($0.title)) }) {
-            applyVoiceChoice(exact)
+
+        if refersToFocusedChoice(normalized),
+           let focusedTitle = voiceFocusedOption,
+           let focusedChoice = choices.first(where: { $0.title == focusedTitle }) {
+            applyVoiceChoice(focusedChoice)
+            return
+        }
+
+        if let semanticChoice = bestVoiceChoice(for: normalized, choices: choices) {
+            applyVoiceChoice(semanticChoice)
             return
         }
         if let index = voiceChoiceIndex(from: normalized, count: choices.count) {
