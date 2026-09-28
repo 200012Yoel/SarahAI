@@ -1,4 +1,4 @@
-name: Upgrade Website Builder Logic
+name: Final Website Builder Compile Fix
 on:
   push:
     branches: [main]
@@ -14,9 +14,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply smarter website builder patch
-        run: python3 scripts/upgrade_website_builder_logic.py
-      - name: Commit website builder improvements
+      - name: Fix fuzzy voice matching compile
+        run: python3 scripts/fix_voice_edit_distance.py
+      - name: Commit compile fix
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@users.noreply.github.com"
@@ -25,12 +25,12 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes needed"
           else
-            git commit -m "Improve website builder menus and voice style recognition"
+            git commit -m "Fix fuzzy website style voice matching"
             git push origin HEAD:main
           fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting smarter website builder build v21"
+          echo "Starting final smarter website builder build v22"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
