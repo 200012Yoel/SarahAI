@@ -775,7 +775,6 @@ public final class MultiAgentCoordinator {
                 }
             }
         }
-        }
     }
     
     // Alias rétrocompatible
