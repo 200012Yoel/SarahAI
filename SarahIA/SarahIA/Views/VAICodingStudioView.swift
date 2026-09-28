@@ -166,7 +166,10 @@ public struct VAICodingStudioView: View {
                                 viewModel.isShowingWebsiteBuilder = true
                             }
                         } else {
-                            startSampleStreaming(prompt: "dashboard")
+                            presentationMode.wrappedValue.dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+                                viewModel.isShowingWebsiteBuilder = true
+                            }
                         }
                     }) {
                         HStack(spacing: 4) {
@@ -223,7 +226,8 @@ public struct VAICodingStudioView: View {
                     selectedTab = .editor
                 }
             } else {
-                startSampleStreaming(prompt: "dashboard")
+                codeText = ""
+                selectedTab = .editor
             }
         }
         .alert(isPresented: $isShowingExportAlert) {
@@ -580,7 +584,12 @@ public struct VAICodingStudioView: View {
     
     private func deployLiveOnline() {
         HapticService.shared.buttonTap()
-        let currentCode = codeText.isEmpty ? (viewModel.vaiCurrentCode ?? VAICodeEngine.shared.generateWebUI(prompt: "dashboard")) : codeText
+        let currentCode = codeText.isEmpty ? (viewModel.vaiCurrentCode ?? "") : codeText
+        guard !currentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            exportMessage = "Aucun site n'a encore été généré. Lance d'abord le créateur de site : Raphaël ne fabrique plus de dashboard de secours."
+            isShowingExportAlert = true
+            return
+        }
         let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-Live-App", htmlCode: currentCode)
         exportMessage = status
         isShowingExportAlert = true

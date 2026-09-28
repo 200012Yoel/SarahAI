@@ -692,12 +692,12 @@ private struct WebsiteBuilderFlowView: View {
         case 1:
             questionTitle(
                 "Quelle est l'idée du site ?",
-                subtitle: "Le nom est requis. L'objectif peut rester très court."
+                subtitle: "Donne un nom et explique ce que le site doit réellement proposer. Raphaël s'en sert pour construire le contenu."
             )
 
             VStack(spacing: 12) {
                 textField("Nom du site ou de la marque", text: $name)
-                textField("Objectif en une phrase (facultatif)", text: $purpose)
+                textField("Ce que le site doit proposer", text: $purpose)
             }
 
             chipSection(title: "Public visé", options: audiences, selection: $audience)
@@ -826,7 +826,9 @@ private struct WebsiteBuilderFlowView: View {
         case 0:
             return !category.isEmpty
         case 1:
-            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !audience.isEmpty
+            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case 2:
             return !designMood.isEmpty && !accent.isEmpty
         case 3:
@@ -1061,11 +1063,13 @@ private struct WebsiteBuilderFlowView: View {
         if step == 1 {
             voiceFocusedOption = nil
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                viewModel.speakWebsiteGuide("Tu es à la question du nom. Dis-moi librement le nom du site. Par exemple : le site s'appelle Horizon.")
+                viewModel.speakWebsiteGuide("Question deux. Dis-moi d'abord le nom du site. Tu peux répondre librement.")
+            } else if purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                viewModel.speakWebsiteGuide("Le site s'appelle \(name). Maintenant, explique-moi en une phrase ce qu'il doit proposer ou permettre de faire.")
             } else if audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                viewModel.speakWebsiteGuide("Le site s'appelle \(name). Dis-moi maintenant à qui il s'adresse. Tu peux choisir une carte ou répondre librement avec tes propres mots.")
+                viewModel.speakWebsiteGuide("J'ai compris l'objectif : \(purpose). Dis-moi maintenant à qui le site s'adresse. Tu peux choisir une carte ou répondre librement.")
             } else {
-                viewModel.speakWebsiteGuide("Le site s'appelle \(name) et le public choisi est \(audience). Tu peux dire suivant pour passer à l'ambiance graphique.")
+                viewModel.speakWebsiteGuide("J'ai le nom, l'objectif et le public. Tu peux dire suivant pour choisir l'ambiance graphique.")
             }
             return
         }
@@ -1074,7 +1078,7 @@ private struct WebsiteBuilderFlowView: View {
         guard !choices.isEmpty else { return }
         let spokenItems = choices.enumerated().map { index, choice in
             "Option \(index + 1). \(choice.title). \(choice.detail)."
-        } + ["Tu peux me dire le nom de l'option, son numéro, ou dire celui-là pendant qu'une carte est éclairée."]
+        } + ["Tu peux dire le nom, le numéro, ou dire celui-là pendant qu'une carte est éclairée."]
 
         viewModel.speakWebsiteGuideSequence(
             spokenItems,
@@ -1105,10 +1109,13 @@ private struct WebsiteBuilderFlowView: View {
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Tu es à la question 2 sur 5. Il me faut d'abord le nom du site. Tu peux me le dire librement."
             }
-            if audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Tu es à la question 2 sur 5. Le nom est \(name). Maintenant, dis-moi le public visé. Tu peux utiliser tes propres mots, il n'est pas obligé de correspondre à une carte."
+            if purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Tu es à la question 2 sur 5. Le nom est \(name). Maintenant, explique ce que le site doit réellement proposer."
             }
-            return "Tu es à la question 2 sur 5. Le site s'appelle \(name), pour \(audience). Tu peux continuer vers l'ambiance graphique."
+            if audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Tu es à la question 2 sur 5. Le nom et l'objectif sont notés. Maintenant, dis-moi le public visé avec tes propres mots."
+            }
+            return "Tu es à la question 2 sur 5. Le site s'appelle \(name), son objectif est \(purpose), pour \(audience). Tu peux continuer vers l'ambiance graphique."
         case 2:
             let modes = moodChoices.map(\.title).joined(separator: ", ")
             if designMood.isEmpty {
@@ -1287,45 +1294,41 @@ private struct WebsiteBuilderFlowView: View {
         return nil
     }
 
+    private func confirmVoiceChoiceAndAdvance(_ text: String, to nextStep: Int) {
+        let generation = UUID()
+        voiceGuideGeneration = generation
+        viewModel.speakWebsiteGuideSequence(
+            [text],
+            onItemStart: { _ in },
+            completion: {
+                guard voiceGuideGeneration == generation,
+                      viewModel.isShowingWebsiteBuilder else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { step = nextStep }
+                readCurrentVoiceOptions()
+            }
+        )
+    }
+
     private func applyVoiceChoice(_ choice: WebsiteChoice) {
         voiceFocusedOption = choice.title
         switch step {
         case 0:
             category = choice.title
-            viewModel.speakWebsiteGuide("Très bien. \(choice.title) est sélectionné.")
-            let captured = step
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                guard step == captured else { return }
-                withAnimation(.easeInOut(duration: 0.18)) { step = 1 }
-                readCurrentVoiceOptions()
-            }
+            confirmVoiceChoiceAndAdvance("Très bien. \(choice.title) est sélectionné.", to: 1)
         case 1:
             audience = choice.title
-            viewModel.speakWebsiteGuide("Public \(choice.title) sélectionné.")
-            if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    withAnimation(.easeInOut(duration: 0.18)) { step = 2 }
-                    readCurrentVoiceOptions()
-                }
+            if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                confirmVoiceChoiceAndAdvance("Public \(choice.title) sélectionné.", to: 2)
+            } else {
+                viewModel.speakWebsiteGuide("Public \(choice.title) sélectionné. Il me manque encore le nom ou l'objectif du site.")
             }
         case 2:
             designMood = choice.title
-            viewModel.speakWebsiteGuide("Ambiance \(choice.title) sélectionnée.")
-            let captured = step
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-                guard step == captured else { return }
-                withAnimation(.easeInOut(duration: 0.18)) { step = 3 }
-                readCurrentVoiceOptions()
-            }
+            confirmVoiceChoiceAndAdvance("Ambiance \(choice.title) sélectionnée.", to: 3)
         case 3:
             visualStyle = choice.title
-            viewModel.speakWebsiteGuide("Style \(choice.title) sélectionné.")
-            let captured = step
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
-                guard step == captured else { return }
-                withAnimation(.easeInOut(duration: 0.18)) { step = 4 }
-                readCurrentVoiceOptions()
-            }
+            confirmVoiceChoiceAndAdvance("Style \(choice.title) sélectionné. Cette direction sera réellement utilisée dans le rendu.", to: 4)
         default:
             if sections.contains(choice.title) {
                 sections.remove(choice.title)
@@ -1397,7 +1400,14 @@ private struct WebsiteBuilderFlowView: View {
                 }
                 if !proposed.isEmpty {
                     name = proposed.prefix(1).uppercased() + String(proposed.dropFirst())
-                    viewModel.speakWebsiteGuide("Parfait. Le site s'appellera \(name). Quel est le public visé ?")
+                    viewModel.speakWebsiteGuide("Parfait. Le site s'appellera \(name). Maintenant, explique-moi ce qu'il doit proposer.")
+                    return
+                }
+            } else if purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let proposedPurpose = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !proposedPurpose.isEmpty {
+                    purpose = proposedPurpose
+                    viewModel.speakWebsiteGuide("D'accord. J'ai noté l'objectif. Maintenant, à qui s'adresse le site ?")
                     return
                 }
             }
@@ -1425,7 +1435,8 @@ private struct WebsiteBuilderFlowView: View {
         // comme « tout public », « joueurs et familles » ou toute autre phrase
         // devient directement le public du brief au lieu d'être rejetée.
         if step == 1,
-           !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+           !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !purpose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let freeAudience = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !freeAudience.isEmpty {
                 audience = freeAudience

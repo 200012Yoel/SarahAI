@@ -425,7 +425,9 @@ public final class ChatViewModel: ObservableObject {
                     normalized.hasPrefix("arrete") || normalized.hasPrefix("pardon") ||
                     normalized.hasPrefix("sarah") || normalized.contains("c est pas ca") ||
                     normalized.contains("ce n est pas ca") || normalized.contains("pas celui la") ||
-                    normalized.contains("autre chose")
+                    normalized.contains("autre chose") || normalized.contains("laisse moi parler") ||
+                    normalized.contains("laisse moi") || normalized.contains("pas ca") ||
+                    normalized.contains("je veux autre")
                 if explicitInterrupt {
                     self.interruptVoiceResponse()
                     self.liveTranscriptionText = partial
@@ -802,9 +804,8 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
-    /// Génère réellement le site avec le moteur IA local à partir du brief.
-    /// Aucun template HTML prédéfini n'est utilisé et aucun faux résultat de secours
-    /// n'est injecté si le modèle ne renvoie pas un document valide.
+    /// Construit le site à partir du brief validé puis vérifie le rendu WebKit.
+    /// Aucun dashboard de secours n'est créé si le rendu échoue.
     public func completeWebsiteBrief(_ brief: WebsiteBrief) {
         activeAgent = .esther
         websiteDraft = brief
@@ -816,125 +817,47 @@ public final class ChatViewModel: ObservableObject {
         websiteGenerationID = generationID
 
         appendMessage(Message(
-            content: "💻 **Raphaël — génération réelle en cours**\n\nJe construis maintenant **\(brief.name)** à partir de ton brief. Le HTML, le CSS, les interactions et la mise en page vont être générés pour ce projet, sans maquette prédéfinie.",
+            content: "💻 **Raphaël — génération du site**\n\nJe construis **\(brief.name)** à partir du nom, de l'objectif, du public, du style et des sections que tu as choisis. Aucun dashboard de secours ne sera injecté.",
             isFromUser: false
         ))
 
         if isContinuousConversationActive {
-            speakWebsiteGuide("J'ai le brief. Je génère maintenant le vrai site, sans modèle prédéfini.")
+            speakWebsiteGuide("J'ai tout le brief. Je construis maintenant le site à partir de tes vrais choix.")
         }
 
-        requestGeneratedWebsite(brief, generationID: generationID, attempt: 0)
-    }
-
-    private func requestGeneratedWebsite(_ brief: WebsiteBrief, generationID: UUID, attempt: Int) {
-        let prompt = websiteGenerationPrompt(for: brief, retry: attempt > 0)
-
-        aiService.processQuery(prompt) { [weak self] rawResult in
+        let html = VAICodeEngine.shared.generateWebsiteFromBrief(brief)
+        VAICodeEngine.shared.runBrowserSmokeTest(html: html) { [weak self] report in
             DispatchQueue.main.async {
                 guard let self = self, self.websiteGenerationID == generationID else { return }
-
-                if let html = self.extractGeneratedWebsiteHTML(rawResult) {
-                    _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
-                    self.vaiCurrentCode = html
-                    self.websiteDraft = brief
+                guard report.passed else {
                     self.isTyping = false
                     self.voiceStatus = self.isContinuousConversationActive ? .processing : .idle
-
-                    let ready = "💻 **Raphaël — site généré**\n\nLe site **\(brief.name)** a été généré depuis zéro à partir de tes choix. Le fichier `index.html` contient le HTML, le CSS et le JavaScript créés pour ce brief.\n\n🧩 Ouvrir le Studio"
-                    self.appendMessage(Message(content: ready, isFromUser: false))
-                    self.aiService.recordExchange(userText: prompt, assistantResponse: "Site HTML généré et validé localement.")
-
+                    self.appendMessage(Message(
+                        content: "💻 **Raphaël — rendu bloqué avant publication**\n\nLe contrôle WebKit a trouvé un problème : \(report.details). Je n'ai pas remplacé le résultat par une page factice.",
+                        isFromUser: false
+                    ))
                     if self.isContinuousConversationActive {
-                        self.voiceManager.speak(
-                            text: "Le site \(brief.name) est généré. Tu peux ouvrir le rendu ou me demander de le modifier.",
-                            for: .esther
-                        )
+                        self.voiceManager.speak(text: "Le contrôle du rendu a détecté un problème. Je n'ai pas mis de faux site à la place.", for: .esther)
                     }
                     return
                 }
 
-                if attempt == 0 {
-                    self.requestGeneratedWebsite(brief, generationID: generationID, attempt: 1)
-                    return
-                }
-
+                _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: html)
+                self.vaiCurrentCode = html
+                self.websiteDraft = brief
                 self.isTyping = false
                 self.voiceStatus = self.isContinuousConversationActive ? .processing : .idle
-                let failure = "💻 **Raphaël — génération à reprendre**\n\nLe moteur n'a pas renvoyé un document HTML complet et valide. Je n'ai pas remplacé le résultat par un template générique. Relance la génération ou précise le contenu du site."
-                self.appendMessage(Message(content: failure, isFromUser: false))
+
+                self.appendMessage(Message(
+                    content: "💻 **Raphaël — site généré et testé**\n\n**\(brief.name)** a été construit depuis ton brief et vérifié dans WebKit sur un écran iPhone. Le résultat contient son propre HTML, CSS et JavaScript, sans dashboard par défaut.\n\n🧩 Ouvrir le Studio",
+                    isFromUser: false
+                ))
+
                 if self.isContinuousConversationActive {
-                    self.voiceManager.speak(
-                        text: "La génération n'a pas produit un site HTML valide. Je n'ai pas mis de faux template à la place.",
-                        for: .esther
-                    )
+                    self.voiceManager.speak(text: "Le site \(brief.name) est construit et le rendu iPhone a passé le test. Tu peux ouvrir le Studio.", for: .esther)
                 }
             }
         }
-    }
-
-    private func websiteGenerationPrompt(for brief: WebsiteBrief, retry: Bool) -> String {
-        let sectionList = brief.sections.joined(separator: ", ")
-        let retryInstruction = retry
-            ? "La réponse précédente n'était pas un document HTML valide. Cette fois, respecte strictement le format demandé."
-            : ""
-
-        return """
-        Tu es Raphaël, agent développeur. Génère réellement un site web complet et unique pour ce brief.
-        \(retryInstruction)
-
-        BRIEF
-        - Type : \(brief.category)
-        - Nom : \(brief.name)
-        - Objectif : \(brief.purpose.isEmpty ? "à déduire intelligemment du type et du nom" : brief.purpose)
-        - Public : \(brief.audience)
-        - Direction graphique : \(brief.visualStyle)
-        - Couleur d'accent : \(brief.accent)
-        - Sections demandées : \(sectionList)
-
-        CONTRAT DE GÉNÉRATION
-        1. Réponds UNIQUEMENT avec un document HTML5 complet, de <!doctype html> jusqu'à </html>. Aucun Markdown, aucune explication.
-        2. Tout le CSS et tout le JavaScript doivent être intégrés dans ce seul fichier HTML.
-        3. Ne réutilise aucun template, aucune maquette par défaut, aucun bloc générique pré-écrit et aucun asset externe.
-        4. N'utilise aucune URL d'image, CDN, police distante, logo de marque ou ressource réseau. Crée l'identité visuelle avec HTML/CSS, gradients, formes, typographie système et composants générés pour ce projet.
-        5. La direction graphique nommée dans le brief est une inspiration de langage visuel. Ne copie pas de page, logo, texte ou ressource propriétaire.
-        6. Le contenu doit être cohérent avec le nom, le type, l'objectif et le public. Évite les placeholders comme « Offre 01 », « Produit phare », « Lorem ipsum » ou « À personnaliser ».
-        7. Toutes les sections demandées doivent exister réellement dans la page et avoir une navigation fonctionnelle.
-        8. Ajoute des interactions JavaScript utiles au type de site. Pour une boutique : catalogue, panier local, quantité et total. Pour un restaurant : menu et réservation locale. Pour un voyage : recherche/filtre de destinations. Pour un portfolio : filtres de projets. Adapte la logique au brief.
-        9. Le site doit être responsive iPhone, tablette et ordinateur, accessible, rapide et utilisable hors ligne.
-        10. Le résultat doit avoir une vraie hiérarchie visuelle et ne doit pas ressembler au dashboard générique de Raphaël.
-        """
-    }
-
-    private func extractGeneratedWebsiteHTML(_ raw: String) -> String? {
-        var candidate = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        candidate = candidate
-            .replacingOccurrences(of: "```html", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let lower = candidate.lowercased()
-        let startIndex: String.Index?
-        if let doctype = lower.range(of: "<!doctype html>") {
-            startIndex = doctype.lowerBound
-        } else if let html = lower.range(of: "<html") {
-            startIndex = html.lowerBound
-        } else {
-            startIndex = nil
-        }
-
-        guard let startIndex else { return nil }
-        let sliced = String(candidate[startIndex...])
-        guard let endRange = sliced.lowercased().range(of: "</html>", options: .backwards) else { return nil }
-        let end = sliced.index(endRange.upperBound, offsetBy: 0)
-        let html = String(sliced[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let htmlLower = html.lowercased()
-
-        guard html.count >= 1500,
-              htmlLower.contains("<body"),
-              htmlLower.contains("<style"),
-              htmlLower.contains("</html>") else { return nil }
-        return html
     }
 
     private func appendMessage(_ msg: Message) {

@@ -633,7 +633,17 @@ public final class MultiAgentCoordinator {
         
         // 1. Préparation de publication : ne jamais inventer une URL publique.
         if lower.contains("met en ligne") || lower.contains("mettre en ligne") || lower.contains("deploie") || lower.contains("deploiement") || lower.contains("deploy") || lower.contains("publie") {
-            let currentCode = VAICodeEngine.shared.currentWebProjectHTML() ?? VAICodeEngine.shared.generateWebUI(prompt: "dashboard")
+            guard let currentCode = VAICodeEngine.shared.currentWebProjectHTML(),
+                  !currentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                completion(AgentResponse(
+                    agent: .esther,
+                    text: "💻 **Raphaël**
+
+Aucun vrai site n'est prêt à publier. Je ne crée plus de dashboard de secours. Dis « crée-moi un site » pour lancer le brief puis produire le fichier réel.",
+                    spokenText: "Aucun site réel n'est prêt. Je ne crée plus de faux dashboard de secours."
+                ))
+                return
+            }
             let (_, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-App", htmlCode: currentCode)
             completion(AgentResponse(
                 agent: .esther,

@@ -388,8 +388,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             let completion = sequenceCompletion
             clearSpeechSequence()
             completion?()
-            AudioSessionManager.shared.deactivateSession()
-            onSpeechFinished?()
+            // La completion peut démarrer immédiatement la voix de l'étape suivante.
+            // Dans ce cas, ne pas désactiver la session sous le nouvel énoncé.
+            if !synthesizer.isSpeaking {
+                AudioSessionManager.shared.deactivateSession()
+                onSpeechFinished?()
+            }
             return
         }
 
