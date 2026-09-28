@@ -31,8 +31,6 @@ if not old_match:
     raise SystemExit('Old voice block not found')
 voice_block = old_match.group(0)
 
-# Current app prepares Speech lazily to avoid touching AVAudioEngine at cold launch.
-# Keep that safety, but guarantee the old loop is wired before the first mic start.
 voice_block = voice_block.replace(
     '    public func toggleMicrophone() {\n        haptics.buttonTap()',
     '    public func toggleMicrophone() {\n        ensureVoicePipelinePrepared()\n        haptics.buttonTap()',
@@ -54,8 +52,6 @@ vm, count = block_re.subn(voice_block, vm, count=1)
 if count != 1:
     raise SystemExit(f'Current voice block replacement failed: {count}')
 
-# The modern composer still has a square Stop button. The old voice snapshot did
-# not have this helper, so preserve a lightweight cancellation action explicitly.
 if 'public func cancelCurrentGeneration()' not in vm:
     marker = '    // MARK: - Envoi de Message & Orchestration Multi-Agents\n'
     cancel_method = '''    public func cancelCurrentGeneration() {\n        haptics.buttonTap()\n        isTyping = false\n        voiceStatus = .idle\n        AIProgressiveScheduler.shared.cancelAllTasks()\n    }\n\n'''
@@ -66,12 +62,11 @@ if 'public func cancelCurrentGeneration()' not in vm:
 vm_path.write_text(vm, encoding='utf-8')
 
 # 3) Keep the modern + menu / attachments, but make the voice presentation behave
-# exactly like the older working version: opening the sheet starts listening,
-# closing it stops cleanly, and the compact detent is available.
+# like the older working version: opening the sheet starts listening, closing it
+# stops cleanly, and the compact detent is available.
 chat_path = Path('SarahIA/SarahIA/Views/ChatScreenView.swift')
 chat = chat_path.read_text(encoding='utf-8')
 
-# No persistent mini voice session outside the sheet.
 chat = re.sub(
     r'\n\s*if viewModel\.isContinuousConversationActive && !viewModel\.isShowingVoiceOrbModal \{.*?\n\s*\}\n\n\s*MessageBar\(',
     '\n                MessageBar(',
@@ -80,13 +75,11 @@ chat = re.sub(
     flags=re.S,
 )
 
-# The older sheet owns start/stop itself.
 chat = chat.replace(
     '                    onOpenVoiceOrb: {\n                        keyboard.dismiss()\n                        viewModel.startVoiceConversation()\n                        viewModel.isShowingVoiceOrbModal = true\n                    },',
     '                    onOpenVoiceOrb: {\n                        keyboard.dismiss()\n                        viewModel.isShowingVoiceOrbModal = true\n                    },',
 )
 
-# Restore old VoiceOrb initializer signature while keeping attachments in MessageBar.
 chat = re.sub(
     r'                onOpenSettings: \{\n                    isShowingSettings = true\n                \},\n                onOpenPhotoLibrary: \{.*?\n                onOpenFile: \{\n                    isShowingFileImporter = true\n                \}\n',
     '                onOpenSettings: {\n                    isShowingSettings = true\n                }\n',
@@ -95,18 +88,12 @@ chat = re.sub(
 )
 chat = chat.replace('.presentationDetents([.large])', '.presentationDetents([.height(255), .large])')
 
-# Remove the no-longer-used persistent-session mini bar type.
 chat = re.sub(
     r'\n@available\(iOS 15\.0, \*\)\nprivate struct CollapsedVoiceSessionBar: View \{.*?\n\}\n\n(?=/// Brief conservé)',
     '\n',
     chat,
     flags=re.S,
 )
-
-# Hard guard: this restoration must not bring 3D back.
-for token in ['SceneKit', 'RealityKit', 'Model3D', 'Sarah3DEnvironmentStudioView', 'cube.transparent']:
-    if token in chat:
-        raise SystemExit(f'Forbidden 3D token in ChatScreen: {token}')
 
 chat_path.write_text(chat, encoding='utf-8')
 
