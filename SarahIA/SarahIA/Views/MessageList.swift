@@ -10,6 +10,7 @@ public struct MessageList: View {
     public var onSelectSuggestion: ((String) -> Void)?
     public var onIntroduceSarah: (() -> Void)?
     public var onDismissKeyboard: (() -> Void)?
+    public var onRegenerate: ((Message) -> Void)?
     public var onOpenStudio: (() -> Void)?
     
     public init(
@@ -20,6 +21,7 @@ public struct MessageList: View {
         onSelectSuggestion: ((String) -> Void)? = nil,
         onIntroduceSarah: (() -> Void)? = nil,
         onDismissKeyboard: (() -> Void)? = nil,
+        onRegenerate: ((Message) -> Void)? = nil,
         onOpenStudio: (() -> Void)? = nil
     ) {
         self.messages = messages
@@ -29,6 +31,7 @@ public struct MessageList: View {
         self.onSelectSuggestion = onSelectSuggestion
         self.onIntroduceSarah = onIntroduceSarah
         self.onDismissKeyboard = onDismissKeyboard
+        self.onRegenerate = onRegenerate
         self.onOpenStudio = onOpenStudio
     }
     
@@ -47,6 +50,9 @@ public struct MessageList: View {
                                 isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
                                 onPlayTapped: {
                                     onToggleSpeech?(message)
+                                },
+                                onRegenerate: {
+                                    onRegenerate?(message)
                                 },
                                 onOpenStudio: onOpenStudio
                             )
@@ -88,7 +94,7 @@ public struct MessageList: View {
                 }
             }
             // Fermeture du clavier au glissement vers le bas
-            .gesture(
+            .simultaneousGesture(
                 DragGesture()
                     .onChanged { value in
                         if value.translation.height > 15 && isKeyboardVisible {

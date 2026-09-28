@@ -82,6 +82,15 @@ public struct ChatScreenView: View {
                     onDismissKeyboard: {
                         keyboard.dismiss()
                     },
+                    onRegenerate: { message in
+                        let prompt = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !prompt.isEmpty else { return }
+                        keyboard.dismiss()
+                        viewModel.cancelCurrentGeneration()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                            viewModel.sendMessage(prompt)
+                        }
+                    },
                     onOpenStudio: {
                         viewModel.isShowingVAICodingStudio = true
                     }

@@ -7,6 +7,7 @@ public struct ChatBubbleView: View {
     public let message: Message
     public var isSpeaking: Bool
     public var onSpeak: (() -> Void)?
+    public var onRegenerate: (() -> Void)?
     public var onOpenStudio: (() -> Void)?
 
     public init(
@@ -15,11 +16,13 @@ public struct ChatBubbleView: View {
         isPlayingAudio: Bool = false,
         onSpeak: (() -> Void)? = nil,
         onPlayTapped: (() -> Void)? = nil,
+        onRegenerate: (() -> Void)? = nil,
         onOpenStudio: (() -> Void)? = nil
     ) {
         self.message = message
         self.isSpeaking = isSpeaking || isPlayingAudio
         self.onSpeak = onSpeak ?? onPlayTapped
+        self.onRegenerate = onRegenerate
         self.onOpenStudio = onOpenStudio
     }
 
@@ -74,6 +77,25 @@ public struct ChatBubbleView: View {
                 .foregroundColor(Color.white.opacity(0.4))
                 .padding(.trailing, 4)
         }
+        .contentShape(Rectangle())
+        .contextMenu {
+            if !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button(action: {
+                    UIPasteboard.general.string = message.content
+                    HapticService.shared.notificationSuccess()
+                }) {
+                    Label("Copier", systemImage: "doc.on.doc")
+                }
+
+                Button(action: {
+                    HapticService.shared.buttonTap()
+                    onRegenerate?()
+                }) {
+                    Label("Régénérer", systemImage: "arrow.clockwise")
+                }
+            }
+        }
+        .accessibilityHint("Maintenez appuyé pour copier ou régénérer ce message")
     }
 
     private var aiBubble: some View {
