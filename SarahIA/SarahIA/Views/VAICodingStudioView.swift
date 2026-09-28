@@ -1,637 +1,237 @@
 import SwiftUI
 import WebKit
 
-/// Studio "VAI Coding" avec streaming direct token par token, prévisualisation interactive WKWebView,
-/// ingestion de maquettes Figma/Google Stitch et exportateur de raccourcis Apple (.shortcut).
+/// Studio Raphaël volontairement minimal :
+/// - Code : affiche et permet d'éditer le HTML/CSS/JS généré.
+/// - Vision : affiche exactement le rendu WebKit de ce code.
+/// Aucun générateur de secours, aucun menu Cloud/Figma/Raccourcis n'est présent ici.
 @available(iOS 14.0, *)
 public struct VAICodingStudioView: View {
     @ObservedObject var viewModel: ChatViewModel
-    @Environment(\.presentationMode) var presentationMode
-    
+    @Environment(\.presentationMode) private var presentationMode
+
     @State private var codeText: String = ""
-    @State private var selectedTab: StudioTab = .preview
-    @State private var projectTitle: String = "Composant VAI"
-    @State private var isStreaming: Bool = false
-    @State private var streamTimer: Timer?
-    @State private var isShowingExportAlert: Bool = false
-    @State private var exportMessage: String = ""
-    @State private var figmaTokensInput: String = ""
-    @State private var isShowingFigmaSheet: Bool = false
-    
-    enum StudioTab {
-        case preview
-        case editor
-        case shortcuts
-        case cloudDeploy
+    @State private var selectedTab: StudioTab = .code
+
+    private enum StudioTab: String {
+        case code
+        case vision
     }
-    
+
     public init(viewModel: ChatViewModel) {
         self.viewModel = viewModel
     }
 
-    private var isWebPreviewAvailable: Bool {
-        let lowercased = codeText.lowercased()
-        return lowercased.contains("<!doctype html") || lowercased.contains("<html")
+    private var hasHTML: Bool {
+        let lower = codeText.lowercased()
+        return (lower.contains("<!doctype html") || lower.contains("<html")) &&
+            lower.contains("<body") && lower.contains("</html>")
     }
-    
+
     public var body: some View {
         ZStack {
-            Color(red: 0.06, green: 0.06, blue: 0.08).ignoresSafeArea()
-            
+            Color.black.ignoresSafeArea()
+
             VStack(spacing: 0) {
-                // 1. Topbar du Studio VAI Coding
-                HStack(spacing: 12) {
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(8)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text("Studio VAI Coding")
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundColor(.white)
-                            
-                            // Badge Raphaël
-                            HStack(spacing: 3) {
-                                Circle().fill(Color(red: 0.15, green: 0.72, blue: 1.0)).frame(width: 6, height: 6)
-                                Text("Raphaël Engine")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-                            }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.15))
-                            .cornerRadius(6)
-                        }
-                        
-                        Text(isWebPreviewAvailable ? "Prévisualisation web locale" : "Code source local")
-                            .font(.system(size: 11))
-                            .foregroundColor(.gray)
-                    }
-                    
-                    Spacer()
-                    
-                    // Bouton Ingestion Figma / Tokens
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        isShowingFigmaSheet = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "square.and.pencil")
-                            Text("Figma / Stitch")
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color(red: 0.15, green: 0.72, blue: 1.0).opacity(0.25))
-                        .cornerRadius(8)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 10)
-                
-                // 2. Sélecteur d'Onglets (Rendu Live / Éditeur Code / Raccourcis Apple / Déploiement Cloud)
-                Picker("", selection: $selectedTab) {
-                    Text("🌐 Rendu Live").tag(StudioTab.preview)
-                    Text("💻 Code Source").tag(StudioTab.editor)
-                    Text("⚡ Raccourcis").tag(StudioTab.shortcuts)
-                    Text("🚀 Cloud & Déploiement").tag(StudioTab.cloudDeploy)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                
-                // 3. Contenu de l'Onglet Actif
-                if selectedTab == .preview {
-                    if isWebPreviewAvailable {
-                        // Prévisualisation Live WebKit réservée aux projets HTML.
-                        VAIWebViewRepresentable(htmlContent: codeText)
-                            .cornerRadius(16)
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 8)
-                            .shadow(color: Color.black.opacity(0.5), radius: 10)
+                header
+                tabSwitcher
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+
+                Group {
+                    if selectedTab == .code {
+                        codeView
                     } else {
-                        nonWebPreviewPlaceholder
-                    }
-                } else if selectedTab == .editor {
-                    // Éditeur de Code avec Streaming
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Éditeur Monopage (HTML/CSS/JS)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.gray)
-                            Spacer()
-                            if isStreaming {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                Text("Génération en cours...")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(red: 0.0, green: 0.8, blue: 1.0))
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        TextEditor(text: $codeText)
-                            .font(.system(size: 13, weight: .regular, design: .monospaced))
-                            .foregroundColor(Color(red: 0.4, green: 0.9, blue: 0.6))
-                            .background(Color(red: 0.03, green: 0.03, blue: 0.04))
-                            .cornerRadius(12)
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 8)
-                    }
-                } else if selectedTab == .shortcuts {
-                    // Compilateur & Exportateur Apple Shortcuts (.shortcut)
-                    shortcutsTabContent
-                } else {
-                    // Déploiement en Ligne, GitHub, Gmail & Play Console
-                    cloudDeployTabContent
-                }
-                
-                // 4. Barre d'Actions Inférieure
-                HStack(spacing: 8) {
-                    Button(action: {
-                        if viewModel.websiteDraft != nil {
-                            presentationMode.wrappedValue.dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                viewModel.isShowingWebsiteBuilder = true
-                            }
-                        } else {
-                            presentationMode.wrappedValue.dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
-                                viewModel.isShowingWebsiteBuilder = true
-                            }
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: viewModel.websiteDraft == nil ? "sparkles" : "slider.horizontal.3")
-                            Text(viewModel.websiteDraft == nil ? "Générer" : "Améliorer")
-                        }
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color(red: 0.15, green: 0.72, blue: 1.0))
-                        .cornerRadius(12)
-                    }
-                    
-                    Button(action: {
-                        deployLiveOnline()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "globe")
-                            Text("Préparer")
-                        }
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color(red: 0.10, green: 0.80, blue: 0.45))
-                        .cornerRadius(12)
-                    }
-                    
-                    Button(action: {
-                        openGitHubAuth()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "link")
-                            Text("GitHub")
-                        }
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(12)
+                        visionView
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .onAppear {
-            if let initial = viewModel.vaiCurrentCode, !initial.isEmpty {
-                self.codeText = initial
-                if !isWebPreviewAvailable {
-                    selectedTab = .editor
-                }
-            } else {
-                codeText = ""
-                selectedTab = .editor
-            }
+            codeText = viewModel.vaiCurrentCode ?? ""
+            selectedTab = hasHTML ? .vision : .code
         }
-        .alert(isPresented: $isShowingExportAlert) {
-            Alert(
-                title: Text("Exportation Apple Shortcuts"),
-                message: Text(exportMessage),
-                dismissButton: .default(Text("OK"))
-            )
+        .onReceive(viewModel.$vaiCurrentCode) { newCode in
+            guard let newCode = newCode,
+                  !newCode.isEmpty,
+                  newCode != codeText else { return }
+            codeText = newCode
         }
-        .sheet(isPresented: $isShowingFigmaSheet) {
-            figmaSheetView
+        .onDisappear {
+            persistEditedCode()
         }
     }
 
-    private var nonWebPreviewPlaceholder: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                .font(.system(size: 34, weight: .medium))
-                .foregroundColor(Color(red: 0.15, green: 0.72, blue: 1.0))
-            Text("Ce projet est prêt en code source")
-                .font(.headline)
-                .foregroundColor(.white)
-            Text("La prévisualisation intégrée est réservée aux pages web. Pour SwiftUI ou Python, ouvre le code source puis demande à Raphaël les améliorations souhaitées.")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
+    private var header: some View {
+        HStack(spacing: 12) {
             Button(action: {
-                selectedTab = .editor
+                HapticService.shared.buttonTap()
+                persistEditedCode()
+                presentationMode.wrappedValue.dismiss()
             }) {
-                Text("Voir le code source")
-                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 0.15, green: 0.52, blue: 0.96))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Circle())
             }
             .buttonStyle(PlainButtonStyle())
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
-    }
-    
-    // MARK: - Onglet Raccourcis Apple
-    
-    private var shortcutsTabContent: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Générateur de Raccourcis Apple (.shortcut)")
-                    .font(.system(size: 17, weight: .bold))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Raphaël")
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                
-                Text("Raphaël compile vos actions en flux d'automatisation iOS natifs exportables directement vers l'application Raccourcis.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.gray)
+
+                Text(hasHTML ? "Site généré" : "Aucun site généré")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(hasHTML ? Color.green.opacity(0.85) : Color.white.opacity(0.38))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            
-            VStack(spacing: 12) {
-                Button(action: {
-                    exportShortcut(title: "Sarah Quick Torch", prompt: "Allumer/Éteindre la torche")
-                }) {
-                    HStack {
-                        Image(systemName: "flashlight.on.fill")
-                            .foregroundColor(.yellow)
-                        VStack(alignment: .leading) {
-                            Text("Raccourci Torche Rapide")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Bascule matérielle instantanée")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(Color(red: 0.0, green: 0.7, blue: 0.9))
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                }
-                
-                Button(action: {
-                    exportShortcut(title: "Sarah Live Translate", prompt: "Traduction instantanée Yohan")
-                }) {
-                    HStack {
-                        Image(systemName: "character.book.closed.fill")
-                            .foregroundColor(.blue)
-                        VStack(alignment: .leading) {
-                            Text("Raccourci Traducteur Yohan")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Traduction FR ⇄ HE depuis le presse-papier")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundColor(Color(red: 0.0, green: 0.7, blue: 0.9))
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                }
-            }
-            .padding(.horizontal, 16)
-            
+
             Spacer()
         }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
     }
-    
-    // MARK: - Onglet Déploiement & Cloud (GitHub, Gmail, Google Play)
-    
-    private var cloudDeployTabContent: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("📦 Publication & intégrations développeur")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text("Raphaël prépare le fichier localement. Une publication réelle nécessite ensuite un dépôt ou un hébergeur connecté.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                
-                // 1. Préparation locale, sans fausse promesse d'URL publique
-                Button(action: {
-                    deployLiveOnline()
-                }) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(red: 0.10, green: 0.80, blue: 0.45).opacity(0.2))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "globe")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(Color(red: 0.10, green: 0.80, blue: 0.45))
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Préparer pour publication")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Enregistre le fichier avant une vraie publication GitHub ou hébergeur")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.up.right.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(Color(red: 0.10, green: 0.80, blue: 0.45))
-                    }
-                    .padding(14)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color(red: 0.10, green: 0.80, blue: 0.45).opacity(0.3), lineWidth: 1)
-                    )
-                }
-                .padding(.horizontal, 16)
-                
-                // 2. Bouton GitHub
-                Button(action: {
-                    openGitHubAuth()
-                }) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.purple.opacity(0.2))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "link.circle.fill")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.purple)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Se Connecter à GitHub")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Synchronise vos dépôts distants et commits Git")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(14)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal, 16)
-                
-                // 3. Bouton Google / Gmail
-                Button(action: {
-                    openGmail()
-                }) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red.opacity(0.2))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "envelope.fill")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.red)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Google & Messagerie Gmail")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Accès rapide à votre boîte de réception et alertes")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(14)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal, 16)
-                
-                // 4. Bouton Google Play Developer Console
-                Button(action: {
-                    openGooglePlayConsole()
-                }) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.2))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "gamecontroller.fill")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.blue)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Google Play Console (Développeur)")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Publication et gestion des bundles Android")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.gray)
-                    }
-                    .padding(14)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(14)
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
-            }
+
+    private var tabSwitcher: some View {
+        HStack(spacing: 6) {
+            tabButton(.code, title: "Code", icon: "chevron.left.forwardslash.chevron.right")
+            tabButton(.vision, title: "Vision", icon: "eye.fill")
         }
+        .padding(5)
+        .background(Color.white.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
     }
-    
-    // MARK: - Feuille d'Ingestion Figma / Stitch
-    
-    private var figmaSheetView: some View {
-        NavigationView {
-            ZStack {
-                Color(red: 0.08, green: 0.08, blue: 0.10).ignoresSafeArea()
-                
-                VStack(spacing: 16) {
-                    Text("Collez ici vos Design Tokens exportés (JSON, Figma Variables, Google Stitch) :")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                        .padding(.horizontal)
-                        .padding(.top)
-                    
-                    TextEditor(text: $figmaTokensInput)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundColor(.white)
-                        .background(Color.black)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                    
-                    Button(action: {
-                        HapticService.shared.buttonTap()
-                        let summary = VAICodeEngine.shared.ingestDesignTokens(jsonString: figmaTokensInput)
-                        viewModel.sendMessage(summary)
-                        isShowingFigmaSheet = false
-                        startSampleStreaming(prompt: "dashboard")
-                    }) {
-                        Text("Ingérer les Tokens & Coder")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(red: 0.15, green: 0.72, blue: 1.0))
-                            .cornerRadius(14)
-                            .padding(.horizontal)
-                            .padding(.bottom)
-                    }
-                }
+
+    private func tabButton(_ tab: StudioTab, title: String, icon: String) -> some View {
+        Button(action: {
+            HapticService.shared.buttonTap()
+            if tab == .vision {
+                persistEditedCode()
             }
-            .navigationTitle("🎨 Ingestion Figma / Stitch")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Fermer") { isShowingFigmaSheet = false }
-                }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                selectedTab = tab
             }
+        }) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 42)
+            .background(selectedTab == tab ? Color.white.opacity(0.13) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(tab == .vision && !hasHTML)
+        .opacity(tab == .vision && !hasHTML ? 0.36 : 1)
     }
-    
-    // MARK: - Streaming Token par Token
-    
-    private func startSampleStreaming(prompt: String) {
-        let fullCode = VAICodeEngine.shared.generateWebUI(prompt: prompt)
-        _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: fullCode)
-        viewModel.vaiCurrentCode = fullCode
-        
-        isStreaming = true
-        codeText = ""
-        streamTimer?.invalidate()
-        
-        let chars = Array(fullCode)
-        var currentIndex = 0
-        let chunkSize = 35 // Tokens par frame pour vitesse et fluidité
-        
-        streamTimer = Timer.scheduledTimer(withTimeInterval: 0.025, repeats: true) { timer in
-            if currentIndex < chars.count {
-                let nextIndex = min(currentIndex + chunkSize, chars.count)
-                let chunk = String(chars[currentIndex..<nextIndex])
-                codeText += chunk
-                currentIndex = nextIndex
+
+    private var codeView: some View {
+        Group {
+            if codeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                emptyState(
+                    icon: "chevron.left.forwardslash.chevron.right",
+                    title: "Pas encore de code",
+                    subtitle: "Quand Raphaël aura réellement généré un site, son fichier HTML apparaîtra ici."
+                )
             } else {
-                timer.invalidate()
-                isStreaming = false
+                TextEditor(text: $codeText)
+                    .font(.system(size: 12.5, weight: .regular, design: .monospaced))
+                    .foregroundColor(Color(red: 0.69, green: 0.95, blue: 0.77))
+                    .padding(12)
+                    .background(Color(red: 0.035, green: 0.038, blue: 0.045))
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
             }
         }
     }
-    
-    private func exportShortcut(title: String, prompt: String) {
-        HapticService.shared.buttonTap()
-        let shortcutContent = VAICodeEngine.shared.generateShortcutJSON(name: title, prompt: prompt)
-        _ = VAICodeEngine.shared.saveFile(filename: "\(title).json", content: shortcutContent)
-        exportMessage = "Raccourci « \(title) » généré avec succès ! Vous pouvez l'importer dans Apple Shortcuts."
-        isShowingExportAlert = true
-    }
-    
-    private func deployLiveOnline() {
-        HapticService.shared.buttonTap()
-        let currentCode = codeText.isEmpty ? (viewModel.vaiCurrentCode ?? "") : codeText
-        guard !currentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            exportMessage = "Aucun site n'a encore été généré. Lance d'abord le créateur de site : Raphaël ne fabrique plus de dashboard de secours."
-            isShowingExportAlert = true
-            return
+
+    private var visionView: some View {
+        Group {
+            if hasHTML {
+                VAIWebViewRepresentable(htmlContent: codeText)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 14)
+            } else {
+                emptyState(
+                    icon: "eye.slash",
+                    title: "Aucun rendu",
+                    subtitle: "Vision ne montre rien tant qu'un vrai document HTML n'a pas été généré."
+                )
+            }
         }
-        let (liveURL, status) = VAICodeEngine.shared.deployProjectOnline(projectName: "Sarah-Live-App", htmlCode: currentCode)
-        exportMessage = status
-        isShowingExportAlert = true
     }
-    
-    private func openGitHubAuth() {
-        HapticService.shared.buttonTap()
-        let url = VAICodeEngine.shared.getGitHubAuthURL()
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+
+    private func emptyState(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 30, weight: .medium))
+                .foregroundColor(.white.opacity(0.62))
+
+            Text(title)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+
+            Text(subtitle)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.45))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 34)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
-    private func openGmail() {
-        HapticService.shared.buttonTap()
-        let url = VAICodeEngine.shared.getGoogleMailURL()
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
-    }
-    
-    private func openGooglePlayConsole() {
-        HapticService.shared.buttonTap()
-        let url = VAICodeEngine.shared.getGooglePlayConsoleURL()
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+
+    private func persistEditedCode() {
+        let clean = codeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        viewModel.vaiCurrentCode = codeText
+        _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: codeText)
     }
 }
 
-/// Wrapper WKWebView pour l'affichage interactif en temps réel du composant web généré
+/// Prévisualisation WebKit du fichier généré. Aucun contenu par défaut n'est injecté.
 @available(iOS 14.0, *)
 public struct VAIWebViewRepresentable: UIViewRepresentable {
     public var htmlContent: String
-    
+
     public init(htmlContent: String) {
         self.htmlContent = htmlContent
     }
-    
+
     public func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         return webView
     }
-    
+
     public func updateUIView(_ uiView: WKWebView, context: Context) {
         uiView.loadHTMLString(htmlContent, baseURL: nil)
     }
