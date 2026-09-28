@@ -1,5 +1,26 @@
 import Foundation
 
+/// Données nécessaires à l'affichage d'une vidéo trouvée par Sarah.
+/// Elles sont transportées dans le texte du message sous forme de balise interne,
+/// afin de rester compatibles avec les anciennes conversations enregistrées.
+public struct SarahYouTubeCardPayload: Equatable {
+    public let videoId: String
+    public let query: String
+    public let title: String
+    public let channel: String
+    public let duration: String
+    public let thumbnailURL: String
+
+    public init(videoId: String, query: String, title: String, channel: String, duration: String, thumbnailURL: String) {
+        self.videoId = videoId
+        self.query = query
+        self.title = title
+        self.channel = channel
+        self.duration = duration
+        self.thumbnailURL = thumbnailURL
+    }
+}
+
 /// Représente un message dans la conversation entre l'utilisateur et Sarah AI.
 public struct Message: Identifiable, Equatable, Codable {
     public let id: UUID
@@ -44,6 +65,53 @@ public struct Message: Identifiable, Equatable, Codable {
         self.isGeneratingImage = isGeneratingImage
         self.imageGenerationPrompt = imageGenerationPrompt
         self.agentID = agentID
+    }
+
+    // MARK: - Cartes d'actions structurées
+
+    /// Détecte une vidéo YouTube réellement trouvée par YouTubeService.
+    public var detectedYouTubeCard: SarahYouTubeCardPayload? {
+        let prefix = "[[SARAH_YOUTUBE|"
+        guard let start = content.range(of: prefix),
+              let end = content.range(of: "]]", range: start.upperBound..<content.endIndex) else {
+            return nil
+        }
+
+        let body = String(content[start.upperBound..<end.lowerBound])
+        var values: [String: String] = [:]
+
+        for component in body.split(separator: "|") {
+            let pair = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2 else { continue }
+            let key = String(pair[0])
+            let encodedValue = String(pair[1])
+            values[key] = encodedValue.removingPercentEncoding ?? encodedValue
+        }
+
+        guard let videoId = values["videoId"], !videoId.isEmpty else { return nil }
+
+        return SarahYouTubeCardPayload(
+            videoId: videoId,
+            query: values["query"] ?? "",
+            title: values["title"] ?? "Vidéo YouTube",
+            channel: values["channel"] ?? "YouTube",
+            duration: values["duration"] ?? "",
+            thumbnailURL: values["thumb"] ?? "https://img.youtube.com/vi/\(videoId)/hqdefault.jpg"
+        )
+    }
+
+    /// Texte visible dans la bulle. Les balises internes servant aux cartes ne
+    /// sont jamais montrées à l'utilisateur.
+    public var contentWithoutInlinePayloads: String {
+        var visible = content
+        let prefix = "[[SARAH_YOUTUBE|"
+
+        while let start = visible.range(of: prefix),
+              let end = visible.range(of: "]]", range: start.upperBound..<visible.endIndex) {
+            visible.removeSubrange(start.lowerBound..<end.upperBound)
+        }
+
+        return visible.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Détecte si le message contient une image générée (URL Pollinations / Flux ou fichier local)
