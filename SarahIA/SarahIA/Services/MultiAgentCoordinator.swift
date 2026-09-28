@@ -637,9 +637,7 @@ public final class MultiAgentCoordinator {
                   !currentCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 completion(AgentResponse(
                     agent: .esther,
-                    text: "💻 **Raphaël**
-
-Aucun vrai site n'est prêt à publier. Je ne crée plus de dashboard de secours. Dis « crée-moi un site » pour lancer le brief puis produire le fichier réel.",
+                    text: "💻 **Raphaël**\n\nAucun vrai site n'est prêt à publier. Je ne crée plus de dashboard de secours. Dis « crée-moi un site » pour lancer le brief puis produire le fichier réel.",
                     spokenText: "Aucun site réel n'est prêt. Je ne crée plus de faux dashboard de secours."
                 ))
                 return
