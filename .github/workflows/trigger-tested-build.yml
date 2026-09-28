@@ -1,4 +1,4 @@
-name: Strict Real Website Compile Fix
+name: Interruptible Voice And Builder Sync
 on:
   push:
     branches: [main]
@@ -8,29 +8,31 @@ permissions:
   actions: write
   contents: write
 jobs:
-  fix-and-build:
+  patch-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fix coordinator brace
-        run: python3 scripts/fix_strict_web_brace.py
-      - name: Validate and commit compile fix
+      - name: Apply interruptible voice and builder synchronization fixes
+        run: python3 scripts/fix_interruptible_voice_and_builder_sync.py
+      - name: Validate and commit voice/menu fixes
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@users.noreply.github.com"
-          git add SarahIA/SarahIA/Services/MultiAgentCoordinator.swift
+          git add SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift \
+                  SarahIA/SarahIA/ViewModels/ChatViewModel.swift \
+                  SarahIA/SarahIA/Views/ChatScreenView.swift
           git diff --cached --check
           if git diff --cached --quiet; then
-            echo "Brace fix already applied"
+            echo "Voice/menu fixes already applied"
           else
-            git commit -m "Fix strict web generation coordinator compilation"
+            git commit -m "Make voice interruptible and stop automatic builder page jumps"
             git push origin HEAD:main
           fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting strict real generation build after compile fix"
+          echo "Starting interruptible voice and builder sync build"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
