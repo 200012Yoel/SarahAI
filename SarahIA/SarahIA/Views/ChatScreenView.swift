@@ -1232,8 +1232,7 @@ private struct WebsiteBuilderFlowView: View {
             for (j, cb) in b.enumerated() {
                 let cost = ca == cb ? 0 : 1
                 current[j + 1] = min(
-                    current[j] + 1,
-                    previous[j + 1] + 1,
+                    min(current[j] + 1, previous[j + 1] + 1),
                     previous[j] + cost
                 )
             }
