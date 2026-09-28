@@ -14,6 +14,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public var onSpeechFinished: (() -> Void)?
     private var pendingSpeechBlock: (() -> Void)? = nil
 
+    private var sequenceTexts: [String] = []
+    private var sequenceAgent: AgentType? = nil
+    private var sequenceIndex: Int = 0
+    private var sequenceItemStarted: ((Int) -> Void)? = nil
+    private var sequenceCompletion: (() -> Void)? = nil
+    private var isSequenceActive = false
+    private var suppressNextCancelCallback = false
+
     // Les voix sont résolues une fois puis conservées pendant la session.
     private var agentVoices: [AgentType: AVSpeechSynthesisVoice] = [:]
 
@@ -232,11 +240,71 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    private func clearSpeechSequence() {
+        sequenceTexts = []
+        sequenceAgent = nil
+        sequenceIndex = 0
+        sequenceItemStarted = nil
+        sequenceCompletion = nil
+        isSequenceActive = false
+    }
+
+    private func stopForReplacement() {
+        pendingSpeechBlock = nil
+        clearSpeechSequence()
+        if synthesizer.isSpeaking {
+            suppressNextCancelCallback = true
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+
+    private func speakNextSequenceItem() {
+        guard isSequenceActive,
+              let agent = sequenceAgent,
+              sequenceIndex < sequenceTexts.count else { return }
+
+        let currentIndex = sequenceIndex
+        sequenceItemStarted?(currentIndex)
+        let utterance = makeUtterance(text: sequenceTexts[currentIndex])
+        configureUtterance(utterance, for: agent)
+        synthesizer.speak(utterance)
+    }
+
+    /// Lit une liste d'énoncés l'un après l'autre en attendant la fin réelle de
+    /// chaque synthèse. Ceci remplace les délais estimés qui coupaient les cartes.
+    public func speakSequence(
+        texts: [String],
+        for agent: AgentType,
+        onItemStart: @escaping (Int) -> Void,
+        completion: @escaping () -> Void
+    ) {
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            AppleSpeechRecognizer.shared.stopListening()
+        }
+
+        stopForReplacement()
+        let cleaned = texts.map(cleanTextForSpeech).filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else {
+            completion()
+            return
+        }
+
+        sequenceTexts = cleaned
+        sequenceAgent = agent
+        sequenceIndex = 0
+        sequenceItemStarted = onItemStart
+        sequenceCompletion = completion
+        isSequenceActive = true
+
+        AudioSessionManager.shared.configurePlaybackSession()
+        speakNextSequenceItem()
+    }
+
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
             AppleSpeechRecognizer.shared.stopListening()
         }
-        stop()
+        stopForReplacement()
         pendingSpeechBlock = nil
 
         let cleaned = cleanTextForSpeech(text)
@@ -262,7 +330,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
             AppleSpeechRecognizer.shared.stopListening()
         }
-        stop()
+        stopForReplacement()
 
         let cleanTransition = cleanTextForSpeech(transitionText)
         let cleanAgent = cleanTextForSpeech(agentGreeting)
@@ -288,6 +356,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
 
     public func stop() {
         pendingSpeechBlock = nil
+        clearSpeechSequence()
+        suppressNextCancelCallback = false
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -308,6 +378,21 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        if isSequenceActive {
+            sequenceIndex += 1
+            if sequenceIndex < sequenceTexts.count {
+                speakNextSequenceItem()
+                return
+            }
+
+            let completion = sequenceCompletion
+            clearSpeechSequence()
+            completion?()
+            AudioSessionManager.shared.deactivateSession()
+            onSpeechFinished?()
+            return
+        }
+
         if let next = pendingSpeechBlock {
             pendingSpeechBlock = nil
             next()
@@ -318,6 +403,11 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        if suppressNextCancelCallback {
+            suppressNextCancelCallback = false
+            return
+        }
+        clearSpeechSequence()
         AudioSessionManager.shared.deactivateSession()
         onSpeechFinished?()
     }

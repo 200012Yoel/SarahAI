@@ -1053,14 +1053,6 @@ private struct WebsiteBuilderFlowView: View {
         }
     }
 
-    private func estimatedSpeechDuration(_ text: String) -> Double {
-        let words = max(1, text.split(whereSeparator: { $0.isWhitespace }).count)
-        // Marge volontairement confortable : AVSpeechSynthesizer peut ralentir
-        // selon la voix française choisie. L'ancienne estimation lançait parfois
-        // la carte suivante avant la fin de la phrase et coupait les derniers mots.
-        return max(5.0, Double(words) / 1.9 + 2.2)
-    }
-
     private func readCurrentVoiceOptions() {
         guard viewModel.isContinuousConversationActive else { return }
         let generation = UUID()
@@ -1071,7 +1063,7 @@ private struct WebsiteBuilderFlowView: View {
             if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 viewModel.speakWebsiteGuide("Tu es à la question du nom. Dis-moi librement le nom du site. Par exemple : le site s'appelle Horizon.")
             } else if audience.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                viewModel.speakWebsiteGuide("Le site s'appelle \(name). Dis-moi maintenant à qui il s'adresse. Tu peux choisir grand public, professionnels, familles, jeunes adultes, clients locaux ou international, mais tu peux aussi répondre avec ton propre public, avec tes mots.")
+                viewModel.speakWebsiteGuide("Le site s'appelle \(name). Dis-moi maintenant à qui il s'adresse. Tu peux choisir une carte ou répondre librement avec tes propres mots.")
             } else {
                 viewModel.speakWebsiteGuide("Le site s'appelle \(name) et le public choisi est \(audience). Tu peux dire suivant pour passer à l'ambiance graphique.")
             }
@@ -1079,30 +1071,27 @@ private struct WebsiteBuilderFlowView: View {
         }
 
         let choices = currentVoiceChoices
-        var delay: Double = 0
-        for (index, choice) in choices.enumerated() {
-            let spoken = "Option \(index + 1). \(choice.title). \(choice.detail)."
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                guard voiceGuideGeneration == generation,
-                      viewModel.isShowingWebsiteBuilder,
-                      viewModel.isContinuousConversationActive else { return }
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    voiceFocusedOption = choice.title
-                }
-                viewModel.speakWebsiteGuide(spoken)
-            }
-            delay += estimatedSpeechDuration(spoken)
-        }
+        guard !choices.isEmpty else { return }
+        let spokenItems = choices.enumerated().map { index, choice in
+            "Option \(index + 1). \(choice.title). \(choice.detail)."
+        } + ["Tu peux me dire le nom de l'option, son numéro, ou dire celui-là pendant qu'une carte est éclairée."]
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard voiceGuideGeneration == generation,
-                  viewModel.isShowingWebsiteBuilder,
-                  viewModel.isContinuousConversationActive else { return }
-            withAnimation(.easeInOut(duration: 0.22)) {
-                voiceFocusedOption = nil
+        viewModel.speakWebsiteGuideSequence(
+            spokenItems,
+            onItemStart: { index in
+                guard voiceGuideGeneration == generation,
+                      viewModel.isShowingWebsiteBuilder else { return }
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    voiceFocusedOption = index < choices.count ? choices[index].title : nil
+                }
+            },
+            completion: {
+                guard voiceGuideGeneration == generation else { return }
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    voiceFocusedOption = nil
+                }
             }
-            viewModel.speakWebsiteGuide("Tu peux me dire le nom de l'option ou son numéro. Tu peux aussi dire répète.")
-        }
+        )
     }
 
     private func currentStepStatusText() -> String {
@@ -1469,242 +1458,11 @@ private struct WebsiteBuilderFlowView: View {
             sections: finalSections
         )
 
-        // On conserve le flux existant de Raphaël (historique, message et voix),
-        // puis on remplace le HTML par la variante réellement stylée choisie ici.
         viewModel.completeWebsiteBrief(brief)
-        let styledHTML = generateStyledWebsiteHTML(brief)
-        _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: styledHTML)
-        viewModel.vaiCurrentCode = styledHTML
-        viewModel.websiteDraft = brief
         dismiss()
     }
 
-    private func generateStyledWebsiteHTML(_ brief: WebsiteBrief) -> String {
-        let siteName = escapeHTML(brief.name.isEmpty ? "Mon nouveau site" : brief.name)
-        let goal = escapeHTML(brief.purpose.isEmpty ? "Une expérience claire et adaptée à vos visiteurs." : brief.purpose)
-        let audience = escapeHTML(brief.audience.isEmpty ? "vos visiteurs" : brief.audience)
-        let category = escapeHTML(brief.category)
-        let style = brief.visualStyle
-        let colors = accentColors(brief.accent)
 
-        let nav = brief.sections.map { section in
-            let safe = escapeHTML(section)
-            let anchor = safe.replacingOccurrences(of: " ", with: "-")
-            return "<a href=\"#\(anchor)\">\(safe)</a>"
-        }.joined(separator: "")
-
-        let bodySections = brief.sections.map { sectionHTML($0, audience: audience) }.joined(separator: "\n")
-        let profile = designProfile(style: style, primary: colors.0, secondary: colors.1)
-
-        return """
-        <!doctype html>
-        <html lang="fr">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-          <meta name="theme-color" content="\(profile.themeColor)">
-          <title>\(siteName)</title>
-          <style>
-            \(profile.css)
-            * { box-sizing: border-box; }
-            html { scroll-behavior: smooth; }
-            body { margin: 0; min-height: 100vh; line-height: 1.5; }
-            button, a { -webkit-tap-highlight-color: transparent; }
-            .shell { width: min(1120px, 100%); margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 20px calc(42px + env(safe-area-inset-bottom)); }
-            nav { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 26px; }
-            .brand { font-size: 20px; font-weight: 800; letter-spacing: -.45px; }
-            .links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
-            .links a { text-decoration: none; font-size: 13px; font-weight: 650; }
-            .hero { position: relative; overflow: hidden; padding: clamp(46px, 8vw, 88px) clamp(24px, 6vw, 70px); }
-            .eyebrow { margin: 0 0 12px; font-size: 12px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
-            h1 { max-width: 760px; margin: 0; font-size: clamp(42px, 9vw, 82px); line-height: .98; letter-spacing: -.055em; }
-            .hero p { max-width: 650px; margin: 22px 0 0; font-size: clamp(16px, 2.4vw, 20px); }
-            .cta { margin-top: 28px; padding: 13px 18px; border: 0; font: inherit; font-weight: 750; cursor: pointer; }
-            section { margin: 24px 0; padding: clamp(24px, 5vw, 38px); }
-            h2 { margin: 0 0 10px; font-size: clamp(25px, 5vw, 38px); letter-spacing: -.03em; }
-            .intro { max-width: 760px; }
-            .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
-            .card { padding: 20px; }
-            .card b { display: block; margin-bottom: 7px; }
-            .card p { margin: 0; font-size: 14px; }
-            .contact { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-            .status { min-height: 24px; margin-top: 16px; font-size: 13px; font-weight: 650; }
-            footer { padding: 20px 4px 8px; text-align: center; font-size: 12px; opacity: .62; }
-            @media (max-width: 680px) {
-              .shell { padding-left: 12px; padding-right: 12px; }
-              nav { align-items: flex-start; flex-direction: column; }
-              .links { justify-content: flex-start; }
-              .cards { grid-template-columns: 1fr; }
-              .contact { align-items: flex-start; flex-direction: column; }
-            }
-          </style>
-        </head>
-        <body>
-          <main class="shell">
-            <nav>
-              <div class="brand">\(siteName)</div>
-              <div class="links">\(nav)</div>
-            </nav>
-
-            <header class="hero">
-              <p class="eyebrow">\(category) · style \(escapeHTML(style))</p>
-              <h1>\(siteName)</h1>
-              <p>\(goal)</p>
-              <button class="cta" onclick="showContact()">Découvrir</button>
-              <div id="contact-status" class="status" aria-live="polite"></div>
-            </header>
-
-            \(bodySections)
-
-            <footer>Maquette locale · direction graphique \(escapeHTML(style)) · créée avec Raphaël</footer>
-          </main>
-          <script>
-            function showContact() {
-              const node = document.getElementById('contact-status');
-              if (node) node.textContent = 'Interaction prête. Raphaël peut maintenant personnaliser cette action.';
-            }
-          </script>
-        </body>
-        </html>
-        """
-    }
-
-    private func sectionHTML(_ section: String, audience: String) -> String {
-        let safe = escapeHTML(section)
-        let anchor = safe.replacingOccurrences(of: " ", with: "-")
-
-        switch section {
-        case "Accueil":
-            return "<section id=\"\(anchor)\"><h2>Bienvenue</h2><p class=\"intro\">Une première page pensée pour \(audience).</p><div class=\"cards\"><article class=\"card\"><b>Clair</b><p>Une hiérarchie simple à comprendre.</p></article><article class=\"card\"><b>Responsive</b><p>Une mise en page adaptée à l’iPhone.</p></article><article class=\"card\"><b>Évolutif</b><p>Chaque bloc peut être modifié avec Raphaël.</p></article></div></section>"
-        case "À propos":
-            return "<section id=\"\(anchor)\"><h2>À propos</h2><p class=\"intro\">Présente ici l’histoire, les valeurs et l’identité du projet.</p></section>"
-        case "Produits / services":
-            return "<section id=\"\(anchor)\"><h2>Produits et services</h2><div class=\"cards\"><article class=\"card\"><b>Offre 01</b><p>Présente le produit ou service principal.</p></article><article class=\"card\"><b>Offre 02</b><p>Ajoute les détails utiles et le prix.</p></article><article class=\"card\"><b>Offre 03</b><p>Guide l’utilisateur vers l’action suivante.</p></article></div></section>"
-        case "Galerie":
-            return "<section id=\"\(anchor)\"><h2>Galerie</h2><div class=\"cards\"><article class=\"card\"><b>Projet 01</b><p>Emplacement pour une image ou réalisation.</p></article><article class=\"card\"><b>Projet 02</b><p>Un second contenu visuel.</p></article><article class=\"card\"><b>Projet 03</b><p>Une troisième mise en avant.</p></article></div></section>"
-        case "Avis clients":
-            return "<section id=\"\(anchor)\"><h2>Avis clients</h2><p class=\"intro\">« Ajoute ici un témoignage authentique qui explique la valeur du projet. »</p></section>"
-        case "FAQ":
-            return "<section id=\"\(anchor)\"><h2>FAQ</h2><div class=\"cards\"><article class=\"card\"><b>Comment ça marche ?</b><p>Ajoute une réponse concise.</p></article><article class=\"card\"><b>Quels sont les délais ?</b><p>Explique le fonctionnement.</p></article><article class=\"card\"><b>Comment vous contacter ?</b><p>Indique le canal de contact.</p></article></div></section>"
-        case "Contact":
-            return "<section id=\"\(anchor)\" class=\"contact\"><div><h2>Contact</h2><p class=\"intro\">Une question ? Cette zone est prête pour ton formulaire ou tes coordonnées.</p></div><button class=\"cta\" onclick=\"showContact()\">Contacter</button></section>"
-        default:
-            return "<section id=\"\(anchor)\"><h2>\(safe)</h2><p class=\"intro\">Cette section est prête à être personnalisée.</p></section>"
-        }
-    }
-
-    private func designProfile(style: String, primary: String, secondary: String) -> (themeColor: String, css: String) {
-        var n = style.lowercased()
-        let originalStyle = n
-        if n.contains("nike") || n.contains("tesla") { n = "tesla" }
-        else if n.contains("booking") || n.contains("expedia") || n.contains("opentable") { n = "airbnb" }
-        else if n.contains("national geographic") || n.contains("michelin") { n = "notion" }
-        else if n.contains("uber eats") || n.contains("deliveroo") { n = "shopify" }
-        else if n.contains("behance") || n.contains("adobe") { n = "linear" }
-        else if n.contains("salesforce") || n.contains("ticketmaster") { n = "microsoft" }
-        else if n.contains("eventbrite") { n = "stripe" }
-        else if n.contains("spotify") { n = "linear" }
-        var theme = "#000000"
-        var ink = "#f5f5f7"
-        var muted = "#a1a1a6"
-        var surface = "rgba(28,28,30,.78)"
-        var soft = "#000000"
-        var line = "rgba(255,255,255,.12)"
-        var a1 = primary
-        var a2 = secondary
-        var font = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif"
-        var radius = "30px"
-        var cardRadius = "20px"
-        var buttonRadius = "999px"
-        var bodyBackground = "radial-gradient(circle at 50% -10%, rgba(10,132,255,.18), transparent 34%), #000"
-        var heroBackground = "linear-gradient(145deg, rgba(255,255,255,.105), rgba(255,255,255,.025))"
-        var shadow = "0 34px 90px rgba(0,0,0,.42)"
-
-        if originalStyle.contains("amazon") {
-            return (
-                "#FFFFFF",
-                """
-                :root { --primary: #FF9900; --secondary: #146EB4; --ink: #0F1111; --muted: #565959; --surface: #ffffff; --soft: #f3f3f3; --line: #d5d9d9; }
-                body { color: var(--ink); background: #eaeded; font-family: Arial, "Helvetica Neue", sans-serif; }
-                nav { background: #131921; color: #fff; padding: 14px 18px; border-radius: 10px; }
-                .links a { color: #fff; padding: 7px 10px; border-radius: 4px; }
-                .hero { border-radius: 14px; color: #111; background: linear-gradient(135deg, #fff 0%, #fff8eb 100%); border: 1px solid #d5d9d9; box-shadow: 0 8px 28px rgba(15,17,17,.10); }
-                .eyebrow { color: #146EB4; }
-                .hero p, .intro, .card p { color: var(--muted); }
-                .cta { color: #111; background: #FFD814; border-radius: 999px; box-shadow: 0 2px 5px rgba(213,217,217,.55); }
-                section { border-radius: 12px; background: #fff; border: 1px solid #d5d9d9; }
-                .card { border-radius: 10px; background: #fff; border: 1px solid #d5d9d9; }
-                """
-            )
-        }
-
-        if n.contains("google") {
-            theme = "#F8FAFD"; ink = "#202124"; muted = "#5f6368"; surface = "#ffffff"; soft = "#f8fafd"; line = "#e1e3e7"
-            a1 = "#4285F4"; a2 = "#34A853"; font = "Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-            radius = "34px"; cardRadius = "22px"; bodyBackground = "radial-gradient(circle at 12% 0%, rgba(66,133,244,.15), transparent 22%), radial-gradient(circle at 82% 4%, rgba(234,67,53,.12), transparent 20%), radial-gradient(circle at 64% 28%, rgba(251,188,5,.11), transparent 18%), #f8fafd"; heroBackground = "linear-gradient(135deg, rgba(66,133,244,.10), rgba(52,168,83,.08) 45%, rgba(251,188,5,.10))"; shadow = "0 2px 10px rgba(60,64,67,.10)"
-        } else if n.contains("tesla") {
-            theme = "#F4F4F4"; ink = "#111111"; muted = "#666666"; surface = "#ffffff"; soft = "#f4f4f4"; line = "#dedede"
-            a1 = "#111111"; a2 = "#666666"; font = "Arial, 'Helvetica Neue', sans-serif"; radius = "4px"; cardRadius = "3px"; buttonRadius = "3px"; bodyBackground = "#f4f4f4"; heroBackground = "linear-gradient(180deg, #202020 0%, #060606 100%)"; shadow = "none"
-        } else if n.contains("microsoft") {
-            theme = "#0F1115"; ink = "#f5f5f5"; muted = "#b6bbc4"; surface = "rgba(35,38,44,.82)"; soft = "#111318"; line = "rgba(255,255,255,.10)"
-            a1 = "#0078D4"; a2 = "#4CC2FF"; font = "'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif"; radius = "16px"; cardRadius = "10px"; buttonRadius = "8px"; bodyBackground = "radial-gradient(circle at 85% -10%, rgba(0,120,212,.30), transparent 36%), #0f1115"; heroBackground = "linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.035))"; shadow = "0 22px 70px rgba(0,0,0,.35)"
-        } else if n.contains("stripe") {
-            theme = "#F6F9FC"; ink = "#0A2540"; muted = "#425466"; surface = "rgba(255,255,255,.90)"; soft = "#f6f9fc"; line = "rgba(10,37,64,.10)"
-            a1 = "#635BFF"; a2 = "#00D4FF"; cardRadius = "18px"; bodyBackground = "linear-gradient(140deg, #f6f9fc 0%, #eef4ff 55%, #f9f2ff 100%)"; heroBackground = "linear-gradient(120deg, rgba(99,91,255,.18), rgba(0,212,255,.15), rgba(255,82,191,.12))"; shadow = "0 30px 80px rgba(50,50,93,.13)"
-        } else if n.contains("airbnb") {
-            theme = "#FFFDFC"; ink = "#222222"; muted = "#717171"; surface = "#ffffff"; soft = "#fffdfc"; line = "#e7e7e7"
-            a1 = "#FF385C"; a2 = "#E31C5F"; radius = "34px"; buttonRadius = "12px"; bodyBackground = "#fffdfc"; heroBackground = "linear-gradient(145deg, #4b2730, #b82647 58%, #ff6b81)"; shadow = "0 22px 60px rgba(0,0,0,.14)"
-        } else if n.contains("shopify") {
-            theme = "#F4F7F2"; ink = "#202223"; muted = "#6D7175"; surface = "#ffffff"; soft = "#f4f7f2"; line = "#dfe3df"
-            a1 = "#008060"; a2 = "#95BF47"; radius = "22px"; cardRadius = "14px"; buttonRadius = "8px"; bodyBackground = "#f4f7f2"; heroBackground = "linear-gradient(135deg, #004c3f, #008060 62%, #95BF47)"; shadow = "0 18px 50px rgba(0,76,63,.14)"
-        } else if n.contains("notion") {
-            theme = "#FFFFFF"; ink = "#111111"; muted = "#6b6b6b"; surface = "#ffffff"; soft = "#ffffff"; line = "#e5e5e5"
-            a1 = "#111111"; a2 = "#555555"; font = "Georgia, 'Times New Roman', serif"; radius = "8px"; cardRadius = "5px"; buttonRadius = "5px"; bodyBackground = "#fff"; heroBackground = "#fff"; shadow = "0 8px 26px rgba(0,0,0,.04)"
-        } else if n.contains("linear") {
-            theme = "#08090B"; ink = "#f4f4f5"; muted = "#9b9ba4"; surface = "rgba(18,18,24,.86)"; soft = "#08090b"; line = "rgba(255,255,255,.09)"
-            a1 = "#5E6AD2"; a2 = "#8B7CFF"; radius = "24px"; cardRadius = "14px"; buttonRadius = "9px"; bodyBackground = "radial-gradient(circle at 50% -12%, rgba(94,106,210,.32), transparent 36%), #08090b"; heroBackground = "linear-gradient(145deg, rgba(94,106,210,.13), rgba(255,255,255,.025))"; shadow = "0 30px 90px rgba(0,0,0,.46)"
-        } else if n.contains("sarah") {
-            theme = "#05070A"; ink = "#f7fbff"; muted = "#aeb8c6"; surface = "rgba(16,22,30,.76)"; soft = "#05070a"; line = "rgba(148,220,255,.14)"
-            a1 = "#64D2FF"; a2 = "#7D6CFF"; radius = "34px"; cardRadius = "18px"; bodyBackground = "radial-gradient(circle at 12% 0%, rgba(100,210,255,.18), transparent 30%), radial-gradient(circle at 90% 10%, rgba(125,108,255,.17), transparent 30%), #05070a"; heroBackground = "linear-gradient(145deg, rgba(100,210,255,.10), rgba(125,108,255,.07), rgba(255,255,255,.02))"; shadow = "0 32px 90px rgba(0,0,0,.48)"
-        }
-
-        let darkHero = n.contains("tesla") || n.contains("microsoft") || n.contains("airbnb") || n.contains("shopify") || n.contains("linear") || n.contains("sarah") || n.contains("apple")
-        let heroInk = darkHero ? "#ffffff" : ink
-        let heroMuted = darkHero ? "rgba(255,255,255,.82)" : muted
-
-        return (theme, """
-        :root { --primary: \(a1); --secondary: \(a2); --ink: \(ink); --muted: \(muted); --surface: \(surface); --soft: \(soft); --line: \(line); }
-        body { color: var(--ink); background: \(bodyBackground); font-family: \(font); }
-        .links a { color: var(--ink); padding: 8px 12px; border-radius: \(buttonRadius); background: color-mix(in srgb, var(--surface) 75%, transparent); }
-        .hero { border-radius: \(radius); color: \(heroInk); background: \(heroBackground); border: 1px solid var(--line); box-shadow: \(shadow); backdrop-filter: blur(22px); }
-        .eyebrow { color: var(--primary); }
-        .hero p { color: \(heroMuted); }
-        .intro, .card p { color: var(--muted); }
-        .cta { color: #fff; background: linear-gradient(135deg, var(--primary), var(--secondary)); border-radius: \(buttonRadius); box-shadow: 0 8px 26px color-mix(in srgb, var(--primary) 22%, transparent); }
-        section { border-radius: \(radius); background: var(--surface); border: 1px solid var(--line); backdrop-filter: blur(16px); }
-        .card { border-radius: \(cardRadius); background: color-mix(in srgb, var(--surface) 82%, var(--soft)); border: 1px solid var(--line); }
-        """)
-    }
-
-    private func accentColors(_ accent: String) -> (String, String) {
-        switch accent.lowercased() {
-        case "bleu": return ("#0A84FF", "#64D2FF")
-        case "rose": return ("#FF2D55", "#FF7A9A")
-        case "orange": return ("#FF9500", "#FFD60A")
-        case "vert": return ("#30D158", "#63E6BE")
-        case "noir & blanc": return ("#8E8E93", "#E5E5EA")
-        default: return ("#7C5CFF", "#BF5AF2")
-        }
-    }
-
-    private func escapeHTML(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
-    }
 }
 
 @available(iOS 15.0, *)
