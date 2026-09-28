@@ -1,4 +1,4 @@
-name: Rebuild Real Website Generation And Voice
+name: Rebuild Real Website Generation And Voice V2
 on:
   push:
     branches: [main]
@@ -14,8 +14,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply real brief website generator and voice overhaul
-        run: python3 scripts/rebuild_real_website_generation_and_voice.py
+      - name: Apply no-fallback site and voice overhaul
+        run: python3 scripts/rebuild_real_website_generation_and_voice_v2.py
       - name: Validate and commit overhaul
         run: |
           git config user.name "SarahIA Build Bot"
@@ -30,12 +30,12 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes needed"
           else
-            git commit -m "Remove fallback dashboards and rebuild website generation"
+            git commit -m "Remove fake dashboard fallback and rebuild site flow"
             git push origin HEAD:main
           fi
       - name: Start SarahIA iOS device build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Starting no-fallback website generator build v24"
+          echo "Starting no-fallback site generator build v25"
           gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
