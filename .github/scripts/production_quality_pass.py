@@ -115,10 +115,10 @@ new_audit_tail = '''        if lower.contains("@media") || lower.contains("clamp
         if lower.contains("<html lang=") { passed.append("Langue du document") } else { errors.append("Attribut lang manquant") }
         if lower.contains("<main") { passed.append("Structure sémantique") } else { warnings.append("Balise main absente") }
         if lower.contains("document.write(") { warnings.append("document.write() détecté") }
-        if lower.contains("href=\"#\"") || lower.contains("href='#'") { warnings.append("Lien # sans destination détecté") }
+        if lower.contains("href=\\\"#\\\"") || lower.contains("href='#'") { warnings.append("Lien # sans destination détecté") }
         if lower.contains("javascript:void") { warnings.append("Lien javascript:void détecté") }
         if lower.contains("<button") && !lower.contains("<script") { errors.append("Boutons présents sans JavaScript") }
-        if lower.contains("<form") && !lower.contains("onsubmit") && !lower.contains("addeventlistener('submit") && !lower.contains("addeventlistener(\"submit") { warnings.append("Formulaire sans gestion de soumission détectée") }
+        if lower.contains("<form") && !lower.contains("onsubmit") && !lower.contains("addeventlistener('submit") && !lower.contains("addeventlistener(\\\"submit") { warnings.append("Formulaire sans gestion de soumission détectée") }
         if html.count > 750_000 { warnings.append("Document très volumineux") }
 
         return SarahWebAuditReport(errors: errors, warnings: warnings, passedChecks: passed)
