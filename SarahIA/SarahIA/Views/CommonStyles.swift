@@ -23,7 +23,11 @@ extension Color {
     public static let sarahIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)
 }
 
-/// Surface Liquid Glass de Sarah, avec effet natif récent et fallback Material.
+/// Surface Liquid Glass de Sarah.
+///
+/// Important : cette couche est strictement décorative. Elle ne doit jamais
+/// devenir une surface interactive indépendante, sinon elle peut capturer les
+/// touchers destinés aux Button, Menu et TextField qui l'utilisent comme label.
 @available(iOS 15.0, *)
 public struct SarahLiquidGlassModifier: ViewModifier {
     public let cornerRadius: CGFloat
@@ -72,19 +76,42 @@ public struct SarahLiquidGlassModifier: ViewModifier {
     private func nativeGlass(content: Content) -> some View {
         let glassTint = max(0.03, min(0.18, effectiveIntensity * 1.20))
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
         if prefersReducedEffects {
             content
-                .glassEffect(.regular.tint(tint.opacity(glassTint)), in: .rect(cornerRadius: cornerRadius))
-                .overlay(shape.stroke(Color.white.opacity(0.16), lineWidth: 0.6).allowsHitTesting(false))
+                .glassEffect(
+                    .regular.tint(tint.opacity(glassTint)),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+                .overlay(
+                    shape
+                        .stroke(Color.white.opacity(0.16), lineWidth: 0.6)
+                        .allowsHitTesting(false)
+                )
                 .shadow(color: Color.black.opacity(0.10), radius: 7, x: 0, y: 3)
         } else {
             content
-                .glassEffect(.regular.tint(tint.opacity(glassTint)).interactive(), in: .rect(cornerRadius: cornerRadius))
+                // Ne pas utiliser `.interactive()` ici. Le contrôle parent
+                // (Button/Menu/TextField) est l'unique propriétaire du toucher.
+                .glassEffect(
+                    .regular.tint(tint.opacity(glassTint)),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
                 .overlay(
-                    shape.stroke(
-                        LinearGradient(colors: [Color.white.opacity(0.28), Color.white.opacity(0.08), tint.opacity(0.12)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 0.65
-                    ).allowsHitTesting(false)
+                    shape
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.28),
+                                    Color.white.opacity(0.08),
+                                    tint.opacity(0.12)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.65
+                        )
+                        .allowsHitTesting(false)
                 )
                 .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 6)
         }
@@ -93,9 +120,22 @@ public struct SarahLiquidGlassModifier: ViewModifier {
     private func opaqueAccessibleGlass(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return content
-            .background(shape.fill(Color(uiColor: .secondarySystemBackground).opacity(0.97)).overlay(shape.fill(tint.opacity(min(0.08, effectiveIntensity * 0.45)))))
+            .background(
+                shape
+                    .fill(Color(uiColor: .secondarySystemBackground).opacity(0.97))
+                    .overlay(
+                        shape
+                            .fill(tint.opacity(min(0.08, effectiveIntensity * 0.45)))
+                            .allowsHitTesting(false)
+                    )
+                    .allowsHitTesting(false)
+            )
             .clipShape(shape)
-            .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 0.7))
+            .overlay(
+                shape
+                    .stroke(Color.white.opacity(0.12), lineWidth: 0.7)
+                    .allowsHitTesting(false)
+            )
     }
 
     private func legacyGlass(content: Content) -> some View {
@@ -103,13 +143,18 @@ public struct SarahLiquidGlassModifier: ViewModifier {
         let highlightOpacity = prefersReducedEffects ? 0.11 : 0.18
         let shadowRadius: CGFloat = prefersReducedEffects ? 7 : 12
         let shadowY: CGFloat = prefersReducedEffects ? 3 : 6
+
         return content
             .background(
                 ZStack {
                     shape.fill(prefersReducedEffects ? .thinMaterial : .ultraThinMaterial)
                     shape.fill(
                         LinearGradient(
-                            colors: [tint.opacity(max(0.02, min(0.10, effectiveIntensity * 0.70))), Color.white.opacity(prefersReducedEffects ? 0.025 : 0.045), Color.black.opacity(0.035)],
+                            colors: [
+                                tint.opacity(max(0.02, min(0.10, effectiveIntensity * 0.70))),
+                                Color.white.opacity(prefersReducedEffects ? 0.025 : 0.045),
+                                Color.black.opacity(0.035)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -117,24 +162,60 @@ public struct SarahLiquidGlassModifier: ViewModifier {
                     if !prefersReducedEffects {
                         shape.fill(
                             LinearGradient(
-                                stops: [.init(color: Color.white.opacity(highlightOpacity), location: 0), .init(color: Color.white.opacity(0.055), location: 0.30), .init(color: Color.clear, location: 0.58)],
+                                stops: [
+                                    .init(color: Color.white.opacity(highlightOpacity), location: 0),
+                                    .init(color: Color.white.opacity(0.055), location: 0.30),
+                                    .init(color: Color.clear, location: 0.58)
+                                ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
-                        ).blendMode(.screen)
+                        )
+                        .blendMode(.screen)
                     }
                 }
+                .allowsHitTesting(false)
             )
             .clipShape(shape)
-            .overlay(shape.stroke(LinearGradient(colors: [Color.white.opacity(prefersReducedEffects ? 0.16 : 0.24), tint.opacity(0.10), Color.white.opacity(0.035)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.7))
-            .shadow(color: Color.black.opacity(prefersReducedEffects ? 0.11 : 0.18), radius: shadowRadius, x: 0, y: shadowY)
+            .overlay(
+                shape
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(prefersReducedEffects ? 0.16 : 0.24),
+                                tint.opacity(0.10),
+                                Color.white.opacity(0.035)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.7
+                    )
+                    .allowsHitTesting(false)
+            )
+            .shadow(
+                color: Color.black.opacity(prefersReducedEffects ? 0.11 : 0.18),
+                radius: shadowRadius,
+                x: 0,
+                y: shadowY
+            )
     }
 }
 
 @available(iOS 15.0, *)
 extension View {
-    public func sarahLiquidGlass(cornerRadius: CGFloat = 22, tint: Color = .white, intensity: Double = 0.14) -> some View {
-        modifier(SarahLiquidGlassModifier(cornerRadius: cornerRadius, tint: tint, intensity: intensity))
+    public func sarahLiquidGlass(
+        cornerRadius: CGFloat = 22,
+        tint: Color = .white,
+        intensity: Double = 0.14
+    ) -> some View {
+        modifier(
+            SarahLiquidGlassModifier(
+                cornerRadius: cornerRadius,
+                tint: tint,
+                intensity: intensity
+            )
+        )
     }
 }
 #endif
