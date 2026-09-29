@@ -1,4 +1,4 @@
-name: SarahIA Cleanup And Rebuild
+name: SarahIA Real Generation Rebuild
 on:
   push:
     branches: [main]
@@ -8,34 +8,41 @@ permissions:
   actions: write
   contents: write
 jobs:
-  cleanup:
+  upgrade-and-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Remove every iOS Shortcuts feature
+      - name: Keep iOS Shortcuts fully removed
         run: python3 scripts/remove_ios_shortcuts_everywhere.py
-      - name: Validate cleanup
+      - name: Upgrade real website and image generation
+        run: python3 scripts/upgrade_real_generation_pipeline.py
+      - name: Validate source changes
         run: |
           set -e
           ! test -f SarahIA/SarahIA/Services/ShortcutGenerator.swift
           ! grep -q 'ShortcutGenerator.swift' SarahIA/SarahIA.xcodeproj/project.pbxproj
           ! grep -R -n -E 'generateAppleShortcut|generateShortcutJSON|ShortcutGenerator' SarahIA/SarahIA --include='*.swift'
-          grep -q 'contextMenu' SarahIA/SarahIA/Views/ChatBubbleView.swift
+          grep -q 'generateLocalCodeDocument' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'localAgenticBuild' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'SarahGeneratedImageReady' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'imageData' SarahIA/SarahIA/Views/ChatBubbleView.swift
           git diff --check
-      - name: Commit cleanup
+      - name: Commit upgraded runtime
         run: |
           git config user.name "SarahIA Build Bot"
           git config user.email "actions@users.noreply.github.com"
           git add -A SarahIA/SarahIA SarahIA/SarahIA.xcodeproj/project.pbxproj
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo "Cleanup already applied"
-            gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
-          else
-            git commit -m "Remove all iOS Shortcuts functionality"
+          if ! git diff --cached --quiet; then
+            git commit -m "Use real local web and image generation pipelines"
             git push origin HEAD:main
+          else
+            echo "Generation upgrades already applied"
           fi
+      - name: Start final SarahIA device build
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
