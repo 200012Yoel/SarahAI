@@ -105,28 +105,60 @@ jobs:
           test -n "$APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
-      - name: Boot newest available iPhone Simulator
+      - name: Boot an available iPhone Simulator with a hard timeout
         run: |
           set -euo pipefail
-          UDID=$(python3 - <<'PY'
-          import json, subprocess
-          data=json.loads(subprocess.check_output(['xcrun','simctl','list','devices','available','--json']))
-          candidates=[]
+          open -a Simulator || true
+          python3 - <<'PY'
+          import json, os, re, subprocess, time
+
+          data = json.loads(subprocess.check_output([
+              'xcrun', 'simctl', 'list', 'devices', 'available', '--json'
+          ]))
+
+          candidates = []
           for runtime, devices in data.get('devices', {}).items():
+              match = re.search(r'iOS-(\d+)-(\d+)', runtime)
+              version = tuple(map(int, match.groups())) if match else (0, 0)
               for d in devices:
-                  if d.get('isAvailable') and d.get('name','').startswith('iPhone'):
-                      candidates.append((runtime, d['name'], d['udid']))
+                  if d.get('isAvailable') and d.get('name', '').startswith('iPhone'):
+                      state_rank = 1 if d.get('state') == 'Booted' else 0
+                      candidates.append((state_rank, version, d['name'], d['udid']))
+
           if not candidates:
               raise SystemExit('No available iPhone Simulator')
+
           candidates.sort(reverse=True)
-          print(candidates[0][2])
-          PY
+          _, version, name, udid = candidates[0]
+          print(f'Using {name} iOS {version[0]}.{version[1]} ({udid})', flush=True)
+
+          if not any(d.get('udid') == udid and d.get('state') == 'Booted'
+                     for devices in data.get('devices', {}).values() for d in devices):
+              subprocess.run(['xcrun', 'simctl', 'boot', udid], check=False)
+
+          try:
+              subprocess.run(
+                  ['xcrun', 'simctl', 'bootstatus', udid, '-b'],
+                  check=True,
+                  timeout=150
+              )
+          except subprocess.TimeoutExpired:
+              raise SystemExit('Simulator boot timed out after 150 seconds')
+
+          app_path = os.environ['APP_PATH']
+          subprocess.run(['xcrun', 'simctl', 'install', udid, app_path], check=True, timeout=90)
+          result = subprocess.run(
+              ['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'],
+              check=True,
+              capture_output=True,
+              text=True,
+              timeout=60
           )
-          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl install "$UDID" "$APP_PATH"
-          xcrun simctl launch "$UDID" com.sarahia.app
+          print(result.stdout.strip(), flush=True)
+          time.sleep(4)
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'SIM_UDID={udid}\n')
+          PY
 
       - name: Install Java 17
         uses: actions/setup-java@v4
