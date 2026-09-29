@@ -10,10 +10,16 @@ on:
         type: choice
         options: ['no', 'yes']
         default: 'no'
+  push:
+    branches: [main]
+    paths:
+      - 'SarahIA/**'
+      - '.github/scripts/voice_media_runtime_refactor.py'
+      - '.github/workflows/ios-build.yml'
 
 jobs:
   build:
-    if: inputs.confirm_release == 'yes'
+    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 45
     permissions:
@@ -21,6 +27,16 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Apply interruptible voice and local media refactor
+        run: |
+          set -e
+          python3 .github/scripts/voice_media_runtime_refactor.py
+          grep -q 'shouldInterruptCurrentSpeech' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'beginContinuousVoiceSession' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
+          echo 'Interruptible voice and local-only image routing applied'
 
       - name: Verify persistent voice overlay and audio wiring
         run: |
