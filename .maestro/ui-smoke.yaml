@@ -1,0 +1,52 @@
+appId: com.sarahia.app
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Sarah"
+
+# Ouvrir le tiroir avec le vrai bouton en haut à gauche.
+- tapOn:
+    point: "8%,7%"
+- assertVisible: "Aucune discussion pour le moment."
+
+# Fermer le tiroir en touchant la zone sombre extérieure.
+- tapOn:
+    point: "95%,50%"
+- assertVisible: "Sarah"
+
+# Ouvrir le menu des agents au centre.
+- tapOn: "Sarah"
+- assertVisible: "Raphaël"
+- assertVisible: "Yohan"
+- assertVisible: "Tom"
+- tapOn: "Sarah"
+
+# Ouvrir Réglages avec le bouton en haut à droite.
+- tapOn:
+    point: "92%,7%"
+- assertVisible: "Réglages"
+
+# Fermer la feuille de réglages par glissement vers le bas.
+- swipe:
+    start: "50%,25%"
+    end: "50%,92%"
+    duration: 700
+- assertVisible: "Sarah"
+
+# Tester le bouton + de la barre de saisie sans quitter l'app.
+- tapOn:
+    point: "8%,92%"
+- assertVisible: "Photos"
+- assertVisible: "Appareil photo"
+- assertVisible: "Fichier"
+- tapOn:
+    point: "50%,55%"
+- assertVisible: "Sarah"
+
+# Tester réellement la saisie et l'envoi d'un message.
+- tapOn:
+    point: "48%,92%"
+- inputText: "test interaction SarahIA"
+- tapOn:
+    point: "92%,92%"
+- assertVisible: "test interaction SarahIA"
