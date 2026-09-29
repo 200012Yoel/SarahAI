@@ -16,8 +16,6 @@ jobs:
           fetch-depth: 0
       - name: Remove every iOS Shortcuts feature
         run: python3 scripts/remove_ios_shortcuts_everywhere.py
-      - name: Preserve message Copy and Regenerate actions
-        run: python3 scripts/fix_message_long_press_actions.py
       - name: Validate cleanup
         run: |
           set -e
@@ -36,7 +34,7 @@ jobs:
             echo "Cleanup already applied"
             gh workflow run ios-build.yml --repo "${{ github.repository }}" --ref main -f confirm_release=yes
           else
-            git commit -m "Remove iOS Shortcuts and keep message actions"
+            git commit -m "Remove all iOS Shortcuts functionality"
             git push origin HEAD:main
           fi
         env:
