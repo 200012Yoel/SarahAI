@@ -93,10 +93,11 @@ jobs:
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
-          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*ios-arm64*/whisper.framework' -type d | head -n 1)
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
           test -n "$WHISPER_FRAMEWORK"
+          test "$(basename "$(dirname "$WHISPER_FRAMEWORK")")" = "ios-arm64"
           WHISPER_FRAMEWORK_DIR=$(dirname "$WHISPER_FRAMEWORK")
-          echo "Using Whisper framework: $WHISPER_FRAMEWORK"
+          echo "Using iPhone Whisper framework: $WHISPER_FRAMEWORK"
           cd "$PROJECT_DIR"
           set -o pipefail
           xcodebuild \
@@ -129,7 +130,9 @@ jobs:
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
 
-          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*ios-arm64*/whisper.framework' -type d | head -n 1)
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
+          test -n "$WHISPER_FRAMEWORK"
+          test "$(basename "$(dirname "$WHISPER_FRAMEWORK")")" = "ios-arm64"
           if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then
             mkdir -p "$APP_PATH/Frameworks"
             cp -R "$WHISPER_FRAMEWORK" "$APP_PATH/Frameworks/"
