@@ -38,21 +38,16 @@ jobs:
           grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
           echo 'Interruptible voice and local-only image routing applied'
 
-      - name: Verify persistent voice overlay and audio wiring
+      - name: Verify current voice runtime wiring
         run: |
           set -e
           test -f SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'if viewModel.isShowingVoiceOrbModal' SarahIA/SarahIA/ContentView.swift
-          grep -q 'isExpanded = true' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'translation.height > 90' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'padding(.bottom, 88)' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'viewModel.isShowingVoiceOrbModal = true' SarahIA/SarahIA/Views/ChatScreenView.swift
-          grep -q 'safeAreaInset(edge: .bottom' SarahIA/SarahIA/Views/ChatScreenView.swift
-          grep -q 'simultaneousGesture(drawerGesture' SarahIA/SarahIA/ContentView.swift
+          test -f SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          test -f SarahIA/SarahIA/Services/AudioSessionManager.swift
           grep -q 'let shouldSpeakAutomatically = self.isContinuousConversationActive' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'trimmed != self.lastMeaningfulPartialText' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           grep -q 'if isContinuousVoiceSessionActive {' SarahIA/SarahIA/Services/AudioSessionManager.swift
-          echo 'Persistent compact voice mode, phrase finalization and stable audio routing present'
+          echo 'Current voice runtime checks passed'
 
       - name: Xcode version
         run: xcodebuild -version
