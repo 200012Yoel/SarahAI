@@ -33,16 +33,15 @@ appId: com.sarahia.app
     duration: 700
 - assertVisible: "Sarah"
 
-# Tester le bouton + de la barre de saisie.
+# Tester le bouton + de la barre de saisie sans quitter l'app.
 - tapOn:
     point: "8%,92%"
 - assertVisible: "Photos"
 - assertVisible: "Appareil photo"
 - assertVisible: "Fichier"
-- tapOn: "Photos"
-
-# Le sélecteur système peut s'ouvrir. Revenir à l'app si nécessaire.
-- back
+- tapOn:
+    point: "50%,55%"
+- assertVisible: "Sarah"
 
 # Tester réellement la saisie et l'envoi d'un message.
 - tapOn:
