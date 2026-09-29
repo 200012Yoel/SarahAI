@@ -16,42 +16,68 @@ on:
       - 'SarahIA/**'
       - '.github/scripts/voice_media_runtime_refactor.py'
       - '.github/scripts/restore_website_voice_bridge.py'
+      - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/workflows/ios-build.yml'
 
 jobs:
   build:
     if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply interruptible voice and local media refactor
+      - name: Apply voice, website and media runtime fixes
         run: |
           set -e
           python3 .github/scripts/voice_media_runtime_refactor.py
+          python3 .github/scripts/whisper_barge_in_runtime.py
           python3 .github/scripts/restore_website_voice_bridge.py
           grep -q 'shouldInterruptCurrentSpeech' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'beginContinuousVoiceSession' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'speakWebsiteGuideSequence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'public func speakSequence' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
-          echo 'Interruptible voice, website guide sequencing and local-only image routing applied'
+          echo 'Whisper barge-in, website guide and local media routing applied'
 
-      - name: Verify current voice runtime wiring
+      - name: Verify bundled Whisper speech runtime
         run: |
           set -e
-          test -f SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          test -f SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
-          test -f SarahIA/SarahIA/Services/AudioSessionManager.swift
-          grep -q 'let shouldSpeakAutomatically = self.isContinuousConversationActive' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'trimmed != self.lastMeaningfulPartialText' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
-          grep -q 'if isContinuousVoiceSessionActive {' SarahIA/SarahIA/Services/AudioSessionManager.swift
-          echo 'Current voice runtime checks passed'
+          grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
+          echo 'OpenAI Whisper-backed local recognition verified'
+
+      - name: Build whisper.cpp v1.9.4 XCFramework
+        run: |
+          set -euo pipefail
+          WHISPER_ROOT="$RUNNER_TEMP/whisper.cpp"
+          rm -rf "$WHISPER_ROOT"
+          git clone --depth 1 --branch v1.9.4 https://github.com/ggml-org/whisper.cpp.git "$WHISPER_ROOT"
+          cd "$WHISPER_ROOT"
+          ./build-xcframework.sh
+          test -d build-apple/whisper.xcframework
+          find build-apple/whisper.xcframework -maxdepth 3 -type d -name 'whisper.framework' -print
+
+      - name: Download multilingual OpenAI Whisper base model
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/WhisperModels"
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
+            -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          curl -L --fail --retry 3 \
+            'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
+            -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
+          cp "$RUNNER_TEMP/whisper.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt"
+          ls -lh "$RUNNER_TEMP/WhisperModels"
 
       - name: Xcode version
         run: xcodebuild -version
@@ -61,14 +87,54 @@ jobs:
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
 
-      - name: Build device app
+      - name: Build device app with Whisper
         run: |
+          set -euo pipefail
           PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*ios-arm64*/whisper.framework' -type d | head -n 1)
+          test -n "$WHISPER_FRAMEWORK"
+          WHISPER_FRAMEWORK_DIR=$(dirname "$WHISPER_FRAMEWORK")
+          echo "Using Whisper framework: $WHISPER_FRAMEWORK"
           cd "$PROJECT_DIR"
           set -o pipefail
-          xcodebuild -project "$PROJECT_NAME" -scheme SarahIA -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" IPHONEOS_DEPLOYMENT_TARGET=16.2 CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' AD_HOC_CODE_SIGNING_ALLOWED=YES COMPILER_INDEX_STORE_ENABLE=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=NO clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+          xcodebuild \
+            -project "$PROJECT_NAME" \
+            -scheme SarahIA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            CLANG_ENABLE_MODULES=YES \
+            FRAMEWORK_SEARCH_PATHS="$WHISPER_FRAMEWORK_DIR" \
+            OTHER_LDFLAGS='$(inherited) -framework whisper -framework Accelerate -framework Metal -framework CoreML' \
+            LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+
+      - name: Bundle Whisper model and licenses
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          mkdir -p "$APP_PATH/WhisperModels"
+          cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
+
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*ios-arm64*/whisper.framework' -type d | head -n 1)
+          if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then
+            mkdir -p "$APP_PATH/Frameworks"
+            cp -R "$WHISPER_FRAMEWORK" "$APP_PATH/Frameworks/"
+          fi
+          du -sh "$APP_PATH/WhisperModels"
 
       - name: Package IPA
         run: |
@@ -88,6 +154,7 @@ jobs:
           codesign --verify --deep --strict "$APP_TARGET_DIR"
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
+          ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
 
       - name: Upload build diagnostics
         if: always()
@@ -111,7 +178,7 @@ jobs:
         with:
           tag_name: sarah-ia-4.0-latest
           name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}.'
+          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Includes bundled OpenAI Whisper speech recognition via whisper.cpp.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
