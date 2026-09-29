@@ -2,8 +2,7 @@ import Foundation
 import WebKit
 
 /// Moteur de Code Autonome Raphaël (Agent Développeur & VAI Coding).
-/// Capable de générer du code Web (HTML/CSS/JS monopage), Swift, Python,
-/// d'analyser les spécifications de designs (Figma / Google Stitch) et d'exporter des raccourcis Apple (.shortcut / .json).
+/// Capable de générer du code Web (HTML/CSS/JS monopage), Swift et Python.
 public final class VAICodeEngine {
     
     public static let shared = VAICodeEngine()
@@ -11,7 +10,7 @@ public final class VAICodeEngine {
     public struct CodeProject: Identifiable, Codable {
         public let id: String
         public var title: String
-        public var language: String // "html", "swift", "python", "shortcut"
+        public var language: String // "html", "swift", "python"
         public var code: String
         public var createdAt: Date
         public var updatedAt: Date
@@ -141,46 +140,7 @@ public final class VAICodeEngine {
             .replacingOccurrences(of: "\"", with: "&quot;")
             .replacingOccurrences(of: "'", with: "&#39;")
     }
-    
-    /// Générateur d'Automatisation & Raccourcis Apple (.shortcut / JSON)
-    public func generateAppleShortcut(title: String, prompt: String) -> (jsonString: String, shortcutURL: URL?) {
-        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let shortcutData: [String: Any] = [
-            "WFWorkflowName": cleanTitle.isEmpty ? "Action Rapide Sarah" : cleanTitle,
-            "WFWorkflowClientVersion": "2203.0.4",
-            "WFWorkflowIcon": [
-                "WFWorkflowIconGlyphNumber": 59511,
-                "WFWorkflowIconStartColor": 4282601983
-            ],
-            "WFWorkflowActions": [
-                [
-                    "WFWorkflowActionIdentifier": "is.workflow.actions.comment",
-                    "WFWorkflowActionParameters": [
-                        "WFCommentActionText": "Généré automatiquement par Raphaël (Sarah AI Code Engine)"
-                    ]
-                ],
-                [
-                    "WFWorkflowActionIdentifier": "is.workflow.actions.showresult",
-                    "WFWorkflowActionParameters": [
-                        "Text": "Exécution réussie : \(prompt)"
-                    ]
-                ],
-                [
-                    "WFWorkflowActionIdentifier": "is.workflow.actions.vibrate",
-                    "WFWorkflowActionParameters": [:]
-                ]
-            ]
-        ]
-        
-        let jsonData = (try? JSONSerialization.data(withJSONObject: shortcutData, options: [.prettyPrinted])) ?? Data()
-        let jsonStr = String(data: jsonData, encoding: .utf8) ?? "{}"
-        
-        let filename = "\(cleanTitle.replacingOccurrences(of: " ", with: "_")).shortcut"
-        let savedURL = saveFile(filename: filename, content: jsonStr)
-        return (jsonStr, savedURL)
-    }
-    
-    // MARK: - Intégrations Développeur & Cloud (GitHub, Gmail, Google Play Console, Déploiement Web)
+// MARK: - Intégrations Développeur & Cloud (GitHub, Gmail, Google Play Console, Déploiement Web)
     
     public func getGitHubAuthURL() -> URL {
         return URL(string: "https://github.com/login")!
@@ -243,36 +203,6 @@ public final class VAICodeEngine {
         }
         parsedSummary += "\n✨ Composant Web prêt à être généré dans `Documents/VAI_Workspace/`."
         return parsedSummary
-    }
-    
-    public func generateShortcutJSON(name: String, prompt: String) -> String {
-        return """
-        {
-          "WFWorkflowClientVersion": "2607.1",
-          "WFWorkflowMinimumClientVersion": 900,
-          "WFWorkflowIcon": {
-            "WFWorkflowIconGlyphNumber": 59511,
-            "WFWorkflowIconStartColor": 431817727
-          },
-          "WFWorkflowImportQuestions": [],
-          "WFWorkflowTypes": ["NCWidget", "WatchKit", "MenuBar"],
-          "WFWorkflowActions": [
-            {
-              "WFWorkflowActionIdentifier": "is.workflow.actions.gettext",
-              "WFWorkflowActionParameters": {
-                "WFTextActionText": "\(prompt)"
-              }
-            },
-            {
-              "WFWorkflowActionIdentifier": "is.workflow.actions.shownotification",
-              "WFWorkflowActionParameters": {
-                "WFNotificationActionTitle": "\(name)",
-                "WFNotificationActionBody": "Exécuté avec Sarah IA"
-              }
-            }
-          ]
-        }
-        """
     }
 }
 

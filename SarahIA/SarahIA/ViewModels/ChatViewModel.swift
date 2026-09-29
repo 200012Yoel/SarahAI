@@ -741,7 +741,7 @@ public final class ChatViewModel: ObservableObject {
     public func introduceSarah() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Raccourcis) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
+        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Code) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
         let aiMessage = Message(content: introText, isFromUser: false)
         appendMessage(aiMessage)
         voiceManager.speak(text: introText, for: .sarah)

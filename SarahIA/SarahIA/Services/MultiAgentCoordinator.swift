@@ -120,7 +120,7 @@ public final class MultiAgentCoordinator {
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
             🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
-            💻 **Raphaël [Développeur]** : Sites web, apps iOS, SwiftUI, scripts, raccourcis Apple et studio de code.
+            💻 **Raphaël [Développeur]** : Sites web, apps iOS, SwiftUI, scripts et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
             🤖 **Nathan [Réseaux Sociaux & IA]** : Création de contenus, préparation de publications et veille IA.
             ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
@@ -149,7 +149,7 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .tom, text: text, spokenText: spoken)
                 
             case .esther:
-                let text = "💻 **Raphaël [Développeur]**\n\nJe m'appelle **Raphaël**, l'agent développeur de l'équipe. Je peux préparer des maquettes web, des bases SwiftUI pour iPhone, des scripts Python, des raccourcis Apple et des prototypes à améliorer avec vous dans le chat."
+                let text = "💻 **Raphaël [Développeur]**\n\nJe m'appelle **Raphaël**, l'agent développeur de l'équipe. Je peux préparer des sites web, des bases SwiftUI pour iPhone, des scripts Python et des prototypes à améliorer avec vous dans le chat."
                 let spoken = "Je m'appelle Raphaël, votre agent développeur. Je prépare des sites web, du code iOS SwiftUI, des scripts et des prototypes. Quel est votre projet ?"
                 return AgentResponse(agent: .esther, text: text, spokenText: spoken)
                 
@@ -371,7 +371,6 @@ public final class MultiAgentCoordinator {
            normalized.contains("site web") || normalized.contains("site internet") ||
            normalized.contains("website") || normalized.contains("page web") ||
            normalized.contains("frontend") || normalized.contains("javascript") ||
-           normalized.contains("shortcut") || normalized.contains("raccourci") ||
            normalized.contains("html") || normalized.contains("swift") ||
            normalized.contains("python") || normalized.contains("figma") ||
            normalized.contains("stitch") || normalized.contains("calculatrice") ||
@@ -698,19 +697,7 @@ public final class MultiAgentCoordinator {
                 generatedCode: manifest
             ))
         }
-        // 5. Raccourcis Apple Shortcuts
-        else if lower.contains("shortcut") || lower.contains("raccourci") {
-            let (json, _) = VAICodeEngine.shared.generateAppleShortcut(title: "Automatisation Raphaël", prompt: prompt)
-            let responseText = "💻 **Raphaël [Raccourci Apple]**\n\nRaccourci Apple préparé dans votre espace `Documents/VAI_Workspace/`.\n\n```json\n\(json)\n```"
-            completion(AgentResponse(
-                agent: .esther,
-                text: responseText,
-                spokenText: "Le raccourci Apple est prêt dans votre espace de travail.",
-                openStudio: true,
-                generatedCode: json
-            ))
-        }
-        // 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
+// 6. Base de code adaptée au langage demandé. Une vraie app iOS n'est jamais
         // prétendue compilée ici : Raphaël prépare le fichier et laisse le Studio en option.
         else if lower.contains("swiftui") || lower.contains("swift") || lower.contains("ios") || lower.contains("iphone") || lower.contains("ipad") {
             let swift = VAICodeEngine.shared.generateSwiftUIStarter(prompt: prompt)

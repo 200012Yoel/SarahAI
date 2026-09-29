@@ -4,7 +4,7 @@ import WebKit
 /// Studio Raphaël volontairement minimal :
 /// - Code : affiche et permet d'éditer le HTML/CSS/JS généré.
 /// - Vision : affiche exactement le rendu WebKit de ce code.
-/// Aucun générateur de secours, aucun menu Cloud/Figma/Raccourcis n'est présent ici.
+/// Aucun générateur de secours ni menu annexe n'est présent ici.
 @available(iOS 14.0, *)
 public struct VAICodingStudioView: View {
     @ObservedObject var viewModel: ChatViewModel

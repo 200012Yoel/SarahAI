@@ -200,12 +200,11 @@ public final class StorageService {
             // téléchargements de test liés à une ancienne version.
             try? self.fileManager.removeItem(at: self.appDirectoryLocationURL)
 
-            // Espaces générés par l'utilisateur : code, exports de raccourcis et images.
+            // Espaces générés par l'utilisateur : code et images.
             if let documents = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let generatedDirectories = [
                     "VAI_Workspace",
                     "SandboxScripts",
-                    "Shortcuts",
                     "SarahGeneratedImages"
                 ]
                 for directory in generatedDirectories {
