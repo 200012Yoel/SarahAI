@@ -17,6 +17,7 @@ on:
       - '.github/scripts/voice_media_runtime_refactor.py'
       - '.github/scripts/restore_website_voice_bridge.py'
       - '.github/scripts/whisper_barge_in_runtime.py'
+      - '.github/scripts/production_quality_pass.py'
       - '.github/workflows/ios-build.yml'
 
 jobs:
@@ -36,13 +37,16 @@ jobs:
           python3 .github/scripts/voice_media_runtime_refactor.py
           python3 .github/scripts/whisper_barge_in_runtime.py
           python3 .github/scripts/restore_website_voice_bridge.py
+          python3 .github/scripts/production_quality_pass.py
           grep -q 'shouldInterruptCurrentSpeech' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'beginContinuousVoiceSession' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'speakWebsiteGuideSequence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
-          echo 'Whisper barge-in, website guide and local media routing applied'
+          grep -q 'voice.gender == .female' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'Tous les boutons doivent avoir une action utile' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          echo 'Whisper barge-in, commercial-safe system voice routing and real website quality checks applied'
 
       - name: Verify bundled Whisper speech runtime
         run: |
