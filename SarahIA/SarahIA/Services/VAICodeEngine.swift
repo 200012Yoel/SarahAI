@@ -481,6 +481,60 @@ extension VAICodeEngine {
         }
     }
 
+    private func localAgenticBuild(
+        prompt: String,
+        completion: @escaping (SarahAgenticWebBuildResult?) -> Void
+    ) {
+        let existing = loadAgenticProject()
+        var fullPrompt = implementerSystemPrompt() + "\n\nDEMANDE :\n" + prompt
+        if let existing {
+            fullPrompt += "\n\nPROJET EXISTANT À AMÉLIORER, RÉVISION \(existing.revision) :\n" + existing.html
+        }
+
+        AIService.shared.generateLocalCodeDocument(prompt: fullPrompt) { result in
+            guard case .success(let raw) = result,
+                  var html = self.extractHTMLDocument(raw) else {
+                completion(nil)
+                return
+            }
+            html = self.stabilizeHTML(html)
+            completion(SarahAgenticWebBuildResult(
+                html: html,
+                revision: (existing?.revision ?? 0) + 1,
+                wasRefinement: existing != nil,
+                architectModel: SarahCodingModelCatalog.architect,
+                implementerModel: SarahCodingModelCatalog.implementer,
+                staticAudit: self.auditWebHTML(html),
+                browserAudit: nil,
+                usedRemoteModels: false
+            ))
+        }
+    }
+
+    private func repairLocalBuild(
+        _ build: SarahAgenticWebBuildResult,
+        report: SarahBrowserSmokeReport,
+        completion: @escaping (SarahAgenticWebBuildResult) -> Void
+    ) {
+        let prompt = repairSystemPrompt()
+            + "\n\nHTML À CORRIGER :\n" + build.html
+            + "\n\nRAPPORT WEBKIT :\n" + report.details
+            + "\nErreurs JavaScript : " + report.javascriptErrors.joined(separator: " | ")
+
+        AIService.shared.generateLocalCodeDocument(prompt: prompt) { result in
+            guard case .success(let raw) = result,
+                  var html = self.extractHTMLDocument(raw) else {
+                completion(build)
+                return
+            }
+            html = self.stabilizeHTML(html)
+            var updated = build
+            updated.html = html
+            updated.staticAudit = self.auditWebHTML(html)
+            completion(updated)
+        }
+    }
+
     public func runBrowserSmokeTest(html: String, completion: @escaping (SarahBrowserSmokeReport) -> Void) {
         DispatchQueue.main.async {
             let config = WKWebViewConfiguration()
@@ -571,17 +625,15 @@ extension VAICodeEngine {
             completion(updated)
         }
     }
-
+    /// Génère et teste un vrai site. Si un endpoint de code est configuré il est
+    /// utilisé, sinon Raphaël passe au moteur IA local. Dans les deux cas, le HTML
+    /// vient d'une inférence de modèle puis passe un audit statique et WebKit.
     public func buildAndTestWebsite(
         prompt: String,
         completion: @escaping (Result<SarahAgenticWebBuildResult, Error>) -> Void
     ) {
-        guard SarahCodingRuntime.shared.isConfigured else {
-            completion(.failure(SarahRealWebsiteGenerationError.runtimeNotConfigured))
-            return
-        }
-
         let previousProject = loadAgenticProject()
+        let usesRemoteRuntime = SarahCodingRuntime.shared.isConfigured
 
         let persistPassing: (SarahAgenticWebBuildResult) -> Void = { build in
             let project = SarahPersistentWebProject(
@@ -595,21 +647,21 @@ extension VAICodeEngine {
             completion(.success(build))
         }
 
-        remoteAgenticBuild(prompt: prompt) { remote in
-            guard let remote = remote else {
+        let inspectCandidate: (SarahAgenticWebBuildResult?) -> Void = { candidate in
+            guard let candidate else {
                 completion(.failure(SarahRealWebsiteGenerationError.modelGenerationFailed))
                 return
             }
 
-            self.runBrowserSmokeTest(html: remote.html) { firstReport in
-                if firstReport.passed && remote.staticAudit.isPassing {
-                    var final = remote
+            self.runBrowserSmokeTest(html: candidate.html) { firstReport in
+                if firstReport.passed && candidate.staticAudit.isPassing {
+                    var final = candidate
                     final.browserAudit = firstReport
                     persistPassing(final)
                     return
                 }
 
-                self.repairRemoteBuild(remote, report: firstReport) { repaired in
+                let finishRepair: (SarahAgenticWebBuildResult) -> Void = { repaired in
                     let stabilized = self.stabilizeHTML(repaired.html)
                     self.runBrowserSmokeTest(html: stabilized) { secondReport in
                         var final = repaired
@@ -626,7 +678,20 @@ extension VAICodeEngine {
                         persistPassing(final)
                     }
                 }
+
+                if usesRemoteRuntime {
+                    self.repairRemoteBuild(candidate, report: firstReport, completion: finishRepair)
+                } else {
+                    self.repairLocalBuild(candidate, report: firstReport, completion: finishRepair)
+                }
             }
         }
+
+        if usesRemoteRuntime {
+            remoteAgenticBuild(prompt: prompt, completion: inspectCandidate)
+        } else {
+            localAgenticBuild(prompt: prompt, completion: inspectCandidate)
+        }
     }
+
 }

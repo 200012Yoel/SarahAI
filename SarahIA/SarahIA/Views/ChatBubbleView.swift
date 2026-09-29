@@ -112,6 +112,19 @@ public struct ChatBubbleView: View {
                 .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
 
             VStack(alignment: .leading, spacing: 6) {
+                if let data = message.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 290, maxHeight: 390)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 0.8)
+                        )
+                        .shadow(color: Color.black.opacity(0.28), radius: 10, x: 0, y: 5)
+                }
+
                 if !message.isVisionReport {
                     let rawContent = message.contentWithoutInlinePayloads
                     let displayContent: String = {

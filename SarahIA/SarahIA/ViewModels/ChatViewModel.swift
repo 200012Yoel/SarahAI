@@ -145,6 +145,23 @@ public final class ChatViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: NSNotification.Name("SarahGeneratedImageReady"))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self,
+                      let image = notification.userInfo?["image"] as? UIImage,
+                      let data = image.jpegData(compressionQuality: 0.94) else { return }
+                let prompt = notification.userInfo?["prompt"] as? String ?? "Image générée"
+                let model = notification.userInfo?["modelName"] as? String ?? "modèle image local"
+                self.activeAgent = .ethel
+                self.appendMessage(Message(
+                    content: "🎨 **Image générée**\n\n\(prompt)\n\nModèle : \(model)",
+                    isFromUser: false,
+                    imageData: data
+                ))
+            }
+            .store(in: &cancellables)
     }
 
     private func ensureVoicePipelinePrepared() {

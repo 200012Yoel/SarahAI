@@ -553,37 +553,80 @@ public final class MultiAgentCoordinator {
             ))
         }
     }
-    
-    // MARK: - Ethel (Intelligence Créative & Génération d'Images HD Photoréaliste)
-    
+    // MARK: - Ethel (création visuelle réelle)
+
     private func processWithEthel(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
             .replacingOccurrences(of: "passe-moi ethel", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "passe moi ethel", with: "", options: .caseInsensitive)
-            .replacingOccurrences(of: "ethel", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne-moi ethel", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "donne moi ethel", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        let trimmed = clean.isEmpty ? text.trimmingCharacters(in: .whitespacesAndNewlines) : clean
-        let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
 
-        let prompt = imageCheck.isIntent ? imageCheck.cleanedPrompt : trimmed
+        let source = clean.isEmpty ? text : clean
+        let imageService = OpenSourceImageGenerationService.shared
+        let intent = imageService.isImageGenerationIntent(source)
+        let normalized = normalize(source)
+
+        var prompt = intent.cleanedPrompt
+        if !intent.isIntent {
+            let generationWords = ["genere", "génère", "cree", "crée", "dessine", "fabrique"]
+            if generationWords.contains(where: { normalized.contains($0.folding(options: .diacriticInsensitive, locale: .current)) }) {
+                prompt = source
+                for word in generationWords {
+                    prompt = prompt.replacingOccurrences(of: word, with: "", options: [.caseInsensitive, .diacriticInsensitive])
+                }
+                prompt = prompt.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
+            }
+        }
+
+        guard intent.isIntent || !prompt.isEmpty else {
+            AIService.shared.processQuery(source) { response in
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: response,
+                    spokenText: response
+                ))
+            }
+            return
+        }
+
+        let finalPrompt = prompt.isEmpty ? source : prompt
         let profile = SarahGenerativeModelCatalog.imageProfile()
 
-        OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
+        imageService.generateImage(prompt: finalPrompt) { result in
+            if result.isSuccess {
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: "✨ **Ethel [Studio Créatif]**\n\n🎨 Image réellement générée pour : « **\(finalPrompt)** »\nModèle : **\(result.modelName)**.",
+                    spokenText: "C'est fait. L'image a réellement été générée et je l'affiche dans la discussion."
+                ))
+                return
+            }
 
-        let responseText = """
-        ✨ **Ethel [Studio Créatif]**
+            let detail = result.errorMessage ?? "ressources locales indisponibles"
+            if detail.localizedCaseInsensitiveContains("pas installé") ||
+               detail.localizedCaseInsensitiveContains("not installed") {
+                if #available(iOS 13.0, *) {
+                    GenerativeModelDownloader.shared.startImageModelDownload()
+                }
+                completion(AgentResponse(
+                    agent: .ethel,
+                    text: "✨ **Ethel [Studio Créatif]**\n\nLe vrai modèle **\(profile.displayName)** n'est pas encore installé. Je lance sa préparation locale. Une fois l'installation terminée, relance la même demande.\n\nAucune fausse image n'a été créée.",
+                    spokenText: "Le vrai modèle image doit d'abord être installé. Je lance sa préparation locale."
+                ))
+                return
+            }
 
-        🎨 Création lancée pour : « **\(prompt)** »
-        Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
-
-        Sarah n'utilisera le réseau que si le fallback cloud a été activé explicitement.
-        """
-        let spoken = "Je lance la création de votre image avec le profil adapté à cet iPhone."
-        completion(AgentResponse(agent: .ethel, text: responseText, spokenText: spoken))
+            completion(AgentResponse(
+                agent: .ethel,
+                text: "✨ **Ethel [Studio Créatif]**\n\nLa génération réelle a échoué : \(detail)\n\nAucune image fictive n'a été annoncée comme terminée.",
+                spokenText: "La génération réelle a échoué. Je n'annonce plus une image tant qu'elle n'existe pas."
+            ))
+        }
     }
-    
-    private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
+
+private func processWithYohan(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
             .replacingOccurrences(of: "passe-moi yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "passe moi yohan", with: "", options: .caseInsensitive)

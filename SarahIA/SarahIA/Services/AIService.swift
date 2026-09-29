@@ -323,6 +323,69 @@ public final class AIService {
         }
     }
     
+    /// Génération de code brute, réellement issue du moteur IA local.
+    /// Cette entrée contourne le routage conversationnel afin qu'un prompt HTML
+    /// ne soit jamais transformé en réponse de chat ou en template codé en dur.
+    public func generateLocalCodeDocument(
+        prompt: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            completion(.failure(NSError(
+                domain: "SarahLocalCodeGeneration",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Prompt de code vide"]
+            )))
+            return
+        }
+
+        let system = """
+        Tu es Raphaël, moteur de génération de code web. Tu dois écrire un vrai document HTML5 complet, spécifique au brief fourni. Tout CSS et JavaScript doit être intégré au même fichier. N'utilise aucun template pré-écrit, aucune page de secours, aucun lorem ipsum et aucun asset propriétaire. Retourne uniquement le document HTML final, sans commentaire avant ou après.
+        """
+
+        if ModelSelectionEngine.shared.isLocalGGUFAllowed(),
+           BackgroundModelDownloader.isModelDownloaded,
+           BackgroundModelDownloader.localModelURL != nil {
+            let formatted = ModelSelectionEngine.shared.formatChatMLPrompt(
+                system: system,
+                user: clean
+            )
+            SarahBrainEngine.shared.generateStreamingResponse(prompt: formatted) { raw in
+                let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !value.isEmpty else {
+                    completion(.failure(NSError(
+                        domain: "SarahLocalCodeGeneration",
+                        code: 500,
+                        userInfo: [NSLocalizedDescriptionKey: "Le modèle local n'a produit aucun code"]
+                    )))
+                    return
+                }
+                completion(.success(value))
+            }
+            return
+        }
+
+        // Le petit moteur neuronal est une vraie inférence locale lui aussi. Il sert
+        // pendant que le GGUF Qwen recommandé se prépare, sans fabriquer de HTML fixe.
+        BackgroundModelDownloader.shared.startQwenModelDownload()
+        LocalNeuralIntelligenceEngine.shared.generateLocalResponse(
+            prompt: system + "\n\nBRIEF :\n" + clean,
+            contextHistory: []
+        ) { result in
+            let value = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else {
+                completion(.failure(NSError(
+                    domain: "SarahLocalCodeGeneration",
+                    code: 501,
+                    userInfo: [NSLocalizedDescriptionKey: "Le moteur neuronal local n'a produit aucun code"]
+                )))
+                return
+            }
+            completion(.success(value))
+        }
+    }
+
     /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
     public func generateSyncResponse(for question: String) -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
