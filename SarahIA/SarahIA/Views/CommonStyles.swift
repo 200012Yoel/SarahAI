@@ -23,11 +23,12 @@ extension Color {
     public static let sarahIndigo = Color(red: 0.35, green: 0.34, blue: 0.84)
 }
 
-/// Surface Liquid Glass de Sarah.
+/// Surface vitrée de Sarah orientée stabilité.
 ///
-/// Important : cette couche est strictement décorative. Elle ne doit jamais
-/// devenir une surface interactive indépendante, sinon elle peut capturer les
-/// touchers destinés aux Button, Menu et TextField qui l'utilisent comme label.
+/// Tant que l'interaction iOS 26/27 n'est pas validée par le test simulateur,
+/// on évite complètement `glassEffect`. Le rendu reste proche grâce aux
+/// Materials SwiftUI, mais aucune couche native supplémentaire ne participe au
+/// hit testing des Button, Menu ou TextField.
 @available(iOS 15.0, *)
 public struct SarahLiquidGlassModifier: ViewModifier {
     public let cornerRadius: CGFloat
@@ -64,56 +65,8 @@ public struct SarahLiquidGlassModifier: ViewModifier {
     public func body(content: Content) -> some View {
         if reduceTransparency {
             opaqueAccessibleGlass(content: content)
-        } else if #available(iOS 26.0, *) {
-            nativeGlass(content: content)
         } else {
-            legacyGlass(content: content)
-        }
-    }
-
-    @available(iOS 26.0, *)
-    @ViewBuilder
-    private func nativeGlass(content: Content) -> some View {
-        let glassTint = max(0.03, min(0.18, effectiveIntensity * 1.20))
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        if prefersReducedEffects {
-            content
-                .glassEffect(
-                    .regular.tint(tint.opacity(glassTint)),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
-                .overlay(
-                    shape
-                        .stroke(Color.white.opacity(0.16), lineWidth: 0.6)
-                        .allowsHitTesting(false)
-                )
-                .shadow(color: Color.black.opacity(0.10), radius: 7, x: 0, y: 3)
-        } else {
-            content
-                // Ne pas utiliser `.interactive()` ici. Le contrôle parent
-                // (Button/Menu/TextField) est l'unique propriétaire du toucher.
-                .glassEffect(
-                    .regular.tint(tint.opacity(glassTint)),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
-                .overlay(
-                    shape
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.28),
-                                    Color.white.opacity(0.08),
-                                    tint.opacity(0.12)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.65
-                        )
-                        .allowsHitTesting(false)
-                )
-                .shadow(color: Color.black.opacity(0.16), radius: 12, x: 0, y: 6)
+            stableMaterialGlass(content: content)
         }
     }
 
@@ -138,7 +91,7 @@ public struct SarahLiquidGlassModifier: ViewModifier {
             )
     }
 
-    private func legacyGlass(content: Content) -> some View {
+    private func stableMaterialGlass(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let highlightOpacity = prefersReducedEffects ? 0.11 : 0.18
         let shadowRadius: CGFloat = prefersReducedEffects ? 7 : 12
