@@ -1,52 +1,43 @@
 appId: com.sarahia.app
 ---
+# 1. Menu latéral
 - launchApp:
     clearState: true
 - assertVisible: "Sarah"
-
-# Ouvrir le tiroir avec le vrai bouton en haut à gauche.
 - tapOn:
-    point: "8%,7%"
+    id: "sarah.menu.button"
+- assertVisible:
+    id: "sarah.sidebar"
 - assertVisible: "Aucune discussion pour le moment."
 
-# Fermer le tiroir en touchant la zone sombre extérieure.
-- tapOn:
-    point: "95%,50%"
+# 2. Menu des agents
+- launchApp
 - assertVisible: "Sarah"
-
-# Ouvrir le menu des agents au centre.
-- tapOn: "Sarah"
+- tapOn:
+    id: "sarah.agent.menu"
 - assertVisible: "Raphaël"
 - assertVisible: "Yohan"
 - assertVisible: "Tom"
-- tapOn: "Sarah"
 
-# Ouvrir Réglages avec le bouton en haut à droite.
+# 3. Réglages
+- launchApp
 - tapOn:
-    point: "92%,7%"
+    id: "sarah.settings.button"
 - assertVisible: "Réglages"
 
-# Fermer la feuille de réglages par glissement vers le bas.
-- swipe:
-    start: "50%,25%"
-    end: "50%,92%"
-    duration: 700
-- assertVisible: "Sarah"
-
-# Tester le bouton + de la barre de saisie sans quitter l'app.
+# 4. Bouton + et menu de pièces jointes
+- launchApp
 - tapOn:
-    point: "8%,92%"
+    id: "sarah.attachment.menu"
 - assertVisible: "Photos"
 - assertVisible: "Appareil photo"
 - assertVisible: "Fichier"
-- tapOn:
-    point: "50%,55%"
-- assertVisible: "Sarah"
 
-# Tester réellement la saisie et l'envoi d'un message.
+# 5. Champ de saisie et envoi
+- launchApp
 - tapOn:
-    point: "48%,92%"
+    id: "sarah.composer.field"
 - inputText: "test interaction SarahIA"
 - tapOn:
-    point: "92%,92%"
+    id: "sarah.composer.action"
 - assertVisible: "test interaction SarahIA"

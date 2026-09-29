@@ -8,6 +8,7 @@ on:
       - 'SarahIA/**'
       - '.maestro/**'
       - '.github/workflows/ios-simulator-ui-smoke.yml'
+      - '.github/scripts/inject_ui_test_ids.py'
       - '.github/scripts/voice_media_runtime_refactor.py'
       - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/scripts/restore_website_voice_bridge.py'
@@ -31,6 +32,7 @@ jobs:
           python3 .github/scripts/whisper_barge_in_runtime.py
           python3 .github/scripts/restore_website_voice_bridge.py
           python3 .github/scripts/production_quality_pass.py
+          python3 .github/scripts/inject_ui_test_ids.py
 
       - name: Replace Whisper only for simulator UI testing
         run: |
@@ -180,8 +182,9 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="$HOME/.maestro/bin:$PATH"
+          mkdir -p ui-smoke-artifacts
           maestro --version
-          maestro test .maestro/ui-smoke.yaml
+          maestro test .maestro/ui-smoke.yaml 2>&1 | tee ui-smoke-artifacts/maestro.log
 
       - name: Capture final simulator screenshot
         if: always()
