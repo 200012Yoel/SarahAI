@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Vue racine stable de SarahIA.
+/// Vue racine de SarahIA orientée stabilité.
 ///
-/// Priorité absolue : les contrôles SwiftUI doivent conserver la propriété des
-/// touchers. Le geste d'ouverture du tiroir est donc limité à une fine zone au
-/// bord gauche au lieu d'être installé sur toute la fenêtre.
+/// Règle importante : aucune couche invisible ne doit pouvoir rester au-dessus
+/// du chat. Le tiroir est désormais binaire (ouvert / fermé) et son geste de
+/// bord ne modifie plus un état de progression intermédiaire.
 @available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -26,16 +26,18 @@ public struct ContentView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(
-                    !viewModel.isDrawerOpen && viewModel.drawerProgress <= 0.001
+                    !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal
                 )
 
-                // Le swipe d'ouverture ne vit plus sur toute l'application.
-                // Cette bande très fine préserve le geste bord-gauche sans
-                // concurrencer Button, Menu, TextField, ScrollView ou les cartes.
-                if !viewModel.isDrawerOpen,
-                   viewModel.drawerProgress <= 0.001,
-                   !viewModel.isShowingVoiceOrbModal {
-                    edgeSwipeHotZone(width: sidebarWidth)
+                // Zone de swipe réellement limitée aux 18 points du bord gauche.
+                // Elle ne contient aucun Spacer plein écran et ne peut donc pas
+                // devenir une surface invisible qui absorbe les boutons du chat.
+                if !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal {
+                    Color.clear
+                        .frame(width: 18)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(edgeOpenGesture)
                         .zIndex(3)
                 }
 
@@ -53,7 +55,7 @@ public struct ContentView: View {
                     .transition(.opacity)
                 }
 
-                if viewModel.isDrawerOpen || viewModel.drawerProgress > 0.001 {
+                if viewModel.isDrawerOpen {
                     drawerOverlay
                         .zIndex(30)
 
@@ -65,7 +67,6 @@ public struct ContentView: View {
                     .frame(maxHeight: .infinity)
                     .background(Color.black)
                     .ignoresSafeArea(.container, edges: [.top, .bottom])
-                    .offset(x: drawerOffset(width: sidebarWidth))
                     .transition(.move(edge: .leading))
                     .zIndex(31)
                 }
@@ -77,12 +78,16 @@ public struct ContentView: View {
             SettingsView(viewModel: viewModel)
         }
         .onAppear {
-            // Les états de navigation sont transitoires. Un ancien état ou une
-            // interaction interrompue ne doit jamais démarrer l'app avec une
-            // couche invisible qui bloque les contrôles.
+            // Tous les états purement visuels repartent d'une base connue.
             viewModel.isDrawerOpen = false
             viewModel.drawerProgress = 0
+            viewModel.isShowingVoiceOrbModal = false
             isShowingSettings = false
+        }
+        .onChange(of: isShowingSettings) { isPresented in
+            if isPresented {
+                viewModel.closeDrawer()
+            }
         }
         .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
             if isPresented {
@@ -99,10 +104,12 @@ public struct ContentView: View {
             switch host {
             case "voice":
                 viewModel.activeAgent = .sarah
+                viewModel.closeDrawer()
                 viewModel.isShowingVoiceOrbModal = true
             case "chat":
                 viewModel.stopVoiceConversation()
                 viewModel.isShowingVoiceOrbModal = false
+                viewModel.closeDrawer()
             default:
                 break
             }
@@ -111,67 +118,26 @@ public struct ContentView: View {
 
     private var drawerOverlay: some View {
         Color.black
-            .opacity(
-                Double(
-                    viewModel.drawerProgress > 0.001
-                        ? viewModel.drawerProgress
-                        : (viewModel.isDrawerOpen ? 1.0 : 0.0)
-                ) * 0.40
-            )
+            .opacity(0.40)
             .ignoresSafeArea()
             .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                    viewModel.closeDrawer()
-                }
+                viewModel.closeDrawer()
             }
     }
 
-    private func edgeSwipeHotZone(width: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            Color.clear
-                .frame(width: 18)
-                .contentShape(Rectangle())
-                .gesture(edgeOpenGesture(width: width))
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(true)
-    }
-
-    private func drawerOffset(width: CGFloat) -> CGFloat {
-        let progress = viewModel.drawerProgress > 0.001
-            ? viewModel.drawerProgress
-            : (viewModel.isDrawerOpen ? 1.0 : 0.0)
-        return (progress - 1.0) * width
-    }
-
-    private func edgeOpenGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 16)
-            .onChanged { value in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-
-                guard horizontal > 0,
-                      abs(horizontal) > abs(vertical) * 0.85 else {
-                    return
-                }
-
-                viewModel.drawerProgress = min(max(horizontal / width, 0), 1)
-            }
+    private var edgeOpenGesture: some Gesture {
+        DragGesture(minimumDistance: 18)
             .onEnded { value in
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
 
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                    if horizontal > 52,
-                       abs(horizontal) > abs(vertical) * 0.85 {
-                        viewModel.openDrawer()
-                    } else {
-                        viewModel.closeDrawer()
-                    }
+                guard horizontal > 52,
+                      abs(horizontal) > abs(vertical) * 0.85 else {
+                    return
                 }
+
+                viewModel.openDrawer()
             }
     }
 }
