@@ -16,7 +16,7 @@ on:
 jobs:
   simulator-ui:
     runs-on: xcode-27
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -28,18 +28,63 @@ jobs:
           python3 .github/scripts/restore_website_voice_bridge.py
           python3 .github/scripts/production_quality_pass.py
 
-      - name: Build Whisper XCFramework with simulator slice
+      - name: Replace Whisper only for simulator UI testing
         run: |
-          set -euo pipefail
-          WHISPER_ROOT="$RUNNER_TEMP/whisper.cpp"
-          rm -rf "$WHISPER_ROOT"
-          git clone --depth 1 --branch v1.9.4 https://github.com/ggml-org/whisper.cpp.git "$WHISPER_ROOT"
-          cd "$WHISPER_ROOT"
-          ./build-xcframework.sh
-          SIM_FRAMEWORK=$(find build-apple/whisper.xcframework -path '*simulator*/whisper.framework' -type d -print -quit)
-          test -n "$SIM_FRAMEWORK"
-          echo "SIM_FRAMEWORK=$SIM_FRAMEWORK" >> "$GITHUB_ENV"
-          echo "SIM_FRAMEWORK_DIR=$(dirname "$SIM_FRAMEWORK")" >> "$GITHUB_ENV"
+          cat > SarahIA/SarahIA/Services/WhisperService.swift <<'SWIFT'
+          import Foundation
+          import AVFoundation
+          import Combine
+
+          @available(iOS 13.0, *)
+          public final class WhisperService: ObservableObject {
+              public static let shared = WhisperService()
+
+              @Published public private(set) var isRecording = false
+              @Published public private(set) var currentText = ""
+              @Published public private(set) var micEnergyLevel: Float = 0
+              @Published public private(set) var isModelReady = true
+              @Published public private(set) var lastError: String? = nil
+
+              public var onPartialTranscription: ((String) -> Void)?
+              public var onFinalTranscription: ((String) -> Void)?
+              public var onVoiceActivity: (() -> Void)?
+
+              private init() {}
+
+              public func requestAuthorization(completion: @escaping (Bool) -> Void) {
+                  DispatchQueue.main.async { completion(true) }
+              }
+
+              public func startRecording(autoFinalizeOnSilence: Bool = true) {
+                  currentText = ""
+                  micEnergyLevel = 0
+                  lastError = nil
+                  isRecording = true
+              }
+
+              public func stopRecordingAndTranscribe(completion: ((String?) -> Void)? = nil) {
+                  isRecording = false
+                  micEnergyLevel = 0
+                  completion?(currentText.isEmpty ? nil : currentText)
+              }
+
+              public func stopRecordingWithoutTranscription() {
+                  isRecording = false
+                  micEnergyLevel = 0
+              }
+
+              public func startTranscription() { startRecording() }
+              public func stopTranscription() { stopRecordingAndTranscribe() }
+              public func appendAudioBuffer(_ buffer: AVAudioPCMBuffer) {}
+
+              public func reset() {
+                  isRecording = false
+                  currentText = ""
+                  micEnergyLevel = 0
+                  lastError = nil
+              }
+          }
+          SWIFT
 
       - name: Build SarahIA for iOS Simulator
         run: |
@@ -55,8 +100,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            FRAMEWORK_SEARCH_PATHS="$SIM_FRAMEWORK_DIR" \
-            OTHER_LDFLAGS='$(inherited) -framework whisper -framework Accelerate -framework Metal -framework CoreML' \
             build 2>&1 | tee "$GITHUB_WORKSPACE/simulator-build.log"
           APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedDataSimulator" -name 'SarahIA.app' -type d | head -n 1)
           test -n "$APP_PATH"
