@@ -44,6 +44,7 @@ public final class AppleSpeechRecognizer: NSObject {
 
     private let whisper = WhisperService.shared
     private var preserveActiveSpeech = false
+    private var suppressNextExternalFinalCallback = false
 
     #if canImport(Combine)
     private var cancellables = Set<AnyCancellable>()
@@ -65,7 +66,11 @@ public final class AppleSpeechRecognizer: NSObject {
             self.isListening = false
             self.state = .processing
             HapticService.shared.notificationSuccess()
-            self.onFinalTranscription?(text)
+            if self.suppressNextExternalFinalCallback {
+                self.suppressNextExternalFinalCallback = false
+            } else {
+                self.onFinalTranscription?(text)
+            }
             self.state = .idle
         }
 
@@ -87,6 +92,7 @@ public final class AppleSpeechRecognizer: NSObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] error in
                 guard let self, let error, !error.isEmpty else { return }
+                self.suppressNextExternalFinalCallback = false
                 self.state = .error(error)
                 self.isListening = false
             }
@@ -103,6 +109,7 @@ public final class AppleSpeechRecognizer: NSObject {
     public func startListening(autoFinalizeOnSilence: Bool = true, preserveActiveSpeech: Bool = false) {
         guard !isListening else { return }
         self.preserveActiveSpeech = preserveActiveSpeech
+        self.suppressNextExternalFinalCallback = false
 
         if !preserveActiveSpeech {
             MultiAgentVoiceManager.shared.stop()
@@ -145,6 +152,7 @@ public final class AppleSpeechRecognizer: NSObject {
     }
 
     public func stopListening() {
+        suppressNextExternalFinalCallback = false
         whisper.stopRecordingWithoutTranscription()
         if isListening {
             isListening = false
@@ -159,16 +167,25 @@ public final class AppleSpeechRecognizer: NSObject {
     }
 
     /// Used by manual dictation controls that want the captured phrase before stop.
+    /// This path deliberately suppresses the global final-transcription callback so
+    /// dictating into the composer never auto-sends a chat message after voice mode
+    /// has previously been used.
     public func stopListeningAndTranscribe(completion: @escaping (String?) -> Void) {
+        suppressNextExternalFinalCallback = true
+        state = .processing
         whisper.stopRecordingAndTranscribe { [weak self] text in
             guard let self else {
                 completion(text)
                 return
             }
             self.isListening = false
+            self.suppressNextExternalFinalCallback = false
+            self.micEnergyLevel = 0
             if let text, !text.isEmpty {
                 self.currentLiveText = text
             }
+            self.state = .idle
+            self.publishEnergyChange()
             completion(text)
         }
     }
