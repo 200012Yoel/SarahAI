@@ -1,15 +1,18 @@
 from pathlib import Path
 
 
-def replace_once(path: Path, old: str, new: str, label: str) -> None:
+def ensure_replace(path: Path, old: str, new: str, marker: str, label: str) -> None:
     text = path.read_text(encoding="utf-8")
+    if marker in text:
+        print(f"Already present: {label}")
+        return
     if old not in text:
         raise SystemExit(f"Missing expected UI block: {label}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
 chat = Path("SarahIA/SarahIA/Views/ChatScreenView.swift")
-replace_once(
+ensure_replace(
     chat,
     '''            glassCircleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
@@ -28,9 +31,10 @@ replace_once(
 
             Spacer(minLength: 4)
 ''',
+    'accessibilityIdentifier("sarah.menu.button")',
     "menu button identifier",
 )
-replace_once(
+ensure_replace(
     chat,
     '''            }
             .buttonStyle(PlainButtonStyle())
@@ -47,9 +51,10 @@ replace_once(
 
             glassCircleButton(systemName: "gearshape.fill") {
 ''',
+    'accessibilityIdentifier("sarah.agent.menu")',
     "agent menu identifier",
 )
-replace_once(
+ensure_replace(
     chat,
     '''            glassCircleButton(systemName: "gearshape.fill") {
                 HapticService.shared.buttonTap()
@@ -64,11 +69,12 @@ replace_once(
             }
             .accessibilityIdentifier("sarah.settings.button")
 ''',
+    'accessibilityIdentifier("sarah.settings.button")',
     "settings button identifier",
 )
 
 bar = Path("SarahIA/SarahIA/Views/MessageBar.swift")
-replace_once(
+ensure_replace(
     bar,
     '''            .accessibilityLabel("Ajouter une photo, prendre une photo ou joindre un fichier")
 
@@ -79,9 +85,10 @@ replace_once(
 
             HStack(spacing: 8) {
 ''',
+    'accessibilityIdentifier("sarah.attachment.menu")',
     "attachment menu identifier",
 )
-replace_once(
+ensure_replace(
     bar,
     '''                .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
@@ -94,9 +101,10 @@ replace_once(
 
                 if activeAgent == .esther {
 ''',
+    'accessibilityIdentifier("sarah.composer.field")',
     "composer identifier",
 )
-replace_once(
+ensure_replace(
     bar,
     '''            .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Mode vocal Sarah"))
@@ -107,11 +115,12 @@ replace_once(
             .accessibilityIdentifier("sarah.composer.action")
         }
 ''',
+    'accessibilityIdentifier("sarah.composer.action")',
     "composer action identifier",
 )
 
 sidebar = Path("SarahIA/SarahIA/Views/SidebarView.swift")
-replace_once(
+ensure_replace(
     sidebar,
     '''        .preferredColorScheme(.dark)
         .confirmationDialog(
@@ -120,7 +129,8 @@ replace_once(
         .accessibilityIdentifier("sarah.sidebar")
         .confirmationDialog(
 ''',
+    'accessibilityIdentifier("sarah.sidebar")',
     "sidebar identifier",
 )
 
-print("Simulator-only UI accessibility identifiers injected")
+print("Simulator UI accessibility identifiers verified")
