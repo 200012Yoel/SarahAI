@@ -39,13 +39,22 @@ content = read("SarahIA/SarahIA/ContentView.swift")
 styles = read("SarahIA/SarahIA/Views/CommonStyles.swift")
 storage = read("SarahIA/SarahIA/Services/StorageService.swift")
 view_model = read("SarahIA/SarahIA/ViewModels/ChatViewModel.swift")
+whisper = read("SarahIA/SarahIA/Services/WhisperService.swift")
+voice_orb = read("SarahIA/SarahIA/Views/VoiceOrbModalView.swift")
 
-# Composer: first-tap regression guard.
+# Composer: first-tap regression guard. The chat composer intentionally uses a
+# real UIKit UITextField so the complete visible capsule is an actual native
+# responder instead of padding around a smaller SwiftUI control.
 require("@FocusState" not in bar, "Composer sans FocusState intermédiaire")
-require('.accessibilityIdentifier("sarah.composer.field")' in bar, "Identifiant du champ composer présent")
-require("minHeight: 48" in bar and "contentShape(Rectangle())" in bar, "Zone tactile du composer agrandie")
-require("TextField(" in bar, "TextField natif du composer présent")
+require("UIViewRepresentable" in bar and "UITextFieldDelegate" in bar, "Composer basé sur UITextField UIKit natif")
+require("ReliableComposerTextField" in bar, "Champ natif fiable utilisé dans le composer")
+require('accessibilityIdentifier: "sarah.composer.field"' in bar, "Identifiant du champ composer présent")
+require("minHeight: 52" in bar and "contentShape" in bar, "Zone tactile du composer agrandie")
+require("isUserInteractionEnabled = true" in bar, "Interaction UIKit explicitement active")
 require("dismissKeyboard()" in bar, "Fermeture clavier du composer centralisée")
+require('.accessibilityIdentifier("sarah.composer.action")' in bar, "Bouton vocal/envoi identifiable")
+require(".frame(width: 50, height: 50)" in bar, "Boutons principaux avec cible tactile 50 pt")
+require("Color.black.opacity(0.001)" in bar, "Le dock empêche les touches de traverser vers la liste")
 
 # Sidebar search: same first-tap protection as the composer.
 require('TextField("Rechercher"' in sidebar, "TextField natif de recherche présent")
@@ -64,6 +73,26 @@ if search_background:
     )
 else:
     errors.append("Impossible d'analyser SidebarView.searchField")
+
+# Voice mode: the UI must appear before the heavy Whisper model loads.
+require("isModelLoading" in whisper, "État de chargement Whisper asynchrone présent")
+require("inferenceQueue.async" in whisper, "Chargement/inférence Whisper hors main thread")
+require("prepareModelInBackgroundIfNeeded" in whisper, "Préparation Whisper non bloquante utilisée")
+require("wantsRecordingAfterModelLoad" in whisper, "Demande micro conservée pendant le chargement du modèle")
+require("viewModel.startVoiceConversation()" in voice_orb, "Écran vocal démarre réellement la conversation")
+require("onOpenVoiceOrb()" in bar, "Bouton waveform relié à l'ouverture du mode vocal")
+
+start_recording = re.search(
+    r"public func startRecording\(autoFinalizeOnSilence: Bool = true\) \{(.*?)\n    \}",
+    whisper,
+    re.S,
+)
+if start_recording:
+    body = start_recording.group(1)
+    require("ensureModelLoaded()" not in body, "startRecording ne charge jamais Whisper synchronement")
+    require("prepareModelInBackgroundIfNeeded()" in body, "startRecording délègue le modèle en arrière-plan")
+else:
+    errors.append("Impossible d'analyser WhisperService.startRecording")
 
 # Global hit-testing / gesture traps that previously made the whole UI feel dead.
 require('.onTapGesture { keyboard.dismiss() }' not in chat, "Pas de tap plein écran qui vole le premier toucher")
