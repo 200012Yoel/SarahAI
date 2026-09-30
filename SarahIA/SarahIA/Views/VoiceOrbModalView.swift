@@ -1,18 +1,23 @@
 import SwiftUI
 import UIKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 /// Interface vocale Sarah.
 /// Pas de bouton X : la vue se réduit ou se ferme naturellement par glissement.
-@available(iOS 14.0, *)
+@available(iOS 15.0, *)
 public struct VoiceOrbModalView: View {
     @ObservedObject var viewModel: ChatViewModel
-    @Environment(\.presentationMode) private var presentationMode
 
     private let onOpenMenu: () -> Void
     private let onOpenSettings: () -> Void
 
     @State private var pulse = false
     @State private var drift = false
+    @State private var isShowingPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var isShowingCamera = false
+    @State private var isShowingFileImporter = false
 
     public init(
         viewModel: ChatViewModel,
@@ -88,6 +93,32 @@ public struct VoiceOrbModalView: View {
                 }
             }
         }
+        .photosPicker(
+            isPresented: $isShowingPhotoPicker,
+            selection: $selectedPhotoItem,
+            matching: .images
+        )
+        .onChange(of: selectedPhotoItem) { item in
+            analyzeSelectedPhoto(item)
+        }
+        .sheet(isPresented: $isShowingCamera) {
+            VoiceCameraPicker { image in
+                isShowingCamera = false
+                if let image { analyzeCameraImage(image) }
+            }
+        }
+        .fileImporter(
+            isPresented: $isShowingFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { viewModel.appendImportedFile(url: url) }
+            case .failure(let error):
+                viewModel.inputText = "Impossible d'ouvrir le fichier : \(error.localizedDescription)"
+            }
+        }
         .onAppear {
             pulse = true
             drift = true
@@ -100,6 +131,34 @@ public struct VoiceOrbModalView: View {
             // Sarah ne doit jamais conserver une route audio active quand
             // l'utilisateur quitte l'app ou ouvre Siri / un appel.
             viewModel.stopVoiceConversation()
+        }
+    }
+
+    private func analyzeSelectedPhoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        viewModel.inputText = "Impossible de lire cette image."
+                    }
+                    return
+                }
+                analyzeCameraImage(image)
+            } catch {
+                await MainActor.run {
+                    viewModel.inputText = "Impossible d'ouvrir la photo : \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func analyzeCameraImage(_ image: UIImage) {
+        LocalVisionEngine.shared.recognizeObject(in: image) { result in
+            DispatchQueue.main.async {
+                viewModel.appendVisionAnalysis(image: image, result: result)
+            }
         }
     }
 
@@ -174,9 +233,8 @@ public struct VoiceOrbModalView: View {
         HStack(spacing: 14) {
             circleButton(systemName: "line.3.horizontal") {
                 HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                presentationMode.wrappedValue.dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                closeVoiceSurface()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                     onOpenMenu()
                 }
             }
@@ -197,12 +255,18 @@ public struct VoiceOrbModalView: View {
 
             circleButton(systemName: "slider.horizontal.3") {
                 HapticService.shared.buttonTap()
-                viewModel.stopVoiceConversation()
-                presentationMode.wrappedValue.dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                closeVoiceSurface()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                     onOpenSettings()
                 }
             }
+        }
+    }
+
+    private func closeVoiceSurface() {
+        viewModel.stopVoiceConversation()
+        withAnimation(.easeOut(duration: 0.16)) {
+            viewModel.isShowingVoiceOrbModal = false
         }
     }
 
@@ -310,9 +374,42 @@ public struct VoiceOrbModalView: View {
 
     private var composer: some View {
         HStack(spacing: 10) {
-            circleButton(systemName: "plus", size: 50) {
-                HapticService.shared.buttonTap()
+            Menu {
+                Button {
+                    HapticService.shared.buttonTap()
+                    selectedPhotoItem = nil
+                    isShowingPhotoPicker = true
+                } label: {
+                    Label("Photos", systemImage: "photo.on.rectangle.angled")
+                }
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    isShowingCamera = true
+                } label: {
+                    Label("Appareil photo", systemImage: "camera")
+                }
+
+                Button {
+                    HapticService.shared.buttonTap()
+                    isShowingFileImporter = true
+                } label: {
+                    Label("Fichier", systemImage: "doc")
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.10))
+                        .frame(width: 50, height: 50)
+                    Circle()
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.white)
+                }
             }
+            .accessibilityLabel("Ajouter une photo, prendre une photo ou joindre un fichier")
 
             HStack(spacing: 10) {
                 TextField("Demander à Sarah…", text: $viewModel.inputText)
@@ -398,5 +495,44 @@ public struct VoiceOrbModalView: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+@available(iOS 15.0, *)
+private struct VoiceCameraPicker: UIViewControllerRepresentable {
+    let onImage: (UIImage?) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onImage: onImage)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let onImage: (UIImage?) -> Void
+
+        init(onImage: @escaping (UIImage?) -> Void) {
+            self.onImage = onImage
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]
+        ) {
+            onImage(info[.originalImage] as? UIImage)
+            picker.dismiss(animated: true)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onImage(nil)
+            picker.dismiss(animated: true)
+        }
     }
 }
