@@ -33,6 +33,8 @@ jobs:
           python3 .github/scripts/restore_website_voice_bridge.py
           python3 .github/scripts/production_quality_pass.py
           python3 .github/scripts/inject_ui_test_ids.py
+          grep -q 'stopListeningAndTranscribe' SarahIA/SarahIA/Views/MessageBar.swift
+          grep -q 'suppressNextExternalFinalCallback' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
 
       - name: Replace Whisper only for simulator UI testing
         run: |
@@ -111,12 +113,15 @@ jobs:
           test -n "$APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
-      - name: Boot an available iPhone Simulator with a hard timeout
+      - name: Boot and launch a healthy iPhone Simulator
         run: |
           set -euo pipefail
-          open -a Simulator || true
           python3 - <<'PY'
           import json, os, re, subprocess, time
+
+          def run(cmd, timeout=None, check=True):
+              print('+', ' '.join(cmd), flush=True)
+              return subprocess.run(cmd, check=check, timeout=timeout, capture_output=True, text=True)
 
           data = json.loads(subprocess.check_output([
               'xcrun', 'simctl', 'list', 'devices', 'available', '--json'
@@ -126,44 +131,47 @@ jobs:
           for runtime, devices in data.get('devices', {}).items():
               match = re.search(r'iOS-(\d+)-(\d+)', runtime)
               version = tuple(map(int, match.groups())) if match else (0, 0)
-              for d in devices:
-                  if d.get('isAvailable') and d.get('name', '').startswith('iPhone'):
-                      state_rank = 1 if d.get('state') == 'Booted' else 0
-                      candidates.append((state_rank, version, d['name'], d['udid']))
+              for device in devices:
+                  if device.get('isAvailable') and device.get('name', '').startswith('iPhone'):
+                      booted = 1 if device.get('state') == 'Booted' else 0
+                      candidates.append((booted, version, device['name'], device['udid']))
 
           if not candidates:
               raise SystemExit('No available iPhone Simulator')
 
           candidates.sort(reverse=True)
-          _, version, name, udid = candidates[0]
-          print(f'Using {name} iOS {version[0]}.{version[1]} ({udid})', flush=True)
-
-          if not any(d.get('udid') == udid and d.get('state') == 'Booted'
-                     for devices in data.get('devices', {}).values() for d in devices):
-              subprocess.run(['xcrun', 'simctl', 'boot', udid], check=False)
-
-          try:
-              subprocess.run(
-                  ['xcrun', 'simctl', 'bootstatus', udid, '-b'],
-                  check=True,
-                  timeout=150
-              )
-          except subprocess.TimeoutExpired:
-              raise SystemExit('Simulator boot timed out after 150 seconds')
-
           app_path = os.environ['APP_PATH']
-          subprocess.run(['xcrun', 'simctl', 'install', udid, app_path], check=True, timeout=90)
-          result = subprocess.run(
-              ['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'],
-              check=True,
-              capture_output=True,
-              text=True,
-              timeout=60
-          )
-          print(result.stdout.strip(), flush=True)
-          time.sleep(4)
-          with open(os.environ['GITHUB_ENV'], 'a') as f:
-              f.write(f'SIM_UDID={udid}\n')
+          last_error = None
+
+          for _, version, name, udid in candidates[:6]:
+              print(f'Trying {name} iOS {version[0]}.{version[1]} ({udid})', flush=True)
+              try:
+                  state = run(['xcrun', 'simctl', 'list', 'devices', udid, '--json'], timeout=20).stdout
+                  if 'Booted' not in state:
+                      run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
+                      run(['xcrun', 'simctl', 'boot', udid], timeout=30, check=False)
+
+                  run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=120)
+                  run(['xcrun', 'simctl', 'install', udid, app_path], timeout=90)
+                  launched = run(
+                      ['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'],
+                      timeout=60
+                  )
+                  print(launched.stdout.strip(), flush=True)
+                  time.sleep(4)
+                  with open(os.environ['GITHUB_ENV'], 'a') as env:
+                      env.write(f'SIM_UDID={udid}\n')
+                  print(f'Simulator ready: {name} ({udid})', flush=True)
+                  break
+              except Exception as exc:
+                  last_error = exc
+                  print(f'Candidate failed: {exc}', flush=True)
+                  try:
+                      run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
+                  except Exception:
+                      pass
+          else:
+              raise SystemExit(f'All simulator candidates failed: {last_error}')
           PY
 
       - name: Install Java 17
