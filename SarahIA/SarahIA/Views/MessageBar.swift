@@ -5,6 +5,11 @@ import SwiftUI
 /// - micro dans le champ = dictée locale, sans envoi automatique ;
 /// - waveform = vrai mode vocal continu ;
 /// - carré = arrêt de la génération en cours.
+///
+/// Le champ utilise volontairement le focus natif du TextField. Une ancienne
+/// version utilisait FocusState dans une capsule complexe et pouvait nécessiter
+/// deux touches avant l'ouverture du clavier. Ici la surface du TextField est
+/// réellement agrandie afin que le premier toucher soit transmis directement à iOS.
 @available(iOS 15.0, *)
 public struct MessageBar: View {
     @Binding var text: String
@@ -20,7 +25,6 @@ public struct MessageBar: View {
     var onOpenVoiceOrb: () -> Void
     var onOpenVAICoding: () -> Void
 
-    @FocusState private var isComposerFocused: Bool
     @State private var isDictating = false
     @State private var textBeforeDictation = ""
     @State private var dictationMicLevel: Float = 0.0
@@ -101,7 +105,7 @@ public struct MessageBar: View {
             Menu {
                 Button {
                     HapticService.shared.buttonTap()
-                    isComposerFocused = false
+                    dismissKeyboard()
                     onOpenPhotoLibrary()
                 } label: {
                     Label("Photos", systemImage: "photo.on.rectangle.angled")
@@ -109,7 +113,7 @@ public struct MessageBar: View {
 
                 Button {
                     HapticService.shared.buttonTap()
-                    isComposerFocused = false
+                    dismissKeyboard()
                     onOpenCamera()
                 } label: {
                     Label("Appareil photo", systemImage: "camera")
@@ -117,7 +121,7 @@ public struct MessageBar: View {
 
                 Button {
                     HapticService.shared.buttonTap()
-                    isComposerFocused = false
+                    dismissKeyboard()
                     onOpenFile()
                 } label: {
                     Label("Fichier", systemImage: "doc")
@@ -130,22 +134,29 @@ public struct MessageBar: View {
                     .sarahLiquidGlass(cornerRadius: 22, tint: activeAgent.themeColor, intensity: 0.10)
             }
             .accessibilityLabel("Ajouter une photo, prendre une photo ou joindre un fichier")
+            .accessibilityIdentifier("sarah.attachment.menu")
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 TextField("Demander à \(activeAgent.displayName)...", text: $text, onCommit: {
                     guard !isProcessing else { return }
                     submitMessage()
                 })
-                .focused($isComposerFocused)
                 .foregroundColor(.white)
                 .accentColor(activeAgent.themeColor)
                 .font(.system(size: 15))
+                .textInputAutocapitalization(.sentences)
+                .disableAutocorrection(false)
+                .padding(.leading, 15)
+                .padding(.vertical, 13)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("sarah.composer.field")
 
                 if activeAgent == .esther {
                     Button(action: {
                         guard !isProcessing else { return }
                         HapticService.shared.buttonTap()
-                        isComposerFocused = false
+                        dismissKeyboard()
                         onOpenVAICoding()
                     }) {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
@@ -163,16 +174,19 @@ public struct MessageBar: View {
                     Image(systemName: "mic")
                         .foregroundColor(isProcessing ? .gray.opacity(0.45) : .gray)
                         .font(.system(size: 18))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 34, height: 34)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .disabled(isProcessing)
                 .accessibilityLabel("Dicter un message")
+                .padding(.trailing, 7)
             }
-            .padding(.leading, 15)
-            .padding(.trailing, 9)
-            .frame(height: 48)
-            .sarahLiquidGlass(cornerRadius: 24, tint: activeAgent.themeColor, intensity: activeAgent == .esther ? 0.12 : 0.08)
+            .frame(minHeight: 48)
+            .sarahLiquidGlass(
+                cornerRadius: 24,
+                tint: activeAgent.themeColor,
+                intensity: activeAgent == .esther ? 0.12 : 0.08
+            )
 
             let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             Button {
@@ -183,7 +197,7 @@ public struct MessageBar: View {
                     submitMessage()
                 } else {
                     HapticService.shared.buttonTap()
-                    isComposerFocused = false
+                    dismissKeyboard()
                     onOpenVoiceOrb()
                 }
             } label: {
@@ -206,10 +220,12 @@ public struct MessageBar: View {
                     Circle().fill((isProcessing || hasText) ? activeAgent.themeColor.opacity(0.92) : Color.white.opacity(0.06))
                     Circle().stroke((isProcessing || hasText) ? Color.white.opacity(0.26) : Color.white.opacity(0.12), lineWidth: 0.8)
                 }
+                .allowsHitTesting(false)
             )
             .clipShape(Circle())
             .buttonStyle(ScaleBounceButtonStyle())
             .accessibilityLabel(isProcessing ? "Arrêter la génération" : (hasText ? "Envoyer" : "Mode vocal Sarah"))
+            .accessibilityIdentifier("sarah.composer.action")
         }
     }
 
@@ -266,6 +282,7 @@ public struct MessageBar: View {
     private func startDictation() {
         guard !isProcessing else { return }
         HapticService.shared.buttonTap()
+        dismissKeyboard()
         let recognizer = AppleSpeechRecognizer.shared
         if recognizer.isListening { recognizer.stopListening() }
         textBeforeDictation = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -319,9 +336,13 @@ public struct MessageBar: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         HapticService.shared.buttonTap()
-        isComposerFocused = false
+        dismissKeyboard()
         onSend(trimmed)
         text = ""
+    }
+
+    private func dismissKeyboard() {
+        KeyboardObserver.shared.dismiss()
     }
 }
 
