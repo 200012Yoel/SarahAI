@@ -20,14 +20,16 @@ public struct ContentView: View {
             )
 
             ZStack(alignment: .leading) {
+                // Le chat reste toujours interactif. Les vrais overlays ci-dessous
+                // interceptent eux-mêmes les touches uniquement lorsqu'ils existent.
+                // Cela évite qu'un état vocal/tiroir désynchronisé rende toute
+                // l'application non cliquable derrière une couche invisible.
                 ChatScreenView(
                     viewModel: viewModel,
                     isShowingSettings: $isShowingSettings
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(
-                    !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal
-                )
+                .zIndex(0)
 
                 // Zone de swipe réellement limitée aux 18 points du bord gauche.
                 // Elle ne contient aucun Spacer plein écran et ne peut donc pas
