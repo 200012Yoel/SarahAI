@@ -2,13 +2,15 @@ import SwiftUI
 
 /// Vue racine de SarahIA orientée stabilité.
 ///
-/// Règle importante : aucune couche invisible ne doit pouvoir rester au-dessus
-/// du chat. Le tiroir est désormais binaire (ouvert / fermé) et son geste de
-/// bord ne modifie plus un état de progression intermédiaire.
+/// Aucune couche décorative ne doit pouvoir intercepter les touches du chat.
+/// Le tiroir et le mode vocal existent uniquement lorsqu'ils sont réellement
+/// visibles. L'animation de lancement est purement visuelle et non interactive.
 @available(iOS 15.0, *)
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @State private var isShowingStartupAnimation = true
+    @State private var didScheduleStartupDismissal = false
 
     public init() {}
 
@@ -20,10 +22,6 @@ public struct ContentView: View {
             )
 
             ZStack(alignment: .leading) {
-                // Le chat reste toujours interactif. Les vrais overlays ci-dessous
-                // interceptent eux-mêmes les touches uniquement lorsqu'ils existent.
-                // Cela évite qu'un état vocal/tiroir désynchronisé rende toute
-                // l'application non cliquable derrière une couche invisible.
                 ChatScreenView(
                     viewModel: viewModel,
                     isShowingSettings: $isShowingSettings
@@ -31,9 +29,8 @@ public struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(0)
 
-                // Zone de swipe réellement limitée aux 18 points du bord gauche.
-                // Elle ne contient aucun Spacer plein écran et ne peut donc pas
-                // devenir une surface invisible qui absorbe les boutons du chat.
+                // Seuls les 18 points du bord gauche servent au geste du tiroir.
+                // Le reste de l'écran reste entièrement libre pour les contrôles.
                 if !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal {
                     Color.clear
                         .frame(width: 18)
@@ -72,6 +69,13 @@ public struct ContentView: View {
                     .transition(.move(edge: .leading))
                     .zIndex(31)
                 }
+
+                if isShowingStartupAnimation {
+                    SarahStartupAnimationView()
+                        .allowsHitTesting(false)
+                        .zIndex(100)
+                        .transition(.opacity)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -80,11 +84,22 @@ public struct ContentView: View {
             SettingsView(viewModel: viewModel)
         }
         .onAppear {
-            // Tous les états purement visuels repartent d'une base connue.
+            // Toujours repartir d'un état visuel interactif et déterministe.
             viewModel.isDrawerOpen = false
             viewModel.drawerProgress = 0
             viewModel.isShowingVoiceOrbModal = false
             isShowingSettings = false
+
+            guard !didScheduleStartupDismissal else { return }
+            didScheduleStartupDismissal = true
+
+            // L'intro reprend l'ancien écran Sarah, mais elle n'a jamais le droit
+            // de participer au hit testing. Elle disparaît rapidement après le rendu.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) {
+                withAnimation(.easeOut(duration: 0.32)) {
+                    isShowingStartupAnimation = false
+                }
+            }
         }
         .onChange(of: isShowingSettings) { isPresented in
             if isPresented {
@@ -141,5 +156,62 @@ public struct ContentView: View {
 
                 viewModel.openDrawer()
             }
+    }
+}
+
+/// Animation d'ouverture légère inspirée de l'ancien écran "Sarah".
+/// Important : cette vue est décorative uniquement et ne peut jamais bloquer
+/// un Button, Menu ou TextField placé derrière elle.
+@available(iOS 15.0, *)
+private struct SarahStartupAnimationView: View {
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            Color.black
+
+            RadialGradient(
+                colors: [
+                    Color.cyan.opacity(appeared ? 0.20 : 0.04),
+                    Color.blue.opacity(appeared ? 0.08 : 0.02),
+                    Color.clear
+                ],
+                center: .center,
+                startRadius: 4,
+                endRadius: 280
+            )
+
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.cyan.opacity(appeared ? 0.32 : 0.06), lineWidth: 1)
+                        .frame(width: 78, height: 78)
+                        .scaleEffect(appeared ? 1.0 : 0.72)
+
+                    Circle()
+                        .fill(Color.cyan.opacity(appeared ? 0.09 : 0.02))
+                        .frame(width: 58, height: 58)
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                Text("Sarah")
+                    .font(.system(size: 39, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundColor(.white)
+                    .shadow(color: Color.cyan.opacity(appeared ? 0.46 : 0), radius: 18)
+            }
+            .scaleEffect(appeared ? 1.0 : 0.92)
+            .opacity(appeared ? 1.0 : 0.08)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.52)) {
+                appeared = true
+            }
+        }
     }
 }
