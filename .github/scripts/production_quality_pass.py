@@ -206,6 +206,52 @@ message_list = message_list.replace(
 )
 message_list_path.write_text(message_list)
 
+# Keep the native composer editable even while an answer is being generated.
+# The action button can still stop the generation, but a stale isTyping flag can
+# no longer make the text field itself feel dead.
+bar_path = Path("SarahIA/SarahIA/Views/MessageBar.swift")
+bar = bar_path.read_text()
+bar = bar.replace("                    isEnabled: !isProcessing,", "                    isEnabled: true,", 1)
+bar_path.write_text(bar)
+
+# A microphone permission alert also sends willResignActive. Stopping voice mode
+# on that notification killed the very first launch of the microphone. Only stop
+# the conversation when the app really enters the background.
+voice_orb_path = Path("SarahIA/SarahIA/Views/VoiceOrbModalView.swift")
+voice_orb = voice_orb_path.read_text()
+voice_orb = voice_orb.replace(
+    "UIApplication.willResignActiveNotification",
+    "UIApplication.didEnterBackgroundNotification",
+    1,
+)
+voice_orb = voice_orb.replace(
+    '''        case .processing:
+            return "Je réfléchis…"
+''',
+    '''        case .starting:
+            return "Préparation du micro…"
+        case .processing:
+            return "Je réfléchis…"
+''',
+    1,
+)
+voice_orb = voice_orb.replace(
+    '''        case .error:
+            return "Touchez le micro pour réessayer"
+        case .processing:
+            return "Un instant…"
+''',
+    '''        case .error:
+            return "Touchez le micro pour réessayer"
+        case .starting:
+            return "Whisper se prépare en local"
+        case .processing:
+            return "Un instant…"
+''',
+    1,
+)
+voice_orb_path.write_text(voice_orb)
+
 # Do not perform a synchronous load+save cycle as soon as ChatViewModel is
 # constructed. @Published emits its current value immediately on subscription,
 # so dropFirst prevents disk I/O from needlessly blocking the MainActor during
@@ -221,6 +267,15 @@ view_model = view_model.replace(
             .sink { [weak self] _ in
 ''',
     1
+)
+view_model = view_model.replace(
+    '''        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+    }
+''',
+    '''        voiceStatus = isMicRunning ? .listening(level: 0.0) : .starting
+    }
+''',
+    1,
 )
 view_model_path.write_text(view_model)
 
