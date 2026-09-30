@@ -34,6 +34,7 @@ def warn_if(condition: bool, message: str) -> None:
 bar = read("SarahIA/SarahIA/Views/MessageBar.swift")
 chat = read("SarahIA/SarahIA/Views/ChatScreenView.swift")
 message_list = read("SarahIA/SarahIA/Views/MessageList.swift")
+sidebar = read("SarahIA/SarahIA/Views/SidebarView.swift")
 content = read("SarahIA/SarahIA/ContentView.swift")
 styles = read("SarahIA/SarahIA/Views/CommonStyles.swift")
 storage = read("SarahIA/SarahIA/Services/StorageService.swift")
@@ -41,10 +42,28 @@ view_model = read("SarahIA/SarahIA/ViewModels/ChatViewModel.swift")
 
 # Composer: first-tap regression guard.
 require("@FocusState" not in bar, "Composer sans FocusState intermédiaire")
-require('.accessibilityIdentifier("sarah.composer.field")' in bar, "Identifiant du champ présent")
-require("minHeight: 48" in bar and "contentShape(Rectangle())" in bar, "Zone tactile du champ agrandie")
-require("TextField(" in bar, "TextField natif présent")
-require("dismissKeyboard()" in bar, "Fermeture clavier centralisée")
+require('.accessibilityIdentifier("sarah.composer.field")' in bar, "Identifiant du champ composer présent")
+require("minHeight: 48" in bar and "contentShape(Rectangle())" in bar, "Zone tactile du composer agrandie")
+require("TextField(" in bar, "TextField natif du composer présent")
+require("dismissKeyboard()" in bar, "Fermeture clavier du composer centralisée")
+
+# Sidebar search: same first-tap protection as the composer.
+require('TextField("Rechercher"' in sidebar, "TextField natif de recherche présent")
+require('.accessibilityIdentifier("sarah.sidebar.search.field")' in sidebar, "Identifiant du champ de recherche présent")
+require("maxWidth: .infinity, minHeight: 48" in sidebar, "Zone tactile de recherche agrandie à 48 pt")
+require(".contentShape(Rectangle())" in sidebar, "Surface tactile de recherche explicite")
+search_background = re.search(
+    r'private func searchField\(horizontal: CGFloat\).*?// MARK: - Active conversations',
+    sidebar,
+    re.S,
+)
+if search_background:
+    require(
+        ".allowsHitTesting(false)" in search_background.group(0),
+        "Fond décoratif de la recherche non interactif",
+    )
+else:
+    errors.append("Impossible d'analyser SidebarView.searchField")
 
 # Global hit-testing / gesture traps that previously made the whole UI feel dead.
 require('.onTapGesture { keyboard.dismiss() }' not in chat, "Pas de tap plein écran qui vole le premier toucher")
