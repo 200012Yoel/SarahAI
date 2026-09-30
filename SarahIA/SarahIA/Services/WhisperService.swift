@@ -34,6 +34,13 @@ public final class WhisperService: ObservableObject {
     private var generation = UUID()
     private var isFinalizing = false
 
+    // Le chargement de ggml-base.bin peut prendre un moment sur un iPhone réel.
+    // Il ne doit jamais bloquer le thread principal ni empêcher l'écran vocal
+    // de s'afficher immédiatement après le premier toucher.
+    private var isModelLoading = false
+    private var wantsRecordingAfterModelLoad = false
+    private var pendingAutoFinalizeOnSilence = true
+
     private let targetSampleRate: Double = 16_000
     private let silenceThreshold: TimeInterval = 0.92
     private let minimumUtteranceSeconds: Double = 0.35
@@ -67,6 +74,7 @@ public final class WhisperService: ObservableObject {
 
     public func startRecording(autoFinalizeOnSilence: Bool = true) {
         guard !isRecording else { return }
+
         guard AVAudioSession.sharedInstance().recordPermission == .granted else {
             requestAuthorization { [weak self] granted in
                 guard let self else { return }
@@ -79,13 +87,68 @@ public final class WhisperService: ObservableObject {
             return
         }
 
-        do {
-            try ensureModelLoaded()
-        } catch {
-            lastError = error.localizedDescription
+        // Très important : ne jamais initialiser whisper.cpp sur le main thread.
+        // On mémorise l'intention de démarrer le micro puis on reprend exactement
+        // la même demande dès que le modèle est prêt.
+        if context == nil {
+            wantsRecordingAfterModelLoad = true
+            pendingAutoFinalizeOnSilence = autoFinalizeOnSilence
+            prepareModelInBackgroundIfNeeded()
             return
         }
 
+        wantsRecordingAfterModelLoad = false
+        isModelReady = true
+        beginAudioCapture(autoFinalizeOnSilence: autoFinalizeOnSilence)
+    }
+
+    private func prepareModelInBackgroundIfNeeded() {
+        guard context == nil else {
+            isModelReady = true
+            if wantsRecordingAfterModelLoad {
+                let autoFinalize = pendingAutoFinalizeOnSilence
+                wantsRecordingAfterModelLoad = false
+                startRecording(autoFinalizeOnSilence: autoFinalize)
+            }
+            return
+        }
+        guard !isModelLoading else { return }
+
+        isModelLoading = true
+        lastError = nil
+
+        inferenceQueue.async { [weak self] in
+            guard let self else { return }
+            let result: Result<Void, Error>
+            do {
+                try self.ensureModelLoaded()
+                result = .success(())
+            } catch {
+                result = .failure(error)
+            }
+
+            DispatchQueue.main.async {
+                self.isModelLoading = false
+
+                switch result {
+                case .success:
+                    self.isModelReady = true
+                    self.lastError = nil
+                    guard self.wantsRecordingAfterModelLoad else { return }
+                    let autoFinalize = self.pendingAutoFinalizeOnSilence
+                    self.wantsRecordingAfterModelLoad = false
+                    self.startRecording(autoFinalizeOnSilence: autoFinalize)
+
+                case .failure(let error):
+                    self.wantsRecordingAfterModelLoad = false
+                    self.isModelReady = false
+                    self.lastError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func beginAudioCapture(autoFinalizeOnSilence: Bool) {
         automaticFinalize = autoFinalizeOnSilence
         isFinalizing = false
         hasDetectedSpeech = false
@@ -131,6 +194,7 @@ public final class WhisperService: ObservableObject {
     }
 
     public func stopRecordingAndTranscribe(completion: ((String?) -> Void)? = nil) {
+        wantsRecordingAfterModelLoad = false
         let snapshot = stopCaptureAndTakeSamples()
         guard !snapshot.isEmpty else {
             completion?(nil)
@@ -140,6 +204,7 @@ public final class WhisperService: ObservableObject {
     }
 
     public func stopRecordingWithoutTranscription() {
+        wantsRecordingAfterModelLoad = false
         _ = stopCaptureAndTakeSamples()
     }
 
@@ -162,6 +227,7 @@ public final class WhisperService: ObservableObject {
     }
 
     public func reset() {
+        wantsRecordingAfterModelLoad = false
         stopRecordingWithoutTranscription()
         currentText = ""
         lastError = nil
@@ -266,10 +332,8 @@ public final class WhisperService: ObservableObject {
     // MARK: Whisper inference
 
     private func ensureModelLoaded() throws {
-        if context != nil {
-            isModelReady = true
-            return
-        }
+        if context != nil { return }
+
         guard let modelURL = Bundle.main.url(
             forResource: "ggml-base",
             withExtension: "bin",
@@ -298,7 +362,6 @@ public final class WhisperService: ObservableObject {
             )
         }
         context = loaded
-        isModelReady = true
     }
 
     private func transcribe(_ audio: [Float], final: Bool, completion: ((String?) -> Void)?) {
