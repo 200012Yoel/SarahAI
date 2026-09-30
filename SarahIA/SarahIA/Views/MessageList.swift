@@ -12,7 +12,7 @@ public struct MessageList: View {
     public var onDismissKeyboard: (() -> Void)?
     public var onRegenerate: ((Message) -> Void)?
     public var onOpenStudio: (() -> Void)?
-    
+
     public init(
         messages: [Message],
         isTyping: Bool,
@@ -34,13 +34,12 @@ public struct MessageList: View {
         self.onRegenerate = onRegenerate
         self.onOpenStudio = onOpenStudio
     }
-    
+
     public var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 12) {
                     if messages.isEmpty {
-                        // Écran épuré et vierge : discussion directe sans encombrement
                         Spacer()
                             .frame(height: 40)
                     } else {
@@ -58,7 +57,7 @@ public struct MessageList: View {
                             )
                             .id(message.id)
                         }
-                        
+
                         if isTyping {
                             HStack {
                                 TypingIndicatorView()
@@ -73,11 +72,10 @@ public struct MessageList: View {
                 .padding(.top, 10)
                 .padding(.bottom, 12)
             }
-            // Défilement automatique lors de nouveaux messages
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _ in
                 scrollToBottom(proxy: proxy)
             }
-            // Défilement automatique lors de la saisie par Sarah
             .onChange(of: isTyping) { typing in
                 if typing {
                     withAnimation(.easeOut(duration: 0.25)) {
@@ -85,7 +83,6 @@ public struct MessageList: View {
                     }
                 }
             }
-            // Défilement automatique lors de l'ouverture du clavier
             .onChange(of: isKeyboardVisible) { visible in
                 if visible {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -93,18 +90,9 @@ public struct MessageList: View {
                     }
                 }
             }
-            // Fermeture du clavier au glissement vers le bas
-            .simultaneousGesture(
-                DragGesture()
-                    .onChanged { value in
-                        if value.translation.height > 15 && isKeyboardVisible {
-                            onDismissKeyboard?()
-                        }
-                    }
-            )
         }
     }
-    
+
     private func scrollToBottom(proxy: ScrollViewProxy) {
         if let last = messages.last {
             withAnimation(.easeOut(duration: 0.25)) {
@@ -113,4 +101,3 @@ public struct MessageList: View {
         }
     }
 }
-
