@@ -277,15 +277,18 @@ public struct MessageBar: View {
 
     private func finishDictation(sendImmediately: Bool) {
         HapticService.shared.buttonTap()
-        let recognized = currentRecognizedText
-        AppleSpeechRecognizer.shared.stopListening()
+        let prefix = textBeforeDictation
         isDictating = false
         dictationMicLevel = 0
-        let finalText = mergedText(prefix: textBeforeDictation, dictated: recognized)
-        text = finalText
-        if sendImmediately && !finalText.isEmpty {
-            onSend(finalText)
-            text = ""
+
+        AppleSpeechRecognizer.shared.stopListeningAndTranscribe { recognized in
+            let finalText = mergedText(prefix: prefix, dictated: recognized ?? "")
+            text = finalText
+            dictationLiveText = recognized ?? ""
+            if sendImmediately && !finalText.isEmpty {
+                onSend(finalText)
+                text = ""
+            }
         }
     }
 
