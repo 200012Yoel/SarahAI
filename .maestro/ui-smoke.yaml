@@ -10,7 +10,14 @@ appId: com.sarahia.app
     id: "sarah.sidebar"
 - assertVisible: "Aucune discussion pour le moment."
 
-# 2. Menu des agents
+# 2. Recherche latérale : un seul tap doit suffire
+- tapOn: "Rechercher"
+- tapOn:
+    id: "sarah.sidebar.search.field"
+- inputText: "test recherche"
+- assertVisible: "test recherche"
+
+# 3. Menu des agents
 - launchApp
 - assertVisible: "Sarah"
 - tapOn:
@@ -19,13 +26,13 @@ appId: com.sarahia.app
 - assertVisible: "Yohan"
 - assertVisible: "Tom"
 
-# 3. Réglages
+# 4. Réglages
 - launchApp
 - tapOn:
     id: "sarah.settings.button"
 - assertVisible: "Réglages"
 
-# 4. Bouton + et menu de pièces jointes
+# 5. Bouton + et menu de pièces jointes
 - launchApp
 - tapOn:
     id: "sarah.attachment.menu"
@@ -33,7 +40,7 @@ appId: com.sarahia.app
 - assertVisible: "Appareil photo"
 - assertVisible: "Fichier"
 
-# 5. Champ de saisie : un seul tap doit suffire
+# 6. Champ de saisie : un seul tap doit suffire
 - launchApp
 - tapOn:
     id: "sarah.composer.field"
@@ -43,7 +50,7 @@ appId: com.sarahia.app
     id: "sarah.composer.action"
 - assertVisible: "test interaction SarahIA"
 
-# 6. Mode vocal Sarah / orbe
+# 7. Mode vocal Sarah / orbe
 - launchApp
 - assertVisible: "Sarah"
 - tapOn:
