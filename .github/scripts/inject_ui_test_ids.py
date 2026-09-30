@@ -88,22 +88,16 @@ ensure_replace(
     'accessibilityIdentifier("sarah.attachment.menu")',
     "attachment menu identifier",
 )
-ensure_replace(
-    bar,
-    '''                .accentColor(activeAgent.themeColor)
-                .font(.system(size: 15))
 
-                if activeAgent == .esther {
-''',
-    '''                .accentColor(activeAgent.themeColor)
-                .font(.system(size: 15))
-                .accessibilityIdentifier("sarah.composer.field")
+# Le nouveau composer est un UITextField UIKit enveloppé dans UIViewRepresentable.
+# Son identifiant est transmis comme argument puis appliqué directement au champ
+# natif dans makeUIView. Ne pas essayer de réinjecter l'ancien modifier SwiftUI.
+bar_text = bar.read_text(encoding="utf-8")
+if 'accessibilityIdentifier: "sarah.composer.field"' in bar_text or 'accessibilityIdentifier("sarah.composer.field")' in bar_text:
+    print("Already present: composer identifier")
+else:
+    raise SystemExit("Missing native composer accessibility identifier")
 
-                if activeAgent == .esther {
-''',
-    'accessibilityIdentifier("sarah.composer.field")',
-    "composer identifier",
-)
 ensure_replace(
     bar,
     '''            .buttonStyle(ScaleBounceButtonStyle())
