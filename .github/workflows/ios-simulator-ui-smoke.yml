@@ -13,6 +13,7 @@ on:
       - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/scripts/restore_website_voice_bridge.py'
       - '.github/scripts/production_quality_pass.py'
+      - '.github/scripts/sarah_deep_audit.py'
 
 concurrency:
   group: sarahia-ios-simulator-ui-smoke
@@ -35,6 +36,11 @@ jobs:
           python3 .github/scripts/inject_ui_test_ids.py
           grep -q 'stopListeningAndTranscribe' SarahIA/SarahIA/Views/MessageBar.swift
           grep -q 'suppressNextExternalFinalCallback' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+
+      - name: Run deep Sarah interaction audit
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/sarah_deep_audit.py
 
       - name: Replace Whisper only for simulator UI testing
         run: |
@@ -112,6 +118,11 @@ jobs:
           APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedDataSimulator" -name 'SarahIA.app' -type d | head -n 1)
           test -n "$APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Audit simulator Xcode diagnostics
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/sarah_deep_audit.py --xcode-log "$GITHUB_WORKSPACE/simulator-build.log"
 
       - name: Create, boot and launch a fresh iPhone Simulator
         run: |
