@@ -50,9 +50,10 @@ appId: com.sarahia.app
     id: "sarah.composer.action"
 - assertVisible: "test interaction SarahIA"
 
-# 7. Mode vocal Sarah / orbe
+# 7. Mode vocal Sarah : ouverture + écoute réelle
 - launchApp
 - assertVisible: "Sarah"
 - tapOn:
     id: "sarah.composer.action"
 - assertVisible: "Mode vocal"
+- assertVisible: "Je t’écoute."
