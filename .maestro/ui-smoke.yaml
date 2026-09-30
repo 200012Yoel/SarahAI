@@ -33,11 +33,12 @@ appId: com.sarahia.app
 - assertVisible: "Appareil photo"
 - assertVisible: "Fichier"
 
-# 5. Champ de saisie et envoi
+# 5. Champ de saisie : un seul tap doit suffire
 - launchApp
 - tapOn:
     id: "sarah.composer.field"
 - inputText: "test interaction SarahIA"
+- assertVisible: "test interaction SarahIA"
 - tapOn:
     id: "sarah.composer.action"
 - assertVisible: "test interaction SarahIA"
