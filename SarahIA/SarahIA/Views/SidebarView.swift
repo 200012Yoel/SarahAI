@@ -152,6 +152,9 @@ public struct SidebarView: View {
                 .disableAutocorrection(true)
                 .font(.system(size: 17))
                 .foregroundColor(.white)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("sarah.sidebar.search.field")
 
             if !viewModel.searchQuery.isEmpty {
                 Button {
@@ -159,15 +162,19 @@ public struct SidebarView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(Color.white.opacity(0.38))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
         .frame(height: 48)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.white.opacity(0.10))
+                .allowsHitTesting(false)
         )
         .padding(.horizontal, horizontal)
     }
