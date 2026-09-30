@@ -18,6 +18,7 @@ on:
       - '.github/scripts/restore_website_voice_bridge.py'
       - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/scripts/production_quality_pass.py'
+      - '.github/scripts/sarah_deep_audit.py'
       - '.github/workflows/ios-build.yml'
 
 jobs:
@@ -47,6 +48,11 @@ jobs:
           grep -q 'voice.gender == .female' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'Tous les boutons doivent avoir une action utile' SarahIA/SarahIA/Services/VAICodeEngine.swift
           echo 'Whisper barge-in, commercial-safe system voice routing and real website quality checks applied'
+
+      - name: Run deep Sarah interaction audit
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/sarah_deep_audit.py
 
       - name: Verify bundled Whisper speech runtime
         run: |
@@ -123,6 +129,11 @@ jobs:
             OTHER_LDFLAGS='$(inherited) -framework whisper -framework Accelerate -framework Metal -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
             clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+
+      - name: Audit Xcode diagnostics
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/sarah_deep_audit.py --xcode-log "$GITHUB_WORKSPACE/xcodebuild.log"
 
       - name: Bundle Whisper model and licenses
         run: |
