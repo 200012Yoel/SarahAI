@@ -21,7 +21,7 @@ concurrency:
 jobs:
   simulator-ui:
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +113,7 @@ jobs:
           test -n "$APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
-      - name: Boot and launch a healthy iPhone Simulator
+      - name: Create, boot and launch a fresh iPhone Simulator
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -121,57 +121,90 @@ jobs:
 
           def run(cmd, timeout=None, check=True):
               print('+', ' '.join(cmd), flush=True)
-              return subprocess.run(cmd, check=check, timeout=timeout, capture_output=True, text=True)
+              return subprocess.run(
+                  cmd,
+                  check=check,
+                  timeout=timeout,
+                  capture_output=True,
+                  text=True,
+              )
 
-          data = json.loads(subprocess.check_output([
-              'xcrun', 'simctl', 'list', 'devices', 'available', '--json'
+          runtimes_data = json.loads(subprocess.check_output([
+              'xcrun', 'simctl', 'list', 'runtimes', '--json'
           ]))
+          runtimes = []
+          for runtime in runtimes_data.get('runtimes', []):
+              identifier = runtime.get('identifier', '')
+              if 'iOS' not in identifier or not runtime.get('isAvailable', True):
+                  continue
+              version_text = runtime.get('version') or runtime.get('name', '')
+              numbers = tuple(int(x) for x in re.findall(r'\d+', version_text)[:3])
+              runtimes.append((numbers, identifier, runtime.get('name', identifier)))
 
-          candidates = []
-          for runtime, devices in data.get('devices', {}).items():
-              match = re.search(r'iOS-(\d+)-(\d+)', runtime)
-              version = tuple(map(int, match.groups())) if match else (0, 0)
-              for device in devices:
-                  if device.get('isAvailable') and device.get('name', '').startswith('iPhone'):
-                      booted = 1 if device.get('state') == 'Booted' else 0
-                      candidates.append((booted, version, device['name'], device['udid']))
+          if not runtimes:
+              raise SystemExit('No available iOS simulator runtime')
 
-          if not candidates:
-              raise SystemExit('No available iPhone Simulator')
+          runtimes.sort(reverse=True)
+          _, runtime_id, runtime_name = runtimes[0]
+          print(f'Using fresh runtime: {runtime_name} ({runtime_id})', flush=True)
 
-          candidates.sort(reverse=True)
-          app_path = os.environ['APP_PATH']
+          device_data = json.loads(subprocess.check_output([
+              'xcrun', 'simctl', 'list', 'devicetypes', '--json'
+          ]))
+          iphone_types = [
+              d for d in device_data.get('devicetypes', [])
+              if d.get('name', '').startswith('iPhone')
+          ]
+          preferred_names = [
+              'iPhone 17 Pro', 'iPhone 17', 'iPhone 16 Pro', 'iPhone 16',
+              'iPhone 15 Pro', 'iPhone 15', 'iPhone 14 Pro', 'iPhone 14'
+          ]
+          iphone_types.sort(
+              key=lambda d: (
+                  preferred_names.index(d['name']) if d.get('name') in preferred_names else 999,
+                  d.get('name', '')
+              )
+          )
+
+          udid = None
+          chosen_name = None
           last_error = None
-
-          for _, version, name, udid in candidates[:6]:
-              print(f'Trying {name} iOS {version[0]}.{version[1]} ({udid})', flush=True)
+          for device_type in iphone_types:
               try:
-                  state = run(['xcrun', 'simctl', 'list', 'devices', udid, '--json'], timeout=20).stdout
-                  if 'Booted' not in state:
-                      run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
-                      run(['xcrun', 'simctl', 'boot', udid], timeout=30, check=False)
-
-                  run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=120)
-                  run(['xcrun', 'simctl', 'install', udid, app_path], timeout=90)
-                  launched = run(
-                      ['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'],
-                      timeout=60
-                  )
-                  print(launched.stdout.strip(), flush=True)
-                  time.sleep(4)
-                  with open(os.environ['GITHUB_ENV'], 'a') as env:
-                      env.write(f'SIM_UDID={udid}\n')
-                  print(f'Simulator ready: {name} ({udid})', flush=True)
-                  break
+                  created = run([
+                      'xcrun', 'simctl', 'create',
+                      f"SarahIA-CI-{os.environ.get('GITHUB_RUN_ID', 'local')}",
+                      device_type['identifier'], runtime_id
+                  ], timeout=30)
+                  candidate = created.stdout.strip()
+                  if candidate:
+                      udid = candidate
+                      chosen_name = device_type['name']
+                      break
               except Exception as exc:
                   last_error = exc
-                  print(f'Candidate failed: {exc}', flush=True)
-                  try:
-                      run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
-                  except Exception:
-                      pass
-          else:
-              raise SystemExit(f'All simulator candidates failed: {last_error}')
+                  continue
+
+          if not udid:
+              raise SystemExit(f'Unable to create a fresh iPhone simulator: {last_error}')
+
+          print(f'Created {chosen_name}: {udid}', flush=True)
+          try:
+              run(['xcrun', 'simctl', 'boot', udid], timeout=40, check=False)
+              run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=180)
+              run(['xcrun', 'simctl', 'install', udid, os.environ['APP_PATH']], timeout=90)
+              launched = run([
+                  'xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'
+              ], timeout=60)
+              print(launched.stdout.strip(), flush=True)
+              time.sleep(5)
+          except Exception:
+              run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
+              raise
+
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'SIM_UDID={udid}\n')
+          print('Fresh simulator ready for real UI taps', flush=True)
           PY
 
       - name: Install Java 17
@@ -211,3 +244,11 @@ jobs:
           path: ui-smoke-artifacts
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Remove temporary simulator
+        if: always()
+        run: |
+          if [ -n "${SIM_UDID:-}" ]; then
+            xcrun simctl shutdown "$SIM_UDID" || true
+            xcrun simctl delete "$SIM_UDID" || true
+          fi
