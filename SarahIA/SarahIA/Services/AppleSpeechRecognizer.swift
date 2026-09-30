@@ -28,6 +28,7 @@ public final class AppleSpeechRecognizer: NSObject {
 
     public private(set) var isListening = false {
         didSet {
+            guard oldValue != isListening else { return }
             NotificationCenter.default.post(
                 name: NSNotification.Name("AppleSpeechRecognizerListeningChanged"),
                 object: nil
@@ -79,6 +80,32 @@ public final class AppleSpeechRecognizer: NSObject {
         }
 
         #if canImport(Combine)
+        // Whisper peut désormais charger son modèle en arrière-plan avant de
+        // démarrer AVAudioEngine. Cette liaison garde l'état public de Sarah
+        // synchronisé avec le vrai état du micro dès que l'enregistrement part.
+        whisper.$isRecording
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] recording in
+                guard let self else { return }
+                if recording {
+                    let wasListening = self.isListening
+                    self.isListening = true
+                    self.state = .listening
+                    if !wasListening {
+                        HapticService.shared.speechStarted()
+                    }
+                } else if self.isListening {
+                    self.isListening = false
+                    if case .processing = self.state {
+                        return
+                    }
+                    self.state = .idle
+                    HapticService.shared.speechFinished()
+                }
+            }
+            .store(in: &cancellables)
+
         whisper.$micEnergyLevel
             .receive(on: DispatchQueue.main)
             .sink { [weak self] level in
@@ -142,10 +169,12 @@ public final class AppleSpeechRecognizer: NSObject {
         micEnergyLevel = 0
         whisper.startRecording(autoFinalizeOnSilence: autoFinalizeOnSilence)
 
+        // Si le modèle était déjà chaud, l'enregistrement est immédiat. Sinon,
+        // le sink $isRecording ci-dessus basculera automatiquement l'UI dès que
+        // le chargement asynchrone est terminé.
         if whisper.isRecording {
             isListening = true
             state = .listening
-            HapticService.shared.speechStarted()
         } else if let error = whisper.lastError {
             state = .error(error)
         }
