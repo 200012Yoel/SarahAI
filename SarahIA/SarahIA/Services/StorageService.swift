@@ -10,7 +10,7 @@ public struct AppPersistedState: Codable {
     public var voiceSettings: VoiceSettings
     public var learnedMemories: [String: String] // Associations apprises [trigger: response]
     public var pendingLearningTrigger: String? // Déclencheur en attente d'apprentissage
-    
+
     public init(
         activeMode: String = "text",
         conversations: [Conversation] = [],
@@ -38,7 +38,7 @@ public struct VoiceSettings: Codable {
     public var speechRate: Float // 0.5 (normal)
     public var speechPitch: Float // 1.0
     public var language: String // "fr-FR"
-    
+
     public init(
         vadSensitivity: Float = 0.65,
         speechRate: Float = 0.52,
@@ -54,9 +54,9 @@ public struct VoiceSettings: Codable {
 
 /// Service de persistance atomique et thread-safe pour les données et l'état de l'application Sarah AI.
 public final class StorageService {
-    
+
     public static let shared = StorageService()
-    
+
     private let fileManager = FileManager.default
     private let stateFileName = "sarah_ai_state.json"
     private let backupFileName = "sarah_ai_state.json.bak"
@@ -64,7 +64,7 @@ public final class StorageService {
     private let appGroupSuite = "group.com.sarahia.app"
     private let appGroupMemoryKey = "sarah_learned_memories_v2"
     private let ioQueue = DispatchQueue(label: "com.sarahai.storage.queue", qos: .userInitiated)
-    
+
     /// Emplacement sans effet de bord : utile pour savoir si une ancienne version a laissé
     /// des données avant de créer le dossier de travail de la nouvelle version.
     private var appDirectoryLocationURL: URL {
@@ -88,45 +88,49 @@ public final class StorageService {
         }
         return dir
     }
-    
+
     private var stateFileURL: URL {
         return appDirectoryURL.appendingPathComponent(stateFileName)
     }
-    
+
     private var backupFileURL: URL {
         return appDirectoryURL.appendingPathComponent(backupFileName)
     }
-    
+
     private init() {}
-    
-    /// Sauvegarde l'état complet de l'application de manière atomique et thread-safe.
+
+    /// Sauvegarde l'état complet de l'application sur la file I/O dédiée.
+    ///
+    /// L'ancienne implémentation utilisait `ioQueue.sync`. Comme ChatViewModel est
+    /// `@MainActor`, encoder un historique important ou des images pouvait bloquer
+    /// tous les taps pendant l'écriture. La file série conserve ici l'ordre des
+    /// sauvegardes sans jamais immobiliser l'interface.
     public func saveState(_ state: AppPersistedState) {
-        ioQueue.sync { [weak self] in
+        ioQueue.async { [weak self] in
             guard let self = self else { return }
             do {
                 let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                // sortedKeys garde un fichier déterministe sans le coût et la taille
+                // supplémentaires de prettyPrinted.
+                encoder.outputFormatting = [.sortedKeys]
                 encoder.dateEncodingStrategy = .iso8601
                 let data = try encoder.encode(state)
-                
-                // Sauvegarde d'un fichier de secours avant écriture atomique
+
                 if self.fileManager.fileExists(atPath: self.stateFileURL.path) {
                     try? self.fileManager.removeItem(at: self.backupFileURL)
                     try? self.fileManager.copyItem(at: self.stateFileURL, to: self.backupFileURL)
                 }
-                
-                // Écriture atomique sécurisée
+
                 try data.write(to: self.stateFileURL, options: [.atomicWrite])
             } catch {
                 print("❌ [StorageService] Erreur critique de sauvegarde: \(error.localizedDescription)")
             }
         }
     }
-    
+
     /// Charge l'état persisté depuis le stockage local avec restauration automatique de secours.
     public func loadState() -> AppPersistedState {
         return ioQueue.sync {
-            // 1. Essai de lecture du fichier principal
             if fileManager.fileExists(atPath: stateFileURL.path) {
                 do {
                     let data = try Data(contentsOf: stateFileURL)
@@ -137,8 +141,7 @@ public final class StorageService {
                     print("⚠️ [StorageService] Fichier principal corrompu, essai du secours: \(error.localizedDescription)")
                 }
             }
-            
-            // 2. Essai de restauration depuis le fichier de secours (.bak)
+
             if fileManager.fileExists(atPath: backupFileURL.path) {
                 do {
                     let data = try Data(contentsOf: backupFileURL)
@@ -151,12 +154,11 @@ public final class StorageService {
                     print("⚠️ [StorageService] Échec du secours: \(error.localizedDescription)")
                 }
             }
-            
-            // 3. Fallback état par défaut si aucun fichier n'existe ou si corruption complète
+
             return AppPersistedState()
         }
     }
-    
+
     /// Met à jour rapidement les paramètres vocaux
     public func updateVoiceSettings(rate: Float, pitch: Float) {
         var state = loadState()
@@ -164,7 +166,7 @@ public final class StorageService {
         state.voiceSettings.speechPitch = pitch
         saveState(state)
     }
-    
+
     /// Efface l'historique et réinitialise l'état
     public func clearState() {
         ioQueue.async { [weak self] in
@@ -188,19 +190,14 @@ public final class StorageService {
             let previousBuild = defaults.string(forKey: self.installedBuildKey)
             let hasExistingState = self.fileManager.fileExists(atPath: self.appDirectoryLocationURL.path)
 
-            // Une absence de marqueur avec un état déjà présent correspond à la migration depuis
-            // une version antérieure de Sarah IA : elle doit également repartir de zéro une fois.
             let mustReset = (previousBuild != nil && previousBuild != build) || (previousBuild == nil && hasExistingState)
             guard mustReset else {
                 defaults.set(build, forKey: self.installedBuildKey)
                 return false
             }
 
-            // Application Support/SarahAI contient l'état JSON, SQLite et les éventuels
-            // téléchargements de test liés à une ancienne version.
             try? self.fileManager.removeItem(at: self.appDirectoryLocationURL)
 
-            // Espaces générés par l'utilisateur : code et images.
             if let documents = self.fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
                 let generatedDirectories = [
                     "VAI_Workspace",
@@ -212,13 +209,10 @@ public final class StorageService {
                 }
             }
 
-            // Le cache de modèles déployé est régénéré par Sarah Engine au lancement suivant.
             if let appSupport = self.fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
                 try? self.fileManager.removeItem(at: appSupport.appendingPathComponent("ai_models", isDirectory: true))
             }
 
-            // Tous les réglages applicatifs sont des données de test : les supprimer évite
-            // qu'un ancien mode, une mémoire ou un téléchargement en pause réapparaisse.
             if let bundleIdentifier = Bundle.main.bundleIdentifier {
                 defaults.removePersistentDomain(forName: bundleIdentifier)
             }
@@ -228,8 +222,6 @@ public final class StorageService {
 
         guard didReset else { return false }
 
-        // SQLite détient une seconde copie des messages : la vider de manière synchrone évite
-        // qu'un ancien historique réapparaisse pendant le démarrage de la nouvelle version.
         SQLiteChatDatabase.shared.clearAllHistorySynchronously()
         if let groupDefaults = UserDefaults(suiteName: appGroupSuite) {
             groupDefaults.removePersistentDomain(forName: appGroupSuite)
@@ -237,21 +229,21 @@ public final class StorageService {
         }
         return true
     }
-    
+
     // MARK: - Gestion de Mémoire Permanente (Learned Memories)
-    
+
     public func saveMemory(trigger: String, response: String) {
         var state = loadState()
         state.learnedMemories[trigger] = response
         saveState(state)
     }
-    
+
     public func deleteMemory(forTrigger trigger: String) {
         var state = loadState()
         state.learnedMemories.removeValue(forKey: trigger)
         saveState(state)
     }
-    
+
     public func clearAllMemories() {
         var state = loadState()
         state.learnedMemories.removeAll()
