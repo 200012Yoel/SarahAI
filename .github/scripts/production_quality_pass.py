@@ -140,4 +140,37 @@ new_local_repair = '''        let prompt = repairSystemPrompt()
 web = replace_once(web, old_local_repair, new_local_repair, "local repair audit context")
 web_path.write_text(web)
 
-print("Production voice profiles and website quality pass applied")
+
+# -----------------------------------------------------------------------------
+# Touch interaction hardening: never allow a stale navigation state or a
+# full-screen keyboard-dismiss gesture to swallow taps meant for buttons,
+# menus or the composer. This pass is deliberately idempotent so release and
+# simulator builds stay safe even if an older source snapshot is checked out.
+# -----------------------------------------------------------------------------
+content_path = Path("SarahIA/SarahIA/ContentView.swift")
+content = content_path.read_text()
+content = content.replace(
+    '''                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(
+                    !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal
+                )
+''',
+    '''                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(0)
+'''
+)
+content_path.write_text(content)
+
+chat_path = Path("SarahIA/SarahIA/Views/ChatScreenView.swift")
+chat = chat_path.read_text()
+chat = chat.replace(
+    '''                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { keyboard.dismiss() }
+''',
+    '''                .frame(maxWidth: .infinity, maxHeight: .infinity)
+'''
+)
+chat_path.write_text(chat)
+
+print("Production voice profiles, website quality and touch-interaction hardening applied")
