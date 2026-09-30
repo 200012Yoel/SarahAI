@@ -142,10 +142,11 @@ web_path.write_text(web)
 
 
 # -----------------------------------------------------------------------------
-# Touch interaction hardening: never allow a stale navigation state or a
-# full-screen keyboard-dismiss gesture to swallow taps meant for buttons,
-# menus or the composer. This pass is deliberately idempotent so release and
-# simulator builds stay safe even if an older source snapshot is checked out.
+# Deep UI interaction hardening.
+#
+# The source is also repaired directly where practical, but this release pass
+# is intentionally idempotent so an older checkout can never recreate the
+# frozen-interface regression.
 # -----------------------------------------------------------------------------
 content_path = Path("SarahIA/SarahIA/ContentView.swift")
 content = content_path.read_text()
@@ -171,6 +172,56 @@ chat = chat.replace(
     '''                .frame(maxWidth: .infinity, maxHeight: .infinity)
 '''
 )
+chat = chat.replace(
+    '''        .ignoresSafeArea()
+    }
+
+    private var composerDock: some View {
+''',
+    '''        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+
+    private var composerDock: some View {
+''',
+    1
+)
 chat_path.write_text(chat)
 
-print("Production voice profiles, website quality and touch-interaction hardening applied")
+message_list_path = Path("SarahIA/SarahIA/Views/MessageList.swift")
+message_list = message_list_path.read_text()
+message_list = message_list.replace(
+    '''            // Fermeture du clavier au glissement vers le bas
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.height > 15 && isKeyboardVisible {
+                            onDismissKeyboard?()
+                        }
+                    }
+            )
+''',
+    '''            .scrollDismissesKeyboard(.interactively)
+'''
+)
+message_list_path.write_text(message_list)
+
+# Do not perform a synchronous load+save cycle as soon as ChatViewModel is
+# constructed. @Published emits its current value immediately on subscription,
+# so dropFirst prevents disk I/O from needlessly blocking the MainActor during
+# the first interactive frame.
+view_model_path = Path("SarahIA/SarahIA/ViewModels/ChatViewModel.swift")
+view_model = view_model_path.read_text()
+view_model = view_model.replace(
+    '''        $appMode
+            .sink { [weak self] _ in
+''',
+    '''        $appMode
+            .dropFirst()
+            .sink { [weak self] _ in
+''',
+    1
+)
+view_model_path.write_text(view_model)
+
+print("Production voice profiles, website quality, launch responsiveness and touch-interaction hardening applied")
