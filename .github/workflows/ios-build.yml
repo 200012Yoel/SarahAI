@@ -47,6 +47,22 @@ jobs:
           grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
           echo 'Canonical OpenAI Whisper barge-in + iOS echo cancellation verified'
 
+      - name: Verify Raphaël production web generation
+        run: |
+          set -euo pipefail
+          grep -q 'qualitySystemPrompt' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'qualityReviewLocalBuild' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'qualityReviewRemoteBuild' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'duplicateIds' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'unlabeledInputs' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'validateCandidate(candidate, 2)' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'index-r\\(project.revision).html' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'SaaS / App' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'Blog / média' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'Pipeline : architecture → code → relecture qualité' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          echo 'Raphaël architecture → implementation → quality review → WebKit repair pipeline verified'
+
       - name: Build whisper.cpp v1.9.4 XCFramework
         run: |
           set -euo pipefail
@@ -174,7 +190,7 @@ jobs:
         with:
           tag_name: sarah-ia-4.0-latest
           name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Canonical OpenAI Whisper speech recognition with continuous voice barge-in and iOS acoustic echo cancellation via whisper.cpp.'
+          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Canonical OpenAI Whisper with barge-in/AEC plus Raphaël production-grade agentic website generation and WebKit quality gates.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
