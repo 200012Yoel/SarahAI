@@ -52,6 +52,12 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
             ? 1.0
             : pitch
         utterance.volume = 1.0
+        if normalizedLanguage.lowercased() == "fr-fr" {
+            // Une respiration minuscule évite l'attaque trop sèche et robotique
+            // tout en gardant les interruptions instantanées en mode vocal.
+            utterance.preUtteranceDelay = 0.02
+            utterance.postUtteranceDelay = 0.04
+        }
 
         currentSpokenText = cleanedText
         isSpeaking = true
