@@ -169,8 +169,34 @@ if old_subtitle in view:
 elif new_subtitle not in view:
     raise SystemExit("voice reliability: statusSubtitle anchor not found")
 
-# Tapping the orb while Sarah is speaking means 'interrupt and listen', just like a
-# modern conversational voice interface. Otherwise it toggles mic pause/resume.
+# Stable accessibility identifiers let Maestro prove that the sheet really changes
+# between the large and 255-pt compact presentations.
+expanded_orb = '''            orb(size: 292)
+                .frame(width: 320, height: 320)
+'''
+expanded_orb_testable = '''            orb(size: 292)
+                .frame(width: 320, height: 320)
+                .accessibilityIdentifier("sarah.voice.orb.expanded")
+'''
+if expanded_orb in view:
+    view = view.replace(expanded_orb, expanded_orb_testable, 1)
+elif expanded_orb_testable not in view:
+    raise SystemExit("voice reliability: expanded orb anchor not found")
+
+compact_orb = '''            orb(size: 86)
+                .frame(width: 112, height: 112)
+'''
+compact_orb_testable = '''            orb(size: 86)
+                .frame(width: 112, height: 112)
+                .accessibilityIdentifier("sarah.voice.orb.compact")
+'''
+if compact_orb in view:
+    view = view.replace(compact_orb, compact_orb_testable, 1)
+elif compact_orb_testable not in view:
+    raise SystemExit("voice reliability: compact orb anchor not found")
+
+# Tapping the orb while Sarah is speaking means 'interrupt and listen'. Otherwise
+# it toggles mic pause/resume without closing the voice sheet.
 old_orb_action = '''        .onTapGesture {
             HapticService.shared.buttonTap()
             if viewModel.isMicRunning {
@@ -200,5 +226,6 @@ voice_view_path.write_text(view, encoding="utf-8")
 assert "public func pauseVoiceMicrophone()" in vm
 assert "public func resumeVoiceMicrophone()" in vm
 assert "Whisper démarre…" in view
+assert "sarah.voice.orb.compact" in view
 assert "interruptVoiceResponse()" in view
 print("Whisper voice reliability polish applied")
