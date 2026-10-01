@@ -15,6 +15,7 @@ public final class WhisperService: ObservableObject {
     @Published public private(set) var currentText = ""
     @Published public private(set) var micEnergyLevel: Float = 0
     @Published public private(set) var isModelReady = false
+    @Published public private(set) var isModelLoading = false
     @Published public private(set) var lastError: String?
 
     public var onPartialTranscription: ((String) -> Void)?
@@ -37,7 +38,6 @@ public final class WhisperService: ObservableObject {
     // Le chargement de ggml-base.bin peut prendre un moment sur un iPhone réel.
     // Il ne doit jamais bloquer le thread principal ni empêcher l'écran vocal
     // de s'afficher immédiatement après le premier toucher.
-    private var isModelLoading = false
     private var wantsRecordingAfterModelLoad = false
     private var pendingAutoFinalizeOnSilence = true
 
@@ -71,6 +71,17 @@ public final class WhisperService: ObservableObject {
     }
 
     // MARK: Lifecycle
+
+    /// Précharge uniquement le modèle Whisper. Cette méthode n'ouvre pas le micro
+    /// et ne demande aucune permission. Elle peut donc être appelée après le premier
+    /// rendu de l'application pour rendre le premier lancement vocal beaucoup plus vif.
+    public func prepareModel() {
+        guard context == nil else {
+            isModelReady = true
+            return
+        }
+        prepareModelInBackgroundIfNeeded()
+    }
 
     public func startRecording(autoFinalizeOnSilence: Bool = true) {
         guard !isRecording else { return }
