@@ -35,6 +35,7 @@ jobs:
           grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'consecutiveVoiceChunks >= 2' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           grep -q 'WhisperSpeechRecognizer.shared.onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
@@ -44,7 +45,7 @@ jobs:
           grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q '!AudioSessionManager.shared.isContinuousVoiceSessionActive' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
-          echo 'Canonical OpenAI Whisper barge-in runtime verified'
+          echo 'Canonical OpenAI Whisper barge-in + iOS echo cancellation verified'
 
       - name: Build whisper.cpp v1.9.4 XCFramework
         run: |
@@ -173,7 +174,7 @@ jobs:
         with:
           tag_name: sarah-ia-4.0-latest
           name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Canonical OpenAI Whisper speech recognition with continuous voice barge-in via whisper.cpp.'
+          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Canonical OpenAI Whisper speech recognition with continuous voice barge-in and iOS acoustic echo cancellation via whisper.cpp.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
