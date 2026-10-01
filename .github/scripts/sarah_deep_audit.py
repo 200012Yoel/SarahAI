@@ -172,10 +172,15 @@ args = parser.parse_args()
 
 if args.xcode_log and args.xcode_log.exists():
     log = args.xcode_log.read_text(encoding="utf-8", errors="replace")
-    # xcodebuild itself runs with pipefail and already fails the workflow on a
-    # real build error. Here we only classify structured compiler/linker errors.
-    # Broad matching on every `error:` token creates false positives from normal
-    # Swift frontend command lines and NSError-related text in successful logs.
+
+    # The preceding xcodebuild workflow step is already authoritative because it
+    # runs with pipefail. This second audit therefore validates the actual Xcode
+    # result marker instead of treating unrelated text containing `error:` as a
+    # failed compilation.
+    build_succeeded = "** BUILD SUCCEEDED **" in log
+    build_failed = "** BUILD FAILED **" in log
+    require(build_succeeded and not build_failed, "Xcode: build terminé avec succès")
+
     source_error = re.compile(
         r"\.(?:swift|m|mm|c|cc|cpp|cxx|h|hpp):\d+:\d+:\s+(?:fatal\s+)?error:\s",
         re.IGNORECASE,
@@ -184,13 +189,18 @@ if args.xcode_log and args.xcode_log.exists():
         r"^(?:clang|swiftc|swift-frontend|ld|libtool):\s+(?:fatal\s+)?error:\s",
         re.IGNORECASE,
     )
-    compiler_errors = [
+    suspicious_errors = [
         line
         for line in log.splitlines()
         if source_error.search(line)
         or tool_error.search(line.strip())
         or "error: linker command failed" in line.lower()
     ]
+    if suspicious_errors and build_succeeded and not build_failed:
+        warnings.append(
+            f"Xcode: {len(suspicious_errors)} ligne(s) ressemblant à une erreur dans un build déclaré réussi"
+        )
+
     compiler_warnings = [
         line
         for line in log.splitlines()
@@ -200,10 +210,6 @@ if args.xcode_log and args.xcode_log.exists():
             re.IGNORECASE,
         )
     ]
-    if compiler_errors:
-        errors.append(f"Xcode: {len(compiler_errors)} erreur(s) compilateur/linker structurée(s) détectée(s)")
-    else:
-        passes.append("Xcode: aucune erreur compilateur/linker structurée détectée")
     if compiler_warnings:
         warnings.append(f"Xcode: {len(compiler_warnings)} avertissement(s) compilateur détecté(s)")
     else:
