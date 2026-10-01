@@ -1,0 +1,47 @@
+name: Wire real Qwen code generation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/wire_real_qwen_codegen.py'
+      - '.github/workflows/wire-real-qwen-codegen.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Wire Qwen3 GGUF through llama.cpp
+        run: python3 .github/scripts/wire_real_qwen_codegen.py
+
+      - name: Verify no fake local website fallback remains
+        run: |
+          set -euo pipefail
+          grep -q 'public final class QwenLocalCodeRuntime' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'QwenLocalCodeRuntime.shared.generate' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'llama_model_load_from_file' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'llama_decode' SarahIA/SarahIA/Services/AIService.swift
+          ! grep -A100 'public func generateLocalCodeDocument' SarahIA/SarahIA/Services/AIService.swift | grep -q 'LocalNeuralIntelligenceEngine.shared.generateLocalResponse'
+          grep -q 'Build llama.cpp v0.4.1 XCFramework' .github/workflows/ios-build.yml
+          grep -q -- '-framework llama' .github/workflows/ios-build.yml
+          echo 'Real Qwen3 GGUF code path verified'
+
+      - name: Commit real Qwen runtime wiring
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes required.'
+            exit 0
+          fi
+          git config user.name 'SarahIA Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add SarahIA .github/workflows/ios-build.yml
+          git commit -m 'Use real Qwen3 GGUF for local code generation'
+          git push origin HEAD:main
