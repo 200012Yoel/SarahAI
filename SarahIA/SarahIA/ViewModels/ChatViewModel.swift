@@ -194,7 +194,9 @@ public final class ChatViewModel: ObservableObject {
                 guard let self = self else { return }
                 switch WhisperSpeechRecognizer.shared.state {
                 case .idle:
-                    if self.isContinuousConversationActive,
+                    if self.isTyping {
+                        self.voiceStatus = .processing
+                    } else if self.isContinuousConversationActive,
                        !self.isVoiceMicrophoneMuted,
                        !self.voiceManager.isSpeaking,
                        !WhisperSpeechRecognizer.shared.isListening {
@@ -459,10 +461,10 @@ public final class ChatViewModel: ObservableObject {
             self.voiceStatus = .idle
             self.haptics.speechFinished()
             
-            if self.isContinuousConversationActive && self.isShowingVoiceOrbModal {
+            if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     guard self.isContinuousConversationActive,
-                          self.isShowingVoiceOrbModal,
+                          !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
                     WhisperSpeechRecognizer.shared.startListening()
                     self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
@@ -475,11 +477,24 @@ public final class ChatViewModel: ObservableObject {
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
+
         if isMicRunning || WhisperSpeechRecognizer.shared.isListening {
-            stopVoiceConversation(stopSpeech: false)
-        } else {
-            startVoiceConversation()
+            isVoiceMicrophoneMuted = true
+            WhisperSpeechRecognizer.shared.stopListening()
+            isMicRunning = false
+            micInputLevel = 0
+            voiceStatus = .idle
+            return
         }
+
+        isVoiceMicrophoneMuted = false
+        isContinuousConversationActive = true
+        if voiceManager.isSpeaking {
+            voiceManager.stop()
+        }
+        WhisperSpeechRecognizer.shared.startListening()
+        isMicRunning = WhisperSpeechRecognizer.shared.isListening
+        voiceStatus = isMicRunning ? .listening(level: micInputLevel) : .starting
     }
 
     /// Démarre explicitement une session vocale continue.
@@ -488,6 +503,7 @@ public final class ChatViewModel: ObservableObject {
         ensureVoicePipelinePrepared()
         voiceManager.stop()
         isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
 
         guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -497,7 +513,7 @@ public final class ChatViewModel: ObservableObject {
 
         WhisperSpeechRecognizer.shared.startListening()
         isMicRunning = WhisperSpeechRecognizer.shared.isListening
-        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
+        voiceStatus = isMicRunning ? .listening(level: 0.0) : .starting
     }
 
     /// Coupe complètement le mode vocal et rend la session audio à iOS.
@@ -505,6 +521,7 @@ public final class ChatViewModel: ObservableObject {
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
+        isVoiceMicrophoneMuted = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.
