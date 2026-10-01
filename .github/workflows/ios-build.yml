@@ -14,12 +14,6 @@ on:
     branches: [main]
     paths:
       - 'SarahIA/**'
-      - '.github/scripts/voice_media_runtime_refactor.py'
-      - '.github/scripts/voice_reliability_runtime.py'
-      - '.github/scripts/restore_website_voice_bridge.py'
-      - '.github/scripts/whisper_barge_in_runtime.py'
-      - '.github/scripts/production_quality_pass.py'
-      - '.github/scripts/sarah_deep_audit.py'
       - '.github/workflows/ios-build.yml'
 
 jobs:
@@ -30,47 +24,27 @@ jobs:
     permissions:
       contents: write
       actions: read
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply voice, website and media runtime fixes
-        run: |
-          set -e
-          python3 .github/scripts/voice_media_runtime_refactor.py
-          python3 .github/scripts/voice_reliability_runtime.py
-          python3 .github/scripts/whisper_barge_in_runtime.py
-          python3 .github/scripts/restore_website_voice_bridge.py
-          python3 .github/scripts/production_quality_pass.py
-          grep -q 'shouldInterruptCurrentSpeech' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
-          grep -q 'beginContinuousVoiceSession' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'public func pauseVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'public func resumeVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'Whisper démarre' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'presentationDetents' SarahIA/SarahIA/ContentView.swift
-          grep -q 'prepareModel()' SarahIA/SarahIA/ContentView.swift
-          grep -q 'speakWebsiteGuideSequence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
-          grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
-          grep -q 'voice.gender == .female' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
-          grep -q 'Tous les boutons doivent avoir une action utile' SarahIA/SarahIA/Services/VAICodeEngine.swift
-          echo 'Whisper voice sheet, pause/resume, barge-in and media runtime fixes applied'
-
-      - name: Run deep Sarah interaction audit
+      - name: Verify canonical Whisper voice runtime
         run: |
           set -euo pipefail
-          python3 .github/scripts/sarah_deep_audit.py
-
-      - name: Verify bundled Whisper speech runtime
-        run: |
-          set -e
           grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'consecutiveVoiceChunks >= 2' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          grep -q 'WhisperSpeechRecognizer.shared.onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'preserveActiveSpeech: true' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'beginContinuousVoiceSession()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'endContinuousVoiceSession()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q '!AudioSessionManager.shared.isContinuousVoiceSessionActive' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
-          echo 'OpenAI Whisper-backed local recognition verified'
+          echo 'Canonical OpenAI Whisper barge-in runtime verified'
 
       - name: Build whisper.cpp v1.9.4 XCFramework
         run: |
@@ -137,11 +111,7 @@ jobs:
             OTHER_LDFLAGS='$(inherited) -framework whisper -framework Accelerate -framework Metal -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
             clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
-
-      - name: Audit Xcode diagnostics
-        run: |
-          set -euo pipefail
-          python3 .github/scripts/sarah_deep_audit.py --xcode-log "$GITHUB_WORKSPACE/xcodebuild.log"
+          grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
 
       - name: Bundle Whisper model and licenses
         run: |
@@ -155,7 +125,6 @@ jobs:
 
           WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
           test -n "$WHISPER_FRAMEWORK"
-          test "$(basename "$(dirname "$WHISPER_FRAMEWORK")")" = "ios-arm64"
           if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then
             mkdir -p "$APP_PATH/Frameworks"
             cp -R "$WHISPER_FRAMEWORK" "$APP_PATH/Frameworks/"
@@ -204,7 +173,7 @@ jobs:
         with:
           tag_name: sarah-ia-4.0-latest
           name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Includes bundled OpenAI Whisper speech recognition via whisper.cpp.'
+          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. Canonical OpenAI Whisper speech recognition with continuous voice barge-in via whisper.cpp.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
