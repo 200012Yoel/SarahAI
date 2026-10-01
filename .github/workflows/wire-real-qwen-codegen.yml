@@ -33,15 +33,15 @@ jobs:
           grep -q -- '-framework llama' .github/workflows/ios-build.yml
           echo 'Real Qwen3 GGUF code path verified'
 
-      - name: Commit real Qwen runtime wiring
+      - name: Commit real Qwen runtime source
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo 'No changes required.'
+          if git diff --quiet -- SarahIA; then
+            echo 'No SarahIA source changes required.'
             exit 0
           fi
           git config user.name 'SarahIA Build Bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add SarahIA .github/workflows/ios-build.yml
+          git add SarahIA
           git commit -m 'Use real Qwen3 GGUF for local code generation'
           git push origin HEAD:main
