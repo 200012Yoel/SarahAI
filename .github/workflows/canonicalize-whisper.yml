@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/scripts/canonicalize_whisper_runtime.py'
       - '.github/scripts/enable_whisper_barge_in_canonical.py'
+      - '.github/scripts/enhance_whisper_barge_in.py'
       - '.github/workflows/canonicalize-whisper.yml'
 
 permissions:
@@ -24,6 +25,7 @@ jobs:
           set -euo pipefail
           python3 .github/scripts/canonicalize_whisper_runtime.py
           python3 .github/scripts/enable_whisper_barge_in_canonical.py
+          python3 .github/scripts/enhance_whisper_barge_in.py
 
       - name: Verify canonical barge-in source
         run: |
@@ -33,7 +35,8 @@ jobs:
           grep -q 'beginContinuousVoiceSession()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'consecutiveVoiceChunks >= 2' SarahIA/SarahIA/Services/WhisperService.swift
-          echo 'Whisper full-duplex barge-in source verified'
+          grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
+          echo 'Whisper full-duplex barge-in with iOS echo cancellation verified'
 
       - name: Commit canonical source
         run: |
@@ -45,5 +48,5 @@ jobs:
           git config user.name 'SarahIA Build Bot'
           git config user.email 'actions@users.noreply.github.com'
           git add SarahIA
-          git commit -m 'Enable Whisper full-duplex barge-in'
+          git commit -m 'Enable echo-cancelled Whisper barge-in'
           git push origin HEAD:main
