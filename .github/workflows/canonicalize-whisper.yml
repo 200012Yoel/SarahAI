@@ -1,0 +1,34 @@
+name: Canonicalize Whisper runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/canonicalize_whisper_runtime.py'
+
+permissions:
+  contents: write
+
+jobs:
+  canonicalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply canonical Whisper and UI fixes
+        run: python3 .github/scripts/canonicalize_whisper_runtime.py
+
+      - name: Commit canonical source
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes needed.'
+            exit 0
+          fi
+          git config user.name 'SarahIA Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add SarahIA
+          git commit -m 'Canonicalize Whisper voice runtime and interaction UI'
+          git push origin HEAD:main
