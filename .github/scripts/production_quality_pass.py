@@ -143,10 +143,6 @@ web_path.write_text(web)
 
 # -----------------------------------------------------------------------------
 # Deep UI interaction hardening.
-#
-# The source is also repaired directly where practical, but this release pass
-# is intentionally idempotent so an older checkout can never recreate the
-# frozen-interface regression.
 # -----------------------------------------------------------------------------
 content_path = Path("SarahIA/SarahIA/ContentView.swift")
 content = content_path.read_text()
@@ -207,8 +203,8 @@ message_list = message_list.replace(
 message_list_path.write_text(message_list)
 
 # Keep the native composer editable even while an answer is being generated.
-# The action button can still stop the generation, but a stale isTyping flag can
-# no longer make the text field itself feel dead.
+# The stop button remains available, but stale generation state cannot disable
+# the UITextField or steal focus from the user.
 bar_path = Path("SarahIA/SarahIA/Views/MessageBar.swift")
 bar = bar_path.read_text()
 bar = bar.replace("                    isEnabled: !isProcessing,", "                    isEnabled: true,", 1)
@@ -252,12 +248,195 @@ voice_orb = voice_orb.replace(
 )
 voice_orb_path.write_text(voice_orb)
 
-# Do not perform a synchronous load+save cycle as soon as ChatViewModel is
-# constructed. @Published emits its current value immediately on subscription,
-# so dropFirst prevents disk I/O from needlessly blocking the MainActor during
-# the first interactive frame.
+# -----------------------------------------------------------------------------
+# Main-thread freeze removal.
+#
+# Loading a large history or image-rich conversation must never happen on the
+# main actor. Storage keeps its synchronous API for maintenance callers, while
+# ChatViewModel uses the asynchronous API and all chat saves are merged on the
+# storage queue before being written.
+# -----------------------------------------------------------------------------
+storage_path = Path("SarahIA/SarahIA/Services/StorageService.swift")
+storage = storage_path.read_text()
+old_load = '''    /// Charge l'état persisté depuis le stockage local avec restauration automatique de secours.
+    public func loadState() -> AppPersistedState {
+        return ioQueue.sync {
+            if fileManager.fileExists(atPath: stateFileURL.path) {
+                do {
+                    let data = try Data(contentsOf: stateFileURL)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    return try decoder.decode(AppPersistedState.self, from: data)
+                } catch {
+                    print("⚠️ [StorageService] Fichier principal corrompu, essai du secours: \\(error.localizedDescription)")
+                }
+            }
+
+            if fileManager.fileExists(atPath: backupFileURL.path) {
+                do {
+                    let data = try Data(contentsOf: backupFileURL)
+                    let decoder = JSONDecoder()
+                    decoder.dateDecodingStrategy = .iso8601
+                    let state = try decoder.decode(AppPersistedState.self, from: data)
+                    print("✅ [StorageService] État restauré depuis la sauvegarde de secours")
+                    return state
+                } catch {
+                    print("⚠️ [StorageService] Échec du secours: \\(error.localizedDescription)")
+                }
+            }
+
+            return AppPersistedState()
+        }
+    }
+'''
+new_load = '''    /// Charge l'état persisté depuis le stockage local avec restauration automatique de secours.
+    public func loadState() -> AppPersistedState {
+        ioQueue.sync { loadStateUnlocked() }
+    }
+
+    /// Charge l'historique sans jamais bloquer le MainActor. La completion est
+    /// toujours rappelée sur le main thread, prête à mettre à jour SwiftUI.
+    public func loadStateAsync(completion: @escaping (AppPersistedState) -> Void) {
+        ioQueue.async { [weak self] in
+            guard let self = self else { return }
+            let state = self.loadStateUnlocked()
+            DispatchQueue.main.async {
+                completion(state)
+            }
+        }
+    }
+
+    /// Fusionne une capture du chat avec les réglages persistés existants sans
+    /// relire le JSON sur le thread appelant.
+    public func saveChatState(
+        conversations: [Conversation],
+        currentConversationId: UUID?,
+        messages: [Message],
+        learnedMemories: [String: String]
+    ) {
+        ioQueue.async { [weak self] in
+            guard let self = self else { return }
+            var state = self.loadStateUnlocked()
+            state.activeMode = "text"
+            state.conversations = conversations
+            state.currentConversationId = currentConversationId
+            state.messages = messages
+            state.learnedMemories = learnedMemories
+            state.lastActiveTimestamp = Date()
+            self.saveState(state)
+        }
+    }
+
+    private func loadStateUnlocked() -> AppPersistedState {
+        if fileManager.fileExists(atPath: stateFileURL.path) {
+            do {
+                let data = try Data(contentsOf: stateFileURL)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(AppPersistedState.self, from: data)
+            } catch {
+                print("⚠️ [StorageService] Fichier principal corrompu, essai du secours: \\(error.localizedDescription)")
+            }
+        }
+
+        if fileManager.fileExists(atPath: backupFileURL.path) {
+            do {
+                let data = try Data(contentsOf: backupFileURL)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let state = try decoder.decode(AppPersistedState.self, from: data)
+                print("✅ [StorageService] État restauré depuis la sauvegarde de secours")
+                return state
+            } catch {
+                print("⚠️ [StorageService] Échec du secours: \\(error.localizedDescription)")
+            }
+        }
+
+        return AppPersistedState()
+    }
+'''
+storage = replace_once(storage, old_load, new_load, "nonblocking storage load")
+storage_path.write_text(storage)
+
 view_model_path = Path("SarahIA/SarahIA/ViewModels/ChatViewModel.swift")
 view_model = view_model_path.read_text()
+view_model = view_model.replace(
+    '''    public init() {
+        restorePersistedState()
+        setupModeObserver()
+        bindCoreServices()
+    }
+''',
+    '''    public init() {
+        setupModeObserver()
+        bindCoreServices()
+        restorePersistedStateInBackground()
+    }
+''',
+    1,
+)
+view_model = view_model.replace(
+    '''    public func restorePersistedState() {
+        let savedState = storageService.loadState()
+''',
+    '''    private func restorePersistedStateInBackground() {
+        storageService.loadStateAsync { [weak self] savedState in
+            guard let self = self else { return }
+            // If the user already started interacting, never overwrite the live
+            // conversation with a late disk restoration.
+            guard self.currentConversationId == nil, self.messages.isEmpty else { return }
+            self.applyPersistedState(savedState)
+        }
+    }
+
+    public func restorePersistedState() {
+        applyPersistedState(storageService.loadState())
+    }
+
+    private func applyPersistedState(_ savedState: AppPersistedState) {
+''',
+    1,
+)
+# Keep ChatGPT-like history across launches. New-build test resets remain handled
+# by StorageService.resetUserStateForNewBuildIfNeeded, not by every cold launch.
+view_model = view_model.replace(
+    '''        // Après une relance complète, ouvrir un chat vierge sans appeler startNewChat().
+        // startNewChat() initialise la voix, la mémoire sémantique et d'autres moteurs lourds ;
+        // aucun de ces composants ne doit être touché pendant le démarrage du processus.
+        if SessionTimeoutManager.shared.consumeColdLaunchFreshChatRequest() {
+            currentConversationId = nil
+            messages = []
+            inputText = ""
+            appMode = .text
+            isDrawerOpen = false
+            drawerProgress = 0
+            activeAgent = .sarah
+            return
+        }
+        // Le moteur IA est synchronisé au premier envoi, pas au lancement.
+''',
+    '''        // Le moteur IA est synchronisé au premier envoi, pas au lancement.
+        // L'historique reste visible comme dans une application de chat normale.
+''',
+    1,
+)
+view_model = view_model.replace(
+    '''        var state = storageService.loadState()
+        state.conversations = self.conversations
+        state.currentConversationId = self.currentConversationId
+        state.learnedMemories = self.learnedMemories
+        storageService.saveState(state)
+''',
+    '''        storageService.saveChatState(
+            conversations: self.conversations,
+            currentConversationId: self.currentConversationId,
+            messages: self.messages,
+            learnedMemories: self.learnedMemories
+        )
+''',
+    1,
+)
+# Published appMode emits immediately. Do not persist during the first frame.
 view_model = view_model.replace(
     '''        $appMode
             .sink { [weak self] _ in
@@ -266,7 +445,7 @@ view_model = view_model.replace(
             .dropFirst()
             .sink { [weak self] _ in
 ''',
-    1
+    1,
 )
 view_model = view_model.replace(
     '''        voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
@@ -279,4 +458,4 @@ view_model = view_model.replace(
 )
 view_model_path.write_text(view_model)
 
-print("Production voice profiles, website quality, launch responsiveness and touch-interaction hardening applied")
+print("Production stability pass applied: responsive composer, nonblocking history persistence, safe voice startup")
