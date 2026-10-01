@@ -40,20 +40,6 @@ public struct ContentView: View {
                         .zIndex(3)
                 }
 
-                if viewModel.isShowingVoiceOrbModal {
-                    VoiceOrbModalView(
-                        viewModel: viewModel,
-                        onOpenMenu: {
-                            viewModel.openDrawer()
-                        },
-                        onOpenSettings: {
-                            isShowingSettings = true
-                        }
-                    )
-                    .zIndex(20)
-                    .transition(.opacity)
-                }
-
                 if viewModel.isDrawerOpen {
                     drawerOverlay
                         .zIndex(30)
@@ -80,6 +66,11 @@ public struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.black.ignoresSafeArea())
+        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal, onDismiss: {
+            viewModel.stopVoiceConversation()
+        }) {
+            voiceSheetContent
+        }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
@@ -99,6 +90,13 @@ public struct ContentView: View {
                 withAnimation(.easeOut(duration: 0.32)) {
                     isShowingStartupAnimation = false
                 }
+            }
+
+            // Prépare le modèle Whisper après le premier rendu. Le chargement reste
+            // entièrement hors du thread principal afin que le premier appui sur le
+            // mode vocal ouvre l'interface immédiatement.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
+                WhisperService.shared.prepareModel()
             }
         }
         .onChange(of: isShowingSettings) { isPresented in
@@ -133,6 +131,43 @@ public struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var voiceSheetContent: some View {
+        if #available(iOS 16.0, *) {
+            VoiceSheetDetentHost(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        viewModel.openDrawer()
+                    }
+                },
+                onOpenSettings: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        isShowingSettings = true
+                    }
+                }
+            )
+        } else {
+            VoiceOrbModalView(
+                viewModel: viewModel,
+                onOpenMenu: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        viewModel.openDrawer()
+                    }
+                },
+                onOpenSettings: {
+                    viewModel.isShowingVoiceOrbModal = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        isShowingSettings = true
+                    }
+                }
+            )
+        }
+    }
+
     private var drawerOverlay: some View {
         Color.black
             .opacity(0.40)
@@ -156,6 +191,28 @@ public struct ContentView: View {
 
                 viewModel.openDrawer()
             }
+    }
+}
+
+/// Hôte du mode vocal moderne. La grande feuille s'ouvre comme le mode vocal
+/// principal. Un glissement vers le bas la réduit à 255 pt ; VoiceOrbModalView
+/// bascule alors automatiquement sur son petit orbe de 86 pt.
+@available(iOS 16.0, *)
+private struct VoiceSheetDetentHost: View {
+    @ObservedObject var viewModel: ChatViewModel
+    let onOpenMenu: () -> Void
+    let onOpenSettings: () -> Void
+
+    @State private var selectedDetent: PresentationDetent = .large
+
+    var body: some View {
+        VoiceOrbModalView(
+            viewModel: viewModel,
+            onOpenMenu: onOpenMenu,
+            onOpenSettings: onOpenSettings
+        )
+        .presentationDetents([.height(255), .large], selection: $selectedDetent)
+        .presentationDragIndicator(.visible)
     }
 }
 
