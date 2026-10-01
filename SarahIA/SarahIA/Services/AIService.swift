@@ -1,5 +1,8 @@
 import Foundation
 import UIKit
+#if canImport(llama)
+import llama
+#endif
 
 /// Échange conversationnel pour le suivi du contexte à court terme
 public struct ConversationExchange: Codable {
@@ -18,6 +21,250 @@ public struct ConversationExchange: Codable {
 /// - Moteur d'Intent Matching avancé (Salutations dynamiques, requêtes utilitaires, calculs NSExpression).
 /// - Dynamic Memory Mesh (Brain Vault avec balayage sémantique de mots-clés et App Group).
 /// - Suivi du contexte conversationnel court terme (5-6 derniers échanges pour continuité pronominale).
+
+/// Runtime de génération de code réellement branché sur les poids Qwen3 GGUF.
+/// Aucune page HTML déterministe n'est construite ici : chaque token provient
+/// de llama.cpp exécutant le modèle téléchargé dans Application Support.
+public final class QwenLocalCodeRuntime {
+    public static let shared = QwenLocalCodeRuntime()
+    private let queue = DispatchQueue(label: "com.sarahia.qwen.codegen", qos: .userInitiated)
+    private var backendInitialized = false
+
+    private init() {}
+
+    public var isRuntimeLinked: Bool {
+        #if canImport(llama)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    public func generate(
+        modelURL: URL,
+        system: String,
+        user: String,
+        maxTokens: Int = 3072,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            #if canImport(llama)
+            do {
+                let value = try self.infer(
+                    modelURL: modelURL,
+                    system: system,
+                    user: user,
+                    maxTokens: maxTokens
+                )
+                DispatchQueue.main.async { completion(.success(value)) }
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+            #else
+            let error = NSError(
+                domain: "SarahQwenRuntime",
+                code: 1001,
+                userInfo: [NSLocalizedDescriptionKey: "Le runtime llama.cpp n'est pas lié à cette installation de SarahIA."]
+            )
+            DispatchQueue.main.async { completion(.failure(error)) }
+            #endif
+        }
+    }
+
+    #if canImport(llama)
+    private func infer(
+        modelURL: URL,
+        system: String,
+        user: String,
+        maxTokens: Int
+    ) throws -> String {
+        if !backendInitialized {
+            llama_backend_init()
+            backendInitialized = true
+        }
+
+        let modelParams = llama_model_default_params()
+        guard let model = llama_model_load_from_file(modelURL.path.cString(using: .utf8), modelParams) else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1002,
+                userInfo: [NSLocalizedDescriptionKey: "Impossible de charger le modèle Qwen3 GGUF."]
+            )
+        }
+        defer { llama_model_free(model) }
+
+        guard let vocab = llama_model_get_vocab(model) else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1003,
+                userInfo: [NSLocalizedDescriptionKey: "Tokenizer Qwen3 indisponible."]
+            )
+        }
+
+        // Qwen3 utilise nativement le format ChatML. Les tokens spéciaux sont
+        // réellement passés au tokenizer llama.cpp, contrairement à l'ancien routeur.
+        let prompt = """
+        <|im_start|>system
+        \(system)
+        <|im_end|>
+        <|im_start|>user
+        \(user)
+        <|im_end|>
+        <|im_start|>assistant
+        """
+
+        var tokenCapacity = max(256, prompt.utf8.count + 64)
+        var tokens = [llama_token](repeating: 0, count: tokenCapacity)
+
+        func tokenize(into buffer: inout [llama_token]) -> Int32 {
+            prompt.withCString { cPrompt in
+                buffer.withUnsafeMutableBufferPointer { tokenBuffer in
+                    llama_tokenize(
+                        vocab,
+                        cPrompt,
+                        Int32(prompt.utf8.count),
+                        tokenBuffer.baseAddress,
+                        Int32(tokenBuffer.count),
+                        true,
+                        true
+                    )
+                }
+            }
+        }
+
+        var tokenCount = tokenize(into: &tokens)
+        if tokenCount < 0 {
+            tokenCapacity = Int(-tokenCount)
+            tokens = [llama_token](repeating: 0, count: tokenCapacity)
+            tokenCount = tokenize(into: &tokens)
+        }
+        guard tokenCount > 0 else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1004,
+                userInfo: [NSLocalizedDescriptionKey: "Le prompt n'a pas pu être tokenisé par Qwen3."]
+            )
+        }
+        tokens = Array(tokens.prefix(Int(tokenCount)))
+
+        let outputBudget = max(256, min(maxTokens, 4096))
+        let maxContext = 8192
+        let maxPromptTokens = max(512, maxContext - outputBudget - 64)
+        if tokens.count > maxPromptTokens {
+            tokens = Array(tokens.prefix(maxPromptTokens))
+        }
+
+        var contextParams = llama_context_default_params()
+        contextParams.n_ctx = UInt32(maxContext)
+        contextParams.n_batch = 512
+        let cpuCount = max(2, min(6, ProcessInfo.processInfo.activeProcessorCount))
+        contextParams.n_threads = Int32(cpuCount)
+        contextParams.n_threads_batch = Int32(cpuCount)
+
+        guard let context = llama_init_from_model(model, contextParams) else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1005,
+                userInfo: [NSLocalizedDescriptionKey: "Impossible d'initialiser le contexte Qwen3."]
+            )
+        }
+        defer { llama_free(context) }
+
+        let sampler = llama_sampler_chain_init(llama_sampler_chain_default_params())
+        guard let sampler else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1006,
+                userInfo: [NSLocalizedDescriptionKey: "Impossible d'initialiser l'échantillonneur Qwen3."]
+            )
+        }
+        defer { llama_sampler_free(sampler) }
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90, 1))
+        llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.20))
+        llama_sampler_chain_add(sampler, llama_sampler_init_dist(20261001))
+
+        // Le prompt est évalué par blocs pour limiter la mémoire temporaire sur iPhone.
+        var consumed = 0
+        while consumed < tokens.count {
+            let chunkCount = min(512, tokens.count - consumed)
+            var batch = llama_batch_init(Int32(chunkCount), 0, 1)
+            defer { llama_batch_free(batch) }
+            batch.n_tokens = Int32(chunkCount)
+
+            for localIndex in 0..<chunkCount {
+                let globalIndex = consumed + localIndex
+                batch.token[localIndex] = tokens[globalIndex]
+                batch.pos[localIndex] = Int32(globalIndex)
+                batch.n_seq_id[localIndex] = 1
+                if let seq = batch.seq_id[localIndex] { seq[0] = 0 }
+                batch.logits[localIndex] = (globalIndex == tokens.count - 1) ? 1 : 0
+            }
+
+            guard llama_decode(context, batch) == 0 else {
+                throw NSError(
+                    domain: "SarahQwenRuntime",
+                    code: 1007,
+                    userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a pas pu évaluer le prompt."]
+                )
+            }
+            consumed += chunkCount
+        }
+
+        func piece(for token: llama_token) -> String {
+            var bytes = [CChar](repeating: 0, count: 16)
+            var written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
+            if written < 0 {
+                bytes = [CChar](repeating: 0, count: Int(-written))
+                written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
+            }
+            guard written > 0 else { return "" }
+            let data = Data(bytes.prefix(Int(written)).map { UInt8(bitPattern: $0) })
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        var result = ""
+        var position = tokens.count
+
+        for _ in 0..<outputBudget {
+            let token = llama_sampler_sample(sampler, context, -1)
+            if llama_vocab_is_eog(vocab, token) { break }
+
+            let fragment = piece(for: token)
+            result += fragment
+            if result.contains("<|im_end|>") { break }
+
+            var batch = llama_batch_init(1, 0, 1)
+            defer { llama_batch_free(batch) }
+            batch.n_tokens = 1
+            batch.token[0] = token
+            batch.pos[0] = Int32(position)
+            batch.n_seq_id[0] = 1
+            if let seq = batch.seq_id[0] { seq[0] = 0 }
+            batch.logits[0] = 1
+
+            guard llama_decode(context, batch) == 0 else { break }
+            position += 1
+            if position >= maxContext - 1 { break }
+        }
+
+        let clean = result
+            .replacingOccurrences(of: "<|im_end|>", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !clean.isEmpty else {
+            throw NSError(
+                domain: "SarahQwenRuntime",
+                code: 1008,
+                userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a produit aucun code."]
+            )
+        }
+        return clean
+    }
+    #endif
+}
+
 public final class AIService {
     
     public static let shared = AIService()
@@ -322,10 +569,8 @@ public final class AIService {
             }
         }
     }
-    
-    /// Génération de code brute, réellement issue du moteur IA local.
-    /// Cette entrée contourne le routage conversationnel afin qu'un prompt HTML
-    /// ne soit jamais transformé en réponse de chat ou en template codé en dur.
+    /// Génération de code issue exclusivement d'un vrai modèle génératif.
+    /// Aucun template HTML et aucun moteur déterministe ne sont autorisés ici.
     public func generateLocalCodeDocument(
         prompt: String,
         completion: @escaping (Result<String, Error>) -> Void
@@ -340,53 +585,40 @@ public final class AIService {
             return
         }
 
-        let system = """
-        Tu es Raphaël, moteur de génération de code web. Tu dois écrire un vrai document HTML5 complet, spécifique au brief fourni. Tout CSS et JavaScript doit être intégré au même fichier. N'utilise aucun template pré-écrit, aucune page de secours, aucun lorem ipsum et aucun asset propriétaire. Retourne uniquement le document HTML final, sans commentaire avant ou après.
-        """
-
-        if ModelSelectionEngine.shared.isLocalGGUFAllowed(),
-           BackgroundModelDownloader.isModelDownloaded,
-           BackgroundModelDownloader.localModelURL != nil {
-            let formatted = ModelSelectionEngine.shared.formatChatMLPrompt(
-                system: system,
-                user: clean
-            )
-            SarahBrainEngine.shared.generateStreamingResponse(prompt: formatted) { raw in
-                let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !value.isEmpty else {
-                    completion(.failure(NSError(
-                        domain: "SarahLocalCodeGeneration",
-                        code: 500,
-                        userInfo: [NSLocalizedDescriptionKey: "Le modèle local n'a produit aucun code"]
-                    )))
-                    return
-                }
-                completion(.success(value))
-            }
+        guard ModelSelectionEngine.shared.isLocalGGUFAllowed() else {
+            completion(.failure(NSError(
+                domain: "SarahLocalCodeGeneration",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "Cet iPhone ne dispose pas d'un budget mémoire suffisant pour Qwen3 GGUF local."]
+            )))
             return
         }
 
-        // Le petit moteur neuronal est une vraie inférence locale lui aussi. Il sert
-        // pendant que le GGUF Qwen recommandé se prépare, sans fabriquer de HTML fixe.
-        BackgroundModelDownloader.shared.startQwenModelDownload()
-        LocalNeuralIntelligenceEngine.shared.generateLocalResponse(
-            prompt: system + "\n\nBRIEF :\n" + clean,
-            contextHistory: []
-        ) { result in
-            let value = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty else {
-                completion(.failure(NSError(
-                    domain: "SarahLocalCodeGeneration",
-                    code: 501,
-                    userInfo: [NSLocalizedDescriptionKey: "Le moteur neuronal local n'a produit aucun code"]
-                )))
-                return
-            }
-            completion(.success(value))
+        guard BackgroundModelDownloader.isModelDownloaded,
+              let modelURL = BackgroundModelDownloader.localModelURL else {
+            BackgroundModelDownloader.shared.startQwenModelDownload()
+            completion(.failure(NSError(
+                domain: "SarahLocalCodeGeneration",
+                code: 425,
+                userInfo: [NSLocalizedDescriptionKey: "Le vrai modèle Qwen3 est en préparation. Sarah ne générera aucun faux site pendant son téléchargement."]
+            )))
+            return
         }
+
+        let system = """
+        Tu es Raphaël, développeur web senior. Génère réellement le code demandé avec le modèle Qwen3 exécuté localement. Retourne uniquement un document HTML5 complet et autonome avec CSS et JavaScript intégrés. Aucun template pré-écrit, aucun lorem ipsum, aucun faux bouton, aucun asset distant et aucun texte hors du HTML.
+        """
+
+        QwenLocalCodeRuntime.shared.generate(
+            modelURL: modelURL,
+            system: system,
+            user: clean,
+            maxTokens: 3072,
+            completion: completion
+        )
     }
 
-    /// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
+/// Génère une réponse IA synchrone immédiate (zéro latence) avec Intent Matching & Memory Mesh
     public func generateSyncResponse(for question: String) -> String {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalizeText(trimmed)
