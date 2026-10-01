@@ -172,14 +172,42 @@ args = parser.parse_args()
 
 if args.xcode_log and args.xcode_log.exists():
     log = args.xcode_log.read_text(encoding="utf-8", errors="replace")
-    compiler_errors = [line for line in log.splitlines() if re.search(r"\berror:\s", line)]
-    compiler_warnings = [line for line in log.splitlines() if re.search(r"\bwarning:\s", line)]
+    # xcodebuild itself runs with pipefail and already fails the workflow on a
+    # real build error. Here we only classify structured compiler/linker errors.
+    # Broad matching on every `error:` token creates false positives from normal
+    # Swift frontend command lines and NSError-related text in successful logs.
+    source_error = re.compile(
+        r"\.(?:swift|m|mm|c|cc|cpp|cxx|h|hpp):\d+:\d+:\s+(?:fatal\s+)?error:\s",
+        re.IGNORECASE,
+    )
+    tool_error = re.compile(
+        r"^(?:clang|swiftc|swift-frontend|ld|libtool):\s+(?:fatal\s+)?error:\s",
+        re.IGNORECASE,
+    )
+    compiler_errors = [
+        line
+        for line in log.splitlines()
+        if source_error.search(line)
+        or tool_error.search(line.strip())
+        or "error: linker command failed" in line.lower()
+    ]
+    compiler_warnings = [
+        line
+        for line in log.splitlines()
+        if re.search(
+            r"\.(?:swift|m|mm|c|cc|cpp|cxx|h|hpp):\d+:\d+:\s+warning:\s",
+            line,
+            re.IGNORECASE,
+        )
+    ]
     if compiler_errors:
-        errors.append(f"Xcode: {len(compiler_errors)} ligne(s) error: détectée(s)")
+        errors.append(f"Xcode: {len(compiler_errors)} erreur(s) compilateur/linker structurée(s) détectée(s)")
+    else:
+        passes.append("Xcode: aucune erreur compilateur/linker structurée détectée")
     if compiler_warnings:
         warnings.append(f"Xcode: {len(compiler_warnings)} avertissement(s) compilateur détecté(s)")
     else:
-        passes.append("Xcode: aucun warning: détecté dans le log")
+        passes.append("Xcode: aucun warning compilateur détecté dans le log")
 
 print("\n=== SARAH DEEP AUDIT ===")
 for item in passes:
