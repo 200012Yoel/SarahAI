@@ -550,12 +550,15 @@ public final class ChatViewModel: ObservableObject {
 
         isVoiceMicrophoneMuted = false
         isContinuousConversationActive = true
-        if voiceManager.isSpeaking {
-            voiceManager.stop()
-        }
-        WhisperSpeechRecognizer.shared.startListening()
+        AudioSessionManager.shared.beginContinuousVoiceSession()
+        WhisperSpeechRecognizer.shared.startListening(
+            autoFinalizeOnSilence: true,
+            preserveActiveSpeech: true
+        )
         isMicRunning = WhisperSpeechRecognizer.shared.isListening
-        voiceStatus = isMicRunning ? .listening(level: micInputLevel) : .starting
+        voiceStatus = voiceManager.isSpeaking
+            ? .speaking
+            : (isMicRunning ? .listening(level: micInputLevel) : .starting)
     }
 
     /// Démarre explicitement une session vocale continue.
@@ -588,6 +591,7 @@ public final class ChatViewModel: ObservableObject {
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
+        isBargeInMonitorActive = false
         isBargeInMonitorActive = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,

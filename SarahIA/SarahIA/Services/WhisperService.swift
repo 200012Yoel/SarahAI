@@ -174,6 +174,17 @@ public final class WhisperService: ObservableObject {
         AudioSessionManager.shared.configureRecordingSession()
 
         let input = audioEngine.inputNode
+
+        if AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            do {
+                if !input.isVoiceProcessingEnabled {
+                    try input.setVoiceProcessingEnabled(true)
+                }
+            } catch {
+                print("⚠️ [Whisper] Annulation d'écho iOS indisponible: \(error.localizedDescription)")
+            }
+        }
+
         let sourceFormat = input.outputFormat(forBus: 0)
         guard sourceFormat.sampleRate > 0,
               sourceFormat.channelCount > 0,
