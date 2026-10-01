@@ -64,9 +64,9 @@
 		<string>fetch</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Sarah AI nécessite l'accès au microphone pour les conversations vocales multi-agents en direct (100% hors-ligne).</string>
+	<string>Sarah IA utilise le microphone pour le mode vocal et transcrit votre voix localement sur l’iPhone avec OpenAI Whisper.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Sarah AI utilise la reconnaissance vocale Apple Speech native pour transcrire votre voix sans connexion réseau.</string>
+	<string>Sarah IA effectue la transcription vocale avec le modèle OpenAI Whisper intégré à l’application, sans envoyer votre voix à un service de transcription en ligne.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
