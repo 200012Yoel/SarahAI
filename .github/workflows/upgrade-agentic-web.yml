@@ -1,0 +1,52 @@
+name: Upgrade agentic website generation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/upgrade_agentic_web_generation_v6.py'
+      - '.github/workflows/upgrade-agentic-web.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply website generation upgrade
+        run: |
+          set -euo pipefail
+          python3 scripts/upgrade_agentic_web_generation_v6.py
+
+      - name: Verify agentic web quality pipeline
+        run: |
+          set -euo pipefail
+          grep -q 'qualitySystemPrompt' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'qualityReviewLocalBuild' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'qualityReviewRemoteBuild' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'duplicateIds' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'unlabeledInputs' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'validateCandidate(candidate, 2)' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'index-r\\(project.revision).html' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -q 'SaaS / App' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'Blog / média' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'Pipeline : architecture → code → relecture qualité' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          echo 'Agentic website generation upgrade verified'
+
+      - name: Commit upgraded source
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes needed.'
+            exit 0
+          fi
+          git config user.name 'SarahIA Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add SarahIA
+          git commit -m 'Upgrade Raphaël real website generation pipeline'
+          git push origin HEAD:main
