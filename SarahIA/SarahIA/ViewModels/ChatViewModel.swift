@@ -436,6 +436,23 @@ public final class ChatViewModel: ObservableObject {
             self?.liveTranscriptionText = partial
         }
         
+        WhisperSpeechRecognizer.shared.onVoiceActivity = { [weak self] in
+            guard let self = self,
+                  self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted,
+                  self.isBargeInMonitorActive,
+                  self.voiceManager.isSpeaking else { return }
+
+            // AVAudioSession .voiceChat fournit l'annulation d'écho. Dès qu'une
+            // vraie voix traverse le VAD Whisper, Sarah s'arrête immédiatement,
+            // mais Whisper continue d'enregistrer la nouvelle phrase utilisateur.
+            self.currentSpeakingText = self.voiceManager.currentSpokenText
+            self.isBargeInMonitorActive = false
+            self.voiceManager.stop()
+            self.isSpeaking = false
+            self.voiceStatus = .listening(level: self.micInputLevel)
+        }
+
         WhisperSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -444,32 +461,76 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
             self.liveTranscriptionText = ""
+            if self.voiceManager.isSpeaking {
+                self.isBargeInMonitorActive = false
+                self.voiceManager.stop()
+                self.isSpeaking = false
+            }
             self.sendMessage(cleaned)
         }
         
         voiceManager.onSpeechStarted = { [weak self] in
-            WhisperService.shared.stopRecordingWithoutTranscription()
-            self?.isMicRunning = false
-            self?.isSpeaking = true
-            self?.voiceStatus = .speaking
-            self?.haptics.speechStarted()
+            guard let self = self else { return }
+            self.isSpeaking = true
+            self.currentSpeakingText = self.voiceManager.currentSpokenText
+            self.voiceStatus = .speaking
+            self.haptics.speechStarted()
+
+            guard self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted else {
+                self.isBargeInMonitorActive = false
+                self.isMicRunning = false
+                return
+            }
+
+            self.isBargeInMonitorActive = true
+            AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+            if !WhisperSpeechRecognizer.shared.isListening {
+                WhisperSpeechRecognizer.shared.startListening(
+                    autoFinalizeOnSilence: true,
+                    preserveActiveSpeech: true
+                )
+            }
+            self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
         }
         
         voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = false
-            self.voiceStatus = .idle
+            self.currentSpeakingText = nil
             self.haptics.speechFinished()
-            
-            if self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+
+            let finishedWithoutBargeIn = self.isBargeInMonitorActive
+            self.isBargeInMonitorActive = false
+
+            guard self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted else {
+                self.voiceStatus = .idle
+                return
+            }
+
+            if finishedWithoutBargeIn {
+                // Sarah a fini normalement. On jette le tampon utilisé uniquement
+                // pour surveiller une interruption afin qu'aucun résidu d'écho ne
+                // devienne un faux message, puis on repart sur une capture propre.
+                WhisperSpeechRecognizer.shared.stopListening()
+                self.isMicRunning = false
+                self.voiceStatus = .starting
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
                     guard self.isContinuousConversationActive,
                           !self.isVoiceMicrophoneMuted,
                           !self.voiceManager.isSpeaking else { return }
-                    WhisperSpeechRecognizer.shared.startListening()
+                    WhisperSpeechRecognizer.shared.startListening(
+                        autoFinalizeOnSilence: true,
+                        preserveActiveSpeech: true
+                    )
                     self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
-                    self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
+                    self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
                 }
+            } else {
+                // Barge-in : Whisper est déjà en train d'enregistrer l'utilisateur.
+                self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
+                self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
             }
         }
     }
@@ -502,8 +563,10 @@ public final class ChatViewModel: ObservableObject {
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
         voiceManager.stop()
+        AudioSessionManager.shared.beginContinuousVoiceSession()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
+        isBargeInMonitorActive = false
 
         guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -511,7 +574,10 @@ public final class ChatViewModel: ObservableObject {
             return
         }
 
-        WhisperSpeechRecognizer.shared.startListening()
+        WhisperSpeechRecognizer.shared.startListening(
+            autoFinalizeOnSilence: true,
+            preserveActiveSpeech: true
+        )
         isMicRunning = WhisperSpeechRecognizer.shared.isListening
         voiceStatus = isMicRunning ? .listening(level: 0.0) : .starting
     }
@@ -522,6 +588,7 @@ public final class ChatViewModel: ObservableObject {
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
+        isBargeInMonitorActive = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.
@@ -530,7 +597,7 @@ public final class ChatViewModel: ObservableObject {
         }
 
         WhisperSpeechRecognizer.shared.stopListening()
-        AudioSessionManager.shared.deactivateSession()
+        AudioSessionManager.shared.endContinuousVoiceSession()
 
         isMicRunning = false
         micInputLevel = 0.0

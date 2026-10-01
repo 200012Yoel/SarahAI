@@ -32,6 +32,7 @@ public final class WhisperService: ObservableObject {
     private var hasDetectedSpeech = false
     private var lastVoiceActivity = Date.distantPast
     private var lastBargeInNotification = Date.distantPast
+    private var consecutiveVoiceChunks = 0
     private var generation = UUID()
     private var isFinalizing = false
 
@@ -163,6 +164,7 @@ public final class WhisperService: ObservableObject {
         automaticFinalize = autoFinalizeOnSilence
         isFinalizing = false
         hasDetectedSpeech = false
+        consecutiveVoiceChunks = 0
         samples.removeAll(keepingCapacity: true)
         currentText = ""
         micEnergyLevel = 0
@@ -283,13 +285,17 @@ public final class WhisperService: ObservableObject {
 
             if db >= self.activityDBThreshold {
                 self.hasDetectedSpeech = true
+                self.consecutiveVoiceChunks += 1
                 self.lastVoiceActivity = now
-                if now.timeIntervalSince(self.lastBargeInNotification) > 0.22 {
+                if self.consecutiveVoiceChunks >= 2,
+                   now.timeIntervalSince(self.lastBargeInNotification) > 0.18 {
                     self.lastBargeInNotification = now
                     DispatchQueue.main.async {
                         self.onVoiceActivity?()
                     }
                 }
+            } else {
+                self.consecutiveVoiceChunks = 0
             }
 
             DispatchQueue.main.async {
@@ -324,6 +330,7 @@ public final class WhisperService: ObservableObject {
             snapshot = samples
             samples.removeAll(keepingCapacity: true)
             hasDetectedSpeech = false
+            consecutiveVoiceChunks = 0
             isFinalizing = false
         }
         return snapshot

@@ -10,6 +10,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public static let shared = AgentVoiceManager()
     
     private let synthesizer = AVSpeechSynthesizer()
+    public private(set) var currentSpokenText: String = ""
     
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
@@ -219,24 +220,19 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
-        // Ne jamais laisser reconnaissance + synthèse tourner en même temps.
-        // Deux AVAudioEngine concurrents peuvent provoquer du routage audio instable
-        // et des ralentissements à l'échelle du téléphone.
-        WhisperSpeechRecognizer.shared.stopListening()
+        // Hors mode vocal continu, on conserve le comportement mono-source.
+        // En mode vocal continu, Whisper reste volontairement en écoute afin que
+        // l'utilisateur puisse interrompre Sarah à n'importe quel moment.
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            WhisperSpeechRecognizer.shared.stopListening()
+        }
         stop()
         pendingSpeechBlock = nil
         
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            try session.overrideOutputAudioPort(.speaker)
-        } catch {
-            print("⚠️ [AgentVoiceManager] Erreur configuration AVAudioSession: \(error.localizedDescription)")
-        }
+        AudioSessionManager.shared.configurePlaybackSession()
         
         let utterance = makeUtterance(text: cleaned)
         let resolvedVoice = getSiriVoice(for: agent) ?? AVSpeechSynthesisVoice(language: "fr-FR")
@@ -264,6 +260,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             utterance.rate = 0.48
         }
         
+        currentSpokenText = cleaned
         print("🔊 [AgentVoiceManager] Synthèse vocale [\(agent.rawValue)] via \(resolvedVoice?.name ?? "fr-FR") | ID: \(resolvedVoice?.identifier ?? "")")
         synthesizer.speak(utterance)
     }
@@ -275,7 +272,9 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     /// Passation vocale séquentielle fluide entre deux agents
     public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
-        WhisperSpeechRecognizer.shared.stopListening()
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            WhisperSpeechRecognizer.shared.stopListening()
+        }
         stop()
         
         let cleanTransition = cleanTextForSpeech(transitionText)
@@ -301,6 +300,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             case .yohan:  agentUtterance.pitchMultiplier = 0.90
             case .ethel:  agentUtterance.pitchMultiplier = 1.03
             }
+            self.currentSpokenText = cleanAgent
             self.synthesizer.speak(agentUtterance)
         }
         
@@ -315,6 +315,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         case .yohan:  sourceUtterance.pitchMultiplier = 0.90
         case .ethel:  sourceUtterance.pitchMultiplier = 1.03
         }
+        currentSpokenText = cleanTransition
         synthesizer.speak(sourceUtterance)
     }
     
@@ -323,6 +324,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+        currentSpokenText = ""
 
         // Ne jamais conserver la route .playAndRecord une fois la voix coupée.
         if !WhisperSpeechRecognizer.shared.isListening {
@@ -345,12 +347,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             pendingSpeechBlock = nil
             next()
         } else {
+            currentSpokenText = ""
             AudioSessionManager.shared.deactivateSession()
             onSpeechFinished?()
         }
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        currentSpokenText = ""
         AudioSessionManager.shared.deactivateSession()
         onSpeechFinished?()
     }
