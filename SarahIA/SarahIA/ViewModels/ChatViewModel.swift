@@ -188,16 +188,16 @@ public final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
 
 
-        NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))
+        NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerStateChanged"))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
-                switch AppleSpeechRecognizer.shared.state {
+                switch WhisperSpeechRecognizer.shared.state {
                 case .idle:
                     if self.isContinuousConversationActive,
                        !self.isVoiceMicrophoneMuted,
                        !self.voiceManager.isSpeaking,
-                       !AppleSpeechRecognizer.shared.isListening {
+                       !WhisperSpeechRecognizer.shared.isListening {
                         self.voiceStatus = .idle
                     }
                 case .listening:
@@ -427,14 +427,14 @@ public final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
     
-    // MARK: - Pipeline Vocale Apple Speech & Multi-Agents
+    // MARK: - Pipeline Vocale Whisper & Multi-Agents
     
     private func setupVoicePipeline() {
-        AppleSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
+        WhisperSpeechRecognizer.shared.onPartialTranscription = { [weak self] partial in
             self?.liveTranscriptionText = partial
         }
         
-        AppleSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
+        WhisperSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else {
@@ -446,6 +446,8 @@ public final class ChatViewModel: ObservableObject {
         }
         
         voiceManager.onSpeechStarted = { [weak self] in
+            WhisperService.shared.stopRecordingWithoutTranscription()
+            self?.isMicRunning = false
             self?.isSpeaking = true
             self?.voiceStatus = .speaking
             self?.haptics.speechStarted()
@@ -462,8 +464,8 @@ public final class ChatViewModel: ObservableObject {
                     guard self.isContinuousConversationActive,
                           self.isShowingVoiceOrbModal,
                           !self.voiceManager.isSpeaking else { return }
-                    AppleSpeechRecognizer.shared.startListening()
-                    self.isMicRunning = AppleSpeechRecognizer.shared.isListening
+                    WhisperSpeechRecognizer.shared.startListening()
+                    self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: 0.0) : .idle
                 }
             }
@@ -473,7 +475,7 @@ public final class ChatViewModel: ObservableObject {
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        if isMicRunning || AppleSpeechRecognizer.shared.isListening {
+        if isMicRunning || WhisperSpeechRecognizer.shared.isListening {
             stopVoiceConversation(stopSpeech: false)
         } else {
             startVoiceConversation()
@@ -487,14 +489,14 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.stop()
         isContinuousConversationActive = true
 
-        guard !AppleSpeechRecognizer.shared.isListening else {
+        guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
             voiceStatus = .listening(level: micInputLevel)
             return
         }
 
-        AppleSpeechRecognizer.shared.startListening()
-        isMicRunning = AppleSpeechRecognizer.shared.isListening
+        WhisperSpeechRecognizer.shared.startListening()
+        isMicRunning = WhisperSpeechRecognizer.shared.isListening
         voiceStatus = isMicRunning ? .listening(level: 0.0) : .idle
     }
 
@@ -510,7 +512,7 @@ public final class ChatViewModel: ObservableObject {
             voiceManager.stop()
         }
 
-        AppleSpeechRecognizer.shared.stopListening()
+        WhisperSpeechRecognizer.shared.stopListening()
         AudioSessionManager.shared.deactivateSession()
 
         isMicRunning = false

@@ -96,8 +96,6 @@ public struct ChatScreenView: View {
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .onTapGesture { keyboard.dismiss() }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -200,6 +198,7 @@ public struct ChatScreenView: View {
             )
         }
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 
     private var composerDock: some View {

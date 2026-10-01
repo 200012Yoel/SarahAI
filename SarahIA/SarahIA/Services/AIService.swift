@@ -405,7 +405,7 @@ public final class AIService {
                 if #available(iOS 13.0, *) {
                     TTSService.shared.stopSpeaking()
                 }
-                AppleSpeechRecognizer.shared.stopListening()
+                WhisperSpeechRecognizer.shared.stopListening()
                 NotificationCenter.default.post(name: NSNotification.Name("SarahDismissAllModals"), object: nil)
             }
             let reply = "D'accord, je me casse !"

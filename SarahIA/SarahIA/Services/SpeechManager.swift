@@ -46,7 +46,7 @@ public final class SpeechManager: NSObject, AVSpeechSynthesizerDelegate {
         rate: Float = AVSpeechUtteranceDefaultSpeechRate
     ) {
         stopSpeaking(notifyInterruption: false)
-        AppleSpeechRecognizer.shared.stopListening()
+        WhisperSpeechRecognizer.shared.stopListening()
 
         let cleaned = MultiAgentVoiceManager.shared.cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }

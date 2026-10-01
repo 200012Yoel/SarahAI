@@ -14,13 +14,13 @@ public enum SpeechRecognizerState: Equatable {
 /// Compatibility facade kept so the rest of SarahIA does not need a risky rename.
 /// The old SFSpeechRecognizer backend has been removed: transcription is now done
 /// locally by WhisperService using OpenAI Whisper model weights through whisper.cpp.
-public final class AppleSpeechRecognizer: NSObject {
-    public static let shared = AppleSpeechRecognizer()
+public final class WhisperSpeechRecognizer: NSObject {
+    public static let shared = WhisperSpeechRecognizer()
 
     public private(set) var state: SpeechRecognizerState = .idle {
         didSet {
             NotificationCenter.default.post(
-                name: NSNotification.Name("AppleSpeechRecognizerStateChanged"),
+                name: NSNotification.Name("WhisperSpeechRecognizerStateChanged"),
                 object: nil
             )
         }
@@ -30,7 +30,7 @@ public final class AppleSpeechRecognizer: NSObject {
         didSet {
             guard oldValue != isListening else { return }
             NotificationCenter.default.post(
-                name: NSNotification.Name("AppleSpeechRecognizerListeningChanged"),
+                name: NSNotification.Name("WhisperSpeechRecognizerListeningChanged"),
                 object: nil
             )
         }
@@ -221,31 +221,34 @@ public final class AppleSpeechRecognizer: NSObject {
 
     private func publishEnergyChange() {
         NotificationCenter.default.post(
-            name: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"),
+            name: NSNotification.Name("WhisperSpeechRecognizerEnergyChanged"),
             object: nil
         )
     }
 }
+
+@available(*, deprecated, renamed: "WhisperSpeechRecognizer")
+public typealias AppleSpeechRecognizer = WhisperSpeechRecognizer
 
 #if canImport(Combine)
 @available(iOS 13.0, *)
 public final class ObservableSpeechRecognizer: ObservableObject {
     public static let shared = ObservableSpeechRecognizer()
 
-    @Published public var isListening: Bool = AppleSpeechRecognizer.shared.isListening
-    @Published public var currentLiveText: String = AppleSpeechRecognizer.shared.currentLiveText
-    @Published public var micEnergyLevel: Float = AppleSpeechRecognizer.shared.micEnergyLevel
+    @Published public var isListening: Bool = WhisperSpeechRecognizer.shared.isListening
+    @Published public var currentLiveText: String = WhisperSpeechRecognizer.shared.currentLiveText
+    @Published public var micEnergyLevel: Float = WhisperSpeechRecognizer.shared.micEnergyLevel
 
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerListeningChanged"))
-            .merge(with: NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerEnergyChanged")))
+        NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerListeningChanged"))
+            .merge(with: NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerEnergyChanged")))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.isListening = AppleSpeechRecognizer.shared.isListening
-                self?.currentLiveText = AppleSpeechRecognizer.shared.currentLiveText
-                self?.micEnergyLevel = AppleSpeechRecognizer.shared.micEnergyLevel
+                self?.isListening = WhisperSpeechRecognizer.shared.isListening
+                self?.currentLiveText = WhisperSpeechRecognizer.shared.currentLiveText
+                self?.micEnergyLevel = WhisperSpeechRecognizer.shared.micEnergyLevel
             }
             .store(in: &cancellables)
     }

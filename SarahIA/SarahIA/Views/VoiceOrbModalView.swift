@@ -124,10 +124,7 @@ public struct VoiceOrbModalView: View {
             drift = true
             viewModel.startVoiceConversation()
         }
-        .onDisappear {
-            viewModel.stopVoiceConversation()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             // Sarah ne doit jamais conserver une route audio active quand
             // l'utilisateur quitte l'app ou ouvre Siri / un appel.
             viewModel.stopVoiceConversation()

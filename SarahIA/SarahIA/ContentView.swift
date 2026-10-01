@@ -62,13 +62,21 @@ public struct ContentView: View {
                         .zIndex(100)
                         .transition(.opacity)
                 }
+
+
+                if viewModel.isContinuousConversationActive &&
+                   !viewModel.isShowingVoiceOrbModal &&
+                   !viewModel.isDrawerOpen &&
+                   !isShowingSettings {
+                    compactVoiceOrb
+                        .zIndex(25)
+                        .transition(.scale(scale: 0.86).combined(with: .opacity))
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.black.ignoresSafeArea())
-        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal, onDismiss: {
-            viewModel.stopVoiceConversation()
-        }) {
+        .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
         }
         .sheet(isPresented: $isShowingSettings) {
@@ -168,6 +176,52 @@ public struct ContentView: View {
         }
     }
 
+    private var compactVoiceOrb: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Button {
+                    HapticService.shared.buttonTap()
+                    viewModel.isShowingVoiceOrbModal = true
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(0.96),
+                                        viewModel.activeAgent.themeColor.opacity(0.94),
+                                        viewModel.activeAgent.themeColor
+                                    ],
+                                    center: .topLeading,
+                                    startRadius: 2,
+                                    endRadius: 44
+                                )
+                            )
+                            .frame(width: 64, height: 64)
+                            .shadow(
+                                color: viewModel.activeAgent.themeColor.opacity(0.48),
+                                radius: 14
+                            )
+
+                        Image(systemName: "waveform")
+                            .font(.system(size: 21, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1.0) * 0.055)
+                    .animation(.spring(response: 0.22, dampingFraction: 0.76), value: viewModel.micInputLevel)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("Rouvrir le mode vocal Sarah")
+                .accessibilityIdentifier("sarah.voice.compactOrb")
+            }
+        }
+        .padding(.trailing, 18)
+        .padding(.bottom, 10)
+    }
+
     private var drawerOverlay: some View {
         Color.black
             .opacity(0.40)
@@ -194,16 +248,14 @@ public struct ContentView: View {
     }
 }
 
-/// Hôte du mode vocal moderne. La grande feuille s'ouvre comme le mode vocal
-/// principal. Un glissement vers le bas la réduit à 255 pt ; VoiceOrbModalView
-/// bascule alors automatiquement sur son petit orbe de 86 pt.
+/// Hôte du mode vocal moderne. La feuille reste grande ; un glissement vers le bas
+/// la ferme visuellement sans couper la conversation. Le petit orbe apparaît alors
+/// au-dessus du véritable composer du chat.
 @available(iOS 16.0, *)
 private struct VoiceSheetDetentHost: View {
     @ObservedObject var viewModel: ChatViewModel
     let onOpenMenu: () -> Void
     let onOpenSettings: () -> Void
-
-    @State private var selectedDetent: PresentationDetent = .large
 
     var body: some View {
         VoiceOrbModalView(
@@ -211,7 +263,7 @@ private struct VoiceSheetDetentHost: View {
             onOpenMenu: onOpenMenu,
             onOpenSettings: onOpenSettings
         )
-        .presentationDetents([.height(255), .large], selection: $selectedDetent)
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 }

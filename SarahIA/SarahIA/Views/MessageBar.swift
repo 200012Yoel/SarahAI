@@ -69,24 +69,24 @@ public struct MessageBar: View {
         // barre et d'atteindre MessageList derrière elle.
         .background(Color.black.opacity(0.001))
         .contentShape(Rectangle())
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerListeningChanged"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerListeningChanged"))) { _ in
             guard isDictating else { return }
-            let recognizer = AppleSpeechRecognizer.shared
+            let recognizer = WhisperSpeechRecognizer.shared
             dictationLiveText = recognizer.currentLiveText
             dictationMicLevel = recognizer.micEnergyLevel
             if !recognizer.isListening {
                 commitDictationToComposer()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerEnergyChanged"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerEnergyChanged"))) { _ in
             guard isDictating else { return }
-            dictationMicLevel = AppleSpeechRecognizer.shared.micEnergyLevel
-            dictationLiveText = AppleSpeechRecognizer.shared.currentLiveText
+            dictationMicLevel = WhisperSpeechRecognizer.shared.micEnergyLevel
+            dictationLiveText = WhisperSpeechRecognizer.shared.currentLiveText
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AppleSpeechRecognizerStateChanged"))) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerStateChanged"))) { _ in
             guard isDictating else { return }
-            if case .error = AppleSpeechRecognizer.shared.state {
-                AppleSpeechRecognizer.shared.stopListening()
+            if case .error = WhisperSpeechRecognizer.shared.state {
+                WhisperSpeechRecognizer.shared.stopListening()
                 isDictating = false
                 dictationMicLevel = 0
                 text = textBeforeDictation
@@ -94,7 +94,7 @@ public struct MessageBar: View {
         }
         .onDisappear {
             if isDictating {
-                AppleSpeechRecognizer.shared.stopListening()
+                WhisperSpeechRecognizer.shared.stopListening()
                 isDictating = false
                 dictationMicLevel = 0
             }
@@ -111,7 +111,7 @@ public struct MessageBar: View {
                     placeholder: "Demander à \(activeAgent.displayName)...",
                     tintColor: UIColor(activeAgent.themeColor),
                     accessibilityIdentifier: "sarah.composer.field",
-                    isEnabled: !isProcessing,
+                    isEnabled: true,
                     onReturn: {
                         guard !isProcessing else { return }
                         submitMessage()
@@ -146,7 +146,6 @@ public struct MessageBar: View {
                             .contentShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .disabled(isProcessing)
                     .accessibilityLabel("Dicter un message")
                     .accessibilityIdentifier("sarah.dictation.button")
                 }
@@ -299,16 +298,16 @@ public struct MessageBar: View {
     }
 
     private var currentRecognizedText: String {
-        let live = AppleSpeechRecognizer.shared.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let live = WhisperSpeechRecognizer.shared.currentLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty { return live }
         return dictationLiveText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func startDictation() {
-        guard !isProcessing else { return }
+        if isProcessing { onCancel() }
         HapticService.shared.buttonTap()
         dismissKeyboard()
-        let recognizer = AppleSpeechRecognizer.shared
+        let recognizer = WhisperSpeechRecognizer.shared
         if recognizer.isListening { recognizer.stopListening() }
         textBeforeDictation = text.trimmingCharacters(in: .whitespacesAndNewlines)
         dictationLiveText = ""
@@ -323,7 +322,7 @@ public struct MessageBar: View {
         isDictating = false
         dictationMicLevel = 0
 
-        AppleSpeechRecognizer.shared.stopListeningAndTranscribe { recognized in
+        WhisperSpeechRecognizer.shared.stopListeningAndTranscribe { recognized in
             let finalText = mergedText(prefix: prefix, dictated: recognized ?? "")
             text = finalText
             dictationLiveText = recognized ?? ""
@@ -342,7 +341,7 @@ public struct MessageBar: View {
 
     private func cancelDictation() {
         HapticService.shared.buttonTap()
-        AppleSpeechRecognizer.shared.stopListening()
+        WhisperSpeechRecognizer.shared.stopListening()
         isDictating = false
         dictationMicLevel = 0
         text = textBeforeDictation

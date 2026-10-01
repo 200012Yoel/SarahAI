@@ -222,7 +222,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         // Ne jamais laisser reconnaissance + synthèse tourner en même temps.
         // Deux AVAudioEngine concurrents peuvent provoquer du routage audio instable
         // et des ralentissements à l'échelle du téléphone.
-        AppleSpeechRecognizer.shared.stopListening()
+        WhisperSpeechRecognizer.shared.stopListening()
         stop()
         pendingSpeechBlock = nil
         
@@ -275,7 +275,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     /// Passation vocale séquentielle fluide entre deux agents
     public func speakHandoff(transitionText: String, sourceAgent: AgentType, agentGreeting: String, targetAgent: AgentType) {
-        AppleSpeechRecognizer.shared.stopListening()
+        WhisperSpeechRecognizer.shared.stopListening()
         stop()
         
         let cleanTransition = cleanTextForSpeech(transitionText)
@@ -325,7 +325,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         }
 
         // Ne jamais conserver la route .playAndRecord une fois la voix coupée.
-        if !AppleSpeechRecognizer.shared.isListening {
+        if !WhisperSpeechRecognizer.shared.isListening {
             AudioSessionManager.shared.deactivateSession()
         }
     }
