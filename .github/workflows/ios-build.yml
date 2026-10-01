@@ -15,6 +15,7 @@ on:
     paths:
       - 'SarahIA/**'
       - '.github/scripts/voice_media_runtime_refactor.py'
+      - '.github/scripts/voice_reliability_runtime.py'
       - '.github/scripts/restore_website_voice_bridge.py'
       - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/scripts/production_quality_pass.py'
@@ -36,6 +37,7 @@ jobs:
         run: |
           set -e
           python3 .github/scripts/voice_media_runtime_refactor.py
+          python3 .github/scripts/voice_reliability_runtime.py
           python3 .github/scripts/whisper_barge_in_runtime.py
           python3 .github/scripts/restore_website_voice_bridge.py
           python3 .github/scripts/production_quality_pass.py
@@ -43,11 +45,16 @@ jobs:
           grep -q 'onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'currentSpokenText' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'beginContinuousVoiceSession' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func pauseVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func resumeVoiceMicrophone()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'Whisper démarre' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'presentationDetents' SarahIA/SarahIA/ContentView.swift
+          grep -q 'prepareModel()' SarahIA/SarahIA/ContentView.swift
           grep -q 'speakWebsiteGuideSequence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'cloudFallbackEnabled = false' SarahIA/SarahIA/Services/AIService.swift
           grep -q 'voice.gender == .female' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'Tous les boutons doivent avoir une action utile' SarahIA/SarahIA/Services/VAICodeEngine.swift
-          echo 'Whisper barge-in, commercial-safe system voice routing and real website quality checks applied'
+          echo 'Whisper voice sheet, pause/resume, barge-in and media runtime fixes applied'
 
       - name: Run deep Sarah interaction audit
         run: |
@@ -59,6 +66,7 @@ jobs:
           set -e
           grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
