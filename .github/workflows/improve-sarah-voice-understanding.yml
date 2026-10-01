@@ -1,0 +1,49 @@
+name: Improve Sarah voice and understanding
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/improve_sarah_voice_understanding.py'
+      - '.github/workflows/improve-sarah-voice-understanding.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Sarah voice and understanding improvements
+        run: python3 .github/scripts/improve_sarah_voice_understanding.py
+
+      - name: Verify Sarah female voice and real Qwen understanding
+        run: |
+          set -euo pipefail
+          grep -q 'bestSarahFemaleVoice' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'getSarahVoice' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'utterance.pitchMultiplier = 1.00' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'utterance.rate = 0.48' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          grep -q 'getSarahVoice()' SarahIA/SarahIA/Services/TTSService.swift
+          grep -q 'generateLocalAssistantResponse' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'QwenLocalCodeRuntime.shared.generate' SarahIA/SarahIA/Services/AIService.swift
+          ! grep -A25 'BackgroundModelDownloader.isModelDownloaded' SarahIA/SarahIA/Services/AIService.swift | grep -q 'SarahBrainEngine.shared.generateStreamingResponse'
+          ! grep -q 'isBargeInMonitorActive = false.*isBargeInMonitorActive = false' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          echo 'Sarah female voice + direct Qwen understanding verified'
+
+      - name: Commit improved source
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes required.'
+            exit 0
+          fi
+          git config user.name 'SarahIA Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add SarahIA
+          git commit -m 'Improve Sarah female voice and Qwen understanding'
+          git push origin HEAD:main
