@@ -1,0 +1,46 @@
+name: Fix agentic web v6 Swift syntax
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/fix_agentic_web_v6_swift_syntax.py'
+      - '.github/workflows/fix-agentic-web-v6.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix Swift syntax
+        run: |
+          set -euo pipefail
+          python3 scripts/fix_agentic_web_v6_swift_syntax.py
+
+      - name: Verify fixed source
+        run: |
+          set -euo pipefail
+          grep -Fq 'hasRegex(#"<html[^>]*\slang\s*="#)' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -Fq 'result = "<!doctype html>\n" + result' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -Fq 'String(opening.dropLast()) + " lang=\"fr\">"' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          grep -Fq 'document.getElementById(id)' SarahIA/SarahIA/Services/VAICodeEngine.swift
+          echo 'Agentic web Swift source syntax verified'
+
+      - name: Commit fixed source
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No source changes needed.'
+            exit 0
+          fi
+          git config user.name 'SarahIA Build Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add SarahIA
+          git commit -m 'Fix agentic website generation Swift syntax'
+          git push origin HEAD:main
