@@ -394,12 +394,12 @@ extension VAICodeEngine {
         if lower.contains("name=\"viewport\"") || lower.contains("name='viewport'") { passed.append("Viewport mobile") } else { errors.append("Viewport mobile manquant") }
         if lower.contains("<html") && lower.contains("</html>") { passed.append("Document HTML fermé") } else { errors.append("Balises HTML incomplètes") }
         if lower.contains("<body") && lower.contains("</body>") { passed.append("Body présent") } else { errors.append("Body incomplet") }
-        if hasRegex("<html[^>]*\slang\s*=") { passed.append("Langue du document") } else { warnings.append("Attribut lang manquant sur <html>") }
+        if hasRegex(#"<html[^>]*\slang\s*="#) { passed.append("Langue du document") } else { warnings.append("Attribut lang manquant sur <html>") }
         if lower.contains("charset=") { passed.append("UTF-8 déclaré") } else { warnings.append("Meta charset manquante") }
-        if hasRegex("<title>\s*[^<]{2,}\s*</title>") { passed.append("Titre de page") } else { errors.append("Titre de page vide ou manquant") }
+        if hasRegex(#"<title>\s*[^<]{2,}\s*</title>"#) { passed.append("Titre de page") } else { errors.append("Titre de page vide ou manquant") }
         if lower.contains("name=\"description\"") || lower.contains("name='description'") { passed.append("Meta description") } else { warnings.append("Meta description manquante") }
         if lower.contains("<main") { passed.append("Landmark main") } else { warnings.append("Balise <main> manquante") }
-        if hasRegex("<h1(?:\s|>)[\s\S]*?</h1>") { passed.append("Titre H1") } else { errors.append("H1 manquant") }
+        if hasRegex(#"<h1(?:\s|>)[\s\S]*?</h1>"#) { passed.append("Titre H1") } else { errors.append("H1 manquant") }
         if lower.contains("@media") || lower.contains("clamp(") || lower.contains("min(") || lower.contains("max(") { passed.append("Responsive CSS") } else { warnings.append("Peu de règles responsive détectées") }
 
         let forbiddenPlaceholders = ["lorem ipsum", "produit 01", "offre 01", "example.com", "placeholder.com", "à compléter", "todo:"]
@@ -407,9 +407,9 @@ extension VAICodeEngine {
         if foundPlaceholders.isEmpty { passed.append("Contenu non factice") } else { errors.append("Contenu factice détecté : " + foundPlaceholders.joined(separator: ", ")) }
 
         let remoteAssetPatterns = [
-            "(?:src|poster)\s*=\s*[\\"']https?://",
-            "<link[^>]+href\s*=\s*[\\"']https?://",
-            "url\(\s*[\\"']?https?://"
+            #"(?:src|poster)\s*=\s*["']https?://"#,
+            #"<link[^>]+href\s*=\s*["']https?://"#,
+            #"url\(\s*["']?https?://"#
         ]
         if remoteAssetPatterns.contains(where: hasRegex) {
             errors.append("Ressource distante détectée : le site doit rester autonome et hors ligne")
@@ -442,27 +442,24 @@ extension VAICodeEngine {
     private func stabilizeHTML(_ html: String) -> String {
         var result = html.trimmingCharacters(in: .whitespacesAndNewlines)
         if !result.lowercased().contains("<!doctype html") {
-            result = "<!doctype html>
-" + result
+            result = "<!doctype html>\n" + result
         }
         if let htmlRange = result.range(of: "<html", options: .caseInsensitive),
            let close = result[htmlRange.lowerBound...].firstIndex(of: ">") {
             let opening = String(result[htmlRange.lowerBound...close])
             if !opening.lowercased().contains(" lang=") {
-                result.replaceSubrange(htmlRange.lowerBound...close, with: opening.dropLast() + " lang=\"fr\">")
+                result.replaceSubrange(htmlRange.lowerBound...close, with: String(opening.dropLast()) + " lang=\"fr\">")
             }
         }
         if !result.lowercased().contains("charset=") {
             if let range = result.range(of: "<head>", options: .caseInsensitive) {
-                result.insert(contentsOf: "
-<meta charset=\"utf-8\">", at: range.upperBound)
+                result.insert(contentsOf: "\n<meta charset=\"utf-8\">", at: range.upperBound)
             }
         }
         if !result.lowercased().contains("name=\"viewport\"") && !result.lowercased().contains("name='viewport'") {
             let viewport = "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
             if let range = result.range(of: "<head>", options: .caseInsensitive) {
-                result.insert(contentsOf: "
-" + viewport, at: range.upperBound)
+                result.insert(contentsOf: "\n" + viewport, at: range.upperBound)
             }
         }
         let safetyCSS = """
@@ -477,8 +474,7 @@ extension VAICodeEngine {
         </style>
         """
         if !result.contains("sarah-agentic-safety") {
-            result = result.replacingOccurrences(of: "</head>", with: safetyCSS + "
-</head>", options: .caseInsensitive)
+            result = result.replacingOccurrences(of: "</head>", with: safetyCSS + "\n</head>", options: .caseInsensitive)
         }
         return result
     }
@@ -694,7 +690,7 @@ extension VAICodeEngine {
                     return !(el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || (id && document.querySelector(`label[for="${CSS.escape(id)}"]`)) || el.closest('label'));
                   }).length;
                   const localLinks = Array.from(document.querySelectorAll('a[href^="#"]')).filter(a => a.getAttribute('href') && a.getAttribute('href') !== '#');
-                  const brokenLocalLinks = localLinks.filter(a => !document.querySelector(a.getAttribute('href'))).length;
+                  const brokenLocalLinks = localLinks.filter(a => { const href = a.getAttribute('href') || ''; const id = decodeURIComponent(href.slice(1)); return !id || !document.getElementById(id); }).length;
                   const emptyLinks = Array.from(document.querySelectorAll('a')).filter(a => !(a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '').trim()).length;
                   return JSON.stringify({
                     title: document.title || '',
