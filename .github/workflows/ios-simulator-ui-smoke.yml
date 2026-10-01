@@ -10,6 +10,7 @@ on:
       - '.github/workflows/ios-simulator-ui-smoke.yml'
       - '.github/scripts/inject_ui_test_ids.py'
       - '.github/scripts/voice_media_runtime_refactor.py'
+      - '.github/scripts/voice_reliability_runtime.py'
       - '.github/scripts/whisper_barge_in_runtime.py'
       - '.github/scripts/restore_website_voice_bridge.py'
       - '.github/scripts/production_quality_pass.py'
@@ -30,12 +31,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/voice_media_runtime_refactor.py
+          python3 .github/scripts/voice_reliability_runtime.py
           python3 .github/scripts/whisper_barge_in_runtime.py
           python3 .github/scripts/restore_website_voice_bridge.py
           python3 .github/scripts/production_quality_pass.py
           python3 .github/scripts/inject_ui_test_ids.py
           grep -q 'stopListeningAndTranscribe' SarahIA/SarahIA/Views/MessageBar.swift
           grep -q 'suppressNextExternalFinalCallback' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          grep -q 'sarah.voice.orb.compact' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'presentationDetents' SarahIA/SarahIA/ContentView.swift
 
       - name: Run deep Sarah interaction audit
         run: |
@@ -57,6 +61,7 @@ jobs:
               @Published public private(set) var currentText = ""
               @Published public private(set) var micEnergyLevel: Float = 0
               @Published public private(set) var isModelReady = true
+              @Published public private(set) var isModelLoading = false
               @Published public private(set) var lastError: String? = nil
 
               public var onPartialTranscription: ((String) -> Void)?
@@ -64,6 +69,11 @@ jobs:
               public var onVoiceActivity: (() -> Void)?
 
               private init() {}
+
+              public func prepareModel() {
+                  isModelLoading = false
+                  isModelReady = true
+              }
 
               public func requestAuthorization(completion: @escaping (Bool) -> Void) {
                   DispatchQueue.main.async { completion(true) }
