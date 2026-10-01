@@ -760,8 +760,13 @@ public final class ChatViewModel: ObservableObject {
                     _ = VAICodeEngine.shared.saveFile(filename: "index.html", content: build.html)
 
                     let audit = build.browserAudit?.details ?? "WebKit validé"
+                    let passedChecks = build.staticAudit.passedChecks.joined(separator: " · ")
+                    let warnings = build.staticAudit.warnings.isEmpty
+                        ? "aucun avertissement"
+                        : build.staticAudit.warnings.joined(separator: " · ")
+                    let runtime = build.usedRemoteModels ? "moteur de code configuré" : "moteur IA local"
                     self.appendMessage(Message(
-                        content: "💻 **Raphaël · site réellement généré**\n\n**\(brief.name)** a été écrit par le moteur de code à partir de ton brief, puis contrôlé dans WebKit.\n\nContrôle : \(audit)\nRévision : #\(build.revision)\n\n🧩 Ouvrir le Studio",
+                        content: "💻 **Raphaël · site généré et contrôlé**\n\n**\(brief.name)** est prêt. Pipeline : architecture → code → relecture qualité → WebKit → réparations automatiques si nécessaire.\n\nMoteur : \(runtime)\nContrôle navigateur : \(audit)\nContrôles statiques : \(passedChecks)\nAvertissements : \(warnings)\nRévision : #\(build.revision)\n\n🧩 Ouvrir le Studio",
                         isFromUser: false
                     ))
 
@@ -774,12 +779,12 @@ public final class ChatViewModel: ObservableObject {
 
                 case .failure(let error):
                     self.appendMessage(Message(
-                        content: "💻 **Raphaël · génération réelle indisponible**\n\n\(error.localizedDescription)\n\nAucun faux site n'a été créé à la place.",
+                        content: "💻 **Raphaël · contrôle qualité non validé**\n\n\(error.localizedDescription)\n\nAucun faux site n'a été créé à la place.",
                         isFromUser: false
                     ))
                     if self.isContinuousConversationActive {
                         self.voiceManager.speak(
-                            text: "La vraie génération n'a pas pu démarrer. Je n'ai créé aucun faux site. Vérifie le moteur de code dans les réglages Sarah Engine.",
+                            text: "La génération ou son contrôle qualité n'a pas abouti. Je n'ai pas remplacé le résultat par un faux site. Tu peux réessayer ou préciser le brief.",
                             for: .esther
                         )
                     }
@@ -791,30 +796,60 @@ public final class ChatViewModel: ObservableObject {
     private func realWebsitePrompt(for brief: WebsiteBrief, isRefinement: Bool) -> String {
         let sectionList = brief.sections.joined(separator: ", ")
         let operation = isRefinement
-            ? "MODIFICATION : repars du projet existant et applique ce nouveau brief sans casser les fonctions valides."
-            : "NOUVEAU PROJET : conçois et écris le site depuis zéro."
+            ? "MODIFICATION : repars du projet existant, conserve les fonctions valides et applique ce nouveau brief sans régression."
+            : "NOUVEAU PROJET : conçois le produit, son contenu et son interface depuis zéro."
+
+        let domainRequirements: String
+        switch brief.category {
+        case "E-commerce":
+            domainRequirements = "Catalogue crédible, filtres/recherche utiles, fiche produit ou détail, panier local réellement interactif avec localStorage. Aucun faux paiement ni faux stock serveur."
+        case "Restaurant":
+            domainRequirements = "Menu réellement lisible avec catégories/prix, informations pratiques et réservation locale avec validation. Ne prétends pas confirmer une table sur un serveur."
+        case "Voyage":
+            domainRequirements = "Destinations/contenus crédibles, recherche ou filtres locaux si pertinents, itinéraires ou cartes éditoriales. Aucune fausse disponibilité temps réel."
+        case "Portfolio":
+            domainRequirements = "Projets détaillés, navigation vers les réalisations, filtres ou modales si utiles, présentation personnelle crédible et contact local."
+        case "Entreprise":
+            domainRequirements = "Proposition de valeur claire, services, preuves/confiance honnêtes, équipe ou méthode si pertinent, contact avec validation locale."
+        case "Événement":
+            domainRequirements = "Programme, horaires, intervenants ou lieux, inscription locale avec états clairs. Aucun faux billet ou paiement serveur."
+        case "SaaS / App":
+            domainRequirements = "Hero produit, fonctionnalités concrètes, démonstration interactive locale si possible, tarifs si demandés, FAQ et CTA cohérents. Aucun faux compte cloud."
+        case "Blog / média":
+            domainRequirements = "Accueil éditorial, cartes d'articles crédibles, catégories/tags, recherche locale et lecture structurée. Aucun faux flux d'actualité temps réel."
+        case "Association":
+            domainRequirements = "Mission, actions, événements/projets, équipe ou bénévolat, contact/adhésion locale. Ne simule pas de don ou paiement réel."
+        default:
+            domainRequirements = "Choisis les interactions et composants qui servent réellement l'objectif, sans ajouter de fonctions décoratives inutiles."
+        }
 
         return """
         \(operation)
 
-        BRIEF
+        BRIEF PRODUIT
         Type : \(brief.category)
         Nom : \(brief.name)
         Objectif : \(brief.purpose)
         Public : \(brief.audience)
         Direction graphique : \(brief.visualStyle)
         Accent : \(brief.accent)
-        Sections : \(sectionList)
+        Sections demandées : \(sectionList)
+        Exigences métier : \(domainRequirements)
 
-        CONTRAT STRICT
-        - Écris un site réellement spécifique à ce brief, pas une variante de template.
-        - Retourne uniquement un document HTML5 complet avec CSS et JavaScript intégrés.
-        - Aucun dashboard générique, lorem ipsum, Produit 01, Offre 01 ou bloc préfabriqué.
-        - Aucun CDN, police distante, logo de marque, asset propriétaire ou URL d'image factice.
-        - Le style nommé est une inspiration de principes graphiques, pas une copie de la marque.
-        - Les interactions utiles au type de site doivent fonctionner réellement côté navigateur.
-        - N'invente pas de backend, paiement ou publication serveur si cela n'existe pas.
-        - Responsive iPhone/tablette/ordinateur, accessible et utilisable hors ligne dans WKWebView.
+        CONTRAT DE LIVRAISON
+        - Produis un vrai site spécifique au brief, avec une identité visuelle cohérente et du contenu rédigé pour ce public.
+        - Retourne un seul index.html autonome avec HTML, CSS et JavaScript intégrés.
+        - Mobile-first : 320/390 px, tablette et desktop. Aucun débordement horizontal.
+        - Structure sémantique, un seul H1, navigation claire, sections demandées réellement remplies et footer utile.
+        - Tous les boutons, menus, filtres, formulaires, accordéons, onglets, modales et liens visibles doivent avoir un comportement réel.
+        - Les formulaires valident localement et montrent les états erreur/succès. N'invente jamais un backend.
+        - Utilise localStorage pour les fonctions locales persistantes lorsque c'est pertinent.
+        - Aucun lorem ipsum, Produit 01, Offre 01, TODO, bouton mort, faux lien ou contenu placeholder.
+        - Aucun CDN, police distante, script distant, image distante, logo de marque, asset propriétaire ou URL d'image factice.
+        - Les styles nommés sont des inspirations de principes graphiques, jamais des copies de marques.
+        - Accessibilité réelle : contrastes, focus visible, labels de formulaires, alt, aria quand nécessaire, reduced motion.
+        - Le rendu doit fonctionner hors ligne dans WKWebView.
+        - Avant livraison, relis le contenu, vérifie toutes les interactions et corrige les incohérences.
         """
     }
 

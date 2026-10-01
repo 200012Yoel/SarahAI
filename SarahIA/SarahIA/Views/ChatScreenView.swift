@@ -377,17 +377,20 @@ private struct WebsiteBuilderFlowView: View {
     @State private var voiceGuideGeneration = UUID()
 
     private let categories = [
-        WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Vendre des produits"),
-        WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Inspirer et réserver"),
-        WebsiteChoice(title: "Restaurant", icon: "fork.knife", detail: "Menu et réservation"),
-        WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Présenter son travail"),
+        WebsiteChoice(title: "E-commerce", icon: "bag.fill", detail: "Catalogue, panier et conversion"),
+        WebsiteChoice(title: "Voyage", icon: "airplane", detail: "Destinations et exploration"),
+        WebsiteChoice(title: "Restaurant", icon: "fork.knife", detail: "Menu, infos et réservation"),
+        WebsiteChoice(title: "Portfolio", icon: "person.crop.rectangle", detail: "Projets et présentation"),
         WebsiteChoice(title: "Entreprise", icon: "building.2.fill", detail: "Services et contact"),
-        WebsiteChoice(title: "Événement", icon: "calendar", detail: "Informer et inscrire")
+        WebsiteChoice(title: "Événement", icon: "calendar", detail: "Programme et inscription"),
+        WebsiteChoice(title: "SaaS / App", icon: "app.badge.fill", detail: "Produit, fonctions et tarifs"),
+        WebsiteChoice(title: "Blog / média", icon: "newspaper.fill", detail: "Articles, catégories et recherche"),
+        WebsiteChoice(title: "Association", icon: "person.3.fill", detail: "Mission, actions et communauté")
     ]
 
     private let audiences = [
         "Grand public", "Professionnels", "Familles", "Jeunes adultes",
-        "Clients locaux", "International"
+        "Clients locaux", "International", "Étudiants", "Créateurs", "Communauté / membres"
     ]
 
     private let moodChoices = [
@@ -482,8 +485,11 @@ private struct WebsiteBuilderFlowView: View {
 
     private let accentOptions = ["Bleu", "Violet", "Rose", "Orange", "Vert", "Noir & blanc"]
     private let sectionOptions = [
-        "Accueil", "À propos", "Produits / services", "Galerie",
-        "Avis clients", "FAQ", "Contact"
+        "Accueil", "À propos", "Produits / services", "Fonctionnalités",
+        "Galerie", "Projets / réalisations", "Tarifs", "Équipe",
+        "Avis clients", "Programme / agenda", "Blog / actualités",
+        "Réservation / inscription", "Carte / localisation", "FAQ",
+        "Newsletter", "Contact"
     ]
 
     init(viewModel: ChatViewModel) {
@@ -568,11 +574,11 @@ private struct WebsiteBuilderFlowView: View {
 
     private var headerSubtitle: String {
         switch step {
-        case 0: return "Choisis le type de site avec les mêmes cartes que la build 502."
+        case 0: return "Choisis le type de produit web que Raphaël doit réellement construire."
         case 1: return "Donne le nom, l’objectif et le public du site."
-        case 2: return "Choisis l’ambiance graphique du parcours original."
+        case 2: return "Choisis l’ambiance graphique générale qui guidera tout le rendu."
         case 3: return "Choisis ensuite une grande direction visuelle pour guider Raphaël."
-        default: return "Sélectionne les sections à afficher avant la première maquette locale."
+        default: return "Sélectionne les sections réellement nécessaires. Raphaël générera leur contenu et leurs interactions."
         }
     }
 
