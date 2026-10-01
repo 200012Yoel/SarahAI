@@ -42,11 +42,15 @@ public final class TTSService: NSObject, ObservableObject, AVSpeechSynthesizerDe
         let utterance = MultiAgentVoiceManager.shared.makeUtterance(text: cleanedText)
         let normalizedLanguage = language.replacingOccurrences(of: "_", with: "-")
         utterance.voice = normalizedLanguage.lowercased() == "fr-fr"
-            ? MultiAgentVoiceManager.shared.getVoice(for: .sarah)
+            ? MultiAgentVoiceManager.shared.getSarahVoice()
             : (AVSpeechSynthesisVoice(language: normalizedLanguage)
-                ?? MultiAgentVoiceManager.shared.getVoice(for: .sarah))
-        utterance.rate = rate
-        utterance.pitchMultiplier = pitch
+                ?? MultiAgentVoiceManager.shared.getSarahVoice())
+        utterance.rate = (normalizedLanguage.lowercased() == "fr-fr" && rate == AVSpeechUtteranceDefaultSpeechRate)
+            ? 0.48
+            : rate
+        utterance.pitchMultiplier = (normalizedLanguage.lowercased() == "fr-fr" && pitch == 1.0)
+            ? 1.0
+            : pitch
         utterance.volume = 1.0
 
         currentSpokenText = cleanedText

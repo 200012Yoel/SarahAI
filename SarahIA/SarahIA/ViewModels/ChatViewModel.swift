@@ -592,7 +592,6 @@ public final class ChatViewModel: ObservableObject {
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
-        isBargeInMonitorActive = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.

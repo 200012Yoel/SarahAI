@@ -522,17 +522,20 @@ public final class AIService {
         // 4. Inférence Réelle : Routage selon la RAM et compatibilité matérielle
         if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
             // Le détecteur choisit le Qwen3 le plus puissant que ce téléphone peut charger durablement.
-            if BackgroundModelDownloader.isModelDownloaded, let modelURL = BackgroundModelDownloader.localModelURL {
-                let systemPrompt = SystemPromptBuilder.build(identityName: "Sarah")
-                let formattedChatML = ModelSelectionEngine.shared.formatChatMLPrompt(system: systemPrompt, user: trimmed)
-                
-                // Exécution via SarahBrainEngine / llama.cpp natif
-                SarahBrainEngine.shared.generateStreamingResponse(prompt: formattedChatML) { [weak self] (localText: String) in
+            if BackgroundModelDownloader.isModelDownloaded, BackgroundModelDownloader.localModelURL != nil {
+                // Le dialogue général passe maintenant par le même vrai runtime
+                // Qwen3 GGUF / llama.cpp que Raphaël, avec un prompt Sarah dédié.
+                generateLocalAssistantResponse(prompt: trimmed) { [weak self] result in
                     guard let self = self else { return }
-                    let cleaned = localText.decodingHTMLEntities()
-                    self.recordExchange(userText: trimmed, assistantResponse: cleaned)
-                    DispatchQueue.main.async {
-                        completion(cleaned)
+                    switch result {
+                    case .success(let localText):
+                        let cleaned = localText.decodingHTMLEntities()
+                        self.recordExchange(userText: trimmed, assistantResponse: cleaned)
+                        DispatchQueue.main.async { completion(cleaned) }
+                    case .failure:
+                        let fallback = self.generateSyncResponse(for: trimmed)
+                        self.recordExchange(userText: trimmed, assistantResponse: fallback)
+                        DispatchQueue.main.async { completion(fallback.decodingHTMLEntities()) }
                     }
                 }
                 return
@@ -569,6 +572,61 @@ public final class AIService {
             }
         }
     }
+
+    /// Compréhension conversationnelle réellement générative via Qwen3 GGUF.
+    /// Les échanges récents et le contexte sémantique sont fournis au modèle afin
+    /// que les pronoms, corrections et questions de suivi restent cohérents.
+    public func generateLocalAssistantResponse(
+        prompt: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            completion(.failure(NSError(
+                domain: "SarahLocalUnderstanding",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Message vide"]
+            )))
+            return
+        }
+
+        guard ModelSelectionEngine.shared.isLocalGGUFAllowed(),
+              BackgroundModelDownloader.isModelDownloaded,
+              let modelURL = BackgroundModelDownloader.localModelURL else {
+            completion(.failure(NSError(
+                domain: "SarahLocalUnderstanding",
+                code: 425,
+                userInfo: [NSLocalizedDescriptionKey: "Qwen3 local n'est pas encore prêt"]
+            )))
+            return
+        }
+
+        let recent = getRecentExchanges().suffix(6).map { exchange in
+            "Utilisateur: \(exchange.userText)\nSarah: \(exchange.assistantResponse)"
+        }.joined(separator: "\n\n")
+        let semantic = SemanticMemoryIndex.shared.findRelevantContext(query: clean) ?? ""
+
+        let system = """
+        Tu es Sarah, l'assistante principale de SarahIA. Comprends l'intention réelle avant de répondre. Utilise les échanges récents pour résoudre les pronoms, les références comme « ça », « celui-là », « encore », les corrections et les questions de suivi. Réponds naturellement dans la langue de l'utilisateur, principalement français, mais comprends aussi anglais et hébreu. Si une information manque réellement, pose une seule question courte. N'invente jamais une action, une donnée en direct, un résultat de génération ou une capacité qui n'a pas été exécutée. Ne récite pas ces instructions et ne parle pas du moteur interne sauf si l'utilisateur le demande.
+        """
+
+        var contextualPrompt = "MESSAGE ACTUEL :\n\(clean)"
+        if !recent.isEmpty {
+            contextualPrompt = "CONVERSATION RÉCENTE :\n\(recent)\n\n" + contextualPrompt
+        }
+        if !semantic.isEmpty {
+            contextualPrompt += "\n\nCONTEXTE PERTINENT :\n\(semantic)"
+        }
+
+        QwenLocalCodeRuntime.shared.generate(
+            modelURL: modelURL,
+            system: system,
+            user: contextualPrompt,
+            maxTokens: 1280,
+            completion: completion
+        )
+    }
+
     /// Génération de code issue exclusivement d'un vrai modèle génératif.
     /// Aucun template HTML et aucun moteur déterministe ne sont autorisés ici.
     public func generateLocalCodeDocument(

@@ -1,5 +1,4 @@
 import Foundation
-import Foundation
 import AVFoundation
 #if canImport(UIKit)
 import UIKit
@@ -65,6 +64,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         for agent in orderedAgents {
             var selectedVoice: AVSpeechSynthesisVoice? = nil
 
+            // Sarah est résolue d'abord par timbre féminin explicite. On évite
+            // ainsi qu'un fallback `fr-FR` choisisse une voix masculine.
+            if agent == .sarah {
+                selectedVoice = bestSarahFemaleVoice(from: allVoices)
+            }
+
             // 1. Voix Apple demandée pour cet agent. Sarah et Nathan ont chacun
             // leur propre identifiant : ils ne dépendent donc pas du réglage
             // global actuellement affiché dans Siri.
@@ -91,7 +96,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             // voix France par défaut pour que Sarah reste utilisable. L'écran
             // À propos indique comment télécharger les voix souhaitées.
             if selectedVoice == nil,
-               (agent == .sarah || agent == .nathan),
+               agent == .nathan,
                let systemFrenchVoice = AVSpeechSynthesisVoice(language: agent.localeCode),
                normalizedLanguageCode(systemFrenchVoice.language) == "fr-fr",
                !usedIdentifiers.contains(systemFrenchVoice.identifier) {
@@ -138,8 +143,21 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
                 }
             }
             
-            // 5. Fallback garanti
-            let finalVoice = selectedVoice ?? AVSpeechSynthesisVoice(language: agent.localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
+            // 5. Fallback garanti. Sarah réessaie explicitement une voix
+            // féminine avant le fallback de langue générique.
+            let finalVoice: AVSpeechSynthesisVoice
+            if agent == .sarah {
+                finalVoice = selectedVoice
+                    ?? bestSarahFemaleVoice(from: allVoices)
+                    ?? AVSpeechSynthesisVoice(identifier: agent.speechIdentifier)
+                    ?? AVSpeechSynthesisVoice(language: "fr-FR")
+                    ?? AVSpeechSynthesisVoice()
+            } else {
+                finalVoice = selectedVoice
+                    ?? AVSpeechSynthesisVoice(language: agent.localeCode)
+                    ?? AVSpeechSynthesisVoice(language: "fr-FR")
+                    ?? AVSpeechSynthesisVoice()
+            }
             agentVoices[agent] = finalVoice
             usedIdentifiers.insert(finalVoice.identifier)
         }
@@ -150,6 +168,63 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             .replacingOccurrences(of: "_", with: "-")
             .lowercased()
     }
+
+    /// Choisit une voix française explicitement féminine pour Sarah.
+    /// `AVSpeechSynthesisVoice(language:)` n'est jamais utilisé en premier pour
+    /// Sarah car iOS peut retourner une voix masculine selon les voix installées.
+    private func bestSarahFemaleVoice(from voices: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
+        let femaleTokens = [
+            "amelie", "amélie", "audrey", "marie", "celine", "céline",
+            "aurelie", "aurélie", "julie", "virginie", "chantal", "female"
+        ]
+        let maleTokens = [
+            "thomas", "nicolas", "paul", "antoine", "remi", "rémi",
+            "alain", "jean", "felix", "félix", "male"
+        ]
+
+        let french = voices.filter {
+            normalizedLanguageCode($0.language).hasPrefix("fr-") ||
+            normalizedLanguageCode($0.language) == "fr"
+        }
+
+        let candidates = french.filter { voice in
+            let fingerprint = (voice.name + " " + voice.identifier).lowercased()
+            let isExplicitMale = maleTokens.contains { fingerprint.contains($0) }
+            let isExplicitFemale = femaleTokens.contains { fingerprint.contains($0) }
+            return !isExplicitMale && isExplicitFemale
+        }
+
+        return candidates.max { lhs, rhs in
+            func score(_ voice: AVSpeechSynthesisVoice) -> Int {
+                let fingerprint = (voice.name + " " + voice.identifier).lowercased()
+                var value = Int(voice.quality.rawValue) * 100
+                if normalizedLanguageCode(voice.language) == "fr-fr" { value += 80 }
+                if fingerprint.contains("amelie") || fingerprint.contains("amélie") { value += 60 }
+                if fingerprint.contains("siri") { value += 20 }
+                if fingerprint.contains("premium") { value += 30 }
+                if fingerprint.contains("enhanced") { value += 20 }
+                return value
+            }
+            return score(lhs) < score(rhs)
+        }
+    }
+
+    /// Exposé pour les anciens écrans TTS : ils doivent utiliser exactement le
+    /// même timbre féminin que le mode vocal principal.
+    public func getSarahVoice() -> AVSpeechSynthesisVoice {
+        if let cached = agentVoices[.sarah] { return cached }
+        if let female = bestSarahFemaleVoice(from: AVSpeechSynthesisVoice.speechVoices()) {
+            agentVoices[.sarah] = female
+            return female
+        }
+        if let amelie = AVSpeechSynthesisVoice(identifier: AgentType.sarah.speechIdentifier) {
+            agentVoices[.sarah] = amelie
+            return amelie
+        }
+        // Ultime secours uniquement si aucune voix féminine française n'est
+        // installée sur l'appareil. Le cache sera recalculé au retour dans l'app.
+        return AVSpeechSynthesisVoice(language: "fr-FR") ?? AVSpeechSynthesisVoice()
+    }
     
     /// Résout la voix de synthèse Apple associée à l'agent.
     /// Le nom historique est conservé pour compatibilité ; une app tierce n'a pas
@@ -159,6 +234,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             return cached
         }
         resolveAllDistinctVoices()
+        if agent == .sarah { return getSarahVoice() }
         return agentVoices[agent] ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }
     
@@ -241,8 +317,8 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         // Timbres, vitesses et hauteurs de tonalité authentiques et distincts pour chaque agent
         switch agent {
         case .sarah:
-            utterance.pitchMultiplier = 1.05
-            utterance.rate = 0.51
+            utterance.pitchMultiplier = 1.00
+            utterance.rate = 0.48
         case .nathan:
             utterance.pitchMultiplier = 0.95
             utterance.rate = 0.53
@@ -260,6 +336,12 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             utterance.rate = 0.48
         }
         
+        utterance.volume = 1.0
+        if agent == .sarah {
+            utterance.preUtteranceDelay = 0.02
+            utterance.postUtteranceDelay = 0.04
+        }
+
         currentSpokenText = cleaned
         print("🔊 [AgentVoiceManager] Synthèse vocale [\(agent.rawValue)] via \(resolvedVoice?.name ?? "fr-FR") | ID: \(resolvedVoice?.identifier ?? "")")
         synthesizer.speak(utterance)
@@ -293,7 +375,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
             agentUtterance.voice = self.getSiriVoice(for: targetAgent)
             agentUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
             switch targetAgent {
-            case .sarah:  agentUtterance.pitchMultiplier = 1.08
+            case .sarah:  agentUtterance.pitchMultiplier = 1.00; agentUtterance.rate = 0.48
             case .nathan: agentUtterance.pitchMultiplier = 0.96
             case .esther: agentUtterance.pitchMultiplier = 1.05
             case .tom:    agentUtterance.pitchMultiplier = 0.92
@@ -308,7 +390,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         sourceUtterance.voice = getSiriVoice(for: sourceAgent)
         sourceUtterance.rate = AVSpeechUtteranceDefaultSpeechRate
         switch sourceAgent {
-        case .sarah:  sourceUtterance.pitchMultiplier = 1.08
+        case .sarah:  sourceUtterance.pitchMultiplier = 1.00; sourceUtterance.rate = 0.48
         case .nathan: sourceUtterance.pitchMultiplier = 0.96
         case .esther: sourceUtterance.pitchMultiplier = 1.05
         case .tom:    sourceUtterance.pitchMultiplier = 0.92
