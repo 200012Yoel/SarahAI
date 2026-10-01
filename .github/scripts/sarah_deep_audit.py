@@ -51,6 +51,7 @@ require("ReliableComposerTextField" in bar, "Champ natif fiable utilisé dans le
 require('accessibilityIdentifier: "sarah.composer.field"' in bar, "Identifiant du champ composer présent")
 require("minHeight: 52" in bar and "contentShape" in bar, "Zone tactile du composer agrandie")
 require("isUserInteractionEnabled = true" in bar, "Interaction UIKit explicitement active")
+require("isEnabled: true" in bar, "Composer reste éditable pendant une génération")
 require("dismissKeyboard()" in bar, "Fermeture clavier du composer centralisée")
 require('.accessibilityIdentifier("sarah.composer.action")' in bar, "Bouton vocal/envoi identifiable")
 require(".frame(width: 50, height: 50)" in bar, "Boutons principaux avec cible tactile 50 pt")
@@ -109,6 +110,26 @@ if save_match:
     require("ioQueue.sync" not in save_body, "Aucune sauvegarde JSON synchrone")
 else:
     errors.append("Impossible d'analyser StorageService.saveState")
+
+require("loadStateAsync" in storage, "Chargement d'historique asynchrone disponible")
+require("saveChatState" in storage, "Fusion/sauvegarde du chat exécutée sur la file stockage")
+require("restorePersistedStateInBackground()" in view_model, "ChatViewModel restaure l'historique hors du démarrage UI")
+require("storageService.saveChatState(" in view_model, "ChatViewModel ne relit pas le JSON à chaque message")
+
+persist_match = re.search(r"public func persistCurrentState\(\) \{(.*?)\n    \}", view_model, re.S)
+if persist_match:
+    persist_body = persist_match.group(1)
+    require("storageService.loadState()" not in persist_body, "persistCurrentState ne fait aucune lecture disque synchrone")
+else:
+    errors.append("Impossible d'analyser ChatViewModel.persistCurrentState")
+
+init_match = re.search(r"public init\(\) \{(.*?)\n    \}", view_model, re.S)
+if init_match:
+    init_body = init_match.group(1)
+    require("restorePersistedState()" not in init_body, "Initialisation du ViewModel sans décodage JSON synchrone")
+    require("restorePersistedStateInBackground()" in init_body, "Initialisation du ViewModel lance une restauration asynchrone")
+else:
+    errors.append("Impossible d'analyser ChatViewModel.init")
 
 all_swift = []
 for path in APP.rglob("*.swift"):
