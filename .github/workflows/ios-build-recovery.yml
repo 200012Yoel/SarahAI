@@ -1,0 +1,189 @@
+name: SarahIA Recovery IPA
+run-name: SarahIA Recovery IPA #${{ github.run_number }}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-build-recovery.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore website voice bridge in canonical build tree
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/restore_website_voice_bridge.py
+          grep -q 'public func speakWebsiteGuide(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func speakWebsiteGuideSequence(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func cancelWebsiteGuideSpeech()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func speakSequence(' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+          echo 'Website voice bridge restored'
+
+      - name: Verify Whisper barge-in and Qwen generation
+        run: |
+          set -euo pipefail
+          grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'WhisperSpeechRecognizer.shared.onVoiceActivity' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public final class QwenLocalCodeRuntime' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'llama_model_load_from_file' SarahIA/SarahIA/Services/AIService.swift
+          grep -q 'llama_decode' SarahIA/SarahIA/Services/AIService.swift
+          ! grep -A100 'public func generateLocalCodeDocument' SarahIA/SarahIA/Services/AIService.swift | grep -q 'LocalNeuralIntelligenceEngine.shared.generateLocalResponse'
+          echo 'Whisper + Qwen runtime verified'
+
+      - name: Build llama.cpp v0.4.1 XCFramework
+        run: |
+          set -euo pipefail
+          LLAMA_ROOT="$RUNNER_TEMP/llama.cpp"
+          rm -rf "$LLAMA_ROOT"
+          git clone --depth 1 --branch v0.4.1 https://github.com/ggml-org/llama.cpp.git "$LLAMA_ROOT"
+          cd "$LLAMA_ROOT"
+          ./build-xcframework.sh ios-device
+          test -d build-apple/llama.xcframework
+
+      - name: Build whisper.cpp v1.9.4 XCFramework
+        run: |
+          set -euo pipefail
+          WHISPER_ROOT="$RUNNER_TEMP/whisper.cpp"
+          rm -rf "$WHISPER_ROOT"
+          git clone --depth 1 --branch v1.9.4 https://github.com/ggml-org/whisper.cpp.git "$WHISPER_ROOT"
+          cd "$WHISPER_ROOT"
+          ./build-xcframework.sh
+          test -d build-apple/whisper.xcframework
+
+      - name: Download OpenAI Whisper base model and licenses
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/WhisperModels"
+          curl -L --fail --retry 3 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
+          cp "$RUNNER_TEMP/whisper.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt"
+          cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
+
+      - name: Configure build number
+        run: |
+          set -euo pipefail
+          BUILD_NUMBER=$((738 + GITHUB_RUN_NUMBER))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          find . -path '*/SarahIA/Info.plist' -exec plutil -replace MinimumOSVersion -string '16.2' {} \; 2>/dev/null || true
+          find . -path '*/SarahIA/Info.plist' -exec plutil -replace CFBundleVersion -string "$BUILD_NUMBER" {} \; 2>/dev/null || true
+
+      - name: Build device app with Whisper and Qwen
+        run: |
+          set -euo pipefail
+          PROJECT_FILE=$(find . -name '*.xcodeproj' -type d | head -n 1)
+          PROJECT_DIR=$(dirname "$PROJECT_FILE")
+          PROJECT_NAME=$(basename "$PROJECT_FILE")
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
+          LLAMA_FRAMEWORK=$(find "$RUNNER_TEMP/llama.cpp/build-apple/llama.xcframework" -path '*/ios-arm64/llama.framework' -type d -print -quit)
+          test -n "$WHISPER_FRAMEWORK"
+          test -n "$LLAMA_FRAMEWORK"
+          WHISPER_FRAMEWORK_DIR=$(dirname "$WHISPER_FRAMEWORK")
+          LLAMA_FRAMEWORK_DIR=$(dirname "$LLAMA_FRAMEWORK")
+          cd "$PROJECT_DIR"
+          set -o pipefail
+          xcodebuild \
+            -project "$PROJECT_NAME" \
+            -scheme SarahIA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            CLANG_ENABLE_MODULES=YES \
+            FRAMEWORK_SEARCH_PATHS="$WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
+            OTHER_LDFLAGS='$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
+            LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+          grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
+
+      - name: Bundle local AI frameworks and model
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          mkdir -p "$APP_PATH/WhisperModels"
+          cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
+
+          WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
+          if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then
+            mkdir -p "$APP_PATH/Frameworks"
+            cp -R "$WHISPER_FRAMEWORK" "$APP_PATH/Frameworks/"
+          fi
+
+          LLAMA_FRAMEWORK=$(find "$RUNNER_TEMP/llama.cpp/build-apple/llama.xcframework" -path '*/ios-arm64/llama.framework' -type d -print -quit)
+          if file "$LLAMA_FRAMEWORK/llama" | grep -q 'dynamically linked shared library'; then
+            mkdir -p "$APP_PATH/Frameworks"
+            cp -R "$LLAMA_FRAMEWORK" "$APP_PATH/Frameworks/"
+          fi
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          rm -rf /tmp/Payload && mkdir -p /tmp/Payload
+          cp -R "$APP_PATH" /tmp/Payload/
+          APP_TARGET_DIR="/tmp/Payload/$(basename "$APP_PATH")"
+          if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
+            find "$APP_TARGET_DIR/Frameworks" -type d -name '*.framework' -print0 | while IFS= read -r -d '' F; do codesign -f -s - "$F"; done
+          fi
+          if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
+            find "$APP_TARGET_DIR/PlugIns" -type d -name '*.appex' -print0 | while IFS= read -r -d '' E; do codesign -f -s - "$E"; done
+          fi
+          codesign -f -s - "$APP_TARGET_DIR"
+          codesign --verify --deep --strict "$APP_TARGET_DIR"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
+          ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-recovery-diagnostics
+          path: xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-IPA
+          path: dist/SarahIA.ipa
+          retention-days: 14
+
+      - name: Publish permanent IPA
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sarah-ia-4.0-latest
+          name: 'Sarah IA 4.0 - iOS 26 Stable'
+          body: 'SarahIA recovery build #${{ env.BUILD_NUMBER }}. Whisper barge-in/AEC, Qwen3 local generation and restored website voice bridge.'
+          files: dist/SarahIA.ipa
+          overwrite_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
