@@ -81,10 +81,13 @@ public final class AudioSessionManager {
     private func configureVoiceConversationSession() {
         let session = AVAudioSession.sharedInstance()
         do {
+            // A2DP is a playback-only Bluetooth profile. Keeping it enabled during
+            // a bidirectional voice-chat session can make iOS select a route without
+            // a usable microphone. HFP/HSP is handled by .allowBluetooth instead.
             try session.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                options: [.defaultToSpeaker, .allowBluetooth]
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true)
@@ -216,14 +219,11 @@ public final class AudioSessionManager {
             }
 
         case .ended:
-            let shouldResume: Bool
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume)
-            } else {
-                shouldResume = false
-            }
-
-            guard shouldResume else { return }
+            // In a user-started continuous conversation, attempt to restore the
+            // session after the interruption even when iOS omits `.shouldResume`.
+            // That omission is common after route changes and could otherwise leave
+            // Sarah permanently muted until the whole voice screen is reopened.
+            guard isContinuousVoiceSessionActive else { return }
             restoreContinuousVoiceSessionIfNeeded()
             DispatchQueue.main.async {
                 self.onInterruptionEnded?()
