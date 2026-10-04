@@ -113,8 +113,9 @@ public final class WhisperSpeechRecognizer: NSObject {
         whisper.$isModelLoading
             .combineLatest(whisper.$isTranscribing)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] isLoading, isTranscribing in
+            .sink { [weak self] values in
                 guard let self else { return }
+                let (isLoading, isTranscribing) = values
                 if isLoading || isTranscribing {
                     if !self.isListening {
                         self.state = .processing
