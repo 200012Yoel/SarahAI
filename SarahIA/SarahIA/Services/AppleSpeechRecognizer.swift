@@ -19,6 +19,7 @@ public final class WhisperSpeechRecognizer: NSObject {
 
     public private(set) var state: SpeechRecognizerState = .idle {
         didSet {
+            guard oldValue != state else { return }
             NotificationCenter.default.post(
                 name: NSNotification.Name("WhisperSpeechRecognizerStateChanged"),
                 object: nil
@@ -80,9 +81,6 @@ public final class WhisperSpeechRecognizer: NSObject {
         }
 
         #if canImport(Combine)
-        // Whisper peut désormais charger son modèle en arrière-plan avant de
-        // démarrer AVAudioEngine. Cette liaison garde l'état public de Sarah
-        // synchronisé avec le vrai état du micro dès que l'enregistrement part.
         whisper.$isRecording
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
@@ -97,11 +95,36 @@ public final class WhisperSpeechRecognizer: NSObject {
                     }
                 } else if self.isListening {
                     self.isListening = false
-                    if case .processing = self.state {
+                    if self.whisper.isTranscribing || self.whisper.isModelLoading {
+                        self.state = .processing
+                    } else if case .processing = self.state {
+                        return
+                    } else {
+                        self.state = .idle
+                    }
+                    HapticService.shared.speechFinished()
+                }
+            }
+            .store(in: &cancellables)
+
+        // Model loading and transcription are real voice states, even when the
+        // AVAudioEngine itself is temporarily stopped. Keeping them observable
+        // prevents the UI from incorrectly showing "micro off" mid-conversation.
+        whisper.$isModelLoading
+            .combineLatest(whisper.$isTranscribing)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isLoading, isTranscribing in
+                guard let self else { return }
+                if isLoading || isTranscribing {
+                    if !self.isListening {
+                        self.state = .processing
+                    }
+                } else if !self.isListening,
+                          self.whisper.lastError == nil {
+                    if case .error = self.state {
                         return
                     }
                     self.state = .idle
-                    HapticService.shared.speechFinished()
                 }
             }
             .store(in: &cancellables)
@@ -118,7 +141,16 @@ public final class WhisperSpeechRecognizer: NSObject {
         whisper.$lastError
             .receive(on: DispatchQueue.main)
             .sink { [weak self] error in
-                guard let self, let error, !error.isEmpty else { return }
+                guard let self else { return }
+                guard let error, !error.isEmpty else {
+                    if !self.isListening,
+                       !self.whisper.isModelLoading,
+                       !self.whisper.isTranscribing,
+                       case .error = self.state {
+                        self.state = .idle
+                    }
+                    return
+                }
                 self.suppressNextExternalFinalCallback = false
                 self.state = .error(error)
                 self.isListening = false
@@ -134,7 +166,7 @@ public final class WhisperSpeechRecognizer: NSObject {
     /// Starts local Whisper capture. In continuous voice mode `preserveActiveSpeech`
     /// keeps Sarah's TTS playing so microphone voice activity can barge in instantly.
     public func startListening(autoFinalizeOnSilence: Bool = true, preserveActiveSpeech: Bool = false) {
-        guard !isListening else { return }
+        guard !isListening, !whisper.isTranscribing else { return }
         self.preserveActiveSpeech = preserveActiveSpeech
         self.suppressNextExternalFinalCallback = false
 
@@ -169,12 +201,11 @@ public final class WhisperSpeechRecognizer: NSObject {
         micEnergyLevel = 0
         whisper.startRecording(autoFinalizeOnSilence: autoFinalizeOnSilence)
 
-        // Si le modèle était déjà chaud, l'enregistrement est immédiat. Sinon,
-        // le sink $isRecording ci-dessus basculera automatiquement l'UI dès que
-        // le chargement asynchrone est terminé.
         if whisper.isRecording {
             isListening = true
             state = .listening
+        } else if whisper.isModelLoading {
+            state = .processing
         } else if let error = whisper.lastError {
             state = .error(error)
         }
@@ -188,7 +219,7 @@ public final class WhisperSpeechRecognizer: NSObject {
             HapticService.shared.speechFinished()
         }
         micEnergyLevel = 0
-        if case .processing = state {
+        if case .processing = state, whisper.isTranscribing {
             return
         }
         state = .idle
@@ -238,17 +269,20 @@ public final class ObservableSpeechRecognizer: ObservableObject {
     @Published public var isListening: Bool = WhisperSpeechRecognizer.shared.isListening
     @Published public var currentLiveText: String = WhisperSpeechRecognizer.shared.currentLiveText
     @Published public var micEnergyLevel: Float = WhisperSpeechRecognizer.shared.micEnergyLevel
+    @Published public var state: SpeechRecognizerState = WhisperSpeechRecognizer.shared.state
 
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
         NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerListeningChanged"))
             .merge(with: NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerEnergyChanged")))
+            .merge(with: NotificationCenter.default.publisher(for: NSNotification.Name("WhisperSpeechRecognizerStateChanged")))
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.isListening = WhisperSpeechRecognizer.shared.isListening
                 self?.currentLiveText = WhisperSpeechRecognizer.shared.currentLiveText
                 self?.micEnergyLevel = WhisperSpeechRecognizer.shared.micEnergyLevel
+                self?.state = WhisperSpeechRecognizer.shared.state
             }
             .store(in: &cancellables)
     }
