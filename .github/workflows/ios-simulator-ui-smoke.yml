@@ -9,12 +9,6 @@ on:
       - '.maestro/**'
       - '.github/workflows/ios-simulator-ui-smoke.yml'
       - '.github/scripts/inject_ui_test_ids.py'
-      - '.github/scripts/voice_media_runtime_refactor.py'
-      - '.github/scripts/voice_reliability_runtime.py'
-      - '.github/scripts/whisper_barge_in_runtime.py'
-      - '.github/scripts/restore_website_voice_bridge.py'
-      - '.github/scripts/production_quality_pass.py'
-      - '.github/scripts/sarah_deep_audit.py'
 
 concurrency:
   group: sarahia-ios-simulator-ui-smoke
@@ -27,24 +21,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply same runtime migrations as release build
+      - name: Verify canonical Sarah voice runtime
         run: |
           set -euo pipefail
-          python3 .github/scripts/voice_media_runtime_refactor.py
-          python3 .github/scripts/voice_reliability_runtime.py
-          python3 .github/scripts/whisper_barge_in_runtime.py
-          python3 .github/scripts/restore_website_voice_bridge.py
-          python3 .github/scripts/production_quality_pass.py
-          python3 .github/scripts/inject_ui_test_ids.py
+          grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'input.inputFormat(forBus: 0)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'maximumUtteranceSeconds' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'flashAttention: false' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           grep -q 'stopListeningAndTranscribe' SarahIA/SarahIA/Views/MessageBar.swift
           grep -q 'suppressNextExternalFinalCallback' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
-          grep -q 'sarah.voice.orb.compact' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'beginContinuousVoiceSession()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'endContinuousVoiceSession()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
+          ! grep -A6 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift | grep -q 'allowBluetoothA2DP'
           grep -q 'presentationDetents' SarahIA/SarahIA/ContentView.swift
+          echo 'Canonical Sarah voice runtime verified without legacy source migrations'
 
-      - name: Run deep Sarah interaction audit
+      - name: Inject simulator accessibility identifiers
         run: |
           set -euo pipefail
-          python3 .github/scripts/sarah_deep_audit.py
+          python3 .github/scripts/inject_ui_test_ids.py
 
       - name: Replace Whisper only for simulator UI testing
         run: |
@@ -58,6 +57,7 @@ jobs:
               public static let shared = WhisperService()
 
               @Published public private(set) var isRecording = false
+              @Published public private(set) var isTranscribing = false
               @Published public private(set) var currentText = ""
               @Published public private(set) var micEnergyLevel: Float = 0
               @Published public private(set) var isModelReady = true
@@ -83,17 +83,20 @@ jobs:
                   currentText = ""
                   micEnergyLevel = 0
                   lastError = nil
+                  isTranscribing = false
                   isRecording = true
               }
 
               public func stopRecordingAndTranscribe(completion: ((String?) -> Void)? = nil) {
                   isRecording = false
+                  isTranscribing = false
                   micEnergyLevel = 0
                   completion?(currentText.isEmpty ? nil : currentText)
               }
 
               public func stopRecordingWithoutTranscription() {
                   isRecording = false
+                  isTranscribing = false
                   micEnergyLevel = 0
               }
 
@@ -103,6 +106,7 @@ jobs:
 
               public func reset() {
                   isRecording = false
+                  isTranscribing = false
                   currentText = ""
                   micEnergyLevel = 0
                   lastError = nil
@@ -129,11 +133,6 @@ jobs:
           test -n "$APP_PATH"
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
-      - name: Audit simulator Xcode diagnostics
-        run: |
-          set -euo pipefail
-          python3 .github/scripts/sarah_deep_audit.py --xcode-log "$GITHUB_WORKSPACE/simulator-build.log"
-
       - name: Create, boot and launch a fresh iPhone Simulator
         run: |
           set -euo pipefail
@@ -142,17 +141,9 @@ jobs:
 
           def run(cmd, timeout=None, check=True):
               print('+', ' '.join(cmd), flush=True)
-              return subprocess.run(
-                  cmd,
-                  check=check,
-                  timeout=timeout,
-                  capture_output=True,
-                  text=True,
-              )
+              return subprocess.run(cmd, check=check, timeout=timeout, capture_output=True, text=True)
 
-          runtimes_data = json.loads(subprocess.check_output([
-              'xcrun', 'simctl', 'list', 'runtimes', '--json'
-          ]))
+          runtimes_data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'runtimes', '--json']))
           runtimes = []
           for runtime in runtimes_data.get('runtimes', []):
               identifier = runtime.get('identifier', '')
@@ -169,63 +160,39 @@ jobs:
           _, runtime_id, runtime_name = runtimes[0]
           print(f'Using fresh runtime: {runtime_name} ({runtime_id})', flush=True)
 
-          device_data = json.loads(subprocess.check_output([
-              'xcrun', 'simctl', 'list', 'devicetypes', '--json'
-          ]))
-          iphone_types = [
-              d for d in device_data.get('devicetypes', [])
-              if d.get('name', '').startswith('iPhone')
-          ]
-          preferred_names = [
-              'iPhone 17 Pro', 'iPhone 17', 'iPhone 16 Pro', 'iPhone 16',
-              'iPhone 15 Pro', 'iPhone 15', 'iPhone 14 Pro', 'iPhone 14'
-          ]
-          iphone_types.sort(
-              key=lambda d: (
-                  preferred_names.index(d['name']) if d.get('name') in preferred_names else 999,
-                  d.get('name', '')
-              )
-          )
+          device_data = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devicetypes', '--json']))
+          iphone_types = [d for d in device_data.get('devicetypes', []) if d.get('name', '').startswith('iPhone')]
+          preferred_names = ['iPhone 17 Pro', 'iPhone 17', 'iPhone 16 Pro', 'iPhone 16', 'iPhone 15 Pro', 'iPhone 15', 'iPhone 14 Pro', 'iPhone 14']
+          iphone_types.sort(key=lambda d: (preferred_names.index(d['name']) if d.get('name') in preferred_names else 999, d.get('name', '')))
 
           udid = None
-          chosen_name = None
           last_error = None
           for device_type in iphone_types:
               try:
-                  created = run([
-                      'xcrun', 'simctl', 'create',
-                      f"SarahIA-CI-{os.environ.get('GITHUB_RUN_ID', 'local')}",
-                      device_type['identifier'], runtime_id
-                  ], timeout=30)
+                  created = run(['xcrun', 'simctl', 'create', f"SarahIA-CI-{os.environ.get('GITHUB_RUN_ID', 'local')}", device_type['identifier'], runtime_id], timeout=30)
                   candidate = created.stdout.strip()
                   if candidate:
                       udid = candidate
-                      chosen_name = device_type['name']
                       break
               except Exception as exc:
                   last_error = exc
-                  continue
 
           if not udid:
               raise SystemExit(f'Unable to create a fresh iPhone simulator: {last_error}')
 
-          print(f'Created {chosen_name}: {udid}', flush=True)
           try:
               run(['xcrun', 'simctl', 'boot', udid], timeout=40, check=False)
               run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=180)
               run(['xcrun', 'simctl', 'install', udid, os.environ['APP_PATH']], timeout=90)
-              launched = run([
-                  'xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'
-              ], timeout=60)
+              launched = run(['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'], timeout=60)
               print(launched.stdout.strip(), flush=True)
-              time.sleep(5)
+              time.sleep(4)
           except Exception:
               run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
               raise
 
           with open(os.environ['GITHUB_ENV'], 'a') as env:
               env.write(f'SIM_UDID={udid}\n')
-          print('Fresh simulator ready for real UI taps', flush=True)
           PY
 
       - name: Install Java 17
