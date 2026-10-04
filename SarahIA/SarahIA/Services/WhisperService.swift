@@ -212,7 +212,7 @@ public final class WhisperService: ObservableObject {
             lastError = nil
         } catch {
             input.removeTap(onBus: 0)
-            converter = nil
+            self.converter = nil
             lastError = "Impossible de démarrer le microphone : \(error.localizedDescription)"
             AudioSessionManager.shared.deactivateSession()
         }
