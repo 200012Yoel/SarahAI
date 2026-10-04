@@ -12,6 +12,7 @@ public final class WhisperService: ObservableObject {
     public static let shared = WhisperService()
 
     @Published public private(set) var isRecording = false
+    @Published public private(set) var isTranscribing = false
     @Published public private(set) var currentText = ""
     @Published public private(set) var micEnergyLevel: Float = 0
     @Published public private(set) var isModelReady = false
@@ -36,16 +37,16 @@ public final class WhisperService: ObservableObject {
     private var generation = UUID()
     private var isFinalizing = false
 
-    // Le chargement de ggml-base.bin peut prendre un moment sur un iPhone réel.
-    // Il ne doit jamais bloquer le thread principal ni empêcher l'écran vocal
-    // de s'afficher immédiatement après le premier toucher.
+    // Whisper can take a moment to initialise on a real iPhone. Never block the
+    // main thread: remember the user's intent and start capture as soon as ready.
     private var wantsRecordingAfterModelLoad = false
     private var pendingAutoFinalizeOnSilence = true
 
     private let targetSampleRate: Double = 16_000
     private let silenceThreshold: TimeInterval = 0.92
     private let minimumUtteranceSeconds: Double = 0.35
-    private let activityDBThreshold: Float = -40
+    private let maximumUtteranceSeconds: Double = 30
+    private let activityDBThreshold: Float = -48
 
     private init() {}
 
@@ -73,9 +74,6 @@ public final class WhisperService: ObservableObject {
 
     // MARK: Lifecycle
 
-    /// Précharge uniquement le modèle Whisper. Cette méthode n'ouvre pas le micro
-    /// et ne demande aucune permission. Elle peut donc être appelée après le premier
-    /// rendu de l'application pour rendre le premier lancement vocal beaucoup plus vif.
     public func prepareModel() {
         guard context == nil else {
             isModelReady = true
@@ -85,7 +83,7 @@ public final class WhisperService: ObservableObject {
     }
 
     public func startRecording(autoFinalizeOnSilence: Bool = true) {
-        guard !isRecording else { return }
+        guard !isRecording, !isTranscribing else { return }
 
         guard AVAudioSession.sharedInstance().recordPermission == .granted else {
             requestAuthorization { [weak self] granted in
@@ -99,9 +97,6 @@ public final class WhisperService: ObservableObject {
             return
         }
 
-        // Très important : ne jamais initialiser whisper.cpp sur le main thread.
-        // On mémorise l'intention de démarrer le micro puis on reprend exactement
-        // la même demande dès que le modèle est prêt.
         if context == nil {
             wantsRecordingAfterModelLoad = true
             pendingAutoFinalizeOnSilence = autoFinalizeOnSilence
@@ -174,6 +169,10 @@ public final class WhisperService: ObservableObject {
         AudioSessionManager.shared.configureRecordingSession()
 
         let input = audioEngine.inputNode
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        input.removeTap(onBus: 0)
 
         if AudioSessionManager.shared.isContinuousVoiceSessionActive {
             do {
@@ -185,7 +184,9 @@ public final class WhisperService: ObservableObject {
             }
         }
 
-        let sourceFormat = input.outputFormat(forBus: 0)
+        // inputFormat is the microphone's native capture format. outputFormat can
+        // describe the downstream graph instead and may be invalid after route changes.
+        let sourceFormat = input.inputFormat(forBus: 0)
         guard sourceFormat.sampleRate > 0,
               sourceFormat.channelCount > 0,
               let targetFormat = AVAudioFormat(
@@ -200,7 +201,6 @@ public final class WhisperService: ObservableObject {
         }
         self.converter = converter
 
-        input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 2048, format: sourceFormat) { [weak self] buffer, _ in
             self?.consume(buffer: buffer, targetFormat: targetFormat, generation: currentGeneration)
         }
@@ -212,6 +212,7 @@ public final class WhisperService: ObservableObject {
             lastError = nil
         } catch {
             input.removeTap(onBus: 0)
+            converter = nil
             lastError = "Impossible de démarrer le microphone : \(error.localizedDescription)"
             AudioSessionManager.shared.deactivateSession()
         }
@@ -254,6 +255,7 @@ public final class WhisperService: ObservableObject {
         wantsRecordingAfterModelLoad = false
         stopRecordingWithoutTranscription()
         currentText = ""
+        isTranscribing = false
         lastError = nil
     }
 
@@ -313,11 +315,14 @@ public final class WhisperService: ObservableObject {
                 self.micEnergyLevel = level
             }
 
-            let enoughAudio = Double(self.samples.count) / self.targetSampleRate >= self.minimumUtteranceSeconds
-            if self.automaticFinalize,
-               self.hasDetectedSpeech,
-               enoughAudio,
-               now.timeIntervalSince(self.lastVoiceActivity) >= self.silenceThreshold {
+            let duration = Double(self.samples.count) / self.targetSampleRate
+            let enoughAudio = duration >= self.minimumUtteranceSeconds
+            let silenceDetected = self.hasDetectedSpeech &&
+                enoughAudio &&
+                now.timeIntervalSince(self.lastVoiceActivity) >= self.silenceThreshold
+            let reachedSafetyLimit = self.hasDetectedSpeech && duration >= self.maximumUtteranceSeconds
+
+            if self.automaticFinalize && (silenceDetected || reachedSafetyLimit) {
                 self.isFinalizing = true
                 let finalSamples = self.samples
                 DispatchQueue.main.async {
@@ -375,15 +380,24 @@ public final class WhisperService: ObservableObject {
             )
         }
 
-        var params = whisper_context_default_params()
+        func load(useGPU: Bool, flashAttention: Bool) -> OpaquePointer? {
+            var params = whisper_context_default_params()
+            params.use_gpu = useGPU
+            params.flash_attn = flashAttention
+            return whisper_init_from_file_with_params(modelURL.path, params)
+        }
+
         #if targetEnvironment(simulator)
-        params.use_gpu = false
+        let loaded = load(useGPU: false, flashAttention: false)
         #else
-        params.use_gpu = true
-        params.flash_attn = true
+        // Some iOS/device combinations reject Flash Attention or Metal context
+        // creation. Falling back keeps voice mode usable instead of failing outright.
+        let loaded = load(useGPU: true, flashAttention: true)
+            ?? load(useGPU: true, flashAttention: false)
+            ?? load(useGPU: false, flashAttention: false)
         #endif
 
-        guard let loaded = whisper_init_from_file_with_params(modelURL.path, params) else {
+        guard let loaded else {
             throw NSError(
                 domain: "SarahIA.Whisper",
                 code: 2,
@@ -398,9 +412,14 @@ public final class WhisperService: ObservableObject {
             completion?(nil)
             return
         }
+
+        isTranscribing = true
         inferenceQueue.async { [weak self] in
             guard let self, let context = self.context else {
-                DispatchQueue.main.async { completion?(nil) }
+                DispatchQueue.main.async {
+                    self?.isTranscribing = false
+                    completion?(nil)
+                }
                 return
             }
 
@@ -427,6 +446,7 @@ public final class WhisperService: ObservableObject {
                 DispatchQueue.main.async {
                     self.lastError = "Whisper n'a pas pu transcrire cet extrait."
                     self.isFinalizing = false
+                    self.isTranscribing = false
                     completion?(nil)
                 }
                 return
@@ -447,6 +467,7 @@ public final class WhisperService: ObservableObject {
             DispatchQueue.main.async {
                 self.currentText = text
                 self.isFinalizing = false
+                self.isTranscribing = false
                 if final {
                     if !text.isEmpty { self.onFinalTranscription?(text) }
                 } else if !text.isEmpty {
