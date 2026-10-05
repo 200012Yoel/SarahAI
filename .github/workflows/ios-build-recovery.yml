@@ -187,3 +187,5 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# Recovery build trigger 2026-10-05
