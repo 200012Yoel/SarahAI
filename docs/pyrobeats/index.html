@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualiseur Audio Flamme & Exportation Vidéo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #f97316;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.8);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .glow-text {
+            text-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Fusion d'écran pour enlever le fond noir de la vidéo de paroles */
+        .lyrics-video-layer {
+            mix-blend-mode: screen;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body class="h-full w-full bg-black text-slate-100 flex flex-col justify-between relative overflow-hidden select-none">
+
+    <!-- Canvas de rendu pour la flamme animée -->
+    <canvas id="flameCanvas" class="absolute inset-0 w-full h-full z-0 pointer-events-none"></canvas>
+
+    <!-- Superposition de la vidéo de paroles (s'il y en a une) -->
+    <video id="lyricsVideo" class="absolute inset-0 w-full h-full z-10 pointer-events-none lyrics-video-layer hidden" playsinline muted></video>
+
+    <!-- En-tête Navigation / Commandes -->
+    <header class="relative z-20 flex justify-between items-center p-4 md:p-6 w-full max-w-7xl mx-auto">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <i class="fa-solid fa-fire text-amber-100 text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-bold tracking-tight text-white glow-text">PyroBeats Studio</h1>
+                <p class="text-xs text-slate-400">Visualiseur Audio & Exportateur Vidéo</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- Bouton d'enregistrement vidéo -->
+            <button id="recordBtn" class="px-3.5 py-2 text-xs md:text-sm font-semibold rounded-xl bg-red-600/90 hover:bg-red-500 text-white shadow-lg shadow-red-600/30 transition flex items-center space-x-2">
+                <span id="recordDot" class="w-2.5 h-2.5 rounded-full bg-white"></span>
+                <span id="recordText">Enregistrer Vidéo</span>
+            </button>
+
+            <!-- Bouton Démo Synth -->
+            <button id="demoBtn" title="Générer un rythme de test" class="px-3 py-2 text-xs md:text-sm font-medium rounded-xl glass-panel hover:bg-slate-800 transition flex items-center space-x-2 text-slate-300 hover:text-white">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                <span class="hidden sm:inline">Démo</span>
+            </button>
+
+            <!-- Plein écran -->
+            <button id="fullscreenBtn" title="Plein écran" class="p-2 text-slate-300 hover:text-white glass-panel rounded-xl hover:bg-slate-800 transition">
+                <i class="fa-solid fa-expand text-base"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Panneau central de chargement des fichiers -->
+    <div id="fileImportContainer" class="relative z-20 flex-1 flex flex-col md:flex-row items-center justify-center gap-6 p-6 transition-all duration-300">
+        <!-- Carte 1 : Fichier Audio (Musique) -->
+        <div id="audioDropCard" class="w-full max-w-sm p-6 rounded-2xl glass-panel shadow-2xl border border-slate-800/80 hover:border-orange-500/50 transition cursor-pointer text-center group">
+            <input type="file" id="audioFileInput" accept="audio/*" class="hidden">
+            <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-900/80 border border-slate-700/50 flex items-center justify-center text-orange-400 group-hover:scale-110 group-hover:border-orange-500 transition duration-300">
+                <i class="fa-solid fa-music text-xl"></i>
+            </div>
+            <h3 class="text-base font-semibold text-white mb-1">1. Audio (Musique)</h3>
+            <p class="text-xs text-slate-400 mb-3" id="audioStatusText">Importer MP3, WAV ou M4A</p>
+            <span class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-600/80 text-white shadow">
+                <i class="fa-solid fa-file-audio mr-1.5"></i> Choisir l'audio
+            </span>
+        </div>
+
+        <!-- Carte 2 : Fichier Vidéo (Paroles avec fond noir) -->
+        <div id="videoDropCard" class="w-full max-w-sm p-6 rounded-2xl glass-panel shadow-2xl border border-slate-800/80 hover:border-amber-500/50 transition cursor-pointer text-center group">
+            <input type="file" id="videoFileInput" accept="video/*" class="hidden">
+            <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-900/80 border border-slate-700/50 flex items-center justify-center text-amber-400 group-hover:scale-110 group-hover:border-amber-500 transition duration-300">
+                <i class="fa-solid fa-closed-captioning text-xl"></i>
+            </div>
+            <h3 class="text-base font-semibold text-white mb-1">2. Vidéo Paroles (Optionnel)</h3>
+            <p class="text-xs text-slate-400 mb-3" id="videoStatusText">Vidéo texte sur fond noir (MP4, WEBM)</p>
+            <span class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700">
+                <i class="fa-solid fa-file-video mr-1.5"></i> Choisir la vidéo
+            </span>
+        </div>
+    </div>
+
+    <!-- Barre inférieure de lecteur Audio & Réglages -->
+    <footer class="relative z-20 w-full p-4 md:p-6 max-w-4xl mx-auto">
+        <div class="glass-panel rounded-2xl p-4 md:p-5 shadow-2xl space-y-3">
+            <!-- Jauges de Fréquences (Basses, Médiums, Aigus) -->
+            <div class="grid grid-cols-3 gap-3 text-[11px] font-medium text-slate-400 pb-1">
+                <div>
+                    <div class="flex justify-between mb-1"><span>BASSES</span><span id="bassVal">0%</span></div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div id="bassBar" class="bg-red-500 h-full w-0 transition-all duration-75"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1"><span>MÉDIUMS</span><span id="midVal">0%</span></div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div id="midBar" class="bg-amber-400 h-full w-0 transition-all duration-75"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between mb-1"><span>AIGUS</span><span id="trebleVal">0%</span></div>
+                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div id="trebleBar" class="bg-blue-400 h-full w-0 transition-all duration-75"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nom du morceau & Chronomètre -->
+            <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <div class="flex items-center space-x-2 truncate pr-2">
+                    <i class="fa-solid fa-music text-orange-400"></i>
+                    <span id="trackName" class="truncate font-medium text-slate-200">Aucune piste chargée</span>
+                </div>
+                <div class="flex items-center space-x-2 font-mono text-[11px]">
+                    <span id="currentTime">00:00</span>
+                    <span>/</span>
+                    <span id="durationTime">00:00</span>
+                </div>
+            </div>
+
+            <!-- Barre de progression de lecture -->
+            <div class="relative flex items-center">
+                <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1" class="w-full cursor-pointer accent-orange-500">
+            </div>
+
+            <!-- Commandes de lecture -->
+            <div class="flex items-center justify-between pt-1">
+                <button id="toggleEqBtn" class="text-xs text-orange-400 hover:text-orange-300 transition flex items-center space-x-1">
+                    <i class="fa-solid fa-chart-simple"></i>
+                    <span class="hidden sm:inline">Égaliseur</span>
+                </button>
+
+                <div class="flex items-center space-x-4">
+                    <button id="playPauseBtn" class="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-lg shadow-orange-500/40 hover:scale-105 active:scale-95 transition">
+                        <i class="fa-solid fa-play text-lg pl-0.5"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-2 w-28 md:w-36">
+                    <i id="volumeIcon" class="fa-solid fa-volume-high text-xs text-slate-400"></i>
+                    <input type="range" id="volumeBar" min="0" max="1" value="0.85" step="0.01" class="w-full">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Sélection des éléments HTML
+        const canvas = document.getElementById('flameCanvas');
+        const ctx = canvas.getContext('2d');
+        const lyricsVideo = document.getElementById('lyricsVideo');
+
+        const audioFileInput = document.getElementById('audioFileInput');
+        const videoFileInput = document.getElementById('videoFileInput');
+        const audioDropCard = document.getElementById('audioDropCard');
+        const videoDropCard = document.getElementById('videoDropCard');
+        const audioStatusText = document.getElementById('audioStatusText');
+        const videoStatusText = document.getElementById('videoStatusText');
+
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const seekBar = document.getElementById('seekBar');
+        const volumeBar = document.getElementById('volumeBar');
+        const volumeIcon = document.getElementById('volumeIcon');
+        const trackName = document.getElementById('trackName');
+        const currentTimeEl = document.getElementById('currentTime');
+        const durationTimeEl = document.getElementById('durationTime');
+        const demoBtn = document.getElementById('demoBtn');
+        const recordBtn = document.getElementById('recordBtn');
+        const recordDot = document.getElementById('recordDot');
+        const recordText = document.getElementById('recordText');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const toggleEqBtn = document.getElementById('toggleEqBtn');
+
+        const bassBar = document.getElementById('bassBar');
+        const midBar = document.getElementById('midBar');
+        const trebleBar = document.getElementById('trebleBar');
+        const bassVal = document.getElementById('bassVal');
+        const midVal = document.getElementById('midVal');
+        const trebleVal = document.getElementById('trebleVal');
+
+        // Variables d'état Audio & Média
+        let audioCtx = null;
+        let analyser = null;
+        let sourceNode = null;
+        let audioElement = new Audio();
+        let isDemoMode = false;
+        let demoSynthInterval = null;
+        let showEq = true;
+
+        // Variables d'analyse spectrale
+        let dataArray = null;
+        let bassEnergy = 0;
+        let midEnergy = 0;
+        let trebleEnergy = 0;
+        let totalEnergy = 0;
+
+        // Variables pour l'exportation vidéo MediaRecorder
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        // Redimensionnement automatique
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Initialisation de l'API Web Audio
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.82;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                sourceNode = audioCtx.createMediaElementSource(audioElement);
+                sourceNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Système de particules de la flamme
+        const particles = [];
+        const embers = [];
+        const maxParticles = 240;
+        const maxEmbers = 90;
+
+        class FlameParticle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                const centerX = canvas.width / 2;
+                const spread = 30 + bassEnergy * 50;
+                
+                this.x = centerX + (Math.random() - 0.5) * spread;
+                this.y = canvas.height - 70 + (Math.random() - 0.5) * 20;
+                
+                const speedMult = 1 + (bassEnergy * 2.8);
+                this.vx = (Math.random() - 0.5) * 1.8;
+                this.vy = -(Math.random() * 3.5 + 2.5) * speedMult;
+                
+                this.size = (Math.random() * 28 + 16) * (0.8 + bassEnergy * 0.9);
+                this.maxSize = this.size;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.02 + 0.012;
+            }
+
+            update() {
+                this.x += this.vx + (Math.random() - 0.5) * (1 + trebleEnergy * 2);
+                this.y += this.vy;
+                this.life -= this.decay;
+                this.size = this.maxSize * this.life;
+
+                if (this.life <= 0 || this.size <= 0.5) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                if (this.life <= 0) return;
+
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                
+                const grad = ctx.createRadialGradient(
+                    this.x, this.y, 0,
+                    this.x, this.y, Math.max(0.1, this.size)
+                );
+
+                if (this.life > 0.75) {
+                    // Cœur bleu et blanc très chaud (réagit aux médiums)
+                    const blueIntensity = 130 + Math.floor(midEnergy * 125);
+                    grad.addColorStop(0, `rgba(255, 255, 255, ${this.life})`);
+                    grad.addColorStop(0.35, `rgba(59, ${blueIntensity}, 246, ${this.life * 0.85})`);
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                } else if (this.life > 0.35) {
+                    // Corps jaune / orange vif
+                    grad.addColorStop(0, `rgba(254, 240, 138, ${this.life})`);
+                    grad.addColorStop(0.5, `rgba(249, 115, 22, ${this.life * 0.9})`);
+                    grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+                } else {
+                    // Pointe rouge / fumée incandescente
+                    grad.addColorStop(0, `rgba(239, 68, 68, ${this.life * 0.75})`);
+                    grad.addColorStop(0.8, `rgba(127, 29, 29, ${this.life * 0.25})`);
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                }
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Math.max(0, this.size), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Ember {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = canvas.width / 2 + (Math.random() - 0.5) * 140;
+                this.y = canvas.height - 90 - Math.random() * 100;
+                this.size = Math.random() * 3.5 + 1;
+                this.vx = (Math.random() - 0.5) * 2.2;
+                this.vy = -(Math.random() * 4.5 + 2);
+                this.life = 1.0;
+                this.decay = Math.random() * 0.015 + 0.006;
+                this.color = Math.random() > 0.3 ? '#f97316' : '#fef08a';
+            }
+
+            update() {
+                this.x += this.vx + (Math.random() - 0.5) * (1 + trebleEnergy * 4);
+                this.y += this.vy - (bassEnergy * 2.5);
+                this.life -= this.decay;
+
+                if (this.life <= 0 || this.y < 0) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = '#f97316';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Initialisation des particules
+        for (let i = 0; i < maxParticles; i++) particles.push(new FlameParticle());
+        for (let i = 0; i < maxEmbers; i++) embers.push(new Ember());
+
+        function render() {
+            requestAnimationFrame(render);
+
+            // Effacement progressif
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.22)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Analyse du spectre audio
+            if (analyser && (!audioElement.paused || isDemoMode)) {
+                if (!isDemoMode) analyser.getByteFrequencyData(dataArray);
+
+                let bassSum = 0;
+                for (let i = 0; i < 10; i++) bassSum += dataArray[i];
+                bassEnergy = (bassSum / 10) / 255;
+
+                let midSum = 0;
+                for (let i = 11; i < 40; i++) midSum += dataArray[i];
+                midEnergy = (midSum / 30) / 255;
+
+                let trebleSum = 0;
+                for (let i = 41; i < 100; i++) trebleSum += dataArray[i];
+                trebleEnergy = (trebleSum / 60) / 255;
+
+                totalEnergy = (bassEnergy + midEnergy + trebleEnergy) / 3;
+            } else {
+                bassEnergy *= 0.92;
+                midEnergy *= 0.92;
+                trebleEnergy *= 0.92;
+                totalEnergy *= 0.92;
+            }
+
+            // Mise à jour des barres UI de fréquences
+            bassBar.style.width = `${Math.round(bassEnergy * 100)}%`;
+            midBar.style.width = `${Math.round(midEnergy * 100)}%`;
+            trebleBar.style.width = `${Math.round(trebleEnergy * 100)}%`;
+            bassVal.textContent = `${Math.round(bassEnergy * 100)}%`;
+            midVal.textContent = `${Math.round(midEnergy * 100)}%`;
+            trebleVal.textContent = `${Math.round(trebleEnergy * 100)}%`;
+
+            const centerX = canvas.width / 2;
+            const bottomY = canvas.height - 30;
+
+            // Halo lumineux d'arrière-plan
+            const glowRadius = 180 + bassEnergy * 280;
+            const bgGlow = ctx.createRadialGradient(
+                centerX, bottomY - 60, 0,
+                centerX, bottomY - 60, glowRadius
+            );
+            bgGlow.addColorStop(0, `rgba(249, 115, 22, ${0.18 + bassEnergy * 0.4})`);
+            bgGlow.addColorStop(0.5, `rgba(185, 28, 28, ${0.08 + midEnergy * 0.25})`);
+            bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+
+            ctx.fillStyle = bgGlow;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dessin des braises et particules
+            embers.forEach(e => { e.update(); e.draw(); });
+            particles.forEach(p => { p.update(); p.draw(); });
+
+            // Dessin de l'égaliseur miniature
+            if (showEq && analyser && dataArray) {
+                const barWidth = 4;
+                const gap = 3;
+                const barCount = 32;
+                const startX = centerX - ((barCount * (barWidth + gap)) / 2);
+
+                ctx.save();
+                ctx.globalAlpha = 0.4 + totalEnergy * 0.6;
+                for (let i = 0; i < barCount; i++) {
+                    const val = dataArray[i * 2] / 255;
+                    const h = val * 55 + 2;
+                    const x = startX + i * (barWidth + gap);
+                    const y = canvas.height - 20 - h;
+
+                    ctx.fillStyle = `hsl(${18 + val * 28}, 95%, 50%)`;
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, barWidth, h, [2, 2, 0, 0]);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        }
+
+        // Synchronisation audio et vidéo des paroles
+        function syncMedia() {
+            if (lyricsVideo.src && !lyricsVideo.paused !== !audioElement.paused) {
+                if (audioElement.paused) {
+                    lyricsVideo.pause();
+                } else {
+                    lyricsVideo.currentTime = audioElement.currentTime;
+                    lyricsVideo.play().catch(() => {});
+                }
+            }
+        }
+
+        // Chargement du fichier Audio
+        function loadAudioFile(file) {
+            if (!file) return;
+            initAudioContext();
+            stopDemoSynth();
+
+            const url = URL.createObjectURL(file);
+            audioElement.src = url;
+            audioElement.load();
+
+            trackName.textContent = file.name;
+            audioStatusText.textContent = file.name;
+            audioDropCard.classList.add('border-orange-500', 'bg-orange-500/10');
+
+            audioElement.play().then(() => updatePlayBtn(true)).catch(() => {});
+        }
+
+        // Chargement du fichier Vidéo Paroles
+        function loadVideoFile(file) {
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            lyricsVideo.src = url;
+            lyricsVideo.classList.remove('hidden');
+            videoStatusText.textContent = file.name;
+            videoDropCard.classList.add('border-amber-500', 'bg-amber-500/10');
+        }
+
+        // Enregistrement de la Vidéo (MediaRecorder API)
+        recordBtn.addEventListener('click', () => {
+            initAudioContext();
+
+            if (isRecording) {
+                // Arrêt de l'enregistrement
+                mediaRecorder.stop();
+                isRecording = false;
+                recordDot.classList.remove('animate-ping', 'bg-red-400');
+                recordDot.classList.add('bg-white');
+                recordText.textContent = "Enregistrer Vidéo";
+                recordBtn.classList.remove('bg-red-700');
+                recordBtn.classList.add('bg-red-600/90');
+            } else {
+                // Démarrage de l'enregistrement
+                recordedChunks = [];
+                
+                // Capture du Canvas (60 FPS) et de la piste audio
+                const canvasStream = canvas.captureStream(60);
+                
+                // Association du flux audio
+                let audioTrack = null;
+                if (audioCtx) {
+                    const dest = audioCtx.createMediaStreamDestination();
+                    sourceNode.connect(dest);
+                    audioTrack = dest.stream.getAudioTracks()[0];
+                    if (audioTrack) canvasStream.addTrack(audioTrack);
+                }
+
+                const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+                try {
+                    mediaRecorder = new MediaRecorder(canvasStream, options);
+                } catch (e) {
+                    mediaRecorder = new MediaRecorder(canvasStream);
+                }
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `flamme_musique_${Date.now()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                recordDot.classList.add('animate-ping', 'bg-red-400');
+                recordText.textContent = "Arrêter & Télécharger";
+                recordBtn.classList.remove('bg-red-600/90');
+                recordBtn.classList.add('bg-red-700');
+
+                // Relancer la lecture si en pause
+                if (audioElement.paused) playPauseBtn.click();
+            }
+        });
+
+        // Event listeners pour le drag & drop
+        audioDropCard.addEventListener('click', () => audioFileInput.click());
+        videoDropCard.addEventListener('click', () => videoFileInput.click());
+
+        audioFileInput.addEventListener('change', (e) => loadAudioFile(e.target.files[0]));
+        videoFileInput.addEventListener('change', (e) => loadVideoFile(e.target.files[0]));
+
+        function updatePlayBtn(isPlaying) {
+            playPauseBtn.innerHTML = isPlaying 
+                ? '<i class="fa-solid fa-pause text-lg"></i>' 
+                : '<i class="fa-solid fa-play text-lg pl-0.5"></i>';
+            syncMedia();
+        }
+
+        playPauseBtn.addEventListener('click', () => {
+            initAudioContext();
+            if (audioElement.paused) {
+                if (!audioElement.src && !isDemoMode) {
+                    audioFileInput.click();
+                    return;
+                }
+                audioElement.play();
+                updatePlayBtn(true);
+            } else {
+                audioElement.pause();
+                updatePlayBtn(false);
+            }
+        });
+
+        audioElement.addEventListener('timeupdate', () => {
+            if (audioElement.duration) {
+                seekBar.value = (audioElement.currentTime / audioElement.duration) * 100;
+                currentTimeEl.textContent = formatTime(audioElement.currentTime);
+                durationTimeEl.textContent = formatTime(audioElement.duration);
+            }
+            syncMedia();
+        });
+
+        seekBar.addEventListener('input', () => {
+            if (audioElement.duration) {
+                const targetTime = (seekBar.value / 100) * audioElement.duration;
+                audioElement.currentTime = targetTime;
+                if (lyricsVideo.src) lyricsVideo.currentTime = targetTime;
+            }
+        });
+
+        volumeBar.addEventListener('input', () => {
+            audioElement.volume = volumeBar.value;
+            if (volumeBar.value == 0) {
+                volumeIcon.className = "fa-solid fa-volume-xmark text-xs text-slate-400";
+            } else if (volumeBar.value < 0.5) {
+                volumeIcon.className = "fa-solid fa-volume-low text-xs text-slate-400";
+            } else {
+                volumeIcon.className = "fa-solid fa-volume-high text-xs text-slate-400";
+            }
+        });
+
+        function formatTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        function stopDemoSynth() {
+            if (demoSynthInterval) {
+                clearInterval(demoSynthInterval);
+                demoSynthInterval = null;
+            }
+            isDemoMode = false;
+        }
+
+        // Mode démo synthétiseur sonore
+        demoBtn.addEventListener('click', () => {
+            initAudioContext();
+            if (isDemoMode) {
+                stopDemoSynth();
+                audioElement.pause();
+                updatePlayBtn(false);
+                trackName.textContent = "Mode démo arrêté";
+                return;
+            }
+
+            stopDemoSynth();
+            audioElement.pause();
+            isDemoMode = true;
+            trackName.textContent = "Rythme synthétique généré (Démo)";
+            updatePlayBtn(true);
+
+            let beatIndex = 0;
+            demoSynthInterval = setInterval(() => {
+                if (!isDemoMode || audioCtx.state !== 'running') return;
+
+                const time = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.connect(gain);
+                gain.connect(analyser);
+
+                if (beatIndex % 4 === 0) {
+                    osc.frequency.setValueAtTime(150, time);
+                    osc.frequency.exponentialRampToValueAtTime(32, time + 0.18);
+                    gain.gain.setValueAtTime(1.0, time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.28);
+                    osc.start(time);
+                    osc.stop(time + 0.28);
+                    
+                    // Injection dans l'analyseur pour la démo
+                    dataArray[2] = 240;
+                    dataArray[15] = 180;
+                } else {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(900, time);
+                    gain.gain.setValueAtTime(0.25, time);
+                    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.09);
+                    osc.start(time);
+                    osc.stop(time + 0.09);
+
+                    dataArray[55] = 210;
+                    dataArray[2] = 40;
+                }
+
+                beatIndex++;
+            }, 250);
+        });
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        });
+
+        toggleEqBtn.addEventListener('click', () => {
+            showEq = !showEq;
+            toggleEqBtn.classList.toggle('text-orange-400');
+        });
+
+        // Lancement au chargement complet
+        window.onload = function() {
+            render();
+        };
+    </script>
+</body>
+</html>
