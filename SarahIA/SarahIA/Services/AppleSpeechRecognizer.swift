@@ -12,7 +12,7 @@ public enum SpeechRecognizerState: Equatable {
 }
 
 /// Compatibility facade kept so the rest of SarahIA does not need a risky rename.
-/// The old SFSpeechRecognizer backend has been removed: transcription is now done
+/// The previous Apple Speech transcription backend is not used here: transcription is done
 /// locally by WhisperService using OpenAI Whisper model weights through whisper.cpp.
 public final class WhisperSpeechRecognizer: NSObject {
     public static let shared = WhisperSpeechRecognizer()
