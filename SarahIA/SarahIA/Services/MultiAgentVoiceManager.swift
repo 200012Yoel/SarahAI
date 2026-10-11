@@ -9,6 +9,7 @@ public final class AgentVoiceManager: NSObject {
     public private(set) var currentSpokenText: String = ""
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
+    public var onSpeechError: ((String) -> Void)?
 
     private let neural = NeuralVoiceService.shared
     private var pendingSpeechBlock: (() -> Void)?
@@ -26,8 +27,9 @@ public final class AgentVoiceManager: NSObject {
         neural.onFinished = { [weak self] in
             self?.finishSpeech()
         }
-        neural.onFailure = { message in
+        neural.onFailure = { [weak self] message in
             print("⚠️ [Sarah Neuronal TTS] \(message)")
+            self?.onSpeechError?(message)
         }
     }
 
