@@ -640,9 +640,39 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
+    public func retryVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        guard AVAudioSession.sharedInstance().recordPermission != .denied else {
+            isMicRunning = false
+            voiceStatus = .error("Micro refusé par iOS. Ouvre Réglages → Sarah IA → Microphone.")
+            return
+        }
+
+        // Clear an error from an old attempt and start a fresh microphone
+        // generation. The view can retry without reinstalling the whole app.
+        voiceSessionGeneration = UUID()
+        WhisperSpeechRecognizer.shared.stopListening()
+        WhisperService.shared.reset()
+        isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
+        AudioSessionManager.shared.beginContinuousVoiceSession()
+        voiceStatus = .starting
+        WhisperSpeechRecognizer.shared.startListening(
+            autoFinalizeOnSilence: true,
+            preserveActiveSpeech: true
+        )
+        isMicRunning = WhisperSpeechRecognizer.shared.isListening
+        if isMicRunning { voiceStatus = .listening(level: micInputLevel) }
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
+
+        if case .error = voiceStatus {
+            retryVoiceMicrophone()
+            return
+        }
 
         if isContinuousConversationActive && !isVoiceMicrophoneMuted {
             // Also applies while Whisper is loading its model: a tap on the
