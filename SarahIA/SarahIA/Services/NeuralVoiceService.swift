@@ -53,7 +53,10 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         AudioSessionManager.shared.deactivateSession()
     }
 
-    public func speak(text: String, for agent: AgentType, language: String = "fr", speed: Float = 1.0) {
+    public func speak(
+        text: String, for agent: AgentType, language: String = "fr",
+        speed: Float = 1.0, qualitySteps: Int = 8
+    ) {
         assert(Thread.isMainThread)
         stop()
         let token = generation
@@ -86,7 +89,9 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                 let engine = try self.loadModel()
                 var options = SherpaOnnxGenerationConfigSwift()
                 options.sid = sid
-                options.numSteps = 8
+                // 5 diffusion steps for low-latency Translate Live, 8 for
+                // regular agent quality. Supertonic supports this tradeoff.
+                options.numSteps = max(5, min(qualitySteps, 10))
                 // Keep the voice-speed setting functional with the new engine.
                 let storedRate = StorageService.shared.loadState().voiceSettings.speechRate
                 let configuredSpeed = (speed == 1.0) ? storedRate * 2.0 : speed
