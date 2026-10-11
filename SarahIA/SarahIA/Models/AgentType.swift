@@ -45,12 +45,12 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
     
     public var roleDescription: String {
         switch self {
-        case .sarah:  return "Voix système principale (Rose néon)"
+        case .sarah:  return "Voix neuronale locale F1"
         case .nathan: return "Expert Réseaux Sociaux & IA (Violet Néon)"
         case .esther: return "Développeur : sites, apps iOS & code (Bleu ciel)"
-        case .tom:    return "Voix conversationnelle dédiée (Vert émeraude)"
-        case .yohan:  return "Voix masculine bilingue FR ⇄ HE (Siri Canadien)"
-        case .ethel:  return "Voix féminine dédiée (Thème Bleu & Rouge)"
+        case .tom:    return "Voix neuronale locale M2"
+        case .yohan:  return "Voix locale M3 (synthèse hébraïque non incluse)"
+        case .ethel:  return "Voix neuronale locale F2"
         }
     }
     
@@ -75,110 +75,18 @@ public enum AgentType: String, CaseIterable, Identifiable, Codable {
         }
     }
     
-    // Numéro de voix affiché dans les réglages Siri d'iOS.
-    // Apple ne publie pas d'identifiant stable reliant ce numéro à une voix de
-    // synthèse : il sert donc uniquement de préférence lisible par l'utilisateur.
-    public var siriVoiceNumber: String {
+    /// Per-agent on-device voice, independent of Apple's speech voices.
+    public var neuralVoiceLabel: String {
         switch self {
-        case .sarah:  return "1" // France Voix 1
-        case .nathan: return "2" // France Voix 2
-        case .esther: return "3" // France Voix 3
-        case .tom:    return "4" // France Voix 4
-        case .yohan:  return "1" // Canada Voix 1
-        case .ethel:  return "2" // Canada Voix 2
-        }
-    }
-    
-    // Index de la voix Siri sélectionnée (1-based String)
-    public var voiceIndex: String {
-        return siriVoiceNumber
-    }
-
-    /// Libellé de la préférence de voix choisie dans les réglages Apple.
-    /// Ne jamais déduire cette préférence de l'ordre de `speechVoices()`, car cet
-    /// ordre peut changer selon l'iPhone, la version d'iOS et les voix téléchargées.
-    public var systemVoicePreferenceLabel: String {
-        switch self {
-        case .sarah:  return "France — Voix 1"
-        case .nathan: return "France — Voix 2"
-        case .esther: return "France — Voix 3"
-        case .tom:    return "France — Voix 4"
-        case .yohan:  return "Canada — Voix 1"
-        case .ethel:  return "Canada — Voix 2"
-        }
-    }
-    
-    // Index dans la liste des voix du système pour cette région (0-based Int)
-    public var voiceIndexOrder: Int {
-        switch self {
-        case .sarah:  return 0 // Voix 1 France
-        case .nathan: return 1 // Voix 2 France
-        case .esther: return 2 // Voix 3 France
-        case .tom:    return 3 // Voix 4 France
-        case .yohan:  return 0 // Voix 1 Canada
-        case .ethel:  return 1 // Voix 2 Canada
-        }
-    }
-    
-    // Identifiant de repli pour les voix de synthèse Apple classiques.
-    public var speechIdentifier: String {
-        switch self {
-        case .sarah:  return "com.apple.voice.compact.fr-FR.Amelie"
-        case .nathan: return "com.apple.voice.compact.fr-FR.Thomas"
-        case .esther: return "com.apple.voice.compact.fr-FR.Audrey"
-        case .tom:    return "com.apple.voice.compact.fr-FR.Remi"
-        case .yohan:  return "com.apple.voice.compact.fr-CA.Jean"
-        case .ethel:  return "com.apple.voice.compact.fr-CA.Chantal"
+        case .sarah: return "F1"
+        case .ethel: return "F2"
+        case .esther: return "M1"
+        case .tom: return "M2"
+        case .yohan: return "M3"
+        case .nathan: return "M4"
         }
     }
 
-    /// Identifiants préférés des voix Apple quand elles sont disponibles sur
-    /// l'iPhone. Les identifiants sont testés au moment de l'exécution : aucun
-    /// n'est utilisé si la voix n'a pas été téléchargée sur l'appareil.
-    public var preferredSpeechVoiceIdentifiers: [String] {
-        switch self {
-        case .sarah:
-            return [
-                "com.apple.ttsbundle.siri_female_fr-FR_compact",
-                speechIdentifier
-            ]
-        case .nathan:
-            return [
-                "com.apple.ttsbundle.siri_male_fr-FR_compact",
-                speechIdentifier
-            ]
-        case .tom:
-            // Tom est fixé à France — Voix 4. On teste d'abord l'identifiant
-            // TTS Apple historique de Rémi, puis le repli compatible du projet.
-            return [
-                "com.apple.ttsbundle.Remi-compact",
-                speechIdentifier
-            ]
-        case .esther:
-            // Esther (affichée comme Raphaël) est fixée à France — Voix 3.
-            return [
-                "com.apple.ttsbundle.Audrey-compact",
-                speechIdentifier
-            ]
-        case .ethel:
-            // Ethel est fixée à Canada — Voix 2.
-            return [
-                "com.apple.ttsbundle.Chantal-compact",
-                speechIdentifier
-            ]
-        case .yohan:
-            // Yoann est fixé à Canada — Voix 1. L'identifiant interne
-            // historique reste `yohan` afin de conserver les données déjà
-            // enregistrées par l'application.
-            return [
-                "com.apple.ttsbundle.Jean-compact",
-                speechIdentifier
-            ]
-        default:
-            return [speechIdentifier]
-        }
-    }
-    
     #if canImport(SwiftUI)
     @available(iOS 13.0, *)
     public var themeColor: Color {
