@@ -93,6 +93,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         // Ownership of the mic must never be shared with regular assistant chat.
         WhisperSpeechRecognizer.shared.stopListening()
         AgentVoiceManager.shared.stop()
+        // Set an interpreter-specific route BEFORE starting the input tap.
+        // This prefers the iPhone microphone while AirPods/earbuds can play
+        // translated speech through an output route that supports it.
+        AudioSessionManager.shared.beginContinuousInterpreterSession()
 
         previousPlaybackFinished = neural.onPlaybackFinished
         previousPlaybackError = neural.onPlaybackError
