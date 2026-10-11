@@ -189,9 +189,11 @@ public final class WhisperService: ObservableObject {
             }
         }
 
-        // inputFormat is the microphone's native capture format. outputFormat can
-        // describe the downstream graph instead and may be invalid after route changes.
-        let sourceFormat = input.inputFormat(forBus: 0)
+        // AVAudioInputNode exposes microphone buffers on OUTPUT bus zero.
+        // inputFormat(forBus:) is not the format delivered to installTap and can
+        // be zero / incompatible on an actual iPhone (especially iOS betas).
+        // Query only after the audio session and voice-processing mode settle.
+        let sourceFormat = input.outputFormat(forBus: 0)
         guard sourceFormat.sampleRate > 0,
               sourceFormat.channelCount > 0,
               let targetFormat = AVAudioFormat(
@@ -206,7 +208,8 @@ public final class WhisperService: ObservableObject {
         }
         self.converter = converter
 
-        input.installTap(onBus: 0, bufferSize: 2048, format: sourceFormat) { [weak self] buffer, _ in
+        // format:nil follows the hardware's actual tap format after route changes.
+        input.installTap(onBus: 0, bufferSize: 2048, format: nil) { [weak self] buffer, _ in
             self?.consume(buffer: buffer, targetFormat: targetFormat, generation: currentGeneration)
         }
 
@@ -418,6 +421,9 @@ public final class WhisperService: ObservableObject {
             return
         }
 
+        // Stopping/reopening the voice screen invalidates any in-flight
+        // transcription so stale microphone data can never send a chat message.
+        let transcriptionGeneration = generation
         isTranscribing = true
         let useEnglishTranslation = translateSpeechToEnglish
         let inferenceLanguage = preferredLanguageCode ?? "auto"
@@ -472,11 +478,18 @@ public final class WhisperService: ObservableObject {
             let text = pieces.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 
             DispatchQueue.main.async {
-                self.currentText = text
                 self.isFinalizing = false
                 self.isTranscribing = false
+                guard self.generation == transcriptionGeneration else {
+                    completion?(nil)
+                    return
+                }
+                self.currentText = text
                 if final {
-                    if !text.isEmpty { self.onFinalTranscription?(text) }
+                    // Important: an empty transcription is STILL the end of an
+                    // utterance. Voice mode must be notified so it can rearm
+                    // the microphone instead of getting stuck in "Micro coupé".
+                    self.onFinalTranscription?(text)
                 } else if !text.isEmpty {
                     self.onPartialTranscription?(text)
                 }
