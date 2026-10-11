@@ -1817,7 +1817,7 @@ public final class LegacySettingsViewController: UIViewController {
             row.addSubview(tStack)
             
             let nameLbl = UILabel()
-            nameLbl.text = "\(agent.displayName) — Voix Siri \(agent.siriVoiceNumber)"
+            nameLbl.text = "\(agent.displayName) — Voix locale \(agent.neuralVoiceLabel)"
             nameLbl.font = UIFont.systemFont(ofSize: 14, weight: .bold)
             nameLbl.textColor = .white
             
