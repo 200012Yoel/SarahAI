@@ -19,6 +19,23 @@ public struct TranslateLiveContextBuffer {
 
     public init() {}
 
+    /// Whisper can output captioning labels when hearing radio music.
+    /// These are NOT dialogue and must never be sent to translation or TTS.
+    public static func isNonSpeechCaption(_ candidate: String) -> Bool {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let caption = trimmed
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[](){}♬♪♫ "))
+            .lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+        let labels: Set<String> = [
+            "musique", "music", "applaudissements", "applause",
+            "rires", "laughter", "bruit", "noise", "silence",
+            "inaudible", "instrumental", "sous-titres", "subtitles"
+        ]
+        return labels.contains(caption) || caption.isEmpty
+    }
+
     public mutating func reset() {
         provisional = ""
         committedHistory.removeAll()
