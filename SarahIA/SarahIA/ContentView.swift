@@ -64,14 +64,6 @@ public struct ContentView: View {
                 }
 
 
-                if viewModel.isContinuousConversationActive &&
-                   !viewModel.isShowingVoiceOrbModal &&
-                   !viewModel.isDrawerOpen &&
-                   !isShowingSettings {
-                    compactVoiceOrb
-                        .zIndex(25)
-                        .transition(.scale(scale: 0.86).combined(with: .opacity))
-                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -187,52 +179,6 @@ public struct ContentView: View {
                 }
             )
         }
-    }
-
-    private var compactVoiceOrb: some View {
-        VStack {
-            Spacer()
-            HStack {
-                Spacer()
-                Button {
-                    HapticService.shared.buttonTap()
-                    viewModel.isShowingVoiceOrbModal = true
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        Color.white.opacity(0.96),
-                                        viewModel.activeAgent.themeColor.opacity(0.94),
-                                        viewModel.activeAgent.themeColor
-                                    ],
-                                    center: .topLeading,
-                                    startRadius: 2,
-                                    endRadius: 44
-                                )
-                            )
-                            .frame(width: 64, height: 64)
-                            .shadow(
-                                color: viewModel.activeAgent.themeColor.opacity(0.48),
-                                radius: 14
-                            )
-
-                        Image(systemName: "waveform")
-                            .font(.system(size: 21, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1.0) * 0.055)
-                    .animation(.spring(response: 0.22, dampingFraction: 0.76), value: viewModel.micInputLevel)
-                    .contentShape(Circle())
-                }
-                .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel("Rouvrir le mode vocal Sarah")
-                .accessibilityIdentifier("sarah.voice.compactOrb")
-            }
-        }
-        .padding(.trailing, 18)
-        .padding(.bottom, 10)
     }
 
     private var drawerOverlay: some View {
