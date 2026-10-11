@@ -13,8 +13,6 @@ public struct VoiceOrbModalView: View {
     private let onOpenMenu: () -> Void
     private let onOpenSettings: () -> Void
 
-    @State private var pulse = false
-    @State private var drift = false
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
@@ -85,7 +83,7 @@ public struct VoiceOrbModalView: View {
             let compact = proxy.size.height < 430
 
             ZStack {
-                Color.black
+                Color(red: 0.006, green: 0.014, blue: 0.041)
                     .ignoresSafeArea()
 
                 RadialGradient(
@@ -134,8 +132,6 @@ public struct VoiceOrbModalView: View {
             }
         }
         .onAppear {
-            pulse = true
-            drift = true
             // Reopening the sheet must not restart speech or unmute the mic.
             if !viewModel.isContinuousConversationActive {
                 viewModel.startVoiceConversation()
@@ -326,93 +322,18 @@ public struct VoiceOrbModalView: View {
 
     // MARK: - Orbe Sarah
 
+    private var isSarahSpeaking: Bool {
+        if case .speaking = viewModel.voiceStatus { return true }
+        return false
+    }
+
     private func orb(size: CGFloat) -> some View {
-        let core = size * 0.72
-        let voiceBoost = 1.0 + normalizedLevel * 0.065
-
-        return ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            accent.opacity(0.30),
-                            accent.opacity(0.08),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: core * 0.20,
-                        endRadius: size * 0.52
-                    )
-                )
-                .frame(width: size, height: size)
-                .blur(radius: size > 150 ? 15 : 8)
-
-            ForEach(0..<2) { index in
-                Circle()
-                    .stroke(
-                        accent.opacity(index == 0 ? 0.40 : 0.18),
-                        lineWidth: 1
-                    )
-                    .frame(
-                        width: core + CGFloat(index * 30),
-                        height: core + CGFloat(index * 30)
-                    )
-                    .scaleEffect(
-                        (pulse ? 1.025 : 0.985)
-                        + normalizedLevel * CGFloat(index + 1) * 0.014
-                    )
-                    .animation(
-                        Animation.easeInOut(duration: 1.7 + Double(index) * 0.25)
-                            .repeatForever(autoreverses: true),
-                        value: pulse
-                    )
-            }
-
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.96),
-                                accent.opacity(0.94),
-                                accent
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Circle()
-                    .fill(Color.white.opacity(0.54))
-                    .frame(width: core * 0.48, height: core * 0.48)
-                    .blur(radius: size > 150 ? 17 : 8)
-                    .offset(
-                        x: drift ? -core * 0.08 : core * 0.09,
-                        y: drift ? core * 0.07 : -core * 0.07
-                    )
-                    .animation(
-                        Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
-                        value: drift
-                    )
-
-                Image(systemName: viewModel.activeAgent.iconName)
-                    .font(.system(size: max(18, core * 0.16), weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 2)
-            }
-            .frame(width: core, height: core)
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
-            )
-            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
-            .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
-            .animation(
-                Animation.spring(response: 0.26, dampingFraction: 0.76),
-                value: normalizedLevel
-            )
-        }
+        SarahReactiveVoiceOrb(
+            diameter: size,
+            level: normalizedLevel,
+            isSpeaking: isSarahSpeaking,
+            isMuted: viewModel.isVoiceMicrophoneMuted
+        )
         .contentShape(Circle())
         .onTapGesture {
             HapticService.shared.buttonTap()
@@ -422,6 +343,8 @@ public struct VoiceOrbModalView: View {
                 viewModel.startVoiceConversation()
             }
         }
+        .accessibilityLabel("Orbe vocal Sarah. " + statusTitle)
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Barre inférieure
@@ -549,6 +472,142 @@ public struct VoiceOrbModalView: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+/// Orbe partagé entre le mode vocal plein écran et la bulle du chat.
+/// Écoute et synthèse utilisent le même rendu, mais l'activité vocale est
+/// visualisée différemment selon l'état. Aucun arrêt du microphone ici.
+@available(iOS 15.0, *)
+public struct SarahReactiveVoiceOrb: View {
+    public let diameter: CGFloat
+    public let level: CGFloat
+    public let isSpeaking: Bool
+    public let isMuted: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathe = false
+
+    public init(diameter: CGFloat, level: CGFloat, isSpeaking: Bool = false, isMuted: Bool = false) {
+        self.diameter = diameter
+        self.level = level
+        self.isSpeaking = isSpeaking
+        self.isMuted = isMuted
+    }
+
+    private var activity: CGFloat {
+        guard !isMuted else { return 0 }
+        return max(min(level, 1), isSpeaking ? 0.45 : 0)
+    }
+
+    public var body: some View {
+        let core = diameter * 0.73
+
+        return ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.16, green: 0.57, blue: 1.0).opacity(isMuted ? 0.12 : 0.35),
+                            Color(red: 0.12, green: 0.25, blue: 0.8).opacity(0.16),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: core * 0.15,
+                        endRadius: diameter * 0.54
+                    )
+                )
+                .frame(width: diameter, height: diameter)
+                .blur(radius: diameter * 0.065)
+
+            // La bordure réagit à la voix, même lorsque le texte est en cours
+            // de synthèse et que le niveau microphone est momentanément faible.
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.36, green: 0.82, blue: 1).opacity(0.48),
+                                Color(red: 0.54, green: 0.47, blue: 1).opacity(0.22),
+                                Color.white.opacity(0.10)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: max(1, diameter * 0.006)
+                    )
+                    .frame(
+                        width: core + CGFloat(index + 1) * diameter * 0.06,
+                        height: core + CGFloat(index + 1) * diameter * 0.06
+                    )
+                    .scaleEffect(1 + activity * (0.045 + CGFloat(index) * 0.032)
+                                 + (breathe ? 0.025 : 0))
+                    .opacity(isMuted ? 0.25 : 0.78 - Double(index) * 0.16)
+                    .animation(.easeOut(duration: 0.16), value: activity)
+                    .animation(
+                        reduceMotion ? .none :
+                            .easeInOut(duration: 1.5 + Double(index) * 0.35)
+                                .repeatForever(autoreverses: true),
+                        value: breathe
+                    )
+            }
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.78, green: 0.96, blue: 1),
+                            Color(red: 0.26, green: 0.71, blue: 1),
+                            Color(red: 0.13, green: 0.31, blue: 0.88),
+                            Color(red: 0.16, green: 0.12, blue: 0.43)
+                        ],
+                        center: UnitPoint(x: 0.31, y: 0.22),
+                        startRadius: 0,
+                        endRadius: core * 0.78
+                    )
+                )
+                .frame(width: core, height: core)
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.86), .cyan.opacity(0.35), .white.opacity(0.14)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: max(1, core * 0.008)
+                    )
+                )
+                .overlay(
+                    Circle()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: core * 0.45, height: core * 0.45)
+                        .blur(radius: core * 0.12)
+                        .offset(x: breathe ? -core * 0.16 : -core * 0.07,
+                                y: breathe ? -core * 0.15 : -core * 0.05)
+                        .mask(Circle().frame(width: core, height: core))
+                        .animation(
+                            reduceMotion ? .none :
+                                .easeInOut(duration: 2.8).repeatForever(autoreverses: true),
+                            value: breathe
+                        )
+                )
+                .overlay(
+                    Image(systemName: "sparkle")
+                        .font(.system(size: max(12, core * 0.25), weight: .medium))
+                        .foregroundColor(.white)
+                        .shadow(color: .white.opacity(0.65), radius: core * 0.06)
+                )
+                .shadow(
+                    color: Color(red: 0.10, green: 0.49, blue: 1).opacity(isMuted ? 0.12 : 0.54),
+                    radius: diameter * 0.075
+                )
+                .scaleEffect(1 + activity * 0.025 + (breathe && !reduceMotion ? 0.012 : 0))
+                .animation(.easeOut(duration: 0.16), value: activity)
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
+        .onAppear { breathe = !reduceMotion }
+        .onChange(of: reduceMotion) { value in breathe = !value }
     }
 }
 
