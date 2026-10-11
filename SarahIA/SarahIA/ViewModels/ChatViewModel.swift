@@ -589,14 +589,23 @@ public final class ChatViewModel: ObservableObject {
     }
 
     public func activateTranslateLive(from source: String = "he", to target: String = "fr") {
-        // Do not let Sarah and Yoann compete for the same Whisper microphone.
+        // A dedicated mode: dismiss all competing audio and present after any
+        // full-screen voice sheet has finished its dismissal animation.
+        let dismissingVoiceSheet = isShowingVoiceOrbModal
         stopVoiceConversation()
+        WebRTCVoiceCallManager.shared.endCall(reason: "Translate Live")
         activeAgent = .yohan
         translateLiveSource = source
         translateLiveTarget = target
         isShowingVoiceOrbModal = false
-        isShowingTranslateLive = true
         isDrawerOpen = false
+        if dismissingVoiceSheet {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.isShowingTranslateLive = true
+            }
+        } else {
+            isShowingTranslateLive = true
+        }
     }
 
     public func toggleMicrophone() {
