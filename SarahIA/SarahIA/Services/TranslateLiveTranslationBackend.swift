@@ -63,8 +63,8 @@ public enum TranslateLiveTranslationBackend {
         }
         guard let url = validatedURL(serverURL)?.appendingPathComponent("translate") else {
             completion(.unavailable(
-                "Pour les phrases longues et les autres langues, ajoutez l'adresse de votre serveur de traduction LibreTranslate. "
-                + "Le modèle Whisper local peut aussi traduire de nombreuses langues directement en anglais."
+                "Traduction complète indisponible. Configure ton serveur neuronal dans les réglages ⚙️. "
+                + "Whisper traduit également certaines langues directement en anglais."
             ))
             return
         }
