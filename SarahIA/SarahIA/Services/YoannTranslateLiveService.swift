@@ -36,6 +36,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var isTranslating = false
     @Published public private(set) var status = "Prêt à écouter une personne ou une vidéo."
     @Published public private(set) var lastSource = ""
+    @Published public private(set) var provisionalSource = ""
+    @Published public private(set) var recentSourceContext = ""
     @Published public private(set) var lastTranslation = ""
     @Published public private(set) var history: [Phrase] = []
     @Published public private(set) var errorMessage: String?
@@ -58,14 +60,15 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var incoming: [String] = []
     private var outgoing: [Segment] = []
     private var translationBusy = false
-    private var lastChunk = ""
+    private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
 
     public init() {}
 
     public func start(from source: String, to target: String, serverURL: String = "") {
         stop()
-        guard source != target,
+        guard TranslateLiveLanguages.engineCode(for: source)
+                != TranslateLiveLanguages.engineCode(for: target),
               TranslateLiveLanguages.isRecognized(source),
               TranslateLiveLanguages.isSelectableTarget(target) else {
             errorMessage = "Choisis deux langues valides et différentes."
@@ -75,9 +78,13 @@ public final class YoannTranslateLiveService: ObservableObject {
         sourceLanguage = source
         targetLanguage = target
         customTranslationServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        localEnglishTranslation = target == "en" && source != "en"
+        localEnglishTranslation = TranslateLiveLanguages.isEnglish(target)
+            && !TranslateLiveLanguages.isEnglish(source)
         errorMessage = nil
         lastSource = ""
+        provisionalSource = ""
+        recentSourceContext = ""
+        contextBuffer.reset()
         lastTranslation = ""
         history.removeAll()
         incoming.removeAll()
@@ -86,7 +93,6 @@ public final class YoannTranslateLiveService: ObservableObject {
         isTranslating = false
         isSpeakingTranslation = false
         waitingTranslations = 0
-        lastChunk = ""
         sessionToken = UUID()
         isActive = true
 
@@ -103,7 +109,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         previousWhisperTranslation = whisper.translateSpeechToEnglish
         previousWhisperLanguage = whisper.preferredLanguageCode
         whisper.translateSpeechToEnglish = localEnglishTranslation
-        whisper.preferredLanguageCode = source == "auto" ? nil : source
+        whisper.preferredLanguageCode = source == "auto"
+            ? nil : TranslateLiveLanguages.engineCode(for: source)
 
         updateAudioRoute()
         routeObserver = NotificationCenter.default.addObserver(
@@ -115,9 +122,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
 
         let token = sessionToken
-        whisper.onLiveInterpretationChunk = { [weak self] chunk in
+        whisper.onLiveInterpretationChunk = { [weak self] chunk, paused in
             guard let self, self.isActive, self.sessionToken == token else { return }
-            self.receive(chunk: chunk, token: token)
+            self.receive(chunk: chunk, paused: paused, token: token)
         }
         whisper.onLiveInterpretationError = { [weak self] message in
             guard let self, self.isActive, self.sessionToken == token else { return }
@@ -156,7 +163,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         outgoing.removeAll()
         waitingTranslations = 0
         translationBusy = false
-        lastChunk = ""
+        provisionalSource = ""
+        recentSourceContext = ""
+        contextBuffer.reset()
 
         if let routeObserver {
             NotificationCenter.default.removeObserver(routeObserver)
@@ -176,30 +185,37 @@ public final class YoannTranslateLiveService: ObservableObject {
         status = "Translate Live arrêté."
     }
 
-    private func receive(chunk: String, token: UUID) {
+    private func receive(chunk: String, paused: Bool, token: UUID) {
         guard isActive, sessionToken == token else { return }
-        let clean = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
+        let update = contextBuffer.receive(chunk, paused: paused)
 
-        // Speech recognizers can repeat a partial hypothesis. Drop identical
-        // consecutive completed segments, never strip arbitrary words.
-        guard clean != lastChunk else { return }
-        lastChunk = clean
-        lastSource = clean
+        // The caption may change while the next words are understood.
+        // Spoken output NEVER consumes this provisional text.
+        provisionalSource = update.provisional
+        recentSourceContext = update.recentContext
 
-        if localEnglishTranslation {
-            // Whisper itself generated English in the background.
-            appendTranslated(text: clean, original: "Voix reconnue → anglais (Whisper)", token: token)
-            return
+        // Only committed source text feeds subsequent Whisper prompts.
+        // Context remains short to avoid repetitions and hallucinations.
+        whisper.liveRecognitionContext = update.recentContext
+
+        for stable in update.committed {
+            lastSource = stable
+            if localEnglishTranslation {
+                // Whisper has already produced a stable English rendering.
+                appendTranslated(
+                    text: stable, original: "Voix → anglais via Whisper", token: token
+                )
+                continue
+            }
+            if incoming.count >= 8 {
+                incoming.removeFirst()
+                errorMessage = "Le modèle n'arrive pas à suivre : un ancien passage a été ignoré."
+            }
+            incoming.append(stable)
         }
-
-        if incoming.count >= 8 {
-            incoming.removeFirst()
-            errorMessage = "Parole trop rapide pour ce modèle : un segment en attente a été ignoré."
-        }
-        incoming.append(clean)
         waitingTranslations = incoming.count
         translateNext(token: token)
+        updateStatus()
     }
 
     private func translateNext(token: UUID) {
@@ -211,8 +227,8 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         TranslateLiveTranslationBackend.translate(
             text: fragment,
-            from: sourceLanguage,
-            to: targetLanguage,
+            from: TranslateLiveLanguages.engineCode(for: sourceLanguage),
+            to: TranslateLiveLanguages.engineCode(for: targetLanguage),
             serverURL: customTranslationServerURL
         ) { [weak self] outcome in
             DispatchQueue.main.async {
@@ -241,7 +257,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         history.insert(Phrase(source: original, translation: result), at: 0)
         if history.count > 40 { history.removeLast(history.count - 40) }
 
-        guard TranslateLiveLanguages.spokenOutputCodes.contains(targetLanguage) else {
+        guard TranslateLiveLanguages.spokenOutputCodes.contains(
+            TranslateLiveLanguages.engineCode(for: targetLanguage)
+        ) else {
             updateStatus()
             return
         }
@@ -267,7 +285,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         // acoustically; AVAudioSession.voiceChat supplies system echo control.
         neural.speak(
             text: part.translation, for: .yohan,
-            language: targetLanguage, qualitySteps: 5
+            language: TranslateLiveLanguages.engineCode(for: targetLanguage),
+            qualitySteps: 5
         )
     }
 
