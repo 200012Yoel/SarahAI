@@ -7,6 +7,15 @@ struct TranslateLiveContextTests {
             guard value() else { fatalError("FAIL " + message) }
         }
 
+        expect(TranslateLiveContextBuffer.isNonSpeechCaption("[Musique]"),
+               "TV music cue must never be translated")
+        expect(TranslateLiveContextBuffer.isNonSpeechCaption("[Music]"),
+               "English music cue must never be translated")
+        expect(!TranslateLiveContextBuffer.isNonSpeechCaption("Bonjour, je suis Yoann"),
+               "normal French speech must survive the music filter")
+        expect(!TranslateLiveContextBuffer.isNonSpeechCaption("שלום לכולם"),
+               "Hebrew speech must survive the music filter")
+
         var buffer = TranslateLiveContextBuffer()
         let first = buffer.receive("שלום", paused: false)
         expect(first.provisional == "שלום", "speech starts provisional")
