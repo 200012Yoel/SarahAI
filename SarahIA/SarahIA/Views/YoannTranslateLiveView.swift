@@ -32,7 +32,7 @@ public struct YoannTranslateLiveView: View {
                             .accessibilityHidden(true)
                         Text("Yoann · Translate Live")
                             .font(.title2.bold())
-                        Text("Le son vient de l'ordinateur. L'iPhone écoute et prononce la traduction.")
+                        Text("Interprète en direct : l'iPhone écoute sans interruption et traduit par petits passages.")
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                     }
@@ -85,18 +85,33 @@ public struct YoannTranslateLiveView: View {
                     }
 
                     Label(
-                        "Place l'iPhone près des haut-parleurs de l'ordinateur, puis lance la vidéo sur ton ordinateur.",
-                        systemImage: "desktopcomputer"
+                        "Place ton iPhone près de la personne ou des haut-parleurs de ton ordinateur.",
+                        systemImage: "waveform"
                     )
                     .font(.subheadline)
 
                     Label(
-                        "Anti-écho : pendant que Yoann parle, le micro se coupe. "
-                            + "Il reprend automatiquement après la traduction.",
-                        systemImage: "speaker.slash"
+                        "L'écoute reste active quand Yoann traduit et parle. "
+                        + "Branche des écouteurs pour entendre la traduction sans qu'elle repasse dans le micro.",
+                        systemImage: "earbuds"
                     )
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundColor(.secondary)
+
+                    if !live.headphoneConnected {
+                        Label(
+                            "Aucun écouteur détecté. En haut-parleur, une boucle sonore "
+                            + "reste possible malgré la réduction d'écho iOS.",
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.orange)
+                    } else {
+                        Label("Écouteurs détectés : écoute et traduction peuvent se chevaucher.",
+                              systemImage: "checkmark.circle")
+                            .font(.footnote)
+                            .foregroundColor(.green)
+                    }
 
                     DisclosureGroup("Serveur de traduction open source (facultatif)") {
                         VStack(alignment: .leading, spacing: 8) {
@@ -132,12 +147,17 @@ public struct YoannTranslateLiveView: View {
 
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(live.isSpeakingTranslation ? Color.orange :
-                                  live.isListening ? Color.green : Color.gray)
+                            .fill(live.isListening ? Color.green : Color.orange)
                             .frame(width: 12, height: 12)
                         Text(live.status).font(.subheadline)
                     }
                     .accessibilityElement(children: .combine)
+
+                    if live.waitingTranslations > 0 {
+                        Text("Passages en attente de traduction : \(live.waitingTranslations)")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
 
                     if let error = live.errorMessage {
                         Text(error)
@@ -199,9 +219,11 @@ public struct YoannTranslateLiveView: View {
                         }
                     }
 
-                    Text("Whisper reconnaît de nombreuses langues, mais ne garantit pas la traduction "
-                         + "dans chacune. Supertonic 3 parle 31 langues ; les autres sont affichées en texte. "
-                         + "Il faut vérifier les langues et les licences des modèles du serveur avant toute vente.")
+                    Text("Écoute continue tant que le mode est activé, sans minuterie ni quota interne. "
+                         + "Traduction segmentée, pas instantanée à zéro milliseconde : le temps varie "
+                         + "selon le modèle et l'appareil. Pour hébreu → français au-delà des expressions "
+                         + "locales, il faut un véritable modèle de traduction ou un serveur configuré. "
+                         + "Les langues et licences doivent être vérifiées avant publication.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
