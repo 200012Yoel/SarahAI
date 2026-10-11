@@ -65,6 +65,20 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     public init() {}
 
+    /// Audible diagnostic: speak a known French phrase with the real bundled
+    /// Supertonic voice, WITHOUT a translation server or input TV audio.
+    /// Useful to distinguish a broken TTS / audio route from missing MT models.
+    public func testFrenchSpeaker() {
+        guard isActive, !isSpeakingTranslation else { return }
+        errorMessage = nil
+        isSpeakingTranslation = true
+        neural.speak(
+            text: "Bonjour. Je suis Yoann. Si tu m'entends, le haut-parleur fonctionne.",
+            for: .yohan, language: "fr", qualitySteps: 5
+        )
+        updateStatus()
+    }
+
     public func start(from source: String, to target: String, serverURL: String = "") {
         stop()
         guard TranslateLiveLanguages.engineCode(for: source)
@@ -187,6 +201,12 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     private func receive(chunk: String, paused: Bool, token: UUID) {
         guard isActive, sessionToken == token else { return }
+        if TranslateLiveContextBuffer.isNonSpeechCaption(chunk) {
+            // A TV music cue or silence is not speech. Do not display it as
+            // translated text or make the neural voice read "[Musique]".
+            status = "🎵 Musique ou bruit détecté. En attente de paroles…"
+            return
+        }
         let update = contextBuffer.receive(chunk, paused: paused)
 
         // The caption may change while the next words are understood.
