@@ -269,3 +269,23 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish signed-for-sideloading Translate Live test IPA
+        if: github.ref == 'refs/heads/feature/neural-voices-whisper-only-20261011'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sarah-ia-translate-live-20261011-test
+          name: 'Sarah IA · Translate Live · iPhone test'
+          body: |
+            Version de test issue de la branche Translate Live.
+            Transcription Whisper locale, synthese Supertonic 3 et mode Yoann micro iPhone.
+            Traduction vers anglais locale par Whisper ; autres langues via expressions
+            exactes locales ou LibreTranslate personnel.
+            IPA auto-signee pour resignature Sideloadly/SideStore, pas App Store.
+            Usage commercial et fonctionnement sur iPhone pas encore certifies.
+          files: dist/SarahIA.ipa
+          overwrite_files: true
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
