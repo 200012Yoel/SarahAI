@@ -114,6 +114,7 @@ jobs:
           curl -L --fail --retry 3 \
             'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2' \
             -o "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          echo "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427  $RUNNER_TEMP/NeuralVoices/model.tar.bz2" | shasum -a 256 -c -
           tar -xjf "$RUNNER_TEMP/NeuralVoices/model.tar.bz2" -C "$RUNNER_TEMP/NeuralVoices"
           rm "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
           MODEL_ROOT=$(dirname "$(find "$RUNNER_TEMP/NeuralVoices" -name 'voice.bin' -type f -print -quit)")
