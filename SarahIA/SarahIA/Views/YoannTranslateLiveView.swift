@@ -1,13 +1,20 @@
 import SwiftUI
 import UIKit
 
-/// Yoann translates audio coming FROM A COMPUTER or TV through the iPhone mic.
+/// External-computer/TV audio is picked up by the phone microphone.
 @available(iOS 16.2, *)
 public struct YoannTranslateLiveView: View {
+    private enum PickerMode: String, Identifiable {
+        case source, target
+        var id: String { rawValue }
+    }
+
     @Environment(\.dismiss) private var dismiss
     @StateObject private var live = YoannTranslateLiveService()
+    @AppStorage("yoann_translate_live_server") private var translationServerURL = ""
     @State private var sourceLanguage: String
     @State private var targetLanguage: String
+    @State private var pickerMode: PickerMode?
 
     public init(initialSource: String = "he", initialTarget: String = "fr") {
         _sourceLanguage = State(initialValue: initialSource)
@@ -17,32 +24,60 @@ public struct YoannTranslateLiveView: View {
     public var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(spacing: 10) {
                         Image(systemName: "waveform.badge.mic")
-                            .font(.system(size: 48))
+                            .font(.system(size: 46))
                             .foregroundColor(.cyan)
                             .accessibilityHidden(true)
                         Text("Yoann · Translate Live")
                             .font(.title2.bold())
-                        Text("Votre ordinateur parle. L’iPhone écoute et traduit à voix haute.")
+                        Text("Le son vient de l'ordinateur. L'iPhone écoute et prononce la traduction.")
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 14)
 
-                    VStack(spacing: 12) {
-                        languagePicker("Langue entendue", selected: $sourceLanguage)
-                        languagePicker("Traduction sur l’iPhone", selected: $targetLanguage)
+                    VStack(alignment: .leading, spacing: 16) {
+                        selector(
+                            "Langue de la vidéo / du PC",
+                            value: sourceLanguage,
+                            action: { pickerMode = .source }
+                        )
+                        Image(systemName: "arrow.down")
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(.secondary)
+                        selector(
+                            "Langue de traduction",
+                            value: targetLanguage,
+                            action: { pickerMode = .target }
+                        )
                     }
-                    .padding()
+                    .padding(16)
                     .background(Color(.secondarySystemGroupedBackground))
                     .cornerRadius(16)
 
-                    if targetLanguage == "he" {
+                    if targetLanguage == "en" && sourceLanguage != "en" {
                         Label(
-                            "La traduction vers l’hébreu est affichée en texte. La voix hébraïque n’est pas encore installée.",
+                            "Vers l'anglais : Whisper traduit directement la voix en local, sans serveur.",
+                            systemImage: "checkmark.shield"
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                    } else {
+                        Label(
+                            "Pour une émission entière vers cette langue : un serveur de traduction est nécessaire. "
+                                + "Quelques expressions françaises, anglaises et hébraïques sont connues localement.",
+                            systemImage: "network"
+                        )
+                        .font(.footnote)
+                    }
+
+                    if !TranslateLiveLanguages.spokenOutputCodes.contains(targetLanguage) {
+                        Label(
+                            "Traduction écrite uniquement en \(TranslateLiveLanguages.label(for: targetLanguage)). "
+                                + "La voix neuronale intégrée couvre 31 autres langues.",
                             systemImage: "text.bubble"
                         )
                         .font(.footnote)
@@ -50,21 +85,55 @@ public struct YoannTranslateLiveView: View {
                     }
 
                     Label(
-                        "Placez l’iPhone près des haut-parleurs du PC, puis lancez votre vidéo sur le PC. Aucune connexion à la vidéo n’est nécessaire.",
+                        "Place l'iPhone près des haut-parleurs de l'ordinateur, puis lance la vidéo sur ton ordinateur.",
                         systemImage: "desktopcomputer"
                     )
                     .font(.subheadline)
 
                     Label(
-                        "Pour empêcher la boucle audio, Yoann coupe temporairement le micro pendant qu’il lit la traduction, puis reprend automatiquement l’écoute.",
+                        "Anti-écho : pendant que Yoann parle, le micro se coupe. "
+                            + "Il reprend automatiquement après la traduction.",
                         systemImage: "speaker.slash"
                     )
                     .font(.footnote)
                     .foregroundColor(.secondary)
 
+                    DisclosureGroup("Serveur de traduction open source (facultatif)") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TextField("https://mon-serveur.example ou http://192.168.1.2:5000",
+                                      text: $translationServerURL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled(true)
+                                .textContentType(.URL)
+                                .keyboardType(.URL)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityLabel("Adresse de votre serveur LibreTranslate")
+                            if !translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                                TranslateLiveTranslationBackend.validatedURL(translationServerURL) == nil {
+                                Text("Adresse refusée : HTTPS ou HTTP sur le réseau local seulement.")
+                                    .foregroundColor(.orange)
+                                    .font(.footnote)
+                            }
+                            Text("Tu peux héberger LibreTranslate / Argos sur ton ordinateur ou ton serveur. "
+                                 + "Seul le texte transcrit est envoyé à l'adresse que TU configures. "
+                                 + "Aucune API publique payante n'est imposée par Sarah.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                            Text("Les langues réellement traduites dépendent des modèles installés sur ce serveur. "
+                                 + "Le serveur et ses modèles doivent respecter leurs licences commerciales.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                            if live.isActive {
+                                Text("Redémarre Translate Live pour appliquer la nouvelle adresse.")
+                                    .font(.caption)
+                            }
+                        }.padding(.top, 6)
+                    }
+
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(live.isSpeakingTranslation ? Color.orange : live.isListening ? Color.green : Color.gray)
+                            .fill(live.isSpeakingTranslation ? Color.orange :
+                                  live.isListening ? Color.green : Color.gray)
                             .frame(width: 12, height: 12)
                         Text(live.status).font(.subheadline)
                     }
@@ -74,42 +143,50 @@ public struct YoannTranslateLiveView: View {
                         Text(error)
                             .foregroundColor(.orange)
                             .font(.footnote)
-                            .accessibilityAddTraits(.updatesFrequently)
                     }
 
                     Button {
                         if live.isActive {
                             live.stop()
                         } else {
-                            live.start(from: sourceLanguage, to: targetLanguage)
+                            live.start(
+                                from: sourceLanguage, to: targetLanguage,
+                                serverURL: translationServerURL
+                            )
                         }
                     } label: {
-                        Label(live.isActive ? "Arrêter Translate Live" : "Démarrer Translate Live",
-                              systemImage: live.isActive ? "stop.circle.fill" : "mic.circle.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                        Label(
+                            live.isActive ? "Arrêter Translate Live" : "Démarrer Translate Live",
+                            systemImage: live.isActive ? "stop.circle.fill" : "mic.circle.fill"
+                        )
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(live.isActive ? .red : .cyan)
                     .disabled(!live.isActive && sourceLanguage == targetLanguage)
 
                     if !live.lastSource.isEmpty {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text("Phrase entendue").font(.caption).foregroundColor(.secondary)
-                            Text(live.lastSource).font(.body)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Texte capté ou converti par Whisper")
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(live.lastSource)
                         }
                     }
+
                     if !live.lastTranslation.isEmpty {
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text("Traduction de Yoann").font(.caption).foregroundColor(.secondary)
-                            Text(live.lastTranslation).font(.title3.weight(.medium))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Traduction de Yoann")
+                                .font(.caption).foregroundColor(.secondary)
+                            Text(live.lastTranslation)
+                                .font(.title3.weight(.medium))
                                 .accessibilityAddTraits(.updatesFrequently)
                         }
                     }
 
                     if !live.history.isEmpty {
-                        Text("Derniers passages").font(.headline)
+                        Text("Passages récents").font(.headline)
                         ForEach(live.history) { phrase in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(phrase.source).foregroundColor(.secondary)
@@ -122,7 +199,9 @@ public struct YoannTranslateLiveView: View {
                         }
                     }
 
-                    Text("Note : le moteur de traduction existant utilise un dictionnaire local, puis peut faire appel à un service Internet pour les phrases complexes. Les autorisations de redistribution commerciale et la traduction de longues émissions doivent être validées avant publication.")
+                    Text("Whisper reconnaît de nombreuses langues, mais ne garantit pas la traduction "
+                         + "dans chacune. Supertonic 3 parle 31 langues ; les autres sont affichées en texte. "
+                         + "Il faut vérifier les langues et les licences des modèles du serveur avant toute vente.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -139,31 +218,96 @@ public struct YoannTranslateLiveView: View {
                     }
                 }
             }
+            .sheet(item: $pickerMode) { mode in
+                TranslateLiveLanguagePicker(
+                    title: mode == .source ? "Langue entendue" : "Langue de traduction",
+                    options: mode == .source
+                        ? TranslateLiveLanguages.sourceOptions
+                        : TranslateLiveLanguages.available,
+                    selected: mode == .source ? $sourceLanguage : $targetLanguage,
+                    isTarget: mode == .target
+                )
+            }
         }
         .onAppear {
-            live.start(from: sourceLanguage, to: targetLanguage)
+            live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
         }
-        .onDisappear {
-            live.stop()
+        .onDisappear { live.stop() }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.didEnterBackgroundNotification
+        )) { _ in live.stop() }
+        .onChange(of: sourceLanguage) { _ in restartIfActive() }
+        .onChange(of: targetLanguage) { _ in restartIfActive() }
+    }
+
+    private func restartIfActive() {
+        guard live.isActive else { return }
+        live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
+    }
+
+    private func selector(_ title: String, value: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.caption).foregroundColor(.secondary)
+                    Text(TranslateLiveLanguages.label(for: value))
+                        .font(.headline).foregroundColor(.primary)
+                }
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .foregroundColor(.cyan)
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-            live.stop()
+        .buttonStyle(.plain)
+    }
+}
+
+@available(iOS 16.2, *)
+private struct TranslateLiveLanguagePicker: View {
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    let options: [TranslateLiveLanguages.Language]
+    @Binding var selected: String
+    let isTarget: Bool
+    @State private var search = ""
+
+    private var filtered: [TranslateLiveLanguages.Language] {
+        let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return options }
+        return options.filter {
+            $0.label.localizedCaseInsensitiveContains(trimmed)
+            || $0.id.localizedCaseInsensitiveContains(trimmed)
         }
     }
 
-    private func languagePicker(_ title: String, selected: Binding<String>) -> some View {
-        HStack {
-            Text(title).font(.subheadline)
-            Spacer()
-            Picker(title, selection: selected) {
-                ForEach(YoannTranslateLiveService.Language.available) { item in
-                    Text(item.label).tag(item.id)
+    var body: some View {
+        NavigationView {
+            List(filtered) { language in
+                Button {
+                    selected = language.id
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text(language.label)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        if isTarget {
+                            Text(language.hasSpokenOutput ? "Voix" : "Texte")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        if language.id == selected {
+                            Image(systemName: "checkmark").foregroundColor(.cyan)
+                        }
+                    }
                 }
             }
-            .labelsHidden()
-            .onChange(of: selected.wrappedValue) { _ in
-                if live.isActive {
-                    live.start(from: sourceLanguage, to: targetLanguage)
+            .searchable(text: $search, prompt: "Chercher une langue")
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Terminé") { dismiss() }
                 }
             }
         }
