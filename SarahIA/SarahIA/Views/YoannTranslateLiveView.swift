@@ -252,8 +252,13 @@ public struct YoannTranslateLiveView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack {
+            HStack(spacing: 8) {
                 Text(live.isListening ? "● Micro actif" : "Micro en attente")
+                ProgressView(value: Double(live.microphoneLevel))
+                    .tint(.cyan)
+                    .frame(width: 100)
+                    .accessibilityLabel("Niveau d'entrée du microphone")
+                    .accessibilityValue("\(Int(live.microphoneLevel * 100)) pour cent")
                 Spacer()
                 Text("Origine · \(TranslateLiveLanguages.label(for: sourceLanguage))")
             }
