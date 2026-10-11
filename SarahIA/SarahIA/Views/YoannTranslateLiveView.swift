@@ -159,6 +159,14 @@ public struct YoannTranslateLiveView: View {
                             .foregroundColor(.orange)
                     }
 
+                    Label(
+                        "Écoute sans minuterie jusqu'au bouton Arrêter. "
+                        + "Écran verrouillé : la continuité dépend de l'audio en arrière-plan autorisé par iOS.",
+                        systemImage: "infinity"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
                     if let error = live.errorMessage {
                         Text(error)
                             .foregroundColor(.orange)
@@ -255,9 +263,8 @@ public struct YoannTranslateLiveView: View {
             live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
         }
         .onDisappear { live.stop() }
-        .onReceive(NotificationCenter.default.publisher(
-            for: UIApplication.didEnterBackgroundNotification
-        )) { _ in live.stop() }
+        // Keep explicit user-started interpretation alive in background while
+        // iOS allows audio recording. Stop only when user closes the interface.
         .onChange(of: sourceLanguage) { _ in restartIfActive() }
         .onChange(of: targetLanguage) { _ in restartIfActive() }
     }
