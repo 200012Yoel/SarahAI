@@ -6,7 +6,8 @@ services:
     ports:
       - "5000:5000"
     environment:
-      SARAH_MT_MODEL: Helsinki-NLP/opus-tatoeba-he-fr
+      SARAH_MT_MODEL_HE_FR: Helsinki-NLP/opus-tatoeba-he-fr
+      SARAH_MT_MODEL_FR_HE: Helsinki-NLP/opus-mt-fr-he
       SARAH_MT_THREADS: "2"
       HF_HOME: /models
     volumes:
