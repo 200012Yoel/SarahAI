@@ -33,6 +33,31 @@ struct TranslateLiveCatalogTests {
         expect(b?.from == "es" && b?.to == "en", "Spanish to English command")
         let c = TranslateLiveLanguages.pairFromCommand("Démarre Translate Live automatique japonais")
         expect(c?.from == "auto" && c?.to == "ja", "auto to Japanese command")
+        let spokenA = TranslateLiveLanguages.pairFromCommand(
+            "Il y a quelqu'un qui parle anglais, je veux la traduction en hébreu")
+        expect(spokenA?.from == "en" && spokenA?.to == "he",
+               "natural English to Hebrew")
+        let spokenB = TranslateLiveLanguages.pairFromCommand(
+            "La personne parle français, je veux la traduction en hébreu")
+        expect(spokenB?.from == "fr" && spokenB?.to == "he",
+               "natural French to Hebrew")
+        let spokenC = TranslateLiveLanguages.pairFromCommand(
+            "Lance Live Translate de l'anglais des États-Unis vers le français")
+        expect(spokenC?.from == "en-US" && spokenC?.to == "fr",
+               "live translate US to French")
+        let spokenD = TranslateLiveLanguages.pairFromCommand(
+            "Traduction en direct de l'hébreu vers l'anglais britannique")
+        expect(spokenD?.from == "he" && spokenD?.to == "en-GB",
+               "Hebrew to UK English")
+        let spokenE = TranslateLiveLanguages.pairFromCommand(
+            "Je veux la traduction en français, la personne parle hébreu")
+        expect(spokenE?.from == "he" && spokenE?.to == "fr",
+               "target language mentioned first")
+        let spokenF = TranslateLiveLanguages.pairFromCommand("Ouvre Yoann")
+        expect(spokenF == nil, "normal Yoann is separate from Translate Live")
+        let spokenG = TranslateLiveLanguages.pairFromCommand("Translate Live")
+        expect(spokenG?.from == "he" && spokenG?.to == "fr",
+               "bare Translate Live still launches dedicated screen")
         let d = TranslateLiveLanguages.pairFromCommand("active le minuteur")
         expect(d == nil, "ordinary chat is not intercepted")
 
