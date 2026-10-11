@@ -11,6 +11,16 @@ import AVFoundation
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
+    /// Landscape is permitted only while the dedicated interpreter screen is open.
+    static var translateLiveLandscapeOnly = false
+
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        Self.translateLiveLandscapeOnly ? .landscape : .portrait
+    }
+
     /// Conservé uniquement pour compatibilité avec certains appels hérités.
     /// La fenêtre active appartient maintenant à SceneDelegate.
     var window: UIWindow?
