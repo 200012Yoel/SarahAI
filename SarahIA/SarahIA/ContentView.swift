@@ -31,7 +31,7 @@ public struct ContentView: View {
 
                 // Seuls les 18 points du bord gauche servent au geste du tiroir.
                 // Le reste de l'écran reste entièrement libre pour les contrôles.
-                if !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal {
+                if !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal && !viewModel.isShowingTranslateLive {
                     Color.clear
                         .frame(width: 18)
                         .frame(maxHeight: .infinity)
@@ -78,6 +78,12 @@ public struct ContentView: View {
         .background(Color.black.ignoresSafeArea())
         .sheet(isPresented: $viewModel.isShowingVoiceOrbModal) {
             voiceSheetContent
+        }
+        .fullScreenCover(isPresented: $viewModel.isShowingTranslateLive) {
+            YoannTranslateLiveView(
+                initialSource: viewModel.translateLiveSource,
+                initialTarget: viewModel.translateLiveTarget
+            )
         }
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
