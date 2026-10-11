@@ -103,6 +103,8 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
+		A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */; };
+		A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000004 /* sherpa-onnx */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -202,6 +204,7 @@
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralVoiceService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,6 +214,7 @@
 			files = (
 				A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */,
 				A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */,
+				A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +262,7 @@
 			children = (
 				A1B2C3D40002000100000074 /* MultiAgentCoordinator.swift */,
 				A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */,
+				A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */,
 				A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */,
 				A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */,
 				A1B2C3D40002000100000073 /* VAICodeEngine.swift */,
@@ -386,6 +391,7 @@
 			packageProductDependencies = (
 				A1B2C3D4000B000100000001 /* ZIPFoundation */,
 				A1B2C3D4000B000100000003 /* StableDiffusion */,
+				A1B2C3D4000B000100000004 /* sherpa-onnx */,
 			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
@@ -419,6 +425,7 @@
 			packageReferences = (
 				A1B2C3D4000A000100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+				A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */,
 			);
 			productRefGroup = A1B2C3D40004000100000007 /* Products */;
 			projectDirPath = "";
@@ -506,6 +513,7 @@
 				A1B2C3D40001000100000073 /* VAICodeEngine.swift in Sources */,
 				A1B2C3D40001000100000074 /* MultiAgentCoordinator.swift in Sources */,
 				A1B2C3D40001000100000075 /* MultiAgentVoiceManager.swift in Sources */,
+				A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */,
 				A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */,
 				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
 				A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */,
@@ -560,6 +568,14 @@
 				version = 1.1.1;
 			};
 		};
+		A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/k2-fsa/sherpa-onnx.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.13.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -572,6 +588,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
 			productName = StableDiffusion;
+		};
+		A1B2C3D4000B000100000004 /* sherpa-onnx */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */;
+			productName = "sherpa-onnx";
 		};
 /* End XCSwiftPackageProductDependency section */
 
