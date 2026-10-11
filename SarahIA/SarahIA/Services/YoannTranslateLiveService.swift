@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import AVFoundation
 import UIKit
+import Combine
 
 /// Simultaneous-style interpreter for external speech (person/TV/PC) heard
 /// through the iPhone microphone. Whisper records continuously on device,
@@ -43,6 +44,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var headphoneConnected = false
     @Published public private(set) var waitingTranslations = 0
+    @Published public private(set) var microphoneLevel: Float = 0
 
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
@@ -62,6 +64,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var translationBusy = false
     private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
+    private var micLevelSubscription: AnyCancellable?
 
     public init() {}
 
@@ -126,6 +129,14 @@ public final class YoannTranslateLiveService: ObservableObject {
         whisper.preferredLanguageCode = source == "auto"
             ? nil : TranslateLiveLanguages.engineCode(for: source)
 
+        // A live input meter distinguishes "microphone is open" from actual
+        // captured sound, without recording private audio samples in logs.
+        micLevelSubscription = whisper.$micEnergyLevel
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] value in
+                self?.microphoneLevel = value
+            }
+
         updateAudioRoute()
         routeObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
@@ -177,6 +188,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         outgoing.removeAll()
         waitingTranslations = 0
         translationBusy = false
+        micLevelSubscription?.cancel()
+        micLevelSubscription = nil
+        microphoneLevel = 0
         provisionalSource = ""
         recentSourceContext = ""
         contextBuffer.reset()
