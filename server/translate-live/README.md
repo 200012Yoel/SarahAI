@@ -2,7 +2,7 @@
 
 **Objectif :** fournir à l'application Sarah un moteur de *traduction neuronale réelle* pour le flux d'une personne ou d'une vidéo en hébreu. Son iPhone capte l'audio avec Whisper, puis n'envoie **que de courtes transcriptions** à ce serveur local. Le serveur rend des phrases françaises, qui sont lues par la voix Yoann sur l'iPhone.
 
-**Modèle :** [Helsinki-NLP/opus-mt-he-fr](https://huggingface.co/Helsinki-NLP/opus-mt-he-fr), annoncé **Apache 2.0**. Il ne remplace pas Whisper et ne fait pas de reconnaissance audio. Il ne gère ici que **he → fr**, pas « toutes les langues ». Qualité et latence à tester avant toute vente. Téléchargement Internet nécessaire la première fois ; ensuite les poids sont mis en cache sur ton serveur.
+**Modèle avec poids disponibles :** [Helsinki-NLP/opus-tatoeba-he-fr](https://huggingface.co/Helsinki-NLP/opus-tatoeba-he-fr), référencé **Apache 2.0** (vérifié sur Hugging Face le 11/10/2026). Il ne remplace pas Whisper et ne fait pas de reconnaissance audio. Il ne gère ici que **he → fr**, pas « toutes les langues ». Qualité et latence à tester avant toute vente. Téléchargement Internet nécessaire la première fois ; ensuite les poids sont mis en cache sur ton serveur.
 
 ## Installation sur Debian avec Docker
 
