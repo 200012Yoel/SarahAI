@@ -164,6 +164,10 @@ public struct ChatScreenView: View {
                     .default(Text("🎵 Musique")) {
                         viewModel.inputText = "Compose une musique "
                     },
+                    .default(Text("🎙️ Yoann · Translate Live (PC → iPhone)")) {
+                        keyboard.dismiss()
+                        viewModel.activateTranslateLive(from: "he", to: "fr")
+                    },
                     .default(Text("🇮🇱 Yohan · Traduction")) {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Traduis en hébreu : "
