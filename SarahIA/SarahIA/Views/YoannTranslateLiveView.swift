@@ -58,7 +58,8 @@ public struct YoannTranslateLiveView: View {
                     .background(Color(.secondarySystemGroupedBackground))
                     .cornerRadius(16)
 
-                    if targetLanguage == "en" && sourceLanguage != "en" {
+                    if TranslateLiveLanguages.isEnglish(targetLanguage)
+                        && !TranslateLiveLanguages.isEnglish(sourceLanguage) {
                         Label(
                             "Vers l'anglais : Whisper traduit directement la voix en local, sans serveur.",
                             systemImage: "checkmark.shield"
@@ -74,7 +75,9 @@ public struct YoannTranslateLiveView: View {
                         .font(.footnote)
                     }
 
-                    if !TranslateLiveLanguages.spokenOutputCodes.contains(targetLanguage) {
+                    if !TranslateLiveLanguages.spokenOutputCodes.contains(
+                        TranslateLiveLanguages.engineCode(for: targetLanguage)
+                    ) {
                         Label(
                             "Traduction écrite uniquement en \(TranslateLiveLanguages.label(for: targetLanguage)). "
                                 + "La voix neuronale intégrée couvre 31 autres langues.",
@@ -82,6 +85,17 @@ public struct YoannTranslateLiveView: View {
                         )
                         .font(.footnote)
                         .foregroundColor(.orange)
+                    }
+
+                    if TranslateLiveLanguages.isEnglish(sourceLanguage)
+                        || TranslateLiveLanguages.isEnglish(targetLanguage) {
+                        Label(
+                            "Anglais Royaume-Uni / États-Unis : Whisper comprend les deux, "
+                            + "mais le moteur vocal actuel ne garantit pas deux accents distincts.",
+                            systemImage: "globe.europe.africa"
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                     }
 
                     Label(
@@ -193,11 +207,28 @@ public struct YoannTranslateLiveView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(live.isActive ? .red : .cyan)
-                    .disabled(!live.isActive && sourceLanguage == targetLanguage)
+                    .disabled(
+                        !live.isActive
+                        && TranslateLiveLanguages.engineCode(for: sourceLanguage)
+                        == TranslateLiveLanguages.engineCode(for: targetLanguage)
+                    )
+
+                    if !live.provisionalSource.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Texte provisoire (peut être corrigé)", systemImage: "text.cursor")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text(live.provisionalSource)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
 
                     if !live.lastSource.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Texte capté ou converti par Whisper")
+                            Text("Passage confirmé · Whisper")
                                 .font(.caption).foregroundColor(.secondary)
                             Text(live.lastSource)
                         }
