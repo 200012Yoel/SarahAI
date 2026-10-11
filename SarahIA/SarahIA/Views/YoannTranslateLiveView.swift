@@ -1,7 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// External-computer/TV audio is picked up by the phone microphone.
+/// Landscape-only, face-to-face interpreter screen.
+/// The translated language ALWAYS occupies the upper half.
+/// The words heard by the microphone ALWAYS occupy the lower half.
 @available(iOS 16.2, *)
 public struct YoannTranslateLiveView: View {
     private enum PickerMode: String, Identifiable {
@@ -15,14 +17,15 @@ public struct YoannTranslateLiveView: View {
     @State private var sourceLanguage: String
     @State private var targetLanguage: String
     @State private var pickerMode: PickerMode?
+    @State private var showsDetails = false
+
+    private let darkNavy = Color(red: 0.025, green: 0.048, blue: 0.12)
+    private let matteBlue = Color(red: 0.105, green: 0.23, blue: 0.43)
 
     public init(initialSource: String = "he", initialTarget: String = "fr") {
         _sourceLanguage = State(initialValue: initialSource)
         _targetLanguage = State(initialValue: initialTarget)
     }
-
-    private let deepNavy = Color(red: 0.025, green: 0.048, blue: 0.12)
-    private let matteBlue = Color(red: 0.105, green: 0.23, blue: 0.43)
 
     private var canSpeakTarget: Bool {
         TranslateLiveLanguages.spokenOutputCodes.contains(
@@ -35,275 +38,296 @@ public struct YoannTranslateLiveView: View {
     }
 
     public var body: some View {
-        NavigationView {
-            ZStack {
-                Color(red: 0.008, green: 0.021, blue: 0.065)
-                    .ignoresSafeArea()
+        GeometryReader { geometry in
+            // Keep both regions precisely the same height in landscape.
+            // No chat header, sidebar or scrollable dashboard takes up a third region.
+            VStack(spacing: 0) {
+                translatedHalf(paneHeight: geometry.size.height / 2)
+                    .frame(height: geometry.size.height / 2)
+                heardHalf(paneHeight: geometry.size.height / 2)
+                    .frame(height: geometry.size.height / 2)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .background(darkNavy.ignoresSafeArea())
+        .ignoresSafeArea(.keyboard)
+        .preferredColorScheme(.dark)
+        .sheet(item: $pickerMode) { mode in
+            TranslateLiveLanguagePicker(
+                title: mode == .source ? "Langue entendue" : "Langue de traduction",
+                options: mode == .source
+                    ? TranslateLiveLanguages.sourceOptions
+                    : TranslateLiveLanguages.available,
+                selected: mode == .source ? $sourceLanguage : $targetLanguage,
+                isTarget: mode == .target
+            )
+        }
+        .sheet(isPresented: $showsDetails) {
+            configurationSheet
+        }
+        .onAppear {
+            setLandscapeEnabled(true)
+            live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
+        }
+        .onDisappear {
+            live.stop()
+            setLandscapeEnabled(false)
+        }
+        .onChange(of: sourceLanguage) { _ in restartIfActive() }
+        .onChange(of: targetLanguage) { _ in restartIfActive() }
+    }
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(alignment: .center, spacing: 12) {
-                            Image(systemName: "waveform.path")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundColor(.cyan)
-                                .frame(width: 48, height: 48)
-                                .background(Circle().fill(Color.cyan.opacity(0.12)))
+    // MARK: - Upper 50%: requested translation
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Traduction en direct")
-                                    .font(.title2.weight(.bold))
-                                    .foregroundColor(.white)
-                                Text("Yoann écoute et restitue chaque passage traduit.")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.68))
-                            }
-                        }
-                        .padding(.top, 10)
+    private func translatedHalf(paneHeight: CGFloat) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                languageButton(
+                    caption: "TRADUCTION EN HAUT",
+                    code: targetLanguage,
+                    icon: "text.bubble.fill"
+                ) { pickerMode = .target }
 
-                        HStack(spacing: 12) {
-                            selector("Langue entendue", value: sourceLanguage) {
-                                pickerMode = .source
-                            }
-                            Image(systemName: "arrow.right")
-                                .foregroundColor(.cyan)
-                            selector("Traduction", value: targetLanguage) {
-                                pickerMode = .target
-                            }
-                        }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.white.opacity(0.075))
+                Spacer(minLength: 4)
+
+                if !canSpeakTarget {
+                    Image(systemName: "speaker.slash.fill")
+                        .foregroundColor(.white.opacity(0.75))
+                        .accessibilityLabel("Traduction écrite uniquement")
+                } else if live.isSpeakingTranslation {
+                    Image(systemName: "speaker.wave.2.fill")
+                        .foregroundColor(.cyan)
+                        .accessibilityLabel("Lecture de la traduction")
+                }
+
+                Button {
+                    if live.isActive {
+                        live.stop()
+                    } else {
+                        live.start(
+                            from: sourceLanguage, to: targetLanguage,
+                            serverURL: translationServerURL
                         )
-
-                        // Original above, translation below. Direction follows
-                        // the chosen language, never an assumed French layout.
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label(TranslateLiveLanguages.label(for: sourceLanguage),
-                                      systemImage: "mic.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.cyan)
-                                Spacer()
-                                Text(live.isListening ? "● Écoute active" : "En attente du micro")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundColor(live.isListening ? .green : .white.opacity(0.64))
-                            }
-                            Text(live.lastSource.isEmpty
-                                ? "Les paroles originales apparaîtront ici…"
-                                : live.lastSource)
-                                .font(.title3.weight(.semibold))
-                                .foregroundColor(live.lastSource.isEmpty ? .white.opacity(0.55) : .white)
-                                .frame(maxWidth: .infinity, minHeight: 68,
-                                       alignment: isRTL(sourceLanguage) ? .trailing : .leading)
-                                .multilineTextAlignment(isRTL(sourceLanguage) ? .trailing : .leading)
-                                .environment(\.layoutDirection,
-                                             isRTL(sourceLanguage) ? .rightToLeft : .leftToRight)
-                                .accessibilityLabel("Paroles originales")
-
-                            if !live.provisionalSource.isEmpty {
-                                Text("En cours : " + live.provisionalSource)
-                                    .font(.footnote)
-                                    .foregroundColor(.white.opacity(0.64))
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .accessibilityLabel("Transcription provisoire")
-                            }
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 23)
-                                .fill(deepNavy)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 23)
-                                        .stroke(Color.cyan.opacity(0.18), lineWidth: 1)
-                                )
-                        )
-
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label(TranslateLiveLanguages.label(for: targetLanguage),
-                                      systemImage: "text.bubble.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Label(
-                                    canSpeakTarget
-                                        ? (live.isSpeakingTranslation ? "Yoann parle" : "Voix française ou sélectionnée")
-                                        : "Texte uniquement",
-                                    systemImage: canSpeakTarget
-                                        ? "speaker.wave.2.fill" : "speaker.slash.fill"
-                                )
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.85))
-                            }
-
-                            Text(live.lastTranslation.isEmpty
-                                ? "La traduction apparaîtra ici, puis sera lue à voix haute si une voix est disponible."
-                                : live.lastTranslation)
-                                .font(.title2.weight(.semibold))
-                                .foregroundColor(live.lastTranslation.isEmpty ? .white.opacity(0.70) : .white)
-                                .frame(maxWidth: .infinity, minHeight: 82,
-                                       alignment: isRTL(targetLanguage) ? .trailing : .leading)
-                                .multilineTextAlignment(isRTL(targetLanguage) ? .trailing : .leading)
-                                .environment(\.layoutDirection,
-                                             isRTL(targetLanguage) ? .rightToLeft : .leftToRight)
-                                .accessibilityLabel("Traduction")
-                                .accessibilityAddTraits(.updatesFrequently)
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 23)
-                                .fill(matteBlue)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 23)
-                                        .stroke(Color.white.opacity(0.20), lineWidth: 1)
-                                )
-                        )
-
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(live.isListening ? Color.green : Color.orange)
-                                .frame(width: 10, height: 10)
-                            Text(live.status)
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.84))
-                            Spacer(minLength: 0)
-                        }
-                        .accessibilityElement(children: .combine)
-                        if live.waitingTranslations > 0 {
-                            Text("Passages en attente : \(live.waitingTranslations)")
-                                .font(.footnote)
-                                .foregroundColor(.orange)
-                        }
-                        if let error = live.errorMessage {
-                            Label(error, systemImage: "exclamationmark.triangle")
-                                .foregroundColor(.orange)
-                                .font(.footnote)
-                        }
-
-                        Button {
-                            if live.isActive {
-                                live.stop()
-                            } else {
-                                live.start(
-                                    from: sourceLanguage,
-                                    to: targetLanguage,
-                                    serverURL: translationServerURL
-                                )
-                            }
-                        } label: {
-                            Label(live.isActive ? "Arrêter l'interprétation" : "Commencer l'interprétation",
-                                  systemImage: live.isActive ? "stop.fill" : "mic.fill")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(live.isActive ? Color(red: 0.62, green: 0.15, blue: 0.23) : .blue)
-                        .disabled(
-                            !live.isActive && TranslateLiveLanguages.engineCode(for: sourceLanguage)
-                                == TranslateLiveLanguages.engineCode(for: targetLanguage)
-                        )
-
-                        if !canSpeakTarget {
-                            Label("La traduction en \(TranslateLiveLanguages.label(for: targetLanguage)) s'affiche, mais une voix neuronale compatible n'est pas installée.",
-                                  systemImage: "text.bubble")
-                                .font(.footnote)
-                                .foregroundColor(.orange)
-                        }
-                        if !live.headphoneConnected {
-                            Label("Sans écouteurs, l'iPhone peut écouter et parler, mais sa propre voix peut être reprise par le micro malgré l'annulation d'écho.",
-                                  systemImage: "speaker.wave.2")
-                                .font(.footnote)
-                                .foregroundColor(.white.opacity(0.70))
-                        }
-
-                        DisclosureGroup("Langues, serveur et limites") {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Tu peux sélectionner toutes les langues reconnues dans le catalogue. Une langue détectée n'est pas forcément traduisible : le sens dépend du moteur installé.")
-                                Text("Pour l'hébreu, le français et d'autres traductions vers une langue différente de l'anglais, un moteur de traduction réellement disponible est nécessaire pour les phrases longues.")
-                                Text("L'écoute est sans minuterie interne, mais une session n'est ni instantanée ni garantie en arrière-plan. Teste la latence et le risque d'écho sur un vrai iPhone.")
-                                if TranslateLiveLanguages.isEnglish(sourceLanguage) ||
-                                    TranslateLiveLanguages.isEnglish(targetLanguage) {
-                                    Text("Les choix anglais britannique et américain sont disponibles, mais la voix ne garantit pas encore deux accents distincts.")
-                                }
-                                TextField("Serveur personnel HTTPS ou local (facultatif)",
-                                          text: $translationServerURL)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled(true)
-                                    .keyboardType(.URL)
-                                    .textFieldStyle(.roundedBorder)
-                                    .foregroundColor(.white)
-                                if !translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    && TranslateLiveTranslationBackend.validatedURL(translationServerURL) == nil {
-                                    Text("Adresse invalide : HTTPS ou HTTP privé/local uniquement.")
-                                        .foregroundColor(.orange)
-                                }
-                                Text("Seul le texte reconnu est envoyé au serveur choisi. Le serveur doit disposer des modèles correspondant à chaque paire.")
-                                if live.isActive {
-                                    Text("Après modification du serveur, redémarre l'interprétation.")
-                                }
-                            }
-                            .font(.footnote)
-                            .foregroundColor(.white.opacity(0.74))
-                            .padding(.top, 10)
-                        }
-                        .tint(.cyan)
-
-                        if !live.history.isEmpty {
-                            Text("Derniers passages")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            ForEach(live.history.prefix(12)) { phrase in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(phrase.source)
-                                        .foregroundColor(.white.opacity(0.70))
-                                    Text(phrase.translation)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.07))
-                                )
-                            }
-                        }
                     }
-                    .padding(16)
+                } label: {
+                    Image(systemName: live.isActive ? "stop.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 29))
+                        .foregroundColor(.white)
+                }
+                .disabled(!live.isActive &&
+                    TranslateLiveLanguages.engineCode(for: sourceLanguage)
+                    == TranslateLiveLanguages.engineCode(for: targetLanguage))
+                .accessibilityLabel(live.isActive ? "Arrêter la traduction" : "Démarrer la traduction")
+
+                Button {
+                    showsDetails = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 23))
+                        .foregroundColor(.white)
+                }
+                .accessibilityLabel("Réglages de la traduction")
+
+                Button {
+                    live.stop()
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 27))
+                        .foregroundColor(.white)
+                }
+                .accessibilityLabel("Fermer Translate Live")
+            }
+
+            ScrollView {
+                Text(live.lastTranslation.isEmpty
+                    ? "La traduction en \(TranslateLiveLanguages.label(for: targetLanguage)) s'affichera ici."
+                    : live.lastTranslation)
+                    .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
+                    .foregroundColor(live.lastTranslation.isEmpty
+                        ? .white.opacity(0.62) : .white)
+                    .multilineTextAlignment(isRTL(targetLanguage) ? .trailing : .center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .environment(\.layoutDirection,
+                        isRTL(targetLanguage) ? .rightToLeft : .leftToRight)
+                    .accessibilityLabel("Traduction : " + live.lastTranslation)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 6) {
+                if let error = live.errorMessage {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(error)
+                        .foregroundColor(.orange)
+                } else {
+                    Circle()
+                        .fill(live.isActive ? Color.green : Color.orange)
+                        .frame(width: 7, height: 7)
+                    Text(live.status)
+                        .foregroundColor(.white.opacity(0.77))
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .lineLimit(2)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(matteBlue)
+        .accessibilityIdentifier("translateLiveTranslatedTopHalf")
+    }
+
+    // MARK: - Lower 50%: source language heard by the iPhone
+
+    private func heardHalf(paneHeight: CGFloat) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                languageButton(
+                    caption: "PAROLES ENTENDUES EN BAS",
+                    code: sourceLanguage,
+                    icon: "mic.fill"
+                ) { pickerMode = .source }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "waveform")
+                    .foregroundColor(live.isListening ? .green : .white.opacity(0.50))
+                    .accessibilityLabel(live.isListening
+                        ? "Microphone actif" : "Microphone inactif")
+            }
+
+            ScrollView {
+                VStack(spacing: 8) {
+                    Text(live.lastSource.isEmpty
+                        ? "Les paroles en \(TranslateLiveLanguages.label(for: sourceLanguage)) s'afficheront ici."
+                        : live.lastSource)
+                        .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
+                        .foregroundColor(live.lastSource.isEmpty
+                            ? .white.opacity(0.58) : .white)
+                        .multilineTextAlignment(isRTL(sourceLanguage) ? .trailing : .center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .environment(\.layoutDirection,
+                            isRTL(sourceLanguage) ? .rightToLeft : .leftToRight)
+                        .accessibilityLabel("Paroles entendues : " + live.lastSource)
+                        .accessibilityAddTraits(.updatesFrequently)
+
+                    if !live.provisionalSource.isEmpty {
+                        Text(live.provisionalSource)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.65))
+                            .multilineTextAlignment(isRTL(sourceLanguage) ? .trailing : .center)
+                            .environment(\.layoutDirection,
+                                isRTL(sourceLanguage) ? .rightToLeft : .leftToRight)
+                            .accessibilityLabel("Transcription en cours")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack {
+                Text(live.isListening ? "● Micro actif" : "Micro en attente")
+                Spacer()
+                Text("Origine · \(TranslateLiveLanguages.label(for: sourceLanguage))")
+            }
+            .font(.system(size: 11))
+            .foregroundColor(.white.opacity(0.70))
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(darkNavy)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.30))
+                .frame(height: 1)
+        }
+        .accessibilityIdentifier("translateLiveOriginalBottomHalf")
+    }
+
+    private func languageButton(
+        caption: String, code: String, icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(caption)
+                        .font(.system(size: 9, weight: .semibold))
+                        .tracking(0.6)
+                        .foregroundColor(.white.opacity(0.69))
+                    HStack(spacing: 5) {
+                        Text(TranslateLiveLanguages.label(for: code))
+                            .font(.system(size: 15, weight: .semibold))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10))
+                    }
                 }
             }
-            .navigationTitle("Translate Live")
+            .foregroundColor(.white)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(caption + ", " + TranslateLiveLanguages.label(for: code))
+        .accessibilityHint("Changer de langue")
+    }
+
+    // MARK: - Optional settings remain outside the two equal translation panes
+
+    private var configurationSheet: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("La moitié supérieure affiche toujours la traduction demandée ; la moitié inférieure affiche la langue parlée.")
+                    Text("La reconnaissance d'une langue ne garantit pas qu'un moteur de traduction soit installé pour cette paire.")
+                    TextField("Serveur de traduction local ou HTTPS", text: $translationServerURL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .keyboardType(.URL)
+                        .textFieldStyle(.roundedBorder)
+                    if !translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && TranslateLiveTranslationBackend.validatedURL(translationServerURL) == nil {
+                        Text("Adresse invalide : HTTPS ou HTTP privé/local uniquement.")
+                            .foregroundColor(.orange)
+                    }
+                    Text("Si tu changes le serveur, arrête puis redémarre la traduction. Seul le texte reconnu est transmis au serveur que tu choisis.")
+                    if !canSpeakTarget {
+                        Text("Aucune voix neuronale intégrée pour \(TranslateLiveLanguages.label(for: targetLanguage)) : affichage du texte seulement.")
+                            .foregroundColor(.orange)
+                    }
+                    if !live.headphoneConnected {
+                        Text("Sans écouteurs, la voix émise par le haut-parleur peut être reprise par le microphone.")
+                    }
+                    if !live.history.isEmpty {
+                        Text("Dernières traductions")
+                            .font(.headline)
+                        ForEach(live.history.prefix(12)) { phrase in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(phrase.translation).fontWeight(.semibold)
+                                Text(phrase.source).foregroundColor(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                        }
+                    }
+                }
+                .font(.footnote)
+                .padding(20)
+            }
+            .navigationTitle("Réglages Translate Live")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Fermer") {
-                        live.stop()
-                        dismiss()
-                    }
+                    Button("Terminé") { showsDetails = false }
                 }
-            }
-            .sheet(item: $pickerMode) { mode in
-                TranslateLiveLanguagePicker(
-                    title: mode == .source ? "Langue entendue" : "Langue de traduction",
-                    options: mode == .source
-                        ? TranslateLiveLanguages.sourceOptions
-                        : TranslateLiveLanguages.available,
-                    selected: mode == .source ? $sourceLanguage : $targetLanguage,
-                    isTarget: mode == .target
-                )
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
-        }
-        .onDisappear { live.stop() }
-        .onChange(of: sourceLanguage) { _ in restartIfActive() }
-        .onChange(of: targetLanguage) { _ in restartIfActive() }
     }
 
     private func restartIfActive() {
@@ -311,20 +335,21 @@ public struct YoannTranslateLiveView: View {
         live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
     }
 
-    private func selector(_ title: String, value: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.caption).foregroundColor(.secondary)
-                    Text(TranslateLiveLanguages.label(for: value))
-                        .font(.headline).foregroundColor(.primary)
-                }
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .foregroundColor(.cyan)
+    /// Request rotation for this screen only. Normal Sarah and Yoann stay portrait.
+    private func setLandscapeEnabled(_ enabled: Bool) {
+        AppDelegate.translateLiveLandscapeOnly = enabled
+        let mask: UIInterfaceOrientationMask = enabled ? .landscape : .portrait
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            guard scene.activationState == .foregroundActive else { continue }
+            for window in scene.windows {
+                window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+                window.rootViewController?.presentedViewController?
+                    .setNeedsUpdateOfSupportedInterfaceOrientations()
+            }
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+                print("Translate Live orientation: \(error.localizedDescription)")
             }
         }
-        .buttonStyle(.plain)
     }
 }
 
