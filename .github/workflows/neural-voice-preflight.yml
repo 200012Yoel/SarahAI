@@ -60,3 +60,13 @@ jobs:
             SarahIA/SarahIA/ViewModels/ChatViewModel.swift; do
             swiftc -frontend -parse "$swift"
           done
+
+      - name: Run offline Translate Live language tests
+        run: |
+          set -euo pipefail
+          swiftc -O \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
+            tests/TranslateLiveLanguageTests.swift \
+            -o /tmp/sarah_translate_live_language_tests
+          /tmp/sarah_translate_live_language_tests
