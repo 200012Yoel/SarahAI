@@ -458,11 +458,11 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 3. Écosystème des 6 Agents & Voix Siri Dédiées
+                    // 3. Écosystème des 6 Agents & Voix neuronales locales
                     Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
                         agentRow(
                             agent: .sarah,
-                            subtitle: "Voix système principale (Rose néon)",
+                            subtitle: "Supertonic 3 · F1 · locale",
                             testPhrase: "Bonjour ! Je suis Sarah, votre agent pilote."
                         )
                         
@@ -486,13 +486,13 @@ public struct SettingsView: View {
                         
                         agentRow(
                             agent: .yohan,
-                            subtitle: "Voix masculine bilingue FR ⇄ HE (Siri Canadien)",
+                            subtitle: "Supertonic 3 · M3 · français (hébreu vocal non installé)",
                             testPhrase: "Shalom ! C'est Yoann à votre service pour toutes vos traductions en hébreu."
                         )
                         
                         agentRow(
                             agent: .ethel,
-                            subtitle: "Voix féminine dédiée (Thème Bleu & Rouge)",
+                            subtitle: "Supertonic 3 · F2 · locale",
                             testPhrase: "Bonjour ! Je suis Ethel. Mon espace est prêt et attend vos prochaines instructions !"
                         )
                     }
@@ -952,7 +952,7 @@ private struct VoiceAndSpeechSettingsView: View {
                         .foregroundColor(viewModel.activeAgent.themeColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(settingsDisplayName(for: viewModel.activeAgent))
-                        Text("\(settingsDisplayName(for: viewModel.activeAgent)) · Voix système Apple")
+                        Text("\(settingsDisplayName(for: viewModel.activeAgent)) · Voix locale Supertonic 3")
                             .font(.caption2)
                             .foregroundColor(.secondary.opacity(0.72))
                     }
@@ -968,13 +968,9 @@ private struct VoiceAndSpeechSettingsView: View {
                     step: 0.01
                 )
 
-                settingSlider(
-                    title: "Hauteur de la voix",
-                    value: String(format: "%.2f", speechPitch),
-                    binding: $speechPitch,
-                    range: 0.80...1.20,
-                    step: 0.01
-                )
+                Text("Le timbre est déterminé par la voix neuronale de l’agent, et non par un réglage artificiel de hauteur.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
 
             Section("Microphone") {
@@ -1775,7 +1771,7 @@ private struct AboutSettingsView: View {
             }
 
             Section("Voix") {
-                Text("Sarah IA utilise les voix Apple disponibles sur cet iPhone. Pour bénéficier de la voix choisie, ouvrez Réglages iPhone > Siri > Voix, choisissez la variation voulue, puis laissez le téléchargement se terminer avant de revenir dans Sarah IA.")
+                Text("Sarah IA utilise Supertonic 3 en local, sans voix Siri. Six timbres sont attribués aux agents. Le modèle est embarqué dans l’IPA. La synthèse en hébreu n’est pas encore fournie. Licences : Supertonic 3 OpenRAIL-M, sherpa-onnx Apache-2.0.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
