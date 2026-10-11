@@ -34,6 +34,11 @@ jobs:
           grep -q 'YoannTranslateLiveView(' SarahIA/SarahIA/ContentView.swift
           grep -q 'YoannTranslateLiveService.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
           grep -q 'YoannTranslateLiveView.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'TranslateLiveLanguages.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'TranslateLiveTranslationBackend.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'translateSpeechToEnglish' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'spokenOutputCodes' SarahIA/SarahIA/Services/TranslateLiveLanguages.swift
+          grep -q 'validatedURL' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
           ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
           test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
           echo 'Static voice migration checks passed'
@@ -43,6 +48,8 @@ jobs:
           for swift in \
             SarahIA/SarahIA/Services/NeuralVoiceService.swift \
             SarahIA/SarahIA/Services/YoannTranslateLiveService.swift \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
             SarahIA/SarahIA/Views/YoannTranslateLiveView.swift \
             SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift \
             SarahIA/SarahIA/Services/SpeechManager.swift \
