@@ -25,11 +25,18 @@ public final class WhisperService: ObservableObject {
 
     /// Translate Live reads the microphone continuously while Whisper and
     /// neural playback work asynchronously. Separate from normal chat callbacks.
-    public var onLiveInterpretationChunk: ((String) -> Void)?
+    public var onLiveInterpretationChunk: ((String, Bool) -> Void)?
+    /// Bounded recent verified transcript for Whisper's contextual decoding.
+    /// Assign on main thread after a live caption becomes stable.
+    public var liveRecognitionContext = ""
     public var onLiveInterpretationError: ((String) -> Void)?
     public var onLiveMicrophoneChanged: ((Bool) -> Void)?
     @Published public private(set) var isLiveInterpreting = false
-    private var livePendingChunks: [[Float]] = []
+    private struct LiveChunk {
+        let audio: [Float]
+        let endsAtPause: Bool
+    }
+    private var livePendingChunks: [LiveChunk] = []
     private var liveInferenceBusy = false
     private var liveStreamToken = UUID()
     private var liveStartRequested = false
@@ -102,6 +109,7 @@ public final class WhisperService: ObservableObject {
         liveStreamToken = UUID()
         livePendingChunks.removeAll()
         liveInferenceBusy = false
+        liveRecognitionContext = ""
         isLiveInterpreting = true
         liveStartRequested = true
         AudioSessionManager.shared.beginContinuousVoiceSession()
@@ -112,6 +120,7 @@ public final class WhisperService: ObservableObject {
         liveStreamToken = UUID()
         livePendingChunks.removeAll()
         liveInferenceBusy = false
+        liveRecognitionContext = ""
         liveStartRequested = false
         isLiveInterpreting = false
         stopRecordingWithoutTranscription()
@@ -402,7 +411,9 @@ public final class WhisperService: ObservableObject {
                     self.hasDetectedSpeech = false
                     self.consecutiveVoiceChunks = 0
                     DispatchQueue.main.async { [weak self] in
-                        self?.enqueueLiveChunk(liveChunk, generation: generation)
+                        self?.enqueueLiveChunk(
+                            liveChunk, endsAtPause: briefPause, generation: generation
+                        )
                     }
                 } else if !self.hasDetectedSpeech && duration > 0.8 {
                     // No unbounded memory growth during hours of silence.
@@ -429,13 +440,15 @@ public final class WhisperService: ObservableObject {
 
     /// Bounded inference queue: continuous recording never accumulates hours
     /// of audio when the iPhone CPU cannot keep up with real-time speech.
-    private func enqueueLiveChunk(_ audio: [Float], generation: UUID) {
+    private func enqueueLiveChunk(
+        _ audio: [Float], endsAtPause: Bool, generation: UUID
+    ) {
         guard isLiveInterpreting, self.generation == generation else { return }
         if livePendingChunks.count >= 4 {
             livePendingChunks.removeFirst()
             onLiveInterpretationError?("Le modèle est plus lent que la voix. Un segment ancien a été ignoré.")
         }
-        livePendingChunks.append(audio)
+        livePendingChunks.append(LiveChunk(audio: audio, endsAtPause: endsAtPause))
         drainLiveChunks(generation: generation)
     }
 
@@ -444,7 +457,10 @@ public final class WhisperService: ObservableObject {
               !liveInferenceBusy, !livePendingChunks.isEmpty else { return }
         liveInferenceBusy = true
         let next = livePendingChunks.removeFirst()
-        transcribe(next, final: true, deliverToLive: true) { [weak self] _ in
+        transcribe(
+            next.audio, final: true, deliverToLive: true,
+            endsAtPause: next.endsAtPause
+        ) { [weak self] _ in
             guard let self, self.isLiveInterpreting, self.generation == generation else { return }
             self.liveInferenceBusy = false
             self.drainLiveChunks(generation: generation)
@@ -530,6 +546,7 @@ public final class WhisperService: ObservableObject {
     private func transcribe(
         _ audio: [Float], final: Bool,
         deliverToLive: Bool = false,
+        endsAtPause: Bool = true,
         completion: ((String?) -> Void)?
     ) {
         guard !audio.isEmpty else {
@@ -543,6 +560,7 @@ public final class WhisperService: ObservableObject {
         isTranscribing = true
         let useEnglishTranslation = translateSpeechToEnglish
         let inferenceLanguage = preferredLanguageCode ?? "auto"
+        let recentPrompt = deliverToLive ? String(liveRecognitionContext.suffix(220)) : ""
         inferenceQueue.async { [weak self] in
             guard let self, let context = self.context else {
                 DispatchQueue.main.async {
@@ -566,8 +584,19 @@ public final class WhisperService: ObservableObject {
 
             let result: Int32 = inferenceLanguage.withCString { language in
                 params.language = language
-                return audio.withUnsafeBufferPointer { pointer in
-                    whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+                // Whisper's real C API supports initial_prompt; its UTF-8
+                // pointer must remain alive for the WHOLE whisper_full call.
+                // Keep no_context enabled so prior unrelated chats do not leak.
+                if recentPrompt.isEmpty {
+                    return audio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+                    }
+                }
+                return recentPrompt.withCString { prompt in
+                    params.initial_prompt = prompt
+                    return audio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+                    }
                 }
             }
 
@@ -605,7 +634,9 @@ public final class WhisperService: ObservableObject {
                 }
                 self.currentText = text
                 if deliverToLive {
-                    if !text.isEmpty { self.onLiveInterpretationChunk?(text) }
+                    if !text.isEmpty {
+                        self.onLiveInterpretationChunk?(text, endsAtPause)
+                    }
                 } else if final {
                     // An empty transcription is still the end of an utterance.
                     self.onFinalTranscription?(text)
