@@ -274,13 +274,15 @@ jobs:
         if: github.ref == 'refs/heads/feature/neural-voices-whisper-only-20261011'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sarah-ia-translate-live-20261011-test
-          name: 'Sarah IA · Translate Live · iPhone test'
+          tag_name: sarah-ia-translate-live-${{ github.sha }}
+          name: 'Sarah IA · Translate Live · test ${{ github.sha }}'
           body: |
-            Version de test issue de la branche Translate Live.
-            Transcription Whisper locale, synthese Supertonic 3 et mode Yoann micro iPhone.
-            Traduction vers anglais locale par Whisper ; autres langues via expressions
-            exactes locales ou LibreTranslate personnel.
+            Build unique lie a ce commit ${{ github.sha }}. Les builds plus anciens
+            ne peuvent pas ecraser la nouvelle IPA.
+            Translate Live : micro iPhone continu, segments de 0,5 a 2,1 secondes,
+            voix Supertonic 3, sortie ecouteurs, transcription Whisper locale.
+            L'hebreu vers le francais au-dela de quelques expressions necessite
+            un modele neuronal (voir server/translate-live).
             IPA auto-signee pour resignature Sideloadly/SideStore, pas App Store.
             Usage commercial et fonctionnement sur iPhone pas encore certifies.
           files: dist/SarahIA.ipa
