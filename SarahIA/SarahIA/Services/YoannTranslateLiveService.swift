@@ -265,7 +265,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         updateStatus()
         // IMPORTANT: DO NOT STOP THE MICROPHONE. Headphones separate playback
         // acoustically; AVAudioSession.voiceChat supplies system echo control.
-        neural.speak(text: part.translation, for: .yohan, language: targetLanguage)
+        neural.speak(
+            text: part.translation, for: .yohan,
+            language: targetLanguage, qualitySteps: 5
+        )
     }
 
     private func updateAudioRoute() {
