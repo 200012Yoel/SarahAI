@@ -25,9 +25,9 @@ struct TranslateLiveContextTests {
         let c = buffer.receive("I bought a book", paused: true)
         expect(c.committed == ["I bought a book"], "commit only complete hypothesis")
 
-        let repeat = buffer.receive("yes", paused: true)
+        let firstRepeat = buffer.receive("yes", paused: true)
         let repeated = buffer.receive("yes", paused: true)
-        expect(repeat.committed == ["yes"] && repeated.committed == ["yes"],
+        expect(firstRepeat.committed == ["yes"] && repeated.committed == ["yes"],
                "legitimate one-word repetition isn't lost")
 
         buffer.reset()
