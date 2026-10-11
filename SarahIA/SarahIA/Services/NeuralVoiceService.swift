@@ -45,6 +45,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         player?.stop()
         player = nil
         isSpeaking = false
+        NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
         AudioSessionManager.shared.deactivateSession()
     }
 
@@ -98,6 +99,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                         }
                         self.player = playback
                         self.isSpeaking = true
+                        NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
                         self.onStarted?()
                     } catch {
                         self.onFailure?(error.localizedDescription)
@@ -154,6 +156,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
     private func finishPlayback() {
         isSpeaking = false
         player = nil
+        NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
         AudioSessionManager.shared.deactivateSession()
         onFinished?()
     }
