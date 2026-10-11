@@ -23,6 +23,11 @@ public final class WhisperService: ObservableObject {
     public var onFinalTranscription: ((String) -> Void)?
     public var onVoiceActivity: (() -> Void)?
 
+    /// Dedicated Translate Live input settings. Normal chat mode leaves these
+    /// at nil / false. Read a snapshot before dispatching on inferenceQueue.
+    public var translateSpeechToEnglish = false
+    public var preferredLanguageCode: String? = nil
+
     private let audioEngine = AVAudioEngine()
     private let audioQueue = DispatchQueue(label: "sarah.whisper.audio", qos: .userInitiated)
     private let inferenceQueue = DispatchQueue(label: "sarah.whisper.inference", qos: .userInitiated)
@@ -414,6 +419,8 @@ public final class WhisperService: ObservableObject {
         }
 
         isTranscribing = true
+        let useEnglishTranslation = translateSpeechToEnglish
+        let inferenceLanguage = preferredLanguageCode ?? "auto"
         inferenceQueue.async { [weak self] in
             guard let self, let context = self.context else {
                 DispatchQueue.main.async {
@@ -429,13 +436,13 @@ public final class WhisperService: ObservableObject {
             params.print_progress = false
             params.print_timestamps = false
             params.print_special = false
-            params.translate = false
+            params.translate = useEnglishTranslation
             params.no_context = true
             params.single_segment = false
             params.n_threads = threadCount
             params.temperature_inc = -1
 
-            let result: Int32 = "auto".withCString { language in
+            let result: Int32 = inferenceLanguage.withCString { language in
                 params.language = language
                 return audio.withUnsafeBufferPointer { pointer in
                     whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
