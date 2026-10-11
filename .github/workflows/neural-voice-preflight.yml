@@ -28,7 +28,7 @@ jobs:
           grep -q 'OpenRAIL-M' docs/VOICE_LICENSES.md
           grep -q '1.13.8' SarahIA/SarahIA.xcodeproj/project.pbxproj
           grep -q 'func commandPair(' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
-          grep -q 'whisper.stopListening()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'whisper.stopLiveInterpretation()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'neural.onPlaybackFinished' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'startLiveInterpretation()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'YoannTranslateLiveView(' SarahIA/SarahIA/ContentView.swift
