@@ -40,6 +40,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var voicePlaybackError: String? = nil
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -512,8 +513,14 @@ public final class ChatViewModel: ObservableObject {
             self.sendMessage(cleaned)
         }
         
+        voiceManager.onSpeechError = { [weak self] message in
+            guard let self else { return }
+            self.voicePlaybackError = message
+        }
+
         voiceManager.onSpeechStarted = { [weak self] in
             guard let self = self else { return }
+            self.voicePlaybackError = nil
             self.isSpeaking = true
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             self.voiceStatus = .speaking
@@ -709,6 +716,7 @@ public final class ChatViewModel: ObservableObject {
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
+        voicePlaybackError = nil
 
         guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -745,6 +753,7 @@ public final class ChatViewModel: ObservableObject {
         isMicRunning = false
         micInputLevel = 0.0
         liveTranscriptionText = ""
+        voicePlaybackError = nil
         voiceStatus = .idle
     }
     
