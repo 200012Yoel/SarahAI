@@ -17,7 +17,7 @@ from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_REQUEST_BYTES = 5000
-MODEL_ID = os.getenv("SARAH_MT_MODEL", "Helsinki-NLP/opus-mt-he-fr")
+MODEL_ID = os.getenv("SARAH_MT_MODEL", "Helsinki-NLP/opus-tatoeba-he-fr")
 BIND = os.getenv("SARAH_MT_BIND", "0.0.0.0")
 PORT = int(os.getenv("SARAH_MT_PORT", "5000"))
 SOURCE = "he"
