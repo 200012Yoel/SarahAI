@@ -210,6 +210,14 @@ public struct VoiceOrbModalView: View {
             }
             .frame(minHeight: 76)
 
+            if let voiceError = viewModel.voicePlaybackError {
+                Label("Voix neuronale : \(voiceError)", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+            }
+
             if case .error = viewModel.voiceStatus {
                 HStack(spacing: 16) {
                     Button("Réessayer") { viewModel.retryVoiceMicrophone() }
