@@ -47,6 +47,7 @@ public final class WhisperSpeechRecognizer: NSObject {
     private let whisper = WhisperService.shared
     private var preserveActiveSpeech = false
     private var suppressNextExternalFinalCallback = false
+    private var permissionStartToken = UUID()
 
     #if canImport(Combine)
     private var cancellables = Set<AnyCancellable>()
@@ -184,8 +185,14 @@ public final class WhisperSpeechRecognizer: NSObject {
 
         let permission = AVAudioSession.sharedInstance().recordPermission
         if permission == .undetermined {
+            let token = UUID()
+            permissionStartToken = token
             requestAuthorization { [weak self] granted in
-                guard let self else { return }
+                guard let self, self.permissionStartToken == token else {
+                    // The screen was closed or user muted while iOS displayed
+                    // its microphone permission prompt. Never reopen silently.
+                    return
+                }
                 guard granted else {
                     self.state = .error("Autorisation microphone refusée")
                     return
@@ -217,6 +224,7 @@ public final class WhisperSpeechRecognizer: NSObject {
     }
 
     public func stopListening() {
+        permissionStartToken = UUID()
         suppressNextExternalFinalCallback = false
         whisper.stopRecordingWithoutTranscription()
         if isListening {
