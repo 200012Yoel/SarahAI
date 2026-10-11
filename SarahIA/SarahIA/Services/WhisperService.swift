@@ -136,8 +136,15 @@ public final class WhisperService: ObservableObject {
         guard isLiveInterpreting || !isTranscribing else { return }
 
         guard AVAudioSession.sharedInstance().recordPermission == .granted else {
+            let requestedGeneration = generation
+            let requestedLive = isLiveInterpreting
             requestAuthorization { [weak self] granted in
-                guard let self else { return }
+                guard let self, self.generation == requestedGeneration,
+                      self.isLiveInterpreting == requestedLive else {
+                    // User closed Translate Live or muted during the iOS prompt.
+                    // Never reopen the microphone after the explicit Stop.
+                    return
+                }
                 if granted {
                     self.startRecording(autoFinalizeOnSilence: autoFinalizeOnSilence)
                 } else {
@@ -567,6 +574,9 @@ public final class WhisperService: ObservableObject {
             guard result == 0 else {
                 DispatchQueue.main.async {
                     self.lastError = "Whisper n'a pas pu transcrire cet extrait."
+                    if deliverToLive {
+                        self.onLiveInterpretationError?(self.lastError ?? "Erreur Whisper")
+                    }
                     self.isFinalizing = false
                     self.isTranscribing = false
                     completion?(nil)
