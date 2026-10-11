@@ -19,15 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore website voice bridge in canonical build tree
+      - name: Verify native website voice bridge after neural migration
         run: |
           set -euo pipefail
-          python3 .github/scripts/restore_website_voice_bridge.py
           grep -q 'public func speakWebsiteGuide(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func speakWebsiteGuideSequence(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func cancelWebsiteGuideSpeech()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func speakSequence(' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
-          echo 'Website voice bridge restored'
+          grep -q 'NeuralVoiceService.shared' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
 
       - name: Verify Whisper barge-in and Qwen generation
         run: |
@@ -79,6 +78,7 @@ jobs:
           curl -L --fail --retry 3 \
             'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2' \
             -o "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          echo "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427  $RUNNER_TEMP/NeuralVoices/model.tar.bz2" | shasum -a 256 -c -
           tar -xjf "$RUNNER_TEMP/NeuralVoices/model.tar.bz2" -C "$RUNNER_TEMP/NeuralVoices"
           rm "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
           MODEL_ROOT=$(dirname "$(find "$RUNNER_TEMP/NeuralVoices" -name 'voice.bin' -type f -print -quit)")
