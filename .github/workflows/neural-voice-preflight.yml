@@ -56,6 +56,12 @@ jobs:
           grep -q 'func retryVoiceMicrophone' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'Bienvenue dans Sarah' SarahIA/SarahIA/Views/MessageList.swift
           grep -q 'case .starting:' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          # Regression: a minimized voice session keeps its bubble above the composer.
+          grep -q 'private var compactVoiceBubble:' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'sarah.voice.compactOrb' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'sarah.voice.compactStop' SarahIA/SarahIA/Views/ChatScreenView.swift
+          ! grep -q 'private var compactVoiceOrb:' SarahIA/SarahIA/ContentView.swift
+          ! sed -n '/private func closeVoiceSurface()/,/^    }/p' SarahIA/SarahIA/Views/VoiceOrbModalView.swift | grep -q 'stopVoiceConversation()'
           ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
           test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
           echo 'Static voice migration checks passed'
@@ -79,6 +85,8 @@ jobs:
             SarahIA/SarahIA/Services/WhisperService.swift \
             SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift \
             SarahIA/SarahIA/Views/VoiceOrbModalView.swift \
+            SarahIA/SarahIA/ContentView.swift \
+            SarahIA/SarahIA/Views/ChatScreenView.swift \
             SarahIA/SarahIA/Views/MessageList.swift; do
             swiftc -frontend -parse "$swift"
           done
