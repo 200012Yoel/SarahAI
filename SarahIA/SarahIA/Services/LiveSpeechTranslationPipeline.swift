@@ -30,10 +30,20 @@ public final class LiveSpeechTranslationPipeline: NSObject {
         lastRecognizedText = ""
         currentLocalSegmentId = UUID().uuidString
         let token = generation
+        AudioSessionManager.shared.beginContinuousVoiceSession()
         previousFinalCallback = recognizer.onFinalTranscription
         recognizer.onFinalTranscription = { [weak self] text in
             guard let self, self.isPipelineRunning, self.generation == token else { return }
             self.handleLocalTranscription(text: text, isFinal: true)
+            // Whisper ends each utterance after silence; rearm for the next one.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) { [weak self] in
+                guard let self, self.isPipelineRunning,
+                      self.generation == token else { return }
+                self.recognizer.startListening(
+                    autoFinalizeOnSilence: true,
+                    preserveActiveSpeech: true
+                )
+            }
         }
         // One capture engine for the call. No second AVAudioEngine microphone tap.
         recognizer.startListening(autoFinalizeOnSilence: true, preserveActiveSpeech: true)
@@ -52,6 +62,7 @@ public final class LiveSpeechTranslationPipeline: NSObject {
         recognizer.stopListening()
         recognizer.onFinalTranscription = previousFinalCallback
         previousFinalCallback = nil
+        AudioSessionManager.shared.endContinuousVoiceSession()
         AgentVoiceManager.shared.stop()
     }
 
