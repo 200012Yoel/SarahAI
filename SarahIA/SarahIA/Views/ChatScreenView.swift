@@ -264,17 +264,23 @@ public struct ChatScreenView: View {
         }
     }
 
+    private var compactVoiceIsSpeaking: Bool {
+        if case .speaking = viewModel.voiceStatus { return true }
+        return false
+    }
+
     private var compactVoiceBubble: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 7) {
             Button {
                 HapticService.shared.buttonTap()
                 viewModel.stopVoiceConversation()
             } label: {
                 Image(systemName: "stop.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.94))
                     .frame(width: 34, height: 34)
-                    .background(Circle().fill(Color.white.opacity(0.14)))
+                    .background(Circle().fill(Color.white.opacity(0.10)))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Arrêter complètement le mode vocal")
@@ -285,40 +291,32 @@ public struct ChatScreenView: View {
                 keyboard.dismiss()
                 viewModel.isShowingVoiceOrbModal = true
             } label: {
-                HStack(spacing: 9) {
+                HStack(spacing: 8) {
                     Text(compactVoiceStatus)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.96))
                         .lineLimit(1)
 
-                    ZStack {
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        Color.white.opacity(0.90),
-                                        viewModel.activeAgent.themeColor.opacity(0.92),
-                                        viewModel.activeAgent.themeColor
-                                    ],
-                                    center: .topLeading,
-                                    startRadius: 2,
-                                    endRadius: 48
-                                )
-                            )
-                            .frame(width: 48, height: 48)
-                            .shadow(color: viewModel.activeAgent.themeColor.opacity(0.35), radius: 9)
-
-                        Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "waveform")
-                            .font(.system(size: 19, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1) * 0.05)
+                    SarahReactiveVoiceOrb(
+                        diameter: 52,
+                        level: min(max(CGFloat(viewModel.micInputLevel), 0), 1),
+                        isSpeaking: compactVoiceIsSpeaking,
+                        isMuted: viewModel.isVoiceMicrophoneMuted
+                    )
+                    .frame(width: 52, height: 52)
                 }
-                .padding(.leading, 12)
-                .padding(.trailing, 4)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color(white: 0.15).opacity(0.96)))
-                .overlay(Capsule().stroke(Color.white.opacity(0.13), lineWidth: 1))
+                .padding(.leading, 10)
+                .padding(.trailing, 3)
+                .padding(.vertical, 1)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.045, green: 0.075, blue: 0.17).opacity(0.98))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color(red: 0.34, green: 0.62, blue: 1).opacity(0.30), lineWidth: 1)
+                )
+                .shadow(color: Color.blue.opacity(0.15), radius: 12, x: 0, y: 3)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Rouvrir le mode vocal, " + compactVoiceStatus)
