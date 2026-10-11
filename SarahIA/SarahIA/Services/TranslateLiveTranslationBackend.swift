@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Translation remains separate from Whisper ASR and neural TTS.
 /// Production does NOT silently use a third-party free public API.
