@@ -51,6 +51,9 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isShowingVoiceOrbModal: Bool = false
     @Published public var isShowingVAICodingStudio: Bool = false
     @Published public var isShowingWebsiteBuilder: Bool = false
+    @Published public var isShowingTranslateLive: Bool = false
+    @Published public var translateLiveSource: String = "he"
+    @Published public var translateLiveTarget: String = "fr"
     @Published public var websiteVoiceCommand: String = ""
     @Published public var websiteVoiceCommandSequence: Int = 0
     @Published public var vaiCurrentCode: String? = nil
@@ -585,6 +588,17 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
+    public func activateTranslateLive(from source: String = "he", to target: String = "fr") {
+        // Do not let Sarah and Yoann compete for the same Whisper microphone.
+        stopVoiceConversation()
+        activeAgent = .yohan
+        translateLiveSource = source
+        translateLiveTarget = target
+        isShowingVoiceOrbModal = false
+        isShowingTranslateLive = true
+        isDrawerOpen = false
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -689,6 +703,14 @@ public final class ChatViewModel: ObservableObject {
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+
+        // "Active Translate Live hébreu-français" opens Yoann's dedicated
+        // microphone interpreter instead of treating the command as chat text.
+        if let pair = YoannTranslateLiveService.commandPair(text) {
+            inputText = ""
+            activateTranslateLive(from: pair.from, to: pair.to)
+            return
+        }
         let generationID = UUID()
         messageGenerationID = generationID
 
