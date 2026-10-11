@@ -1,0 +1,46 @@
+name: Neural Voice Migration Preflight
+
+on:
+  push:
+    branches:
+      - feature/neural-voices-whisper-only-20261011
+  pull_request:
+    paths:
+      - 'SarahIA/**'
+      - 'docs/VOICE_LICENSES.md'
+      - '.github/workflows/neural-voice-preflight.yml'
+
+jobs:
+  static-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify modern on-device voice pipeline
+        run: |
+          set -euo pipefail
+          test -s docs/VOICE_LICENSES.md
+          grep -q 'import whisper' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'whisper_full(' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'import SherpaOnnx' SarahIA/SarahIA/Services/NeuralVoiceService.swift
+          grep -q 'SherpaOnnxOfflineTtsWrapper' SarahIA/SarahIA/Services/NeuralVoiceService.swift
+          grep -q 'Supertonic3' .github/workflows/ios-build.yml
+          grep -q 'OpenRAIL-M' docs/VOICE_LICENSES.md
+          grep -q '1.13.8' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
+          test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
+          echo 'Static voice migration checks passed'
+      - name: Swift syntax parsing
+        run: |
+          set -euo pipefail
+          for swift in \
+            SarahIA/SarahIA/Services/NeuralVoiceService.swift \
+            SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift \
+            SarahIA/SarahIA/Services/SpeechManager.swift \
+            SarahIA/SarahIA/Services/TTSService.swift \
+            SarahIA/SarahIA/Services/TTSManager.swift \
+            SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift \
+            SarahIA/SarahIA/Models/AgentType.swift \
+            SarahIA/SarahIA/ViewModels/ChatViewModel.swift; do
+            swiftc -frontend -parse "$swift"
+          done
