@@ -69,7 +69,16 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
             return
         }
 
-        let selectedLanguage = language == "en" ? "en" : "fr"
+
+        // Supertonic 3 can voice these 31 languages directly. Never force
+        // unsupported scripts into a French voice (false language claims).
+        guard TranslateLiveLanguages.spokenOutputCodes.contains(language) else {
+            let message = "Pas de voix Supertonic 3 disponible pour la langue \(language)."
+            onFailure?(message)
+            onPlaybackError?(message)
+            return
+        }
+        let selectedLanguage = language
         let sid = Profile.forAgent(agent).speakerID
         synthesisQueue.async { [weak self] in
             guard let self else { return }
