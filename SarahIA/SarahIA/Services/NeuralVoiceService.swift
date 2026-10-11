@@ -31,6 +31,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
     /// Does not replace the agent manager's ordinary playback callbacks.
     public var onPlaybackFinished: (() -> Void)?
     public var onFailure: ((String) -> Void)?
+    public var onPlaybackError: ((String) -> Void)?
 
     private let synthesisQueue = DispatchQueue(label: "sarah.local-neural-tts", qos: .userInitiated)
     private var model: SherpaOnnxOfflineTtsWrapper? // accessed on synthesisQueue only
@@ -64,6 +65,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         let containsHebrew = sanitized.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
         guard !containsHebrew else {
             onFailure?("Voix hébraïque hors ligne indisponible. Aucun moteur Apple n'est utilisé.")
+            onPlaybackError?("La synthèse vocale hébraïque n'est pas installée.")
             return
         }
 
@@ -109,6 +111,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                         self.onStarted?()
                     } catch {
                         self.onFailure?(error.localizedDescription)
+                        self.onPlaybackError?(error.localizedDescription)
                         self.finishPlayback()
                     }
                 }
@@ -116,6 +119,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                 DispatchQueue.main.async {
                     guard self.generation == token else { return }
                     self.onFailure?(error.localizedDescription)
+                        self.onPlaybackError?(error.localizedDescription)
                     self.finishPlayback()
                 }
             }
