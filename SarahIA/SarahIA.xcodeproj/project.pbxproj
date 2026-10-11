@@ -107,6 +107,8 @@
 		A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000004 /* sherpa-onnx */; };
 		A1B2C3D400010001000000B6 /* YoannTranslateLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */; };
 		A1B2C3D400010001000000B7 /* YoannTranslateLiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */; };
+		A1B2C3D400010001000000B8 /* TranslateLiveLanguages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */; };
+		A1B2C3D400010001000000B9 /* TranslateLiveTranslationBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -209,6 +211,8 @@
 		A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralVoiceService.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveService.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveView.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateLiveLanguages.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateLiveTranslationBackend.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -268,6 +272,8 @@
 				A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */,
 				A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */,
 				A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */,
+				A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */,
+				A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */,
 				A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */,
 				A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */,
 				A1B2C3D40002000100000073 /* VAICodeEngine.swift */,
@@ -521,6 +527,8 @@
 				A1B2C3D40001000100000075 /* MultiAgentVoiceManager.swift in Sources */,
 				A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */,
 				A1B2C3D400010001000000B6 /* YoannTranslateLiveService.swift in Sources */,
+				A1B2C3D400010001000000B8 /* TranslateLiveLanguages.swift in Sources */,
+				A1B2C3D400010001000000B9 /* TranslateLiveTranslationBackend.swift in Sources */,
 				A1B2C3D400010001000000B7 /* YoannTranslateLiveView.swift in Sources */,
 				A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */,
 				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
