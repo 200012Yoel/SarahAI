@@ -51,7 +51,8 @@ public struct TranslateLiveContextBuffer {
     }
 
     public mutating func flush() -> Update {
-        snapshot(committed: commitPending())
+        let committed = commitPending()
+        return snapshot(committed: committed)
     }
 
     private mutating func commitPending() -> [String] {
