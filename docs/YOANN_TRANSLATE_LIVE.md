@@ -1,51 +1,49 @@
-# Yoann · Translate Live multilingue (ordinateur → micro iPhone → traduction)
+# Yoann · Translate Live : interprète continu (micro iPhone → écouteurs)
 
-## Utilisation
+## Le scénario réellement pris en charge
 
-- Lance une chaîne ou une vidéo sur **ton ordinateur**, puis place l'iPhone près des haut-parleurs.
-- Ouvre **Sarah IA → Outils → Yoann · Translate Live** ou dis/écris **« Active Translate Live hébreu-français »**, **« Lance Translate Live espagnol-anglais »**, etc.
-- Choisis la **langue entendue** (dont **détection automatique**) et la **langue de traduction**. Une recherche facilite le choix.
-- Le microphone **de l'iPhone** capte le son de l'ordinateur externe. L'application n'intercepte pas le son interne d'une autre app sur l'iPhone.
-- Après un segment de parole et environ 0,92 s de silence, Whisper le traite. Ensuite Yoann traduit, prononce (si la langue est vocalisable), puis réactive le microphone après la fin de la lecture et une courte temporisation anti-écho.
-- Le microphone **reste fermé tant que Yoann parle**. Les appels/agents ne peuvent pas intercepter les transcriptions de ce mode.
+Une **personne en hébreu**, ou une télévision/vidéo **sur l'ordinateur à côté de l'iPhone**, parle. L'iPhone capte l'audio extérieur avec **son microphone**, analyse de courts segments avec **OpenAI Whisper** et tente de prononcer leur traduction dans les **écouteurs**. Aucune capture du son interne d'une autre app iOS n'est requise.
 
-## Étendue des langues, honnêtement
+- Ouvre **Sarah → Outils → Yoann · Translate Live** et choisis les langues (y compris entrée automatique).
+- Pose l'iPhone près de la personne ou des haut-parleurs du PC ; garde de préférence des écouteurs branchés pour entendre Yoann sans faire rejouer sa voix par les haut-parleurs de l'iPhone.
+- Le flux micro est **continu**, sans pause programmée entre les phrases. Whisper découpe la parole après une courte pause (~0,28 seconde) ou environ **2,1 secondes maximum** de parole soutenue, avec un minimum de ~0,5 seconde de son.
+- Les transcriptions peuvent être traduites pendant que la capture continue ; la voix synthétique peut jouer pendant que le micro est encore actif. L'interface affiche les segments et les erreurs.
+- **Arrêter** ou fermer l'interface met fin à la capture. Aucune minuterie de session ni quota de traduction n'a été codé. La durée pratique dépend de la batterie, du CPU, de la mémoire et des règles audio iOS.
+- Lorsque l'écran se verrouille ou que l'app passe en arrière-plan, nous ne forçons plus l'arrêt ; toutefois iOS peut interrompre/suspendre l'audio, ce qui **nécessite un essai sur iPhone**.
 
-| Fonction | Moteur | Disponibilité |
+## Performances réelles : ne pas prétendre « latence zéro »
+
+La chaîne comporte trois étapes non nulles : (1) collecter assez de parole pour comprendre ; (2) Whisper et le modèle de traduction ; (3) synthèse Supertonic et sortie audio. Le TTS Yoann utilise **5 étapes de diffusion** au lieu de 8 pour commencer à produire le son plus rapidement, avec une qualité potentiellement moindre.
+
+Le micro tourne sur son propre flux **pendant l'inférence** ; les segments et les lectures sont placés dans des files d'attente bornées pour ne pas faire exploser la mémoire. Si le processeur ou le serveur est trop lent, le service affiche un avertissement et peut ignorer un segment ancien. Il est donc **illimité en durée demandée, pas garanti sans aucun retard ni aucune perte**. Les performances ne sont pas encore mesurées sur l'iPhone.
+
+### Paires linguistiques
+
+| Sens | Traduction | Voix |
 | --- | --- | --- |
-| Reconnaissance du son du PC | **Vrai OpenAI Whisper Base multilingue** via whisper.cpp | Catalogue de ~100 codes langues fournis par le tokenizer Whisper ; qualité inégale selon accent et langue |
-| Reconnaissance automatique | Whisper | Oui, sur l'entrée microphone |
-| **Traduction vocale vers l'anglais** | Whisper `translate=true` | Locale sur l'iPhone pour des langues d'entrée multilingues (la transcription originale n'est pas conservée dans cette voie rapide) |
-| Traduction vers le français, l'hébreu, l'espagnol, etc. | Petit dictionnaire de phrases **exactes** ou **serveur LibreTranslate / Argos personnel** | **Pas garantie sans serveur** : le dictionnaire local ne couvre que quelques expressions FR/EN/HE |
-| Sortie **parlée** | Supertonic 3 via sherpa-onnx, voix propre à Yoann (M3) | **31 langues**, dont FR, EN, ES, DE, AR, JA, etc. (sans hébreu) |
-| Autres langues de sortie, dont hébreu | Affichage texte seulement | Une traduction réelle doit d'abord avoir été produite par le backend |
+| Langue Whisper → anglais | **Whisper `translate=true` local** ; sans serveur | Anglais Supertonic 3 |
+| Hébreu → français | Quelques expressions exactes embarquées ; sinon **vrai modèle Helsinki-NLP/opus-mt-he-fr sur serveur local Docker**, si installé et configuré | Français Supertonic 3 |
+| Autres langues → français et autres directions | Dictionnaire minuscule ou serveur compatible API LibreTranslate avec les modèles correspondants | Supertonic 3 si la destination fait partie de ses 31 langues ; texte seul sinon |
 
-On peut choisir une grande variété de langues, mais cela **ne signifie pas qu'un vrai modèle de traduction vers toutes ces langues est installé sur l'iPhone**. Une langue de sortie sans voix neuronale indique clairement **« Texte »**. Une langue non installée sur le serveur entraîne une erreur visible, pas une fausse traduction.
+**Important :** le modèle hébreu → français **n'est pas installé dans l'IPA de l'iPhone**. Sans serveur accessible sur le réseau local, Sarah ne sait pas traduire une vraie conversation hébraïque complète en français. Il n'existe donc pas encore de traducteur universel local iPhone prêt à commercialiser.
 
-## Traduction vers une autre langue que l'anglais, sans abonnement
+Serveur réel HE→FR : voir [server/translate-live/README.md](../server/translate-live/README.md). Modèle [Helsinki-NLP/opus-mt-he-fr](https://huggingface.co/Helsinki-NLP/opus-mt-he-fr) annoncé Apache-2.0. Ce modèle effectue les traductions sur CPU, sans quota ni API payante ; il nécessite une connexion pour le télécharger la première fois et de la RAM/CPU pendant l'usage.
 
-Tu peux installer **LibreTranslate + Argos Translate** sur ton propre PC/serveur et importer les packs de langues disponibles et autorisés pour une activité commerciale. Ensuite, dans Translate Live, indique l'adresse de ce serveur dans **« Serveur de traduction open source »**.
+L'iPhone n'envoie **que le texte transcrit** au serveur défini dans l'écran ; **pas la voix brute**. Si tu le configures en HTTP sur ton Wi-Fi, les textes ne sont pas chiffrés sur le réseau. Ne rends pas le port public ; protège le serveur avant une éventuelle vente. D'autres traductions sont possibles avec des modèles autorisés, non fournis ici.
 
-- Pas de serveur public de traduction imposé par l'application ; aucune clé payante nécessaire si ton serveur est auto-hébergé.
-- L'application n'envoie que le **texte transcrit** à l'URL configurée par l'utilisateur, **pas le son du microphone**.
-- HTTPS fonctionne avec un serveur distant ; HTTP n'est accepté que sur réseau local privé (l'app a `NSAllowsLocalNetworking`). Ne configure pas un serveur en HTTP public.
-- Le backend doit disposer du **modèle correspondant à la paire de langues** ; le choix affiché côté iPhone n'installe pas magiquement ce modèle.
-- Si aucun serveur n'est configuré, la plupart des longues phrases vers FR/HE/ES échoueront avec un message explicite. **Il ne faut pas vendre cette version comme traducteur universel autonome.**
+## Route audio et écouteurs
 
-### Droits de revente et licences
+L'app demande une session audio spéciale `playAndRecord/voiceChat`, compatible réduction d'écho iOS ; pour Yoann elle autorise aussi la sortie Bluetooth A2DP et **préfère le micro intégré de l'iPhone** pour capter la personne près de celui-ci. Certains écouteurs/versions iOS peuvent choisir un autre trajet audio malgré cette préférence. Vérifier explicitement le bon microphone et le son dans les écouteurs sur l'appareil.
 
-**LibreTranslate** est sous **AGPL-3.0**, ce qui impose des obligations de licence et d'accès au code du serveur si tu le modifies et l'exploites sur un réseau. **Argos Translate** et **chacun de ses modèles linguistiques** ont des conditions de distribution et d'attribution à vérifier séparément. Le modèle de voix **Supertonic 3** est sous **OpenRAIL-M** et son runtime sherpa-onnx sous **Apache-2.0**. Voir [VOICE_LICENSES.md](VOICE_LICENSES.md). Un usage commercial n'implique pas une licence sans conditions.
+Sans écouteurs, l'app avertit que la traduction parlée peut être captée en retour par le microphone. L'annulation d'écho ne garantit pas la suppression parfaite de ce phénomène.
 
-Documentation des API du serveur : https://docs.libretranslate.com/guides/api_usage/
+## Avant de dire « ça marche vraiment »
 
-## Limites techniques
+- IPA complète compilée pour **le commit courant** ; la réussite du simple test de syntaxe ne suffit pas.
+- Sur iPhone réel : un mot « shalom » → « bonjour », puis une vraie phrase hébraïque complète traduite via le modèle HE→FR ; vérifier les paroles prononcées, le délai et le volume.
+- Tester les écouteurs AirPods/câblés, bascule de sortie, permissions micro, appel entrant, verrouillage et changement d'app.
+- Mesurer p50 / p95 du délai **début de parole → première syllabe française** sur une série d'échantillons ; distinguer micro, Whisper, serveur de traduction et TTS.
+- Vérifier le comportement au bout d'une heure pour température, RAM, batterie, backlog, qualité, exactitude.
+- Les licences d'OpenAI Whisper, Supertonic OpenRAIL-M, sherpa-onnx Apache-2.0 et des modèles MT doivent être respectées.
 
-- Le fonctionnement est **par phrases, pas de la traduction simultanée sans aucune coupure**. Pendant que Yoann parle, le PC continue de diffuser : l'iPhone peut manquer une partie des paroles suivantes.
-- Le temps du traitement dépend du modèle Whisper, du serveur de traduction choisi (s'il est utilisé), de la vitesse de synthèse et de la puissance de l'iPhone.
-- Les changements de langue redémarrent la session proprement ; quitter l'écran ou passer en arrière-plan arrête le micro.
-- La précision d'une traduction d'actualité, médicale, juridique ou autre sujet sensible doit être vérifiée indépendamment.
-
-## Vérifications effectuées / restantes
-
-- Les vérifications automatiques comprennent l'analyse syntaxique Swift, les références du projet Xcode, la présence de l'anti-écho et des tests ciblés sur les commandes multilingues.
-- Il faut **faire tourner l'IPA sur un vrai iPhone** et tester les 31 langues de sortie, les packs de traduction du serveur, la latence, le Bluetooth, le micro et les interruptions avant de la commercialiser.
+La PR reste volontairement en brouillon jusqu'aux tests sur matériel et à la validation de l'usage commercial.
