@@ -21,7 +21,9 @@ class TestLocalInterpreterProtocol(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.original = app.translate_he_fr
+        cls.original_fr_he = app.translate_fr_he
         app.translate_he_fr = lambda sentence: "Bonjour" if sentence else ""
+        app.translate_fr_he = lambda sentence: "שלום" if sentence else ""
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), app.API)
         cls.port = cls.httpd.server_address[1]
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
@@ -33,6 +35,7 @@ class TestLocalInterpreterProtocol(unittest.TestCase):
         cls.httpd.server_close()
         cls.thread.join(timeout=3)
         app.translate_he_fr = cls.original
+        app.translate_fr_he = cls.original_fr_he
 
     def request(self, path, payload, method="POST"):
         client = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
@@ -51,6 +54,13 @@ class TestLocalInterpreterProtocol(unittest.TestCase):
         })
         self.assertEqual(code, 200)
         self.assertEqual(data["translatedText"], "Bonjour")
+
+    def test_french_to_hebrew_contract(self):
+        code, data = self.request("/translate", {
+            "q": "Bonjour", "source": "fr", "target": "he", "format": "text"
+        })
+        self.assertEqual(code, 200)
+        self.assertEqual(data["translatedText"], "שלום")
 
     def test_wrong_direction_not_faked(self):
         code, data = self.request("/translate", {
@@ -77,7 +87,7 @@ class TestLocalInterpreterProtocol(unittest.TestCase):
         response = client.getresponse()
         data = json.loads(response.read().decode("utf-8"))
         self.assertEqual(response.status, 200)
-        self.assertEqual(data["directions"], [["he", "fr"]])
+        self.assertEqual(data["directions"], [["he", "fr"], ["fr", "he"]])
         client.close()
 
 
