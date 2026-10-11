@@ -183,6 +183,12 @@ public enum TranslateLiveLanguages {
         // before the explicit destination. For "je veux la traduction en hébreu",
         // let automatic source detection handle the missing source.
         let selected = matches.filter { $0.code != "auto" }.map(\.code)
+        if matches.contains(where: { $0.code == "auto" }),
+           selected.count == 1, target == nil, source == nil {
+            // "automatique japonais" means detect the input, translate to JP.
+            source = "auto"
+            target = selected[0]
+        }
         if target != nil && source == nil {
             source = selected.first(where: { engineCode(for: $0) != engineCode(for: target!) })
                 ?? "auto"
