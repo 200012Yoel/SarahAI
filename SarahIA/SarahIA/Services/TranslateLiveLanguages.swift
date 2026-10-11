@@ -100,6 +100,8 @@ public enum TranslateLiveLanguages {
             ("hebreu", "he"), ("anglais", "en"), ("francais", "fr"),
             ("anglais britannique", "en-GB"), ("anglais americain", "en-US"),
             ("anglais du royaume-uni", "en-GB"), ("anglais des etats-unis", "en-US"),
+            ("anglais d'angleterre", "en-GB"), ("anglais de l'angleterre", "en-GB"),
+            ("anglais des etatsunis", "en-US"), ("anglais des usa", "en-US"),
             ("anglais uk", "en-GB"), ("anglais us", "en-US"),
             ("espagnol", "es"), ("allemand", "de"), ("arabe", "ar"),
             ("italien", "it"), ("portugais", "pt"), ("russe", "ru"),
