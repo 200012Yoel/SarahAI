@@ -73,7 +73,10 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                 var options = SherpaOnnxGenerationConfigSwift()
                 options.sid = sid
                 options.numSteps = 8
-                options.speed = max(0.75, min(speed, 1.4))
+                // Keep the voice-speed setting functional with the new engine.
+                let storedRate = StorageService.shared.loadState().voiceSettings.speechRate
+                let configuredSpeed = (speed == 1.0) ? storedRate * 2.0 : speed
+                options.speed = max(0.75, min(configuredSpeed, 1.4))
                 options.extra = ["lang": selectedLanguage]
                 let result = engine.generateWithConfig(
                     text: sanitized,
