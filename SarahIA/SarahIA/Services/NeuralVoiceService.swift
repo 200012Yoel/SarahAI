@@ -61,7 +61,12 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         stop()
         let token = generation
         let sanitized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !sanitized.isEmpty else { return }
+        guard !sanitized.isEmpty else {
+            // Every accepted request must finish, including empty snippets.
+            // Without this the interpreter keeps isSpeakingTranslation = true.
+            finishPlayback()
+            return
+        }
 
         // Supertonic 3 does not list Hebrew among its supported languages.
         // Do not read Hebrew text using a French/English voice and pretend it is correct.
@@ -69,6 +74,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         guard !containsHebrew else {
             onFailure?("Voix hébraïque hors ligne indisponible. Aucun moteur Apple n'est utilisé.")
             onPlaybackError?("La synthèse vocale hébraïque n'est pas installée.")
+            finishPlayback()
             return
         }
 
@@ -79,6 +85,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
             let message = "Pas de voix Supertonic 3 disponible pour la langue \(language)."
             onFailure?(message)
             onPlaybackError?(message)
+            finishPlayback()
             return
         }
         let selectedLanguage = language
