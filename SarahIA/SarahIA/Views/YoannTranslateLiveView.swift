@@ -92,13 +92,19 @@ public struct YoannTranslateLiveView: View {
 
                 if !canSpeakTarget {
                     Image(systemName: "speaker.slash.fill")
-                        .foregroundColor(.white.opacity(0.75))
-                        .accessibilityLabel("Traduction écrite uniquement")
-                } else if live.isSpeakingTranslation {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .foregroundColor(.cyan)
-                        .accessibilityLabel("Lecture de la traduction")
+                        .foregroundColor(.orange)
+                        .accessibilityLabel("Voix de la langue choisie non disponible")
                 }
+                // Test the bundled French neural speaker independently of
+                // Whisper recognition and any translation server.
+                Button { live.testFrenchSpeaker() } label: {
+                    Image(systemName: "speaker.wave.2.circle.fill")
+                        .font(.system(size: 27))
+                        .foregroundColor(.white)
+                }
+                .disabled(!live.isActive)
+                .accessibilityLabel("Tester le haut-parleur avec la voix française")
+                .accessibilityIdentifier("translateLiveTestFrenchSpeaker")
 
                 Button {
                     if live.isActive {
@@ -154,6 +160,24 @@ public struct YoannTranslateLiveView: View {
                     .accessibilityAddTraits(.updatesFrequently)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if !canSpeakTarget {
+                Text("Voix \(TranslateLiveLanguages.label(for: targetLanguage)) indisponible dans cette version. Le bouton 🔊 teste la voix française.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange)
+                    .lineLimit(2)
+                    .accessibilityIdentifier("translateLiveMissingTargetVoice")
+            } else if !translationServerURL.isEmpty &&
+                      TranslateLiveTranslationBackend.validatedURL(translationServerURL) == nil {
+                Text("Adresse du serveur de traduction invalide. Vérifie ⚙️.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange)
+            } else if !TranslateLiveLanguages.isEnglish(targetLanguage)
+                      && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Phrases complètes : serveur de traduction requis dans ⚙️.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.orange)
+            }
 
             HStack(spacing: 6) {
                 if let error = live.errorMessage {
@@ -284,7 +308,7 @@ public struct YoannTranslateLiveView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("La moitié supérieure affiche toujours la traduction demandée ; la moitié inférieure affiche la langue parlée.")
-                    Text("La reconnaissance d'une langue ne garantit pas qu'un moteur de traduction soit installé pour cette paire.")
+                    Text("Pour les phrases complètes hébreu ↔ français, installe et connecte le serveur neuronal personnel. Sans serveur, seul un petit jeu d'expressions est traduisible.")
                     TextField("Serveur de traduction local ou HTTPS", text: $translationServerURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
@@ -300,6 +324,15 @@ public struct YoannTranslateLiveView: View {
                         Text("Aucune voix neuronale intégrée pour \(TranslateLiveLanguages.label(for: targetLanguage)) : affichage du texte seulement.")
                             .foregroundColor(.orange)
                     }
+                    Button {
+                        showsDetails = false
+                        live.testFrenchSpeaker()
+                    } label: {
+                        Label("Tester le haut-parleur en français", systemImage: "speaker.wave.2.fill")
+                            .font(.headline)
+                    }
+                    .disabled(!live.isActive)
+                    .accessibilityIdentifier("translateLiveSettingsTestSpeaker")
                     if !live.headphoneConnected {
                         Text("Sans écouteurs, la voix émise par le haut-parleur peut être reprise par le microphone.")
                     }
