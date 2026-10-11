@@ -80,15 +80,38 @@ public enum TranslateLiveLanguages {
         whisperCodes.contains(engineCode(for: code))
     }
 
-    /// French language names and common synonyms for natural activation.
-    /// The matching is limited to entire words, avoiding accidental hits.
+    /// Translate Live is a separate screen. Mentioning an agent's name alone
+    /// never opens it. Spoken commands and typed commands share this resolver.
+    /// Source/target are inferred by meaning, NOT the order of language names:
+    /// "Il parle anglais, je veux la traduction en hébreu" => en -> he.
     public static func pairFromCommand(_ input: String) -> (from: String, to: String)? {
         let normalized = input.folding(
             options: [.caseInsensitive, .diacriticInsensitive],
             locale: Locale(identifier: "fr_FR")
-        ).lowercased()
-        guard normalized.contains("translate live"),
-              ["active", "lance", "demarre", "ouvre", "mets"].contains(where: normalized.contains) else {
+        )
+        .lowercased()
+        .replacingOccurrences(of: "’", with: "'")
+        .replacingOccurrences(of: "‐", with: "-")
+        .replacingOccurrences(of: "‑", with: "-")
+
+        let directNames = [
+            "translate live", "live translate", "traduction en direct",
+            "traduction live", "traduction instantanee", "traducteur en direct",
+            "traduis en direct"
+        ]
+        let explicitMode = directNames.contains(where: normalized.contains)
+        let contextualMode =
+            (normalized.contains("traduction") || normalized.contains("traduis"))
+            && (normalized.contains("parle") || normalized.contains("quelqu'un")
+                || normalized.contains("quelqu un"))
+            && (normalized.contains("je veux") || normalized.contains("j'aimerais")
+                || normalized.contains("active") || normalized.contains("lance"))
+        guard explicitMode || contextualMode else { return nil }
+
+        // Exclude a question ABOUT the feature from launch commands.
+        if (normalized.contains("c'est quoi") || normalized.contains("comment fonctionne")
+            || normalized.contains("explique")) &&
+            !["active", "lance", "ouvre", "demarre"].contains(where: normalized.contains) {
             return nil
         }
 
@@ -108,33 +131,81 @@ public enum TranslateLiveLanguages {
             ("japonais", "ja"), ("chinois", "zh"), ("hindi", "hi"),
             ("coreen", "ko"), ("automatique", "auto")
         ]
-        // Longest names first, so "chinois mandarin" beats "chinois".
         terms.sort { $0.alias.count > $1.alias.count }
-        var matches: [(offset: Int, code: String)] = []
-        var occupied: [Range<String.Index>] = []
+        var matches: [(range: Range<String.Index>, code: String)] = []
         for term in terms {
-            let escaped = NSRegularExpression.escapedPattern(for: term.alias)
-            let pattern = "(?<![\\p{L}])" + escaped + "(?![\\p{L}])"
-            guard let exp = try? NSRegularExpression(pattern: pattern) else { continue }
+            let pattern = "(?<![\\p{L}])" +
+                NSRegularExpression.escapedPattern(for: term.alias) +
+                "(?![\\p{L}])"
+            guard let expression = try? NSRegularExpression(pattern: pattern) else { continue }
             let all = NSRange(normalized.startIndex..., in: normalized)
-            for m in exp.matches(in: normalized, range: all) {
-                guard let range = Range(m.range, in: normalized) else { continue }
-                guard !occupied.contains(where: { $0.overlaps(range) }) else { continue }
-                occupied.append(range)
-                matches.append((
-                    offset: normalized.distance(from: normalized.startIndex, to: range.lowerBound),
-                    code: term.code
-                ))
+            for match in expression.matches(in: normalized, range: all) {
+                guard let range = Range(match.range, in: normalized),
+                      !matches.contains(where: { $0.range.overlaps(range) }) else { continue }
+                matches.append((range, term.code))
             }
         }
-        matches.sort { $0.offset < $1.offset }
-        if matches.count >= 2, matches[0].code != matches[1].code,
-           matches[1].code != "auto" {
-            return (matches[0].code, matches[1].code)
+        matches.sort { $0.range.lowerBound < $1.range.lowerBound }
+
+        var source: String?
+        var target: String?
+        for match in matches {
+            let prefix = String(normalized[..<match.range.lowerBound])
+            let before = String(prefix.suffix(110))
+            // "parle anglais", "parle en anglais", "quelqu'un parle hébreu"
+            let sourceCue = before.range(
+                of: #"(?:parle|parlent|s'exprime|en train de parler)\s+(?:en\s+|l'|le\s+|la\s+)?"# + "$",
+                options: .regularExpression
+            ) != nil
+            // "traduction en hébreu", "traduction en direct en français",
+            // "traduis vers l'anglais", regardless of what preceded it.
+            let targetCue = before.range(
+                of: #"(?:traduction|traduis|traduire|traduit|traduite)\b.{0,58}\b(?:en|vers)\s+(?:l'|le\s+|la\s+)?"# + "$",
+                options: .regularExpression
+            ) != nil
+            let fromCue = before.range(
+                of: #"(?:depuis|de|du)\s+(?:l'|le\s+|la\s+)?"# + "$",
+                options: .regularExpression
+            ) != nil
+            let towardCue = before.range(
+                of: #"(?:vers|pour)\s+(?:l'|le\s+|la\s+)?"# + "$",
+                options: .regularExpression
+            ) != nil
+
+            if sourceCue || (fromCue && !targetCue) {
+                if source == nil && match.code != "auto" { source = match.code }
+            } else if targetCue || towardCue {
+                if target == nil && match.code != "auto" { target = match.code }
+            }
         }
-        if matches.count == 1 && matches[0].code != "auto" {
-            return (matches[0].code, "fr")
+
+        // For "traduction de l'hébreu en français", use the first language
+        // before the explicit destination. For "je veux la traduction en hébreu",
+        // let automatic source detection handle the missing source.
+        let selected = matches.filter { $0.code != "auto" }.map(\.code)
+        if target != nil && source == nil {
+            source = selected.first(where: { engineCode(for: $0) != engineCode(for: target!) })
+                ?? "auto"
+        } else if source != nil && target == nil {
+            target = selected.first(where: { engineCode(for: $0) != engineCode(for: source!) })
+                ?? (engineCode(for: source!) == "fr" ? "en" : "fr")
+        } else if source == nil && target == nil {
+            if selected.count >= 2 {
+                source = selected[0]
+                target = selected.first(where: { engineCode(for: $0) != engineCode(for: source!) })
+            } else if let single = selected.first {
+                source = single
+                target = engineCode(for: single) == "fr" ? "en" : "fr"
+            }
         }
-        return ("he", "fr")
+
+        let resolvedFrom = source ?? "he"
+        let resolvedTo = target ?? "fr"
+        guard isRecognized(resolvedFrom), isSelectableTarget(resolvedTo),
+              engineCode(for: resolvedFrom) != engineCode(for: resolvedTo) else {
+            return ("he", "fr")
+        }
+        return (resolvedFrom, resolvedTo)
     }
+
 }
