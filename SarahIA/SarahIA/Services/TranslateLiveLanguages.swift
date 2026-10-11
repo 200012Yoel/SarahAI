@@ -8,7 +8,9 @@ public enum TranslateLiveLanguages {
     public struct Language: Identifiable, Hashable {
         public let id: String
         public let label: String
-        public var hasSpokenOutput: Bool { TranslateLiveLanguages.spokenOutputCodes.contains(id) }
+        public var hasSpokenOutput: Bool {
+            TranslateLiveLanguages.spokenOutputCodes.contains(TranslateLiveLanguages.engineCode(for: id))
+        }
     }
 
     // Exactly the 31 language codes advertised by the Supertonic 3 model.
@@ -24,24 +26,45 @@ public enum TranslateLiveLanguages {
             .split(separator: " ").map(String.init)
 
     private static let frenchLocale = Locale(identifier: "fr_FR")
+
+    /// English variants are real choices of SOURCE locale. OpenAI Whisper
+    /// uses language code "en" for both and does NOT expose a guaranteed
+    /// British vs American accent classification in the Base model.
+    /// Supertonic 3 also uses "en" for output: accent is not guaranteed.
+    public static func engineCode(for selection: String) -> String {
+        switch selection {
+        case "en-GB", "en-US": return "en"
+        default: return selection
+        }
+    }
+
+    public static func isEnglish(_ selection: String) -> Bool {
+        engineCode(for: selection) == "en"
+    }
     private static let overrides: [String: String] = [
-        "he": "Hébreu", "en": "Anglais", "fr": "Français",
+        "he": "Hébreu", "en": "Anglais (générique)", "fr": "Français",
+        "en-GB": "Anglais (Royaume-Uni)", "en-US": "Anglais (États-Unis)",
         "yue": "Cantonais", "zh": "Chinois (mandarin)",
         "nn": "Norvégien nynorsk", "jw": "Javanais",
         "auto": "Détection automatique"
     ]
 
-    public static let available: [Language] = whisperCodes.map { code in
-        Language(id: code, label: overrides[code] ??
-            frenchLocale.localizedString(forLanguageCode: code)?.capitalized ??
-            code.uppercased())
-    }.sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+    public static let available: [Language] = (
+        whisperCodes.map { code in
+            Language(id: code, label: overrides[code] ??
+                frenchLocale.localizedString(forLanguageCode: code)?.capitalized ??
+                code.uppercased())
+        } + [
+            Language(id: "en-GB", label: "Anglais (Royaume-Uni)"),
+            Language(id: "en-US", label: "Anglais (États-Unis)")
+        ]
+    ).sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
 
     public static let sourceOptions: [Language] = [
         Language(id: "auto", label: "Détection automatique")
     ] + available
 
-    public static let favorites: [Language] = ["he", "fr", "en", "es", "ar", "de", "it", "pt"]
+    public static let favorites: [Language] = ["he", "fr", "en-GB", "en-US", "en", "es", "ar", "de", "it", "pt"]
         .compactMap { code in available.first(where: { $0.id == code }) }
 
     public static func label(for code: String) -> String {
@@ -50,11 +73,11 @@ public enum TranslateLiveLanguages {
     }
 
     public static func isRecognized(_ code: String) -> Bool {
-        code == "auto" || whisperCodes.contains(code)
+        code == "auto" || whisperCodes.contains(engineCode(for: code))
     }
 
     public static func isSelectableTarget(_ code: String) -> Bool {
-        whisperCodes.contains(code)
+        whisperCodes.contains(engineCode(for: code))
     }
 
     /// French language names and common synonyms for natural activation.
@@ -75,6 +98,9 @@ public enum TranslateLiveLanguages {
         }
         terms += [
             ("hebreu", "he"), ("anglais", "en"), ("francais", "fr"),
+            ("anglais britannique", "en-GB"), ("anglais americain", "en-US"),
+            ("anglais du royaume-uni", "en-GB"), ("anglais des etats-unis", "en-US"),
+            ("anglais uk", "en-GB"), ("anglais us", "en-US"),
             ("espagnol", "es"), ("allemand", "de"), ("arabe", "ar"),
             ("italien", "it"), ("portugais", "pt"), ("russe", "ru"),
             ("japonais", "ja"), ("chinois", "zh"), ("hindi", "hi"),
