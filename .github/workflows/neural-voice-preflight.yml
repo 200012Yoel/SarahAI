@@ -87,3 +87,10 @@ jobs:
             tests/TranslateLiveLanguageTests.swift \
             -o /tmp/sarah_translate_live_language_tests
           /tmp/sarah_translate_live_language_tests
+
+      - name: Check real Hebrew French Marian server protocol
+        run: |
+          set -euo pipefail
+          python3 -m py_compile server/translate-live/app.py
+          python3 -m unittest discover -s tests -p 'test_translate_live_server.py' -v
+
