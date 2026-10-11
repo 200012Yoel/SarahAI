@@ -206,7 +206,19 @@ public struct ChatScreenView: View {
     }
 
     private var composerDock: some View {
-        MessageBar(
+        VStack(alignment: .trailing, spacing: 6) {
+            // Bubble anchored to the composer, not to the entire screen.
+            // It therefore remains just above the input bar when the keyboard moves.
+            if viewModel.isContinuousConversationActive &&
+               !viewModel.isShowingVoiceOrbModal &&
+               !viewModel.isShowingTranslateLive &&
+               !viewModel.isDrawerOpen {
+                compactVoiceBubble
+                    .padding(.trailing, 16)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
+            MessageBar(
             text: $viewModel.inputText,
             activeAgent: $viewModel.activeAgent,
             isRecording: viewModel.isMicRunning,
@@ -235,8 +247,83 @@ public struct ChatScreenView: View {
                 viewModel.isShowingVAICodingStudio = true
             }
         )
-        .padding(.top, 3)
-        .padding(.bottom, 6)
+            .padding(.top, 3)
+            .padding(.bottom, 6)
+        }
+    }
+
+    private var compactVoiceStatus: String {
+        switch viewModel.voiceStatus {
+        case .starting: return "Activation…"
+        case .listening: return "Sarah écoute"
+        case .processing: return "Transcription…"
+        case .speaking: return "Sarah parle"
+        case .error: return "Micro indisponible"
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted ? "Micro en pause" : "Mode vocal actif"
+        }
+    }
+
+    private var compactVoiceBubble: some View {
+        HStack(spacing: 10) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.white.opacity(0.14)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Arrêter complètement le mode vocal")
+            .accessibilityIdentifier("sarah.voice.compactStop")
+
+            Button {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                viewModel.isShowingVoiceOrbModal = true
+            } label: {
+                HStack(spacing: 9) {
+                    Text(compactVoiceStatus)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(0.90),
+                                        viewModel.activeAgent.themeColor.opacity(0.92),
+                                        viewModel.activeAgent.themeColor
+                                    ],
+                                    center: .topLeading,
+                                    startRadius: 2,
+                                    endRadius: 48
+                                )
+                            )
+                            .frame(width: 48, height: 48)
+                            .shadow(color: viewModel.activeAgent.themeColor.opacity(0.35), radius: 9)
+
+                        Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "waveform")
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1) * 0.05)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color(white: 0.15).opacity(0.96)))
+                .overlay(Capsule().stroke(Color.white.opacity(0.13), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Rouvrir le mode vocal, " + compactVoiceStatus)
+            .accessibilityIdentifier("sarah.voice.compactOrb")
+        }
     }
 
     private var topBar: some View {
