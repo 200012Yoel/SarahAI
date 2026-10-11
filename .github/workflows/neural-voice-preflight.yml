@@ -30,7 +30,7 @@ jobs:
           grep -q 'func commandPair(' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'whisper.stopListening()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'neural.onPlaybackFinished' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
-          grep -q 'scheduleNextListen' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'startLiveInterpretation()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'YoannTranslateLiveView(' SarahIA/SarahIA/ContentView.swift
           grep -q 'YoannTranslateLiveService.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
           grep -q 'YoannTranslateLiveView.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
@@ -39,6 +39,12 @@ jobs:
           grep -q 'translateSpeechToEnglish' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'spokenOutputCodes' SarahIA/SarahIA/Services/TranslateLiveLanguages.swift
           grep -q 'validatedURL' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
+          grep -q 'func startLiveInterpretation()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'func stopLiveInterpretation()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'let liveSilenceThreshold' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'onLiveInterpretationChunk' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'let part = outgoing.removeFirst()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'scheduleNextListen' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           # Regression guard: real iPhone input bus and empty-result recovery.
           grep -q 'input.outputFormat(forBus: 0)' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'self.onFinalTranscription?(text)' SarahIA/SarahIA/Services/WhisperService.swift
