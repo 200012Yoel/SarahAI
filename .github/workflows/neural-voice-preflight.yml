@@ -39,6 +39,13 @@ jobs:
           grep -q 'translateSpeechToEnglish' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'spokenOutputCodes' SarahIA/SarahIA/Services/TranslateLiveLanguages.swift
           grep -q 'validatedURL' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
+          # Regression guard: real iPhone input bus and empty-result recovery.
+          grep -q 'input.outputFormat(forBus: 0)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'self.onFinalTranscription?(text)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'rearmMicrophoneAfterSilence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'func retryVoiceMicrophone' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'Bienvenue dans Sarah' SarahIA/SarahIA/Views/MessageList.swift
+          grep -q 'case .starting:' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
           test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
           echo 'Static voice migration checks passed'
@@ -57,7 +64,11 @@ jobs:
             SarahIA/SarahIA/Services/TTSManager.swift \
             SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift \
             SarahIA/SarahIA/Models/AgentType.swift \
-            SarahIA/SarahIA/ViewModels/ChatViewModel.swift; do
+            SarahIA/SarahIA/ViewModels/ChatViewModel.swift \
+            SarahIA/SarahIA/Services/WhisperService.swift \
+            SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift \
+            SarahIA/SarahIA/Views/VoiceOrbModalView.swift \
+            SarahIA/SarahIA/Views/MessageList.swift; do
             swiftc -frontend -parse "$swift"
           done
 
