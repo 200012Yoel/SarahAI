@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -40,29 +41,39 @@ public struct VoiceOrbModalView: View {
     private var statusTitle: String {
         switch viewModel.voiceStatus {
         case .processing:
-            return "Je réfléchis…"
+            return "Transcription en cours…"
+        case .starting:
+            return "Activation du microphone…"
         case .speaking:
             return "Sarah parle"
         case .error:
             return "Micro indisponible"
-        default:
-            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Je t’écoute."
-            }
-            return viewModel.isMicRunning ? "Je t’écoute." : "Micro coupé"
+        case .listening:
+            return "Je t'écoute"
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted || !viewModel.isContinuousConversationActive
+                ? "Micro coupé" : "Micro en attente…"
         }
     }
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .error:
-            return "Touchez le micro pour réessayer"
+        case .error(let reason):
+            return reason
+        case .starting:
+            return WhisperService.shared.isModelLoading
+                ? "Initialisation du modèle Whisper sur l'iPhone…"
+                : "Autorise le micro si iOS te le demande."
         case .processing:
-            return "Un instant…"
+            return "Whisper analyse la dernière phrase."
         case .speaking:
-            return "Tu peux interrompre Sarah en touchant le micro"
-        default:
-            return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
+            return "La réponse vocale est en cours."
+        case .listening:
+            return "Parle normalement, Sarah écoute."
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted
+                ? "Touche le micro pour reprendre."
+                : "Touche le micro pour parler."
         }
     }
 
@@ -198,6 +209,25 @@ public struct VoiceOrbModalView: View {
                 }
             }
             .frame(minHeight: 76)
+
+            if case .error = viewModel.voiceStatus {
+                HStack(spacing: 16) {
+                    Button("Réessayer") { viewModel.retryVoiceMicrophone() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accent)
+                    if AVAudioSession.sharedInstance().recordPermission == .denied {
+                        Button("Réglages micro") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                    }
+                }
+                .font(.subheadline)
+                .padding(.top, 8)
+            }
 
             Spacer(minLength: 24)
 
