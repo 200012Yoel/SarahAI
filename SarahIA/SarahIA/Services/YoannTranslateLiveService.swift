@@ -12,18 +12,7 @@ import UIKit
 @available(iOS 16.2, *)
 @MainActor
 public final class YoannTranslateLiveService: ObservableObject {
-    public struct Language: Identifiable, Hashable {
-        public let id: String
-        public let label: String
-        public static let available = [
-            Language(id: "he", label: "Hébreu"),
-            Language(id: "fr", label: "Français"),
-            Language(id: "en", label: "Anglais")
-        ]
-        public static func label(for id: String) -> String {
-            available.first(where: { $0.id == id })?.label ?? id
-        }
-    }
+    public typealias Language = TranslateLiveLanguages.Language
 
     public struct Phrase: Identifiable {
         public let id = UUID()
@@ -31,26 +20,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         public let translation: String
     }
 
-    /// A spoken chat command such as "active Translate Live hébreu français".
+    /// Spoken commands are parsed across the multilingual Whisper catalog.
     public static func commandPair(_ text: String) -> (from: String, to: String)? {
-        let normalized = text.folding(
-            options: [.caseInsensitive, .diacriticInsensitive],
-            locale: Locale(identifier: "fr_FR")
-        ).lowercased()
-        guard normalized.contains("translate live"),
-              ["active", "lance", "demarre", "ouvre", "mets"].contains(where: normalized.contains) else {
-            return nil
-        }
-        let terms: [(word: String, lang: String)] = [
-            ("hebreu", "he"), ("francais", "fr"), ("anglais", "en")
-        ]
-        let matches: [(index: Int, language: String)] = terms.compactMap { item in
-            guard let range = normalized.range(of: item.word) else { return nil }
-            return (index: normalized.distance(from: normalized.startIndex, to: range.lowerBound),
-                    language: item.lang)
-        }.sorted { $0.index < $1.index }
-        guard matches.count >= 2 else { return ("he", "fr") }
-        return (matches[0].language, matches[1].language)
+        TranslateLiveLanguages.pairFromCommand(text)
     }
 
     @Published public private(set) var isActive = false
@@ -75,23 +47,29 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var previousPlaybackError: ((String) -> Void)?
     private var nextListenGeneration = UUID()
     private var translating = false
+    private var localEnglishTranslation = false
+    private var previousWhisperTranslation = false
+    private var previousWhisperLanguage: String?
+    private var customTranslationServerURL = ""
 
     public init() {}
 
-    public func start(from source: String, to target: String) {
+    public func start(from source: String, to target: String, serverURL: String = "") {
         stop()
         guard source != target else {
             errorMessage = "Choisissez deux langues différentes."
             return
         }
-        guard Language.available.contains(where: { $0.id == source }),
-              Language.available.contains(where: { $0.id == target }) else {
+        guard TranslateLiveLanguages.isRecognized(source),
+              TranslateLiveLanguages.isSelectableTarget(target) else {
             errorMessage = "Cette combinaison de langues n'est pas disponible."
             return
         }
 
         sourceLanguage = source
         targetLanguage = target
+        customTranslationServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        localEnglishTranslation = target == "en" && source != "en"
         errorMessage = nil
         history.removeAll()
         lastSource = ""
@@ -109,6 +87,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         previousVoiceActivity = whisper.onVoiceActivity
         previousPlaybackFinished = neural.onPlaybackFinished
         previousPlaybackError = neural.onPlaybackError
+        previousWhisperTranslation = WhisperService.shared.translateSpeechToEnglish
+        previousWhisperLanguage = WhisperService.shared.preferredLanguageCode
+        WhisperService.shared.translateSpeechToEnglish = localEnglishTranslation
+        WhisperService.shared.preferredLanguageCode = source == "auto" ? nil : source
 
         let token = sessionToken
         whisper.onPartialTranscription = { [weak self] fragment in
@@ -150,13 +132,15 @@ public final class YoannTranslateLiveService: ObservableObject {
         previousVoiceActivity = nil
         previousPlaybackFinished = nil
         previousPlaybackError = nil
+        WhisperService.shared.translateSpeechToEnglish = previousWhisperTranslation
+        WhisperService.shared.preferredLanguageCode = previousWhisperLanguage
         AudioSessionManager.shared.endContinuousVoiceSession()
         status = "Translate Live arrêté."
     }
 
     private func beginListening(token: UUID) {
         guard isActive, sessionToken == token, !translating, !isSpeakingTranslation else { return }
-        status = "J'écoute l'hébreu ou la langue choisie depuis le microphone…"
+        status = "Micro iPhone : j'écoute en \(TranslateLiveLanguages.label(for: sourceLanguage))…"
         if !whisper.isListening {
             whisper.startListening(autoFinalizeOnSilence: true, preserveActiveSpeech: true)
         }
@@ -178,42 +162,58 @@ public final class YoannTranslateLiveService: ObservableObject {
         translating = true
         lastSource = clean
         status = "Traduction en cours…"
-        let desired = TranslationEngine.TargetLanguage(rawValue: targetLanguage)
-        guard let target = desired else {
-            translating = false
-            scheduleNextListen(token: token, delay: 0.2)
+        if localEnglishTranslation {
+            // Whisper's translate task already produced English directly on
+            // the phone. No networking, no external MT server required.
+            publishTranslation(clean, source: "(Whisper → English)", token: token)
             return
         }
 
-        TranslationEngine.shared.translate(text: clean, sourceLang: sourceLanguage, targetLang: target) { [weak self] translated in
+        TranslateLiveTranslationBackend.translate(
+            text: clean, from: sourceLanguage, to: targetLanguage,
+            serverURL: customTranslationServerURL
+        ) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self, self.isActive, self.sessionToken == token else { return }
-                self.translating = false
-                let output = translated.trimmingCharacters(in: .whitespacesAndNewlines)
-                if output.isEmpty || output.caseInsensitiveCompare(clean) == .orderedSame {
-                    // TranslationEngine's legacy error fallback returns the ORIGINAL input.
-                    // Never read a fake 'French translation' in Hebrew.
-                    self.errorMessage = "Traduction indisponible pour ce passage. Le moteur actuel a besoin d'un véritable modèle de traduction pour les phrases longues."
-                    self.status = "Passage non traduit. Reprise de l'écoute…"
-                    self.scheduleNextListen(token: token, delay: 0.2)
-                    return
+                switch result {
+                case .translated(let translated):
+                    self.publishTranslation(translated, source: clean, token: token)
+                case .unavailable(let reason):
+                    self.translating = false
+                    self.errorMessage = reason
+                    self.status = "Traduction indisponible, je reprends l'écoute…"
+                    self.scheduleNextListen(token: token, delay: 0.20)
                 }
-                self.errorMessage = nil
-                self.lastTranslation = output
-                self.history.insert(Phrase(source: clean, translation: output), at: 0)
-                if self.history.count > 30 { self.history.removeLast() }
-
-                guard self.targetLanguage != "he" else {
-                    // Supertonic 3 cannot synthesize Hebrew. Show text, no fake voice.
-                    self.status = "Traduction écrite prête. Voix hébraïque non installée."
-                    self.scheduleNextListen(token: token, delay: 0.2)
-                    return
-                }
-                self.status = "Yoann prononce la traduction sur l'iPhone…"
-                self.isSpeakingTranslation = true
-                self.neural.speak(text: output, for: .yohan, language: self.targetLanguage)
             }
         }
+    }
+
+    private func publishTranslation(_ text: String, source: String, token: UUID) {
+        guard isActive, sessionToken == token else { return }
+        translating = false
+        let output = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !output.isEmpty else {
+            scheduleNextListen(token: token, delay: 0.20)
+            return
+        }
+        errorMessage = nil
+        lastTranslation = output
+        if localEnglishTranslation {
+            lastSource = "Traduction directe via Whisper (la transcription source n'est pas conservée)"
+        } else {
+            lastSource = source
+        }
+        history.insert(Phrase(source: lastSource, translation: output), at: 0)
+        if history.count > 30 { history.removeLast(history.count - 30) }
+
+        guard TranslateLiveLanguages.spokenOutputCodes.contains(targetLanguage) else {
+            status = "Traduction écrite prête. Pas de voix intégrée en \(TranslateLiveLanguages.label(for: targetLanguage))."
+            scheduleNextListen(token: token, delay: 0.20)
+            return
+        }
+        status = "Yoann prononce en \(TranslateLiveLanguages.label(for: targetLanguage))…"
+        isSpeakingTranslation = true
+        neural.speak(text: output, for: .yohan, language: targetLanguage)
     }
 
     private func playbackComplete(token: UUID) {
