@@ -1,6 +1,5 @@
 import UIKit
 import AVFoundation
-import Speech
 import WebKit
 
 /// Contrôleur UIKit 100% Natif de Secours (iOS 12 à iOS 14 / iPhone 5s, 6, 6 Plus)
