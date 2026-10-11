@@ -27,6 +27,9 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
 
     public var onStarted: (() -> Void)?
     public var onFinished: (() -> Void)?
+    /// Dedicated callback for the isolated Yoann Translate Live session.
+    /// Does not replace the agent manager's ordinary playback callbacks.
+    public var onPlaybackFinished: (() -> Void)?
     public var onFailure: ((String) -> Void)?
 
     private let synthesisQueue = DispatchQueue(label: "sarah.local-neural-tts", qos: .userInitiated)
@@ -162,6 +165,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
         AudioSessionManager.shared.deactivateSession()
         onFinished?()
+        onPlaybackFinished?()
     }
 
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
