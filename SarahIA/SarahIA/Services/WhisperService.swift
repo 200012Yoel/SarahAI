@@ -23,6 +23,17 @@ public final class WhisperService: ObservableObject {
     public var onFinalTranscription: ((String) -> Void)?
     public var onVoiceActivity: (() -> Void)?
 
+    /// Translate Live reads the microphone continuously while Whisper and
+    /// neural playback work asynchronously. Separate from normal chat callbacks.
+    public var onLiveInterpretationChunk: ((String) -> Void)?
+    public var onLiveInterpretationError: ((String) -> Void)?
+    public var onLiveMicrophoneChanged: ((Bool) -> Void)?
+    @Published public private(set) var isLiveInterpreting = false
+    private var livePendingChunks: [[Float]] = []
+    private var liveInferenceBusy = false
+    private var liveStreamToken = UUID()
+    private var liveStartRequested = false
+
     /// Dedicated Translate Live input settings. Normal chat mode leaves these
     /// at nil / false. Read a snapshot before dispatching on inferenceQueue.
     public var translateSpeechToEnglish = false
@@ -51,6 +62,9 @@ public final class WhisperService: ObservableObject {
     private let silenceThreshold: TimeInterval = 0.92
     private let minimumUtteranceSeconds: Double = 0.35
     private let maximumUtteranceSeconds: Double = 30
+    private let liveSilenceThreshold: TimeInterval = 0.28
+    private let liveMaxChunkSeconds: Double = 2.1
+    private let liveMinChunkSeconds: Double = 0.50
     private let activityDBThreshold: Float = -48
 
     private init() {}
@@ -79,6 +93,34 @@ public final class WhisperService: ObservableObject {
 
     // MARK: Lifecycle
 
+    /// Starts a reusable continuous microphone stream. There is no per-phrase
+    /// stop/start and no need to wait for audio playback. Explicit Stop is the
+    /// only normal end of capture; a bounded queue limits inference backlog.
+    public func startLiveInterpretation() {
+        guard !isLiveInterpreting else { return }
+        stopRecordingWithoutTranscription()
+        liveStreamToken = UUID()
+        livePendingChunks.removeAll()
+        liveInferenceBusy = false
+        isLiveInterpreting = true
+        liveStartRequested = true
+        AudioSessionManager.shared.beginContinuousVoiceSession()
+        startRecording(autoFinalizeOnSilence: false)
+    }
+
+    public func stopLiveInterpretation() {
+        liveStreamToken = UUID()
+        livePendingChunks.removeAll()
+        liveInferenceBusy = false
+        liveStartRequested = false
+        isLiveInterpreting = false
+        stopRecordingWithoutTranscription()
+        onLiveInterpretationChunk = nil
+        onLiveInterpretationError = nil
+        onLiveMicrophoneChanged?(false)
+        onLiveMicrophoneChanged = nil
+    }
+
     public func prepareModel() {
         guard context == nil else {
             isModelReady = true
@@ -88,7 +130,10 @@ public final class WhisperService: ObservableObject {
     }
 
     public func startRecording(autoFinalizeOnSilence: Bool = true) {
-        guard !isRecording, !isTranscribing else { return }
+        guard !isRecording else { return }
+        // The streaming mic is independent from inference. Ordinary dictation
+        // still waits for its previous transcription to finish.
+        guard isLiveInterpreting || !isTranscribing else { return }
 
         guard AVAudioSession.sharedInstance().recordPermission == .granted else {
             requestAuthorization { [weak self] granted in
@@ -97,6 +142,9 @@ public final class WhisperService: ObservableObject {
                     self.startRecording(autoFinalizeOnSilence: autoFinalizeOnSilence)
                 } else {
                     self.lastError = "Autorisation microphone refusée"
+                    if self.isLiveInterpreting {
+                        self.onLiveInterpretationError?(self.lastError ?? "Micro refusé")
+                    }
                 }
             }
             return
@@ -155,6 +203,9 @@ public final class WhisperService: ObservableObject {
                     self.wantsRecordingAfterModelLoad = false
                     self.isModelReady = false
                     self.lastError = error.localizedDescription
+                    if self.isLiveInterpreting {
+                        self.onLiveInterpretationError?(error.localizedDescription)
+                    }
                 }
             }
         }
@@ -204,6 +255,7 @@ public final class WhisperService: ObservableObject {
               ),
               let converter = AVAudioConverter(from: sourceFormat, to: targetFormat) else {
             lastError = "Format microphone incompatible"
+            if isLiveInterpreting { onLiveInterpretationError?(lastError ?? "") }
             return
         }
         self.converter = converter
@@ -218,10 +270,12 @@ public final class WhisperService: ObservableObject {
             try audioEngine.start()
             isRecording = true
             lastError = nil
+            if isLiveInterpreting { onLiveMicrophoneChanged?(true) }
         } catch {
             input.removeTap(onBus: 0)
             self.converter = nil
             lastError = "Impossible de démarrer le microphone : \(error.localizedDescription)"
+            if isLiveInterpreting { onLiveInterpretationError?(lastError ?? "") }
             AudioSessionManager.shared.deactivateSession()
         }
     }
@@ -324,6 +378,32 @@ public final class WhisperService: ObservableObject {
             }
 
             let duration = Double(self.samples.count) / self.targetSampleRate
+
+            if self.isLiveInterpreting {
+                // A greeting such as "shalom" is flushed after a brief pause,
+                // whereas continuous speech is segmented every ~2 seconds.
+                // Never stop AVAudioEngine here; sample collection and inference
+                // run on separate queues.
+                let briefPause = self.hasDetectedSpeech
+                    && now.timeIntervalSince(self.lastVoiceActivity) >= self.liveSilenceThreshold
+                let shouldEmit = self.hasDetectedSpeech
+                    && duration >= self.liveMinChunkSeconds
+                    && (briefPause || duration >= self.liveMaxChunkSeconds)
+                if shouldEmit {
+                    let liveChunk = self.samples
+                    self.samples.removeAll(keepingCapacity: true)
+                    self.hasDetectedSpeech = false
+                    self.consecutiveVoiceChunks = 0
+                    DispatchQueue.main.async { [weak self] in
+                        self?.enqueueLiveChunk(liveChunk, generation: generation)
+                    }
+                } else if !self.hasDetectedSpeech && duration > 0.8 {
+                    // No unbounded memory growth during hours of silence.
+                    self.samples.removeAll(keepingCapacity: true)
+                }
+                return
+            }
+
             let enoughAudio = duration >= self.minimumUtteranceSeconds
             let silenceDetected = self.hasDetectedSpeech &&
                 enoughAudio &&
@@ -337,6 +417,30 @@ public final class WhisperService: ObservableObject {
                     self.finishAfterSilence(samples: finalSamples, generation: generation)
                 }
             }
+        }
+    }
+
+    /// Bounded inference queue: continuous recording never accumulates hours
+    /// of audio when the iPhone CPU cannot keep up with real-time speech.
+    private func enqueueLiveChunk(_ audio: [Float], generation: UUID) {
+        guard isLiveInterpreting, self.generation == generation else { return }
+        if livePendingChunks.count >= 4 {
+            livePendingChunks.removeFirst()
+            onLiveInterpretationError?("Le modèle est plus lent que la voix. Un segment ancien a été ignoré.")
+        }
+        livePendingChunks.append(audio)
+        drainLiveChunks(generation: generation)
+    }
+
+    private func drainLiveChunks(generation: UUID) {
+        guard isLiveInterpreting, self.generation == generation,
+              !liveInferenceBusy, !livePendingChunks.isEmpty else { return }
+        liveInferenceBusy = true
+        let next = livePendingChunks.removeFirst()
+        transcribe(next, final: true, deliverToLive: true) { [weak self] _ in
+            guard let self, self.isLiveInterpreting, self.generation == generation else { return }
+            self.liveInferenceBusy = false
+            self.drainLiveChunks(generation: generation)
         }
     }
 
@@ -366,6 +470,7 @@ public final class WhisperService: ObservableObject {
         converter = nil
         isRecording = false
         micEnergyLevel = 0
+        if isLiveInterpreting { onLiveMicrophoneChanged?(false) }
         if !MultiAgentVoiceManager.shared.isSpeaking {
             AudioSessionManager.shared.deactivateSession()
         }
@@ -415,7 +520,11 @@ public final class WhisperService: ObservableObject {
         context = loaded
     }
 
-    private func transcribe(_ audio: [Float], final: Bool, completion: ((String?) -> Void)?) {
+    private func transcribe(
+        _ audio: [Float], final: Bool,
+        deliverToLive: Bool = false,
+        completion: ((String?) -> Void)?
+    ) {
         guard !audio.isEmpty else {
             completion?(nil)
             return
@@ -485,10 +594,10 @@ public final class WhisperService: ObservableObject {
                     return
                 }
                 self.currentText = text
-                if final {
-                    // Important: an empty transcription is STILL the end of an
-                    // utterance. Voice mode must be notified so it can rearm
-                    // the microphone instead of getting stuck in "Micro coupé".
+                if deliverToLive {
+                    if !text.isEmpty { self.onLiveInterpretationChunk?(text) }
+                } else if final {
+                    // An empty transcription is still the end of an utterance.
                     self.onFinalTranscription?(text)
                 } else if !text.isEmpty {
                     self.onPartialTranscription?(text)
