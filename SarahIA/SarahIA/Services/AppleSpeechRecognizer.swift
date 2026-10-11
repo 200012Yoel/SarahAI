@@ -67,7 +67,11 @@ public final class WhisperSpeechRecognizer: NSObject {
             self.currentLiveText = text
             self.isListening = false
             self.state = .processing
-            HapticService.shared.notificationSuccess()
+            // Empty recognitions are normal with television audio, background
+            // noise or a short breath. Do not pretend a message was understood.
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HapticService.shared.notificationSuccess()
+            }
             if self.suppressNextExternalFinalCallback {
                 self.suppressNextExternalFinalCallback = false
             } else {
