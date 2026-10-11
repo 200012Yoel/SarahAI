@@ -27,6 +27,13 @@ jobs:
           grep -q 'Supertonic3' .github/workflows/ios-build.yml
           grep -q 'OpenRAIL-M' docs/VOICE_LICENSES.md
           grep -q '1.13.8' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'func commandPair(' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'whisper.stopListening()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'neural.onPlaybackFinished' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'scheduleNextListen' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'YoannTranslateLiveView(' SarahIA/SarahIA/ContentView.swift
+          grep -q 'YoannTranslateLiveService.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'YoannTranslateLiveView.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
           ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
           test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
           echo 'Static voice migration checks passed'
@@ -35,6 +42,8 @@ jobs:
           set -euo pipefail
           for swift in \
             SarahIA/SarahIA/Services/NeuralVoiceService.swift \
+            SarahIA/SarahIA/Services/YoannTranslateLiveService.swift \
+            SarahIA/SarahIA/Views/YoannTranslateLiveView.swift \
             SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift \
             SarahIA/SarahIA/Services/SpeechManager.swift \
             SarahIA/SarahIA/Services/TTSService.swift \
