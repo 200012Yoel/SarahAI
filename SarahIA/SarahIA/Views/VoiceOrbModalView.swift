@@ -282,15 +282,26 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            VStack(spacing: 2) {
-                Text(viewModel.activeAgent.displayName)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+            Button {
+                HapticService.shared.buttonTap()
+                closeVoiceSurface()
+            } label: {
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(viewModel.activeAgent.displayName)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
                     .foregroundColor(.white)
 
-                Text("Mode vocal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.46))
+                    Text("Réduire · écoute maintenue")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.62))
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
 
             Spacer()
 
@@ -305,7 +316,9 @@ public struct VoiceOrbModalView: View {
     }
 
     private func closeVoiceSurface() {
-        viewModel.stopVoiceConversation()
+        // Dismiss the sheet only. The ChatScreenView bubble owns explicit Stop.
+        // Swipe-to-dismiss, opening the menu and opening settings all preserve
+        // the current conversation while Sarah stays in the foreground.
         withAnimation(.easeOut(duration: 0.16)) {
             viewModel.isShowingVoiceOrbModal = false
         }
