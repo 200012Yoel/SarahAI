@@ -100,6 +100,12 @@ public enum TranslateLiveLanguages {
             "traduis en direct"
         ]
         let explicitMode = directNames.contains(where: normalized.contains)
+            || (["yoann", "yohan", "yoan", "johan"].contains(where: normalized.contains)
+                && ["traduis", "traduction", "interprete"].contains(where: normalized.contains)
+                && ["tele", "chaine", "hebreu", "francais", "direct"].contains(where: normalized.contains))
+            || (["traduis", "traduction"].contains(where: normalized.contains)
+                && ["tele", "television", "chaine isra", "journal en hebreu"].contains(where: normalized.contains)
+                && ["active", "lance", "mets", "ouvre", "je veux"].contains(where: normalized.contains))
         let contextualMode =
             (normalized.contains("traduction") || normalized.contains("traduis"))
             && (normalized.contains("parle") || normalized.contains("quelqu'un")
