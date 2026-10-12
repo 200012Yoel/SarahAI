@@ -52,6 +52,12 @@ jobs:
           # Regression guard: real iPhone input bus and empty-result recovery.
           grep -q 'input.outputFormat(forBus: 0)' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'self.onFinalTranscription?(text)' SarahIA/SarahIA/Services/WhisperService.swift
+          # Voice reliability regression: "allô" must not wait behind a
+          # 30-second noise-locked VAD, and the app must recover a dead mic.
+          grep -q 'private var desiredModelName: String { "ggml-base" }' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'private let maximumUtteranceSeconds: Double = 7.5' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'isMicrophoneEngineRunning' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          grep -q 'watchVoiceMicrophone(generation:' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'rearmMicrophoneAfterSilence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'func retryVoiceMicrophone' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'Bienvenue dans Sarah' SarahIA/SarahIA/Views/MessageList.swift
