@@ -498,13 +498,17 @@ public final class ChatViewModel: ObservableObject {
                   !self.isVoiceMicrophoneMuted,
                   self.isBargeInMonitorActive,
                   self.voiceManager.isSpeaking,
-                  Date().timeIntervalSince(self.voicePlaybackStartedAt) > 0.65 else { return }
+                  Date().timeIntervalSince(self.voicePlaybackStartedAt) > 0.28 else { return }
 
             // AVAudioSession .voiceChat fournit l'annulation d'écho. Dès qu'une
             // vraie voix traverse le VAD Whisper, Sarah s'arrête immédiatement,
             // mais Whisper continue d'enregistrer la nouvelle phrase utilisateur.
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             self.isBargeInMonitorActive = false
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = false
+            // The microphone heard Sarah before the interruption; keep only
+            // recent audio near the human voice, then stop the TTS at once.
+            WhisperService.shared.keepOnlyRecentBargeInAudio()
             self.voiceManager.stop()
             self.isSpeaking = false
             self.voiceStatus = .listening(level: self.micInputLevel)
@@ -563,20 +567,18 @@ public final class ChatViewModel: ObservableObject {
             }
 
             self.voicePlaybackStartedAt = Date()
-            // Listening to Sarah through the iPhone speaker made Whisper
-            // interpret Sarah's own answer as barge-in, instantly cutting
-            // her TTS off. Only enable simultaneous mic monitoring when the
-            // output is physically isolated by headphones.
+            // Full-duplex turn taking: the input tap must stay alive even
+            // while playing from the built-in speaker. The previous headset-
+            // only condition made "interrupt Sarah" completely impossible
+            // without headphones. Voice processing applies iOS echo
+            // cancellation, and Whisper uses stricter sustained VAD for the
+            // phone speaker to reduce self-interruptions.
             let outputTypes = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
             let isolatedOutput = outputTypes.contains {
                 [.headphones, .bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains($0)
             }
-            self.isBargeInMonitorActive = isolatedOutput
-            guard isolatedOutput else {
-                self.isMicRunning = false
-                return
-            }
-
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = !isolatedOutput
+            self.isBargeInMonitorActive = true
             AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
             if !WhisperSpeechRecognizer.shared.isListening {
                 WhisperSpeechRecognizer.shared.startListening(
@@ -596,6 +598,7 @@ public final class ChatViewModel: ObservableObject {
 
             let finishedWithoutBargeIn = self.isBargeInMonitorActive
             self.isBargeInMonitorActive = false
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = false
 
             guard self.isContinuousConversationActive,
                   !self.isVoiceMicrophoneMuted else {
@@ -752,6 +755,7 @@ public final class ChatViewModel: ObservableObject {
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
+        WhisperService.shared.voiceReplyPlayingOnSpeaker = false
         voicePlaybackError = nil
 
         // Do not block first microphone activation with Supertonic startup.
@@ -787,6 +791,7 @@ public final class ChatViewModel: ObservableObject {
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
+        WhisperService.shared.voiceReplyPlayingOnSpeaker = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.
