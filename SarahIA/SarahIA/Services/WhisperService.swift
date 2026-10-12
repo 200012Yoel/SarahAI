@@ -56,6 +56,8 @@ public final class WhisperService: ObservableObject {
     private let inferenceQueue = DispatchQueue(label: "sarah.whisper.inference", qos: .userInitiated)
     private var converter: AVAudioConverter?
     private var context: OpaquePointer?
+    private var loadedModelName: String?
+    private var desiredModelName: String { isLiveInterpreting ? "ggml-base" : "ggml-tiny" }
     private var samples: [Float] = []
     private var automaticFinalize = true
     private var hasDetectedSpeech = false
@@ -71,7 +73,9 @@ public final class WhisperService: ObservableObject {
     private var pendingAutoFinalizeOnSilence = true
 
     private let targetSampleRate: Double = 16_000
-    private let silenceThreshold: TimeInterval = 0.92
+    // Sarah chat: respond after a short, stable pause rather than waiting
+    // almost a second on every turn. Translation mode has its own VAD.
+    private let silenceThreshold: TimeInterval = 0.58
     private let minimumUtteranceSeconds: Double = 0.35
     private let maximumUtteranceSeconds: Double = 30
     private let liveSilenceThreshold: TimeInterval = 0.55
@@ -150,7 +154,7 @@ public final class WhisperService: ObservableObject {
     }
 
     public func prepareModel() {
-        guard context == nil else {
+        guard context == nil || loadedModelName != desiredModelName else {
             isModelReady = true
             return
         }
@@ -185,7 +189,7 @@ public final class WhisperService: ObservableObject {
             return
         }
 
-        if context == nil {
+        if context == nil || loadedModelName != desiredModelName {
             wantsRecordingAfterModelLoad = true
             pendingAutoFinalizeOnSilence = autoFinalizeOnSilence
             prepareModelInBackgroundIfNeeded()
@@ -198,7 +202,7 @@ public final class WhisperService: ObservableObject {
     }
 
     private func prepareModelInBackgroundIfNeeded() {
-        guard context == nil else {
+        guard context == nil || loadedModelName != desiredModelName else {
             isModelReady = true
             if wantsRecordingAfterModelLoad {
                 let autoFinalize = pendingAutoFinalizeOnSilence
@@ -523,17 +527,25 @@ public final class WhisperService: ObservableObject {
     // MARK: Whisper inference
 
     private func ensureModelLoaded() throws {
-        if context != nil { return }
-
+        // Inference runs on one serial queue. Do not retain both Whisper
+        // contexts in RAM on an iPhone 14: release the previous model before
+        // loading the one needed by this particular voice screen.
+        let requestedName = desiredModelName
+        if context != nil && loadedModelName == requestedName { return }
+        if let old = context {
+            whisper_free(old)
+            context = nil
+            loadedModelName = nil
+        }
         guard let modelURL = Bundle.main.url(
-            forResource: "ggml-base",
+            forResource: requestedName,
             withExtension: "bin",
             subdirectory: "WhisperModels"
         ) else {
             throw NSError(
                 domain: "SarahIA.Whisper",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Le modèle OpenAI Whisper n'est pas inclus dans cette installation."]
+                userInfo: [NSLocalizedDescriptionKey: "Modèle OpenAI Whisper \(requestedName) absent. Installe une IPA complète."]
             )
         }
 
@@ -562,6 +574,7 @@ public final class WhisperService: ObservableObject {
             )
         }
         context = loaded
+        loadedModelName = requestedName
     }
 
     private func transcribe(
