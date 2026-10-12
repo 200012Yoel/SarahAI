@@ -879,6 +879,11 @@ public final class ChatViewModel: ObservableObject {
         ).lowercased()
             .replacingOccurrences(of: "’", with: "'")
             .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: ".", with: " ")
+            .replacingOccurrences(of: "?", with: " ")
+            .replacingOccurrences(of: "!", with: " ")
+            .replacingOccurrences(of: ":", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
         let words = normalized.split(whereSeparator: { $0.isWhitespace })
         guard words.count <= 12 else { return nil }
