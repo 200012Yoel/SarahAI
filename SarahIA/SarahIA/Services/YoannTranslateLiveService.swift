@@ -73,8 +73,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     /// Apple Translation supplies Hebrew→French entirely on iPhone if the
     /// language pack is available, without requiring the user's Debian server.
     public var shouldAttemptSystemTranslation: Bool {
-        customTranslationServerURL.isEmpty && sourceLanguage == "he"
-            && targetLanguage == "fr"
+        sourceLanguage == "he" && targetLanguage == "fr"
     }
 
     private var incoming: [String] = []
@@ -391,10 +390,22 @@ public final class YoannTranslateLiveService: ObservableObject {
                     // Don't silently label a failed system translation as a
                     // valid French answer. An explicitly configured server
                     // remains the fallback for other language combinations.
-                    self.finishTranslation(
-                        .unavailable("Traduction iOS : \(error.localizedDescription). Vérifie les modèles hébreu/français dans iOS."),
-                        original: fragment, token: token
-                    )
+                    self.nativeTranslator = nil
+                    self.nativeTranslationUnavailable = true
+                    self.isSystemTranslationReady = false
+                    if !self.customTranslationServerURL.isEmpty {
+                        // The user's local server is a second, independent
+                        // engine if iOS cannot translate this fragment.
+                        self.translationBusy = false
+                        self.isTranslating = false
+                        self.incoming.insert(fragment, at: 0)
+                        self.translateNext(token: token)
+                    } else {
+                        self.finishTranslation(
+                            .unavailable("Traduction iOS : \(error.localizedDescription). Autorise le téléchargement hébreu/français ou configure un serveur dans ⚙️."),
+                            original: fragment, token: token
+                        )
+                    }
                 }
             }
             return
