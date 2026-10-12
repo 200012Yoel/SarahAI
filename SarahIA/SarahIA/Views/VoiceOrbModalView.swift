@@ -44,7 +44,7 @@ public struct VoiceOrbModalView: View {
         case .starting:
             return "Activation du microphone…"
         case .speaking:
-            return "Sarah parle"
+            return "\(viewModel.activeAgent.displayName) parle"
         case .error:
             return "Micro indisponible"
         case .listening:
@@ -68,9 +68,9 @@ public struct VoiceOrbModalView: View {
                 ? "Le modèle vocal démarre sur l'iPhone, patiente un instant."
                 : "Whisper analyse la dernière phrase."
         case .speaking:
-            return "La réponse vocale est en cours."
+            return "\(viewModel.activeAgent.displayName) répond à voix haute."
         case .listening:
-            return "Parle normalement, Sarah écoute."
+            return "Parle normalement, \(viewModel.activeAgent.displayName) écoute."
         case .idle:
             return viewModel.isVoiceMicrophoneMuted
                 ? "Touche le micro pour reprendre."
@@ -332,18 +332,20 @@ public struct VoiceOrbModalView: View {
             diameter: size,
             level: normalizedLevel,
             isSpeaking: isSarahSpeaking,
-            isMuted: viewModel.isVoiceMicrophoneMuted
+            isMuted: viewModel.isVoiceMicrophoneMuted,
+            accentColor: accent
         )
         .contentShape(Circle())
         .onTapGesture {
             HapticService.shared.buttonTap()
-            if viewModel.isMicRunning {
+            if viewModel.isContinuousConversationActive {
+                // A muted microphone must unmute without resetting an active reply.
                 viewModel.toggleMicrophone()
             } else {
                 viewModel.startVoiceConversation()
             }
         }
-        .accessibilityLabel("Orbe vocal Sarah. " + statusTitle)
+        .accessibilityLabel("Orbe vocal \(viewModel.activeAgent.displayName). " + statusTitle)
         .accessibilityAddTraits(.isButton)
     }
 
@@ -484,15 +486,17 @@ public struct SarahReactiveVoiceOrb: View {
     public let level: CGFloat
     public let isSpeaking: Bool
     public let isMuted: Bool
+    public let accentColor: Color
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathe = false
 
-    public init(diameter: CGFloat, level: CGFloat, isSpeaking: Bool = false, isMuted: Bool = false) {
+    public init(diameter: CGFloat, level: CGFloat, isSpeaking: Bool = false, isMuted: Bool = false, accentColor: Color = .blue) {
         self.diameter = diameter
         self.level = level
         self.isSpeaking = isSpeaking
         self.isMuted = isMuted
+        self.accentColor = accentColor
     }
 
     private var activity: CGFloat {
@@ -508,8 +512,8 @@ public struct SarahReactiveVoiceOrb: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color(red: 0.16, green: 0.57, blue: 1.0).opacity(isMuted ? 0.12 : 0.35),
-                            Color(red: 0.12, green: 0.25, blue: 0.8).opacity(0.16),
+                            accentColor.opacity(isMuted ? 0.12 : 0.35),
+                            accentColor.opacity(0.16),
                             Color.clear
                         ],
                         center: .center,
@@ -527,8 +531,8 @@ public struct SarahReactiveVoiceOrb: View {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.36, green: 0.82, blue: 1).opacity(0.48),
-                                Color(red: 0.54, green: 0.47, blue: 1).opacity(0.22),
+                                accentColor.opacity(0.48),
+                                accentColor.opacity(0.22),
                                 Color.white.opacity(0.10)
                             ],
                             startPoint: .topLeading,
@@ -556,10 +560,10 @@ public struct SarahReactiveVoiceOrb: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color(red: 0.78, green: 0.96, blue: 1),
-                            Color(red: 0.26, green: 0.71, blue: 1),
-                            Color(red: 0.13, green: 0.31, blue: 0.88),
-                            Color(red: 0.16, green: 0.12, blue: 0.43)
+                            Color.white.opacity(0.90),
+                            accentColor.opacity(0.84),
+                            accentColor,
+                            accentColor.opacity(0.48)
                         ],
                         center: UnitPoint(x: 0.31, y: 0.22),
                         startRadius: 0,
@@ -570,7 +574,7 @@ public struct SarahReactiveVoiceOrb: View {
                 .overlay(
                     Circle().stroke(
                         LinearGradient(
-                            colors: [.white.opacity(0.86), .cyan.opacity(0.35), .white.opacity(0.14)],
+                            colors: [.white.opacity(0.86), accentColor.opacity(0.45), .white.opacity(0.14)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -598,7 +602,7 @@ public struct SarahReactiveVoiceOrb: View {
                         .shadow(color: .white.opacity(0.65), radius: core * 0.06)
                 )
                 .shadow(
-                    color: Color(red: 0.10, green: 0.49, blue: 1).opacity(isMuted ? 0.12 : 0.54),
+                    color: accentColor.opacity(isMuted ? 0.12 : 0.54),
                     radius: diameter * 0.075
                 )
                 .scaleEffect(1 + activity * 0.025 + (breathe && !reduceMotion ? 0.012 : 0))
