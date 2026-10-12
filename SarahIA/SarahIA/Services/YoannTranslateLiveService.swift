@@ -255,23 +255,32 @@ public final class YoannTranslateLiveService: ObservableObject {
             // which will drain the next queued segment once.
         }
 
+        // Hebrew is not installed or offered in Apple Translate on the
+        // user's iPhone. Direct Hebrew→French LanguageAvailability returns
+        // unsupported, so do not force that broken system path or make the
+        // user wait for an impossible Hebrew language download.
+        // Start the *real* Whisper speech-to-English → iOS English→French
+        // neural relay immediately. A configured user-owned Marian server
+        // still takes priority for direct Hebrew→French translation.
+        let token = sessionToken
+        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
+            requestEnglishPivot(token: token)
+        }
+
         status = "Initialisation de Whisper… Le micro reste actif tant que ce mode est ouvert."
         whisper.startLiveInterpretation()
 
-        // The hidden SwiftUI translationTask may not start (or may wait for
-        // an iOS language download). Never leave incoming TV speech waiting
-        // forever in the queue with no French captions.
+        // If the SwiftUI English translationTask is not attached, explain
+        // why captions cannot yet appear instead of simulating responses.
         if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 12_000_000_000)
                 guard let self, self.isActive, self.sessionToken == token,
-                      self.nativeTranslator == nil,
-                      !self.nativeTranslationUnavailable else { return }
-                self.nativeTranslationUnavailable = true
+                      self.nativeEnglishToFrenchTranslator == nil,
+                      !self.isUsingEnglishPivot else { return }
                 self.preparingSystemTranslation = false
-                self.translationSetupMessage = "Pack iOS non prêt. Connecte-toi une fois pour le télécharger, puis relance la traduction."
+                self.translationSetupMessage = "Le moteur anglais → français n'a pas démarré. Vérifie les langues anglais et français de Traduire sur cet iPhone."
                 self.errorMessage = self.translationSetupMessage
-                self.translateNext(token: token)
                 self.updateStatus()
             }
         }
@@ -427,8 +436,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSystemTranslationReady = false
         incoming.removeAll()
         waitingTranslations = 0
+        preparingSystemTranslation = false
         needsEnglishPivotTranslation = true
-        translationSetupMessage = "Traduction iOS directe indisponible. Préparation du relais local hébreu → anglais → français…"
+        translationSetupMessage = "Démarrage de Whisper hébreu → anglais et du traducteur neuronal anglais → français (aucun pack hébreu Apple nécessaire)…"
         errorMessage = nil
         activateEnglishPivotIfReady(token: token)
     }
@@ -440,7 +450,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         isUsingEnglishPivot = true
         isSystemTranslationReady = true
         preparingSystemTranslation = false
-        translationSetupMessage = "Relais hors ligne actif : Whisper hébreu → anglais, puis iOS anglais → français."
+        translationSetupMessage = "Moteur réel actif : Whisper hébreu → anglais, puis Traduire anglais → français hors ligne."
         errorMessage = nil
         updateStatus()
     }
@@ -770,8 +780,10 @@ public final class YoannTranslateLiveService: ObservableObject {
             status = "🔊 Voix française en lecture, le micro continue d'écouter…"
         } else if isPreparingSpeech {
             status = "⌛ Préparation de la voix neuronale…"
+        } else if needsEnglishPivotTranslation && !isUsingEnglishPivot {
+            status = "⌛ Chargement du traducteur anglais → français…"
         } else if preparingSystemTranslation {
-            status = "⌛ Préparation de la traduction hébreu → français sur l’iPhone…"
+            status = "⌛ Préparation des modèles de traduction iOS…"
         } else if translationBusy {
             status = "🎙️ Écoute continue, traduction en cours…"
         } else {
