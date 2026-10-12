@@ -94,9 +94,11 @@ public final class WhisperService: ObservableObject {
     // Force French chat to hand off short recorded windows rather than
     // leaving "Je t'écoute" frozen for thirty seconds.
     private let maximumUtteranceSeconds: Double = 7.5
-    private let liveSilenceThreshold: TimeInterval = 0.55
-    private let liveMaxChunkSeconds: Double = 4.5
-    private let liveMinChunkSeconds: Double = 1.15
+    private let liveSilenceThreshold: TimeInterval = 0.42
+    // More frequent source captions for continuous TV: Qwen translates
+    // each chunk directly without the old double Whisper→English pass.
+    private let liveMaxChunkSeconds: Double = 3.4
+    private let liveMinChunkSeconds: Double = 1.0
     private let activityDBThreshold: Float = -48
 
     private init() {}
@@ -516,9 +518,12 @@ public final class WhisperService: ObservableObject {
         _ audio: [Float], endsAtPause: Bool, generation: UUID
     ) {
         guard isLiveInterpreting, self.generation == generation else { return }
-        if livePendingChunks.count >= 4 {
-            livePendingChunks.removeFirst()
-            onLiveInterpretationError?("Le modèle est plus lent que la voix. Un segment ancien a été ignoré.")
+        // Live radio cannot pause. A one-item pending queue retains only
+        // the newest complete chunk while inference is already underway.
+        // This prevents an ever-growing subtitle/voice delay on iPhone.
+        if !livePendingChunks.isEmpty {
+            livePendingChunks.removeAll(keepingCapacity: true)
+            onLiveInterpretationError?("Traduction en direct : un extrait ancien a été remplacé par des paroles plus récentes.")
         }
         livePendingChunks.append(LiveChunk(audio: audio, endsAtPause: endsAtPause))
         drainLiveChunks(generation: generation)
