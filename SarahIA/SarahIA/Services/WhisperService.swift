@@ -734,7 +734,9 @@ public final class WhisperService: ObservableObject {
                     }
                     let candidate = englishPieces.joined(separator: " ")
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !TranslateLiveContextBuffer.isUnreliableTranscript(candidate),
+                    if !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+                            candidate, hebrewSource: text
+                        ),
                        candidate.range(of: "[A-Za-z]", options: .regularExpression) != nil {
                         englishPivot = candidate
                     }
