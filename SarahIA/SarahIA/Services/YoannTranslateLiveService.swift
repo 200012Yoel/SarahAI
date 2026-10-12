@@ -52,6 +52,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var microphoneLevel: Float = 0
     @Published public private(set) var preparingSystemTranslation = false
     @Published public private(set) var isSystemTranslationReady = false
+    @Published public private(set) var translationSetupMessage = "Vérification du moteur hébreu → français…"
 
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
@@ -138,6 +139,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         nativeTranslationUnavailable = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
+        translationSetupMessage = "Vérification du pack de traduction hébreu → français…"
         sessionToken = UUID()
         isActive = true
 
@@ -219,6 +221,24 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         status = "Initialisation de Whisper… Le micro reste actif tant que ce mode est ouvert."
         whisper.startLiveInterpretation()
+
+        // The hidden SwiftUI translationTask may not start (or may wait for
+        // an iOS language download). Never leave incoming TV speech waiting
+        // forever in the queue with no French captions.
+        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 12_000_000_000)
+                guard let self, self.isActive, self.sessionToken == token,
+                      self.nativeTranslator == nil,
+                      !self.nativeTranslationUnavailable else { return }
+                self.nativeTranslationUnavailable = true
+                self.preparingSystemTranslation = false
+                self.translationSetupMessage = "Pack iOS non prêt. Connecte-toi une fois pour le télécharger, puis relance la traduction."
+                self.errorMessage = self.translationSetupMessage
+                self.translateNext(token: token)
+                self.updateStatus()
+            }
+        }
     }
 
     public func stop() {
@@ -322,11 +342,53 @@ public final class YoannTranslateLiveService: ObservableObject {
         guard isActive, shouldAttemptSystemTranslation else { return }
 
         preparingSystemTranslation = true
+        translationSetupMessage = "Vérification des langues hébreu et français…"
         updateStatus()
         do {
-            // SwiftUI's translationTask allows iOS to request permission to
-            // download the Hebrew/French pair once. The user chooses whether.
+            let source = Locale.Language(identifier: "he")
+            let target = Locale.Language(identifier: "fr")
+            let availability = LanguageAvailability()
+            let available = await availability.status(from: source, to: target)
+            guard isActive, sessionToken == token, !Task.isCancelled else { return }
+            switch available {
+            case .unsupported:
+                nativeTranslationUnavailable = true
+                preparingSystemTranslation = false
+                isSystemTranslationReady = false
+                translationSetupMessage = "La traduction hébreu → français n'est pas prise en charge par cet iOS."
+                errorMessage = translationSetupMessage + " Un moteur hors ligne compatible ou un serveur personnel est nécessaire."
+                translateNext(token: token)
+                updateStatus()
+                return
+            case .supported:
+                translationSetupMessage = "Téléchargement du pack iOS requis une seule fois : accepte la demande d'iOS."
+            case .installed:
+                translationSetupMessage = "Pack de traduction déjà installé sur l'iPhone."
+            @unknown default:
+                translationSetupMessage = "Vérification du pack de traduction iOS…"
+            }
+
+            // This may prompt for a one-time download. An offline iPhone
+            // cannot install Apple's language assets for the first time.
             try await session.prepareTranslation()
+            guard isActive, sessionToken == token, !Task.isCancelled else { return }
+            // prepareTranslation() can return while language assets are
+            // still downloading, so do not report "ready" prematurely.
+            var installed = false
+            for _ in 0..<20 {
+                let state = await availability.status(from: source, to: target)
+                guard isActive, sessionToken == token, !Task.isCancelled else { return }
+                if state == .installed {
+                    installed = true
+                    break
+                }
+                translationSetupMessage = "Téléchargement du pack hébreu/français en cours…"
+                try await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            guard installed else {
+                throw NSError(domain: "SarahTranslateLive", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Le pack hébreu/français n'est pas encore installé. Vérifie la connexion, puis relance."])
+            }
             guard isActive, sessionToken == token, !Task.isCancelled else { return }
 
             nativeTranslator = { text in
@@ -336,6 +398,7 @@ public final class YoannTranslateLiveService: ObservableObject {
             nativeTranslationUnavailable = false
             preparingSystemTranslation = false
             isSystemTranslationReady = true
+            translationSetupMessage = "Traduction hébreu → français installée, utilisable hors connexion."
             errorMessage = nil
             translateNext(token: token)
             updateStatus()
@@ -352,7 +415,8 @@ public final class YoannTranslateLiveService: ObservableObject {
             nativeTranslationUnavailable = true
             preparingSystemTranslation = false
             isSystemTranslationReady = false
-            errorMessage = "Traduction iOS indisponible : \(error.localizedDescription). Vérifie les langues hébreu/français ou configure ton serveur dans ⚙️."
+            translationSetupMessage = "Traduction iOS non disponible : \(error.localizedDescription)"
+            errorMessage = translationSetupMessage + ". Installe le pack avec Internet une fois, ou configure un serveur dans ⚙️."
             translateNext(token: token)
             updateStatus()
         }
