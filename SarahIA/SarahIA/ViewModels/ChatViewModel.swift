@@ -213,7 +213,7 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
                 if let agent = notif.object as? AgentType {
-                    self?.activeAgent = agent
+                    self?.activeAgent = agent.currentAgent
                 }
             }
             .store(in: &cancellables)
@@ -736,12 +736,13 @@ public final class ChatViewModel: ObservableObject {
 
     /// Select the voice agent immediately without waiting for an LLM reply.
     public func selectVoiceAgent(_ agent: AgentType) {
-        guard activeAgent != agent else { return }
+        let selected = agent.currentAgent
+        guard activeAgent != selected else { return }
         messageGenerationID = UUID()
         isTyping = false
         isPreparingVoiceReply = false
         voiceManager.stop()
-        activeAgent = agent
+        activeAgent = selected
         currentSpeakingText = nil
         liveTranscriptionText = ""
         if isContinuousConversationActive && !isVoiceMicrophoneMuted {
@@ -973,8 +974,8 @@ public final class ChatViewModel: ObservableObject {
             (explicit || words.count == 1) { return .yohan }
         if named(["sarah", "sara"]) &&
             (explicit || words.count == 1) { return .sarah }
-        if named(["tom"]) &&
-            (explicit || words.count == 1) { return .tom }
+        if named(["ethel", "etel", "tom"]) &&
+            (explicit || words.count == 1) { return .ethel }
         if named(["raphael", "esther", "ester"]) &&
             (explicit || words.count == 1) { return .esther }
         return nil
@@ -1249,7 +1250,7 @@ public final class ChatViewModel: ObservableObject {
     public func introduceSarah() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Code) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
+        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Ethel (Création & Design), Raphaël (Développeur & Code) et Yoann (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
         let aiMessage = Message(content: introText, isFromUser: false)
         appendMessage(aiMessage)
         voiceManager.speak(text: introText, for: .sarah)
