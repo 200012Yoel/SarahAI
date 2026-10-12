@@ -30,6 +30,10 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
     /// Dedicated callback for the isolated Yoann Translate Live session.
     /// Does not replace the agent manager's ordinary playback callbacks.
     public var onPlaybackFinished: (() -> Void)?
+    /// Independent from AgentVoiceManager's onStarted callback.
+    /// Fired only after AVAudioPlayer.play() really succeeds.
+    public var onPlaybackStarted: (() -> Void)?
+    public var onGenerationStarted: (() -> Void)?
     public var onFailure: ((String) -> Void)?
     public var onPlaybackError: ((String) -> Void)?
 
@@ -90,6 +94,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         }
         let selectedLanguage = language
         let sid = Profile.forAgent(agent).speakerID
+        onGenerationStarted?()
         synthesisQueue.async { [weak self] in
             guard let self else { return }
             do {
@@ -114,6 +119,12 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                     throw NSError(domain: "SarahNeuralTTS", code: 2,
                                   userInfo: [NSLocalizedDescriptionKey: "Le moteur vocal n'a produit aucun son."])
                 }
+                // Generating zero-amplitude PCM is not successful speech.
+                // Surface a real error rather than falsely claiming to speak.
+                guard result.samples.contains(where: { abs($0) > 0.0001 }) else {
+                    throw NSError(domain: "SarahNeuralTTS", code: 5,
+                                  userInfo: [NSLocalizedDescriptionKey: "Le modèle vocal a généré du silence."])
+                }
                 let wav = Self.waveData(samples: result.samples, sampleRate: Int(result.sampleRate))
                 DispatchQueue.main.async {
                     guard self.generation == token else { return }
@@ -121,6 +132,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                         AudioSessionManager.shared.configurePlaybackSession()
                         let playback = try AVAudioPlayer(data: wav)
                         playback.delegate = self
+                        playback.volume = 1.0
                         playback.prepareToPlay()
                         guard playback.play() else {
                             throw NSError(domain: "SarahNeuralTTS", code: 3,
@@ -130,6 +142,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                         self.isSpeaking = true
                         NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
                         self.onStarted?()
+                        self.onPlaybackStarted?()
                     } catch {
                         self.onFailure?(error.localizedDescription)
                         self.onPlaybackError?(error.localizedDescription)
@@ -195,6 +208,10 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
 
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         guard self.player === player else { return }
+        if !flag {
+            onFailure?("La sortie audio a été interrompue par iOS.")
+            onPlaybackError?("La sortie audio a été interrompue par iOS.")
+        }
         finishPlayback()
     }
 
