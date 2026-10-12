@@ -178,6 +178,9 @@ public final class WhisperSpeechRecognizer: NSObject {
         // "listening" while AVAudioEngine is actually stopped. The old
         // guard silently ignored every retry, even when the user said "allô".
         if isListening && !whisper.isMicrophoneEngineRunning {
+            // Clear Whisper's *own* stale isRecording flag too, otherwise its
+            // internal guard rejects every attempted microphone restart.
+            whisper.stopRecordingWithoutTranscription()
             isListening = false
             state = .idle
         }
