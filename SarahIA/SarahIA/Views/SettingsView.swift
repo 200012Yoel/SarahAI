@@ -962,11 +962,7 @@ private struct VoiceAndSpeechSettingsView: View {
             Section("Tester les six voix neuronales") {
                 ForEach(AgentType.allCases) { agent in
                     Button {
-                        viewModel.voicePlaybackError = nil
-                        MultiAgentVoiceManager.shared.speak(
-                            text: "Bonjour. Je suis \(agent.displayName). Écoute ma voix, différente des autres agents.",
-                            for: agent
-                        )
+                        viewModel.previewAgentVoice(agent)
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "speaker.wave.2.fill")
