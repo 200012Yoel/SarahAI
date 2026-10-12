@@ -1,5 +1,8 @@
 import SwiftUI
 import UIKit
+#if canImport(Translation)
+import Translation
+#endif
 
 /// Landscape-only, face-to-face interpreter screen.
 /// The translated language ALWAYS occupies the upper half.
@@ -50,6 +53,19 @@ public struct YoannTranslateLiveView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .background(darkNavy.ignoresSafeArea())
+        .background(alignment: .topLeading) {
+            // iOS 27 supports Hebrew in system-wide translation. The
+            // SwiftUI task owns the session and may ask permission to
+            // download its offline language pack on the first launch.
+            #if canImport(Translation)
+            if #available(iOS 18.0, *), live.isActive,
+               live.shouldAttemptSystemTranslation {
+                YoannNativeTranslationSessionHost(live: live)
+                    .frame(width: 1, height: 1)
+                    .accessibilityHidden(true)
+            }
+            #endif
+        }
         .ignoresSafeArea(.keyboard)
         .preferredColorScheme(.dark)
         .sheet(item: $pickerMode) { mode in
@@ -172,6 +188,14 @@ public struct YoannTranslateLiveView: View {
                 Text("Adresse du serveur de traduction invalide. Vérifie ⚙️.")
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
+            } else if sourceLanguage == "he" && targetLanguage == "fr"
+                        && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(live.isSystemTranslationReady
+                    ? "Traduction locale iOS hébreu → français activée"
+                    : "Préparation de la traduction locale iOS. Accepte le téléchargement des langues si demandé.")
+                    .font(.system(size: 11))
+                    .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
+                    .lineLimit(2)
             } else if !TranslateLiveLanguages.isEnglish(targetLanguage)
                       && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("Phrases complètes : serveur de traduction requis dans ⚙️.")
@@ -313,7 +337,7 @@ public struct YoannTranslateLiveView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("La moitié supérieure affiche toujours la traduction demandée ; la moitié inférieure affiche la langue parlée.")
-                    Text("Pour les phrases complètes hébreu ↔ français, installe et connecte le serveur neuronal personnel. Sans serveur, seul un petit jeu d'expressions est traduisible.")
+                    Text("Hébreu → français : Yoann essaie d'abord la traduction locale iOS lorsque cette paire est prise en charge et téléchargée. Pour les autres paires ou si la traduction système est indisponible, connecte un serveur neuronal dans les réglages.")
                     TextField("Serveur de traduction local ou HTTPS", text: $translationServerURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
@@ -442,3 +466,23 @@ private struct TranslateLiveLanguagePicker: View {
         }
     }
 }
+
+
+#if canImport(Translation)
+/// The system owns this task and the TranslationSession; never store its
+/// session after this view disappears. Runs only for Hebrew→French on iOS 18+.
+@available(iOS 18.0, *)
+private struct YoannNativeTranslationSessionHost: View {
+    @ObservedObject var live: YoannTranslateLiveService
+
+    var body: some View {
+        Color.clear
+            .translationTask(
+                source: Locale.Language(identifier: "he"),
+                target: Locale.Language(identifier: "fr")
+            ) { session in
+                await live.useSystemTranslation(session)
+            }
+    }
+}
+#endif
