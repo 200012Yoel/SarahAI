@@ -57,6 +57,7 @@ public final class QwenLocalCodeRuntime {
         system: String,
         user: String,
         maxTokens: Int = 3072,
+        fastTranslation: Bool = false,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         queue.async { [weak self] in
@@ -67,7 +68,8 @@ public final class QwenLocalCodeRuntime {
                     modelURL: modelURL,
                     system: system,
                     user: user,
-                    maxTokens: maxTokens
+                    maxTokens: maxTokens,
+                    fastTranslation: fastTranslation
                 )
                 DispatchQueue.main.async { completion(.success(value)) }
             } catch {
@@ -89,7 +91,8 @@ public final class QwenLocalCodeRuntime {
         modelURL: URL,
         system: String,
         user: String,
-        maxTokens: Int
+        maxTokens: Int,
+        fastTranslation: Bool
     ) throws -> String {
         if !backendInitialized {
             llama_backend_init()
@@ -175,7 +178,9 @@ public final class QwenLocalCodeRuntime {
         tokens = Array(tokens.prefix(Int(tokenCount)))
 
         let outputBudget = max(48, min(maxTokens, 4096))
-        let maxContext = 8192
+        // A broadcast phrase does not need an 8K context allocation.
+        // Large KV buffers and 256+ output tokens caused growing live lag.
+        let maxContext = fastTranslation ? 1024 : 8192
         let maxPromptTokens = max(512, maxContext - outputBudget - 64)
         if tokens.count > maxPromptTokens {
             tokens = Array(tokens.prefix(maxPromptTokens))
@@ -183,7 +188,7 @@ public final class QwenLocalCodeRuntime {
 
         var contextParams = llama_context_default_params()
         contextParams.n_ctx = UInt32(maxContext)
-        contextParams.n_batch = 512
+        contextParams.n_batch = fastTranslation ? 128 : 512
         let cpuCount = max(2, min(6, ProcessInfo.processInfo.activeProcessorCount))
         contextParams.n_threads = Int32(cpuCount)
         contextParams.n_threads_batch = Int32(cpuCount)
@@ -206,9 +211,9 @@ public final class QwenLocalCodeRuntime {
             )
         }
         defer { llama_sampler_free(sampler) }
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(fastTranslation ? 16 : 40))
         llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90, 1))
-        llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.20))
+        llama_sampler_chain_add(sampler, llama_sampler_init_temp(fastTranslation ? 0.05 : 0.20))
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(20261001))
 
         // Le prompt est évalué par blocs pour limiter la mémoire temporaire sur iPhone.
