@@ -89,7 +89,7 @@ jobs:
           test -d build-apple/whisper.xcframework
           find build-apple/whisper.xcframework -maxdepth 3 -type d -name 'whisper.framework' -print
 
-      - name: Download multilingual OpenAI Whisper base model
+      - name: Download multilingual OpenAI Whisper base and fast tiny models
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/WhisperModels"
@@ -97,6 +97,12 @@ jobs:
             'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
             -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
           test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          # A second, faster offline model is used by real-time Sarah chat.
+          # The more accurate Base model remains dedicated to Hebrew TV mode.
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin?download=true' \
+            -o "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
+          test -s "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
           curl -L --fail --retry 3 \
             'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
             -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
@@ -204,6 +210,8 @@ jobs:
           test -n "$APP_PATH"
           mkdir -p "$APP_PATH/WhisperModels"
           cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin" "$APP_PATH/WhisperModels/"
+          test -s "$APP_PATH/WhisperModels/ggml-tiny.bin"
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
