@@ -53,6 +53,9 @@ public final class AgentVoiceManager: NSObject {
     }
 
     private func speak(text: String, for agent: AgentType, rate: Float) {
+        // An old chat completion must never steal the single speech engine
+        // while Yoann interprets an external television broadcast.
+        guard !AudioSessionManager.shared.isInterpreterSessionActive else { return }
         if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
             WhisperSpeechRecognizer.shared.stopListening()
         }
@@ -69,6 +72,7 @@ public final class AgentVoiceManager: NSObject {
         agentGreeting: String,
         targetAgent: AgentType
     ) {
+        guard !AudioSessionManager.shared.isInterpreterSessionActive else { return }
         stop()
         let first = cleanTextForSpeech(transitionText)
         let second = cleanTextForSpeech(agentGreeting)
@@ -89,6 +93,7 @@ public final class AgentVoiceManager: NSObject {
         onItemStart: @escaping (Int) -> Void,
         completion: @escaping () -> Void
     ) {
+        guard !AudioSessionManager.shared.isInterpreterSessionActive else { return }
         stop()
         let cleaned = texts.map(cleanTextForSpeech).filter { !$0.isEmpty }
         guard !cleaned.isEmpty else {
