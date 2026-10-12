@@ -262,7 +262,6 @@ public final class YoannTranslateLiveService: ObservableObject {
         // Start the *real* Whisper speech-to-English → iOS English→French
         // neural relay immediately. A configured user-owned Marian server
         // still takes priority for direct Hebrew→French translation.
-        let token = sessionToken
         if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
             requestEnglishPivot(token: token)
         }
