@@ -877,7 +877,10 @@ public final class ChatViewModel: ObservableObject {
         // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
         let currentSelectedAgent = activeAgent
         let responseConversationID = currentConversationId
-        multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
+        multiAgentCoordinator.routeAndProcess(
+            query: text, currentAgent: currentSelectedAgent,
+            preferFastVoice: isContinuousConversationActive
+        ) { [weak self] response in
             guard let self = self else { return }
             
             DispatchQueue.main.async {
