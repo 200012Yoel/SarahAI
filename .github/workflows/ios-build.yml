@@ -34,7 +34,11 @@ jobs:
           grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
-          grep -q 'consecutiveVoiceChunks >= 2' SarahIA/SarahIA/Services/WhisperService.swift
+          # Speaker-mode duplex now needs a longer sustained VAD threshold
+          # than headphones, rather than hardcoding two chunks everywhere.
+          grep -q 'let minimumChunks = speakerMonitor ? 6 : 2' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'voiceReplyPlayingOnSpeaker' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'keepOnlyRecentBargeInAudio' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
