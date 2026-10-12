@@ -16,6 +16,11 @@ public final class AgentVoiceManager: NSObject {
 
     private let neural = NeuralVoiceService.shared
     private var pendingSpeechBlock: (() -> Void)?
+    // Short speech segments let Sarah start speaking without waiting for
+    // Supertonic to synthesize an entire long response.
+    private var pendingSpeechChunks: [String] = []
+    private var pendingSpeechAgent: AgentType?
+    private var pendingSpeechRate: Float = 1.0
     private var websiteTexts: [String] = []
     private var websiteIndex = 0
     private var websiteAgent: AgentType?
@@ -35,6 +40,8 @@ public final class AgentVoiceManager: NSObject {
         neural.onFailure = { [weak self] message in
             print("⚠️ [Sarah Neuronal TTS] \(message)")
             self?.isPreparingSpeech = false
+            self?.pendingSpeechChunks.removeAll()
+            self?.pendingSpeechAgent = nil
             self?.onSpeechError?(message)
         }
     }
@@ -47,6 +54,46 @@ public final class AgentVoiceManager: NSObject {
             .replacingOccurrences(of: "—", with: "")
             .replacingOccurrences(of: "•", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Avoid multi-second silence while a whole paragraph is generated.
+    /// Segment on natural sentence boundaries when possible, but cap long
+    /// run-on speech so the first audible audio arrives much earlier.
+    private func speechChunks(_ text: String, limit: Int = 150) -> [String] {
+        let words = text.split(whereSeparator: { $0.isWhitespace })
+        var chunks: [String] = []
+        var current = ""
+        for word in words {
+            let term = String(word)
+            let proposed = current.isEmpty ? term : current + " " + term
+            if !current.isEmpty && proposed.count > limit {
+                chunks.append(current)
+                current = term
+            } else {
+                current = proposed
+            }
+            if current.count >= 65,
+               let last = current.last,
+               ".!?;:".contains(last) {
+                chunks.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    private func playNextChatChunk() {
+        guard let agent = pendingSpeechAgent, !pendingSpeechChunks.isEmpty else {
+            pendingSpeechAgent = nil
+            return
+        }
+        let next = pendingSpeechChunks.removeFirst()
+        currentSpokenText = next
+        isPreparingSpeech = true
+        onSpeechPreparationStarted?()
+        // Fewer diffusion steps increase responsiveness on A15-class iPhones.
+        neural.speak(text: next, for: agent, speed: pendingSpeechRate, qualitySteps: 6)
     }
 
     /// A distinct Supertonic 3 voice ID is assigned to each agent.
@@ -68,10 +115,10 @@ public final class AgentVoiceManager: NSObject {
         stop()
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
-        currentSpokenText = cleaned
-        isPreparingSpeech = true
-        onSpeechPreparationStarted?()
-        neural.speak(text: cleaned, for: agent, speed: rate)
+        pendingSpeechChunks = speechChunks(cleaned)
+        pendingSpeechAgent = agent
+        pendingSpeechRate = rate
+        playNextChatChunk()
     }
 
     public func speakHandoff(
@@ -129,6 +176,11 @@ public final class AgentVoiceManager: NSObject {
     }
 
     private func finishSpeech() {
+        if !pendingSpeechChunks.isEmpty {
+            playNextChatChunk()
+            return
+        }
+        pendingSpeechAgent = nil
         if let next = pendingSpeechBlock {
             pendingSpeechBlock = nil
             next()
@@ -160,6 +212,8 @@ public final class AgentVoiceManager: NSObject {
 
     public func stop() {
         pendingSpeechBlock = nil
+        pendingSpeechChunks.removeAll()
+        pendingSpeechAgent = nil
         clearSequence()
         currentSpokenText = ""
         isPreparingSpeech = false
