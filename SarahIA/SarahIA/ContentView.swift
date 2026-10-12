@@ -11,6 +11,8 @@ public struct ContentView: View {
     @State private var isShowingSettings = false
     @State private var isShowingStartupAnimation = true
     @State private var didScheduleStartupDismissal = false
+    @State private var drawerDragOffset: CGFloat = 0
+    @State private var drawerIsDragging = false
 
     public init() {}
 
@@ -21,6 +23,10 @@ public struct ContentView: View {
                 max(CGFloat(278), geo.size.width * 0.84)
             )
 
+            let progress = min(CGFloat(1), max(CGFloat(0),
+                (viewModel.isDrawerOpen ? sidebarWidth : 0) + drawerDragOffset
+            ) / sidebarWidth)
+
             ZStack(alignment: .leading) {
                 ChatScreenView(
                     viewModel: viewModel,
@@ -29,19 +35,21 @@ public struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(0)
 
-                // Seuls les 18 points du bord gauche servent au geste du tiroir.
-                // Le reste de l'écran reste entièrement libre pour les contrôles.
+                // The edge tracks the user's finger continuously, instead
+                // of waiting for a completed drag before opening the drawer.
                 if !viewModel.isDrawerOpen && !viewModel.isShowingVoiceOrbModal && !viewModel.isShowingTranslateLive {
                     Color.clear
-                        .frame(width: 18)
+                        .frame(width: 24)
                         .frame(maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        .gesture(edgeOpenGesture)
+                        .gesture(drawerGesture(width: sidebarWidth, opening: true))
                         .zIndex(3)
                 }
 
-                if viewModel.isDrawerOpen {
+                if viewModel.isDrawerOpen || drawerIsDragging {
                     drawerOverlay
+                        .opacity(Double(progress))
+                        .allowsHitTesting(viewModel.isDrawerOpen && !drawerIsDragging)
                         .zIndex(30)
 
                     SidebarView(
@@ -52,7 +60,8 @@ public struct ContentView: View {
                     .frame(maxHeight: .infinity)
                     .background(Color.black)
                     .ignoresSafeArea(.container, edges: [.top, .bottom])
-                    .transition(.move(edge: .leading))
+                    .offset(x: -sidebarWidth * (1 - progress))
+                    .simultaneousGesture(drawerGesture(width: sidebarWidth, opening: false))
                     .zIndex(31)
                 }
 
@@ -191,18 +200,38 @@ public struct ContentView: View {
             }
     }
 
-    private var edgeOpenGesture: some Gesture {
-        DragGesture(minimumDistance: 18)
+    /// A partial pull follows the finger. Releasing before the halfway
+    /// threshold closes it; a decisive flick opens it directly to all chats.
+    /// The reverse drag closes it. Vertical chat scrolling is not hijacked.
+    private func drawerGesture(width: CGFloat, opening: Bool) -> some Gesture {
+        DragGesture(minimumDistance: 9)
+            .onChanged { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                guard abs(dx) > abs(dy) * 1.2,
+                      (opening ? dx > 0 : dx < 0) else { return }
+                drawerIsDragging = true
+                drawerDragOffset = opening
+                    ? min(width, max(0, dx))
+                    : max(-width, min(0, dx))
+            }
             .onEnded { value in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-
-                guard horizontal > 52,
-                      abs(horizontal) > abs(vertical) * 0.85 else {
-                    return
+                guard drawerIsDragging else { return }
+                let currentWidth = (opening ? 0 : width) + drawerDragOffset
+                let flick = value.predictedEndTranslation.width - value.translation.width
+                let open: Bool
+                if opening {
+                    // Halfway pulls close unless the user flicked decisively.
+                    open = currentWidth >= width * 0.62 || flick > width * 0.26
+                } else {
+                    open = currentWidth >= width * 0.38 && flick > -width * 0.22
                 }
-
-                viewModel.openDrawer()
+                withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.87)) {
+                    drawerDragOffset = 0
+                    drawerIsDragging = false
+                    if open { viewModel.openDrawer() }
+                    else { viewModel.closeDrawer() }
+                }
             }
     }
 }
