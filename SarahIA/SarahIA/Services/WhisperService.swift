@@ -425,15 +425,18 @@ public final class WhisperService: ObservableObject {
             // A headphone route uses a much shorter 2-chunk threshold.
             let speakerMonitor = !self.isLiveInterpreting && self.voiceReplyPlayingOnSpeaker
             let effectiveThreshold: Float = speakerMonitor
-                ? max(self.activityDBThreshold, -34)
+                ? max(self.activityDBThreshold, -41)
                 : self.activityDBThreshold
             let minimumChunks = speakerMonitor ? 6 : 2
             if db >= effectiveThreshold {
                 self.hasDetectedSpeech = true
                 self.consecutiveVoiceChunks += 1
                 self.lastVoiceActivity = now
-                if self.consecutiveVoiceChunks == minimumChunks,
-                   now.timeIntervalSince(self.lastBargeInNotification) > 0.5 {
+                // Retry while speech is sustained: a start-up grace window
+                // may ignore the first event, which must NOT permanently
+                // disable barge-in until the user pauses and starts over.
+                if self.consecutiveVoiceChunks >= minimumChunks,
+                   now.timeIntervalSince(self.lastBargeInNotification) > 0.24 {
                     self.lastBargeInNotification = now
                     DispatchQueue.main.async { [weak self] in
                         self?.onVoiceActivity?()
