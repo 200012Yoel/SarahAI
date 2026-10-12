@@ -185,8 +185,8 @@ public struct YoannTranslateLiveView: View {
                     .accessibilityIdentifier("translateLiveMissingTargetVoice")
             } else if sourceLanguage == "he" && targetLanguage == "fr" {
                 Text(live.isSystemTranslationReady
-                    ? "Traduction hébreu → français sur l’iPhone active"
-                    : "Préparation de la traduction iOS. Accepte les langues si iOS le demande.")
+                    ? "Traduction hébreu → français hors ligne active sur l’iPhone"
+                    : live.translationSetupMessage)
                     .font(.system(size: 11))
                     .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
                     .lineLimit(2)
