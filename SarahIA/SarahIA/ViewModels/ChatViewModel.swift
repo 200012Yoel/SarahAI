@@ -129,6 +129,27 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    /// Some iOS betas silently stop AVAudioEngine without an interruption
+    /// notification. This low-frequency watchdog repairs the hardware input
+    /// while preserving the existing Voice Orb UI and explicit Stop semantics.
+    private func watchVoiceMicrophone(generation: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self,
+                  self.voiceSessionGeneration == generation,
+                  self.isContinuousConversationActive else { return }
+            if !self.isVoiceMicrophoneMuted,
+               !self.voiceManager.isSpeaking,
+               !self.voiceManager.isPreparingSpeech,
+               !self.isTyping,
+               !WhisperService.shared.isTranscribing,
+               !WhisperService.shared.isModelLoading,
+               !WhisperService.shared.isMicrophoneEngineRunning {
+                self.rearmMicrophoneAfterSilence(delay: 0.12)
+            }
+            self.watchVoiceMicrophone(generation: generation)
+        }
+    }
+
     public init() {
         restorePersistedState()
         setupModeObserver()
@@ -765,6 +786,7 @@ public final class ChatViewModel: ObservableObject {
         // Clear an error from an old attempt and start a fresh microphone
         // generation. The view can retry without reinstalling the whole app.
         voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
         WhisperSpeechRecognizer.shared.stopListening()
         WhisperService.shared.reset()
         isContinuousConversationActive = true
@@ -802,6 +824,7 @@ public final class ChatViewModel: ObservableObject {
         isVoiceMicrophoneMuted = false
         isContinuousConversationActive = true
         voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
         AudioSessionManager.shared.beginContinuousVoiceSession()
         WhisperSpeechRecognizer.shared.startListening(
             autoFinalizeOnSilence: true,
@@ -818,6 +841,7 @@ public final class ChatViewModel: ObservableObject {
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
         voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
         voiceManager.stop()
         AudioSessionManager.shared.beginContinuousVoiceSession()
         isContinuousConversationActive = true
