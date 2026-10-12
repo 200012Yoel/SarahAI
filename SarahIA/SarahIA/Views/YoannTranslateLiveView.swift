@@ -60,7 +60,8 @@ public struct YoannTranslateLiveView: View {
             // when the runtime reports that direct pair unsupported.
             #if canImport(Translation)
             if #available(iOS 18.0, *), live.isActive,
-               live.shouldAttemptSystemTranslation {
+               live.shouldAttemptSystemTranslation,
+               !live.isUsingLocalQwen {
                 YoannNativeTranslationSessionHost(
                     live: live,
                     sourceCode: live.needsEnglishPivotTranslation ? "en" : "he"
@@ -110,6 +111,19 @@ public struct YoannTranslateLiveView: View {
                 ) { pickerMode = .target }
 
                 Spacer(minLength: 4)
+
+                Button {
+                    // Swap the actual input/output models, not only the labels.
+                    let previous = sourceLanguage
+                    sourceLanguage = targetLanguage
+                    targetLanguage = previous
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 21, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                .accessibilityLabel("Inverser les langues : hébreu et français")
+                .accessibilityIdentifier("translateLiveSwapLanguages")
 
                 if !canSpeakTarget {
                     Image(systemName: "speaker.slash.fill")
@@ -188,7 +202,8 @@ public struct YoannTranslateLiveView: View {
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .accessibilityIdentifier("translateLiveMissingTargetVoice")
-            } else if sourceLanguage == "he" && targetLanguage == "fr" {
+            } else if (sourceLanguage == "he" && targetLanguage == "fr")
+                       || (sourceLanguage == "fr" && targetLanguage == "he") {
                 Text(live.translationSetupMessage)
                     .font(.system(size: 11))
                     .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
@@ -200,7 +215,7 @@ public struct YoannTranslateLiveView: View {
                     .foregroundColor(.orange)
             } else if !TranslateLiveLanguages.isEnglish(targetLanguage)
                       && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Phrases complètes : serveur de traduction requis dans ⚙️.")
+                Text("Pour cette paire, un modèle local pris en charge ou un serveur neuronal est nécessaire.")
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
             }
