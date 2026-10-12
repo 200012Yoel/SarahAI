@@ -292,9 +292,25 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            Button {
-                HapticService.shared.buttonTap()
-                closeVoiceSurface()
+            // The agent name previously *minimized* the voice screen.
+            // A visible chevron must actually switch the conversation agent.
+            Menu {
+                Button("Parler avec Sarah", systemImage: "waveform") {
+                    viewModel.selectVoiceAgent(.sarah)
+                }
+                Button("Parler avec Yoann", systemImage: "person.wave.2") {
+                    viewModel.selectVoiceAgent(.yohan)
+                }
+                Button("Traduction hébreu → français", systemImage: "translate") {
+                    viewModel.activateTranslateLive(from: "he", to: "fr")
+                }
+                Divider()
+                Button("Parler avec Tom", systemImage: "globe") {
+                    viewModel.selectVoiceAgent(.tom)
+                }
+                Button("Parler avec Raphaël", systemImage: "chevron.left.forwardslash.chevron.right") {
+                    viewModel.selectVoiceAgent(.esther)
+                }
             } label: {
                 VStack(spacing: 4) {
                     HStack(spacing: 6) {
@@ -304,14 +320,12 @@ public struct VoiceOrbModalView: View {
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(.white)
-
-                    Text("Réduire · écoute maintenue")
+                    Text("Changer d'agent · Traduction")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.62))
                 }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
+            .accessibilityLabel("Choisir Sarah, Yoann ou la traduction en direct")
 
             Spacer()
 
