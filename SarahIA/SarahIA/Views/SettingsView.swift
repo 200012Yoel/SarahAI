@@ -959,6 +959,42 @@ private struct VoiceAndSpeechSettingsView: View {
                 }
             }
 
+            Section("Tester les six voix neuronales") {
+                ForEach(AgentType.allCases) { agent in
+                    Button {
+                        viewModel.voicePlaybackError = nil
+                        MultiAgentVoiceManager.shared.speak(
+                            text: "Bonjour. Je suis \(agent.displayName). Écoute ma voix, différente des autres agents.",
+                            for: agent
+                        )
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .foregroundColor(agent.themeColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(agent.displayName)
+                                    .fontWeight(.semibold)
+                                Text("Voix \(agent.neuralVoiceLabel) · Supertonic 3")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer(minLength: 6)
+                            Image(systemName: "play.circle")
+                        }
+                    }
+                    .accessibilityLabel("Tester réellement la voix de \(agent.displayName)")
+                }
+                if let error = viewModel.voicePlaybackError, !error.isEmpty {
+                    Label("Le moteur vocal a échoué : \(error)", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Chaque bouton génère une voix différente avec le modèle local. La première lecture peut prendre quelques secondes.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
             Section("Parole") {
                 settingSlider(
                     title: "Vitesse de parole",
