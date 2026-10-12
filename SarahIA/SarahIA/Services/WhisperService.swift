@@ -64,6 +64,9 @@ public final class WhisperService: ObservableObject {
     private var lastVoiceActivity = Date.distantPast
     private var lastBargeInNotification = Date.distantPast
     private var consecutiveVoiceChunks = 0
+    /// Raised by ChatViewModel when Sarah is audible on the phone speaker.
+    /// Speaker echo needs a stronger sustained VAD than isolated headphones.
+    public var voiceReplyPlayingOnSpeaker = false
     private var generation = UUID()
     private var isFinalizing = false
 
@@ -258,6 +261,7 @@ public final class WhisperService: ObservableObject {
         samples.removeAll(keepingCapacity: true)
         currentText = ""
         micEnergyLevel = 0
+        lastBargeInNotification = .distantPast
         generation = UUID()
         let currentGeneration = generation
 
@@ -316,6 +320,23 @@ public final class WhisperService: ObservableObject {
             lastError = "Impossible de démarrer le microphone : \(error.localizedDescription)"
             if isLiveInterpreting { onLiveInterpretationError?(lastError ?? "") }
             AudioSessionManager.shared.deactivateSession()
+        }
+    }
+
+    /// On confirmed voice barge-in, discard the audio of Sarah's own
+    /// playback recorded before the user's interruption, preserving a
+    /// short pre-roll so Whisper can understand the start of their words.
+    public func keepOnlyRecentBargeInAudio(seconds: Double = 0.55) {
+        let capturedGeneration = generation
+        audioQueue.async { [weak self] in
+            guard let self, self.generation == capturedGeneration else { return }
+            let maxSamples = Int(self.targetSampleRate * seconds)
+            if self.samples.count > maxSamples {
+                self.samples.removeFirst(self.samples.count - maxSamples)
+            }
+            self.hasDetectedSpeech = true
+            self.lastVoiceActivity = Date()
+            self.consecutiveVoiceChunks = 0
         }
     }
 
@@ -397,15 +418,25 @@ public final class WhisperService: ObservableObject {
             guard let self, self.generation == generation, !self.isFinalizing else { return }
             self.samples.append(contentsOf: chunk)
 
-            if db >= self.activityDBThreshold {
+            // When Sarah is playing through the iPhone speaker, don't
+            // mistake her remaining acoustic echo for a user interruption.
+            // AVAudioSession.voiceChat + AVAudioEngine voice processing provide
+            // platform AEC; require stronger and sustained VAD on speaker.
+            // A headphone route uses a much shorter 2-chunk threshold.
+            let speakerMonitor = !self.isLiveInterpreting && self.voiceReplyPlayingOnSpeaker
+            let effectiveThreshold: Float = speakerMonitor
+                ? max(self.activityDBThreshold, -34)
+                : self.activityDBThreshold
+            let minimumChunks = speakerMonitor ? 6 : 2
+            if db >= effectiveThreshold {
                 self.hasDetectedSpeech = true
                 self.consecutiveVoiceChunks += 1
                 self.lastVoiceActivity = now
-                if self.consecutiveVoiceChunks >= 2,
-                   now.timeIntervalSince(self.lastBargeInNotification) > 0.18 {
+                if self.consecutiveVoiceChunks == minimumChunks,
+                   now.timeIntervalSince(self.lastBargeInNotification) > 0.5 {
                     self.lastBargeInNotification = now
-                    DispatchQueue.main.async {
-                        self.onVoiceActivity?()
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onVoiceActivity?()
                     }
                 }
             } else {
