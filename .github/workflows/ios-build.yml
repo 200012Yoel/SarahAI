@@ -114,6 +114,21 @@ jobs:
           cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
           ls -lh "$RUNNER_TEMP/WhisperModels"
 
+      - name: Download official Apache-2.0 Qwen3 Hebrew-French offline model
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/TranslationModels"
+          # This verified file exists in the official Qwen GGUF repository.
+          # Old Q4_K_M URLs from a different repo returned 404.
+          curl -L --fail --retry 4 --retry-delay 8 \
+            'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf?download=true' \
+            -o "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf"
+          test "$(stat -f%z "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf")" -gt 500000000
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/LICENSE' \
+            -o "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt"
+          test -s "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt"
+
       - name: Xcode version
         run: xcodebuild -version
 
@@ -228,6 +243,12 @@ jobs:
           cp "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
           test -s "$APP_PATH/NeuralVoices/Supertonic3/voice.bin"
           test -s "$APP_PATH/NeuralVoices/Supertonic3/vocoder.int8.onnx"
+          # Always install a REAL on-device he↔fr text model inside the IPA,
+          # so Translate Live works offline immediately after sideloading.
+          mkdir -p "$APP_PATH/TranslationModels"
+          cp "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf" "$APP_PATH/TranslationModels/"
+          cp "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt" "$APP_PATH/TranslationModels/"
+          test "$(stat -f%z "$APP_PATH/TranslationModels/Qwen3-0.6B-Q8_0.gguf")" -gt 500000000
 
 
 
