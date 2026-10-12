@@ -53,6 +53,7 @@ public final class MultiAgentCoordinator {
         query: String,
         currentAgent: AgentType? = nil,
         explicitAgent: AgentType? = nil,
+        preferFastVoice: Bool = false,
         completion: @escaping (AgentResponse) -> Void
     ) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -89,7 +90,9 @@ public final class MultiAgentCoordinator {
             processWithTom(text: trimmed, completion: completion)
             
         case .sarah:
-            processWithSarah(text: trimmed, completion: completion)
+            processWithSarah(
+                text: trimmed, preferFastVoice: preferFastVoice, completion: completion
+            )
             
         case .nathan:
             processWithNathan(text: trimmed, completion: completion)
@@ -843,8 +846,10 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
         }
     }
     
-    private func processWithSarah(text: String, completion: @escaping (AgentResponse) -> Void) {
-        AIService.shared.processQuery(text) { response in
+    private func processWithSarah(
+        text: String, preferFastVoice: Bool, completion: @escaping (AgentResponse) -> Void
+    ) {
+        AIService.shared.processQuery(text, voiceMode: preferFastVoice) { response in
             completion(AgentResponse(
                 agent: .sarah,
                 text: response,
