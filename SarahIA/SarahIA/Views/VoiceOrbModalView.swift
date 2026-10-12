@@ -295,21 +295,23 @@ public struct VoiceOrbModalView: View {
             // The agent name previously *minimized* the voice screen.
             // A visible chevron must actually switch the conversation agent.
             Menu {
-                Button("Parler avec Sarah", systemImage: "waveform") {
-                    viewModel.selectVoiceAgent(.sarah)
+                Button { viewModel.selectVoiceAgent(.sarah) } label: {
+                    Label("Parler avec Sarah", systemImage: "waveform")
                 }
-                Button("Parler avec Yoann", systemImage: "person.wave.2") {
-                    viewModel.selectVoiceAgent(.yohan)
+                Button { viewModel.selectVoiceAgent(.yohan) } label: {
+                    Label("Parler avec Yoann", systemImage: "person.wave.2")
                 }
-                Button("Traduction hébreu → français", systemImage: "translate") {
+                Button {
                     viewModel.activateTranslateLive(from: "he", to: "fr")
+                } label: {
+                    Label("Traduction hébreu → français", systemImage: "character.book.closed")
                 }
                 Divider()
-                Button("Parler avec Tom", systemImage: "globe") {
-                    viewModel.selectVoiceAgent(.tom)
+                Button { viewModel.selectVoiceAgent(.tom) } label: {
+                    Label("Parler avec Tom", systemImage: "globe")
                 }
-                Button("Parler avec Raphaël", systemImage: "chevron.left.forwardslash.chevron.right") {
-                    viewModel.selectVoiceAgent(.esther)
+                Button { viewModel.selectVoiceAgent(.esther) } label: {
+                    Label("Parler avec Raphaël", systemImage: "chevron.left.forwardslash.chevron.right")
                 }
             } label: {
                 VStack(spacing: 4) {
