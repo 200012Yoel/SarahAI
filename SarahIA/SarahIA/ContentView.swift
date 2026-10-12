@@ -127,11 +127,6 @@ public struct ContentView: View {
                 viewModel.closeDrawer()
             }
         }
-        .onChange(of: viewModel.isShowingVoiceOrbModal) { isPresented in
-            if isPresented {
-                viewModel.activeAgent = .sarah
-            }
-        }
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSNotification.Name("SarahOpenDeepLink")
