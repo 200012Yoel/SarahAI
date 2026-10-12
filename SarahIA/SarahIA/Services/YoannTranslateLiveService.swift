@@ -34,6 +34,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var isActive = false
     @Published public private(set) var isListening = false
     @Published public private(set) var isSpeakingTranslation = false
+    @Published public private(set) var isPreparingSpeech = false
+    @Published public private(set) var isPlayingAudio = false
     @Published public private(set) var isTranslating = false
     @Published public private(set) var status = "Prêt à écouter une personne ou une vidéo."
     @Published public private(set) var lastSource = ""
@@ -53,6 +55,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     private let neural = NeuralVoiceService.shared
     private var sessionToken = UUID()
     private var previousPlaybackFinished: (() -> Void)?
+    private var previousPlaybackStarted: (() -> Void)?
+    private var previousGenerationStarted: (() -> Void)?
     private var previousPlaybackError: ((String) -> Void)?
     private var previousWhisperTranslation = false
     private var previousWhisperLanguage: String?
@@ -64,6 +68,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var translationBusy = false
     private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
+    private var lastAcceptedChunk = ""
+    private var lastAcceptedAt = Date.distantPast
     private var micLevelSubscription: AnyCancellable?
 
     public init() {}
@@ -110,6 +116,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         isTranslating = false
         isSpeakingTranslation = false
         waitingTranslations = 0
+        isPreparingSpeech = false
+        isPlayingAudio = false
+        lastAcceptedChunk = ""
+        lastAcceptedAt = .distantPast
         sessionToken = UUID()
         isActive = true
 
@@ -122,6 +132,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         AudioSessionManager.shared.beginContinuousInterpreterSession()
 
         previousPlaybackFinished = neural.onPlaybackFinished
+        previousPlaybackStarted = neural.onPlaybackStarted
+        previousGenerationStarted = neural.onGenerationStarted
         previousPlaybackError = neural.onPlaybackError
         previousWhisperTranslation = whisper.translateSpeechToEnglish
         previousWhisperLanguage = whisper.preferredLanguageCode
@@ -161,9 +173,23 @@ public final class YoannTranslateLiveService: ObservableObject {
             self.isListening = listening
             self.updateStatus()
         }
+        neural.onGenerationStarted = { [weak self] in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.isPreparingSpeech = true
+            self.isPlayingAudio = false
+            self.updateStatus()
+        }
+        neural.onPlaybackStarted = { [weak self] in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.isPreparingSpeech = false
+            self.isPlayingAudio = true
+            self.updateStatus()
+        }
         neural.onPlaybackFinished = { [weak self] in
             guard let self, self.sessionToken == token else { return }
             self.isSpeakingTranslation = false
+            self.isPreparingSpeech = false
+            self.isPlayingAudio = false
             self.playNextSpeech(token: token)
         }
         neural.onPlaybackError = { [weak self] message in
@@ -184,6 +210,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         isListening = false
         isTranslating = false
         isSpeakingTranslation = false
+        isPreparingSpeech = false
+        isPlayingAudio = false
         incoming.removeAll()
         outgoing.removeAll()
         waitingTranslations = 0
@@ -202,8 +230,12 @@ public final class YoannTranslateLiveService: ObservableObject {
         // Restore listeners BEFORE canceling playback so an old session
         // cannot receive a synthetic "speech finished" event.
         neural.onPlaybackFinished = previousPlaybackFinished
+        neural.onPlaybackStarted = previousPlaybackStarted
+        neural.onGenerationStarted = previousGenerationStarted
         neural.onPlaybackError = previousPlaybackError
         previousPlaybackFinished = nil
+        previousPlaybackStarted = nil
+        previousGenerationStarted = nil
         previousPlaybackError = nil
         neural.stop()
         whisper.stopLiveInterpretation()
@@ -215,13 +247,20 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     private func receive(chunk: String, paused: Bool, token: UUID) {
         guard isActive, sessionToken == token else { return }
-        if TranslateLiveContextBuffer.isNonSpeechCaption(chunk) {
-            // A TV music cue or silence is not speech. Do not display it as
-            // translated text or make the neural voice read "[Musique]".
-            status = "🎵 Musique ou bruit détecté. En attente de paroles…"
+        if TranslateLiveContextBuffer.isUnreliableTranscript(chunk) {
+            // Music and long repeated token loops are Whisper hypotheses,
+            // not a verified translation of the TV broadcast.
+            errorMessage = "Whisper entend de la musique ou répète des mots. Vérifie que la chaîne parle réellement la langue choisie."
+            provisionalSource = ""
             return
         }
-        let update = contextBuffer.receive(chunk, paused: paused)
+        let cleaned = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
+            return
+        }
+        lastAcceptedChunk = cleaned
+        lastAcceptedAt = Date()
+        let update = contextBuffer.receive(cleaned, paused: paused)
 
         // The caption may change while the next words are understood.
         // Spoken output NEVER consumes this provisional text.
@@ -337,8 +376,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         guard isActive else { return }
         if !isListening {
             status = whisper.isModelLoading ? "Whisper se charge…" : "Ouverture du microphone…"
-        } else if isSpeakingTranslation {
-            status = "🎧 Yoann parle, le micro continue d'écouter…"
+        } else if isPlayingAudio {
+            status = "🔊 Voix française en lecture, le micro continue d'écouter…"
+        } else if isPreparingSpeech {
+            status = "⌛ Préparation de la voix neuronale…"
         } else if translationBusy {
             status = "🎙️ Écoute continue, traduction en cours…"
         } else {
