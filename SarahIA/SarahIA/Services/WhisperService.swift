@@ -57,7 +57,12 @@ public final class WhisperService: ObservableObject {
     private var converter: AVAudioConverter?
     private var context: OpaquePointer?
     private var loadedModelName: String?
-    private var desiredModelName: String { isLiveInterpreting ? "ggml-base" : "ggml-tiny" }
+    // Accuracy first: Tiny frequently drops isolated French greetings such
+    // as "allô" and misdetects their language. Base is already bundled for
+    // Hebrew interpretation; use it for French conversation as well.
+    // Keep a single context in RAM and avoid model hot-swaps when switching
+    // between Sarah and Yoann.
+    private var desiredModelName: String { "ggml-base" }
     private var samples: [Float] = []
     private var automaticFinalize = true
     private var hasDetectedSpeech = false
@@ -78,9 +83,12 @@ public final class WhisperService: ObservableObject {
     private let targetSampleRate: Double = 16_000
     // Sarah chat: respond after a short, stable pause rather than waiting
     // almost a second on every turn. Translation mode has its own VAD.
-    private let silenceThreshold: TimeInterval = 0.58
-    private let minimumUtteranceSeconds: Double = 0.35
-    private let maximumUtteranceSeconds: Double = 30
+    private let silenceThreshold: TimeInterval = 0.47
+    private let minimumUtteranceSeconds: Double = 0.25
+    // A TV or fan can hold the simple energy VAD open indefinitely.
+    // Force French chat to hand off short recorded windows rather than
+    // leaving "Je t'écoute" frozen for thirty seconds.
+    private let maximumUtteranceSeconds: Double = 7.5
     private let liveSilenceThreshold: TimeInterval = 0.55
     private let liveMaxChunkSeconds: Double = 4.5
     private let liveMinChunkSeconds: Double = 1.15
@@ -628,7 +636,13 @@ public final class WhisperService: ObservableObject {
         isTranscribing = true
         let useEnglishTranslation = translateSpeechToEnglish
         let dualDecodeEnglish = deliverToLive && liveDualDecodeEnglish && !useEnglishTranslation
-        let inferenceLanguage = preferredLanguageCode ?? "auto"
+        // Force French for short conversational utterances. Whisper's
+        // automatic language detection is unreliable on tiny fragments
+        // ("allô", "bonjour") even when the model itself is multilingual.
+        // Translate Live must keep its explicit Hebrew source language.
+        let inferenceLanguage = deliverToLive
+            ? (preferredLanguageCode ?? "auto")
+            : (preferredLanguageCode ?? "fr")
         // Reinjecting the last Whisper hypothesis into the next 2-second
         // TV chunk caused feedback hallucinations ("תודה רבה" dozens of
         // times). Preserve context at the interpreter level instead; live
@@ -651,8 +665,15 @@ public final class WhisperService: ObservableObject {
             params.print_special = false
             params.translate = useEnglishTranslation
             params.no_context = true
-            params.single_segment = false
+            params.single_segment = !deliverToLive
             params.n_threads = threadCount
+            if !deliverToLive {
+                // Keep one conversational request bounded; non-speech
+                // should never turn into an unbounded assistant prompt.
+                params.max_tokens = 96
+                params.suppress_blank = true
+                params.suppress_nst = true
+            }
             params.temperature_inc = -1
             if deliverToLive {
                 // Cap live TV decodes and suppress music tokens.
