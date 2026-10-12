@@ -36,6 +36,34 @@ public struct TranslateLiveContextBuffer {
         return labels.contains(caption) || caption.isEmpty
     }
 
+    /// A short TV segment containing four or more exact repetitions of a
+    /// one-to-eight-word fragment is very likely a Whisper decode loop.
+    /// Reject rather than display or pronounce an invented broadcast.
+    public static func isRepeatingHallucination(_ text: String) -> Bool {
+        let words = text.lowercased().split { char in
+            char.isWhitespace || ".,!?;:،؛。！؟".contains(char)
+        }.map(String.init)
+        guard words.count >= 6 else { return false }
+
+        for size in 1...min(8, words.count / 4) {
+            let unit = Array(words.prefix(size))
+            var repeats = 0
+            while (repeats + 1) * size <= words.count {
+                let offset = repeats * size
+                guard Array(words[offset..<(offset + size)]) == unit else { break }
+                repeats += 1
+            }
+            if repeats >= 4 && repeats * size * 10 >= words.count * 7 {
+                return true
+            }
+        }
+        return false
+    }
+
+    public static func isUnreliableTranscript(_ text: String) -> Bool {
+        isNonSpeechCaption(text) || isRepeatingHallucination(text)
+    }
+
     public mutating func reset() {
         provisional = ""
         committedHistory.removeAll()
