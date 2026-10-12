@@ -143,8 +143,20 @@ public final class AudioSessionManager {
     private func ensureAudibleOutputRouteIfNeeded() {
         let session = AVAudioSession.sharedInstance()
         let outputs = session.currentRoute.outputs
-        let isReceiverOnly = outputs.count == 1 && outputs.first?.portType == .builtInReceiver
-        guard isReceiverOnly else { return }
+        stateLock.lock()
+        let forceInterpreterSpeaker = interpreterPrefersPhoneMicrophone
+        stateLock.unlock()
+
+        // Yoann is an accessibility interpreter: the translation must be
+        // audible from the iPhone itself, even if Bluetooth earbuds were
+        // automatically connected earlier. Only normal Sarah voice mode
+        // preserves the user's existing headphones or AirPlay route.
+        if forceInterpreterSpeaker {
+            guard !outputs.contains(where: { $0.portType == .builtInSpeaker }) else { return }
+        } else {
+            let isReceiverOnly = outputs.count == 1 && outputs.first?.portType == .builtInReceiver
+            guard isReceiverOnly else { return }
+        }
 
         do {
             try session.overrideOutputAudioPort(.speaker)
