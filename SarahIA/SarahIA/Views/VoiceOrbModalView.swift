@@ -501,6 +501,9 @@ public struct SarahReactiveVoiceOrb: View {
     public let isSpeaking: Bool
     public let isMuted: Bool
     public let accentColor: Color
+    // The orb itself stays Sarah's original pink. Only the central sparkle
+    // reflects the agent's historic theme color (Yohan blue, Ethel red, etc).
+    private let originalPink = Color(red: 1.0, green: 0.18, blue: 0.65)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathe = false
@@ -526,8 +529,8 @@ public struct SarahReactiveVoiceOrb: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            accentColor.opacity(isMuted ? 0.12 : 0.35),
-                            accentColor.opacity(0.16),
+                            originalPink.opacity(isMuted ? 0.12 : 0.35),
+                            originalPink.opacity(0.16),
                             Color.clear
                         ],
                         center: .center,
@@ -545,8 +548,8 @@ public struct SarahReactiveVoiceOrb: View {
                     .stroke(
                         LinearGradient(
                             colors: [
-                                accentColor.opacity(0.48),
-                                accentColor.opacity(0.22),
+                                originalPink.opacity(0.48),
+                                originalPink.opacity(0.22),
                                 Color.white.opacity(0.10)
                             ],
                             startPoint: .topLeading,
@@ -575,9 +578,9 @@ public struct SarahReactiveVoiceOrb: View {
                     RadialGradient(
                         colors: [
                             Color.white.opacity(0.90),
-                            accentColor.opacity(0.84),
-                            accentColor,
-                            accentColor.opacity(0.48)
+                            originalPink.opacity(0.84),
+                            originalPink,
+                            originalPink.opacity(0.48)
                         ],
                         center: UnitPoint(x: 0.31, y: 0.22),
                         startRadius: 0,
@@ -588,7 +591,7 @@ public struct SarahReactiveVoiceOrb: View {
                 .overlay(
                     Circle().stroke(
                         LinearGradient(
-                            colors: [.white.opacity(0.86), accentColor.opacity(0.45), .white.opacity(0.14)],
+                            colors: [.white.opacity(0.86), originalPink.opacity(0.45), .white.opacity(0.14)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -612,11 +615,11 @@ public struct SarahReactiveVoiceOrb: View {
                 .overlay(
                     Image(systemName: "sparkle")
                         .font(.system(size: max(12, core * 0.25), weight: .medium))
-                        .foregroundColor(.white)
-                        .shadow(color: .white.opacity(0.65), radius: core * 0.06)
+                        .foregroundColor(accentColor)
+                        .shadow(color: accentColor.opacity(0.85), radius: core * 0.06)
                 )
                 .shadow(
-                    color: accentColor.opacity(isMuted ? 0.12 : 0.54),
+                    color: originalPink.opacity(isMuted ? 0.12 : 0.54),
                     radius: diameter * 0.075
                 )
                 .scaleEffect(1 + activity * 0.025 + (breathe && !reduceMotion ? 0.012 : 0))
