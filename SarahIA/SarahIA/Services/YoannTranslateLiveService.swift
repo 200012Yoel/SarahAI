@@ -94,6 +94,9 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var interruptionObserver: NSObjectProtocol?
     private var lastAcceptedChunk = ""
     private var lastAcceptedAt = Date.distantPast
+    private var lastEnglishIntermediate = ""
+    private var lastEnglishIntermediateSource = ""
+    private var lastEnglishIntermediateAt = Date.distantPast
     private var micLevelSubscription: AnyCancellable?
 
     public init() {}
@@ -145,6 +148,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         isPlayingAudio = false
         lastAcceptedChunk = ""
         lastAcceptedAt = .distantPast
+        lastEnglishIntermediate = ""
+        lastEnglishIntermediateSource = ""
+        lastEnglishIntermediateAt = .distantPast
         nativeTranslator = nil
         nativeEnglishToFrenchTranslator = nil
         nativeTranslationUnavailable = false
@@ -403,6 +409,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         let hebrew = source.trimmingCharacters(in: .whitespacesAndNewlines)
         let intermediate = english.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !TranslateLiveContextBuffer.isUnreliableTranscript(hebrew),
+              (sourceLanguage != "he" || TranslateLiveContextBuffer.isMostlyHebrew(hebrew)),
               !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
                 intermediate, hebrewSource: hebrew
               ),
@@ -414,6 +421,19 @@ public final class YoannTranslateLiveService: ObservableObject {
         if hebrew == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
             return
         }
+        let normalizedEnglish = intermediate.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        // Repeated stock translations for *different* Hebrew clauses
+        // are not evidence of real interpretation. Drop them before iOS TTS.
+        if normalizedEnglish == lastEnglishIntermediate,
+           hebrew != lastEnglishIntermediateSource,
+           Date().timeIntervalSince(lastEnglishIntermediateAt) < 25 {
+            errorMessage = "Whisper répète une traduction anglaise sans rapport avec le nouvel hébreu. Extrait ignoré."
+            return
+        }
+        lastEnglishIntermediate = normalizedEnglish
+        lastEnglishIntermediateSource = hebrew
+        lastEnglishIntermediateAt = Date()
         lastAcceptedChunk = hebrew
         lastAcceptedAt = Date()
         lastSource = hebrew
