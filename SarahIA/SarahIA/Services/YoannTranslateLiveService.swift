@@ -369,7 +369,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         // On iOS 27, don't discard real broadcast sentences before the
         // system has had a chance to install and prepare its translation pack.
         if shouldAttemptSystemTranslation && nativeTranslator == nil
-                && !nativeTranslationUnavailable {
+                && !nativeTranslationUnavailable
+                && customTranslationServerURL.isEmpty {
+            // When a user-owned translator is configured, do not stall every
+            // TV sentence while Apple's optional language pack prepares.
             if #available(iOS 18.0, *) {
                 preparingSystemTranslation = true
                 updateStatus()
