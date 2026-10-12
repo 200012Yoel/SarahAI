@@ -16,6 +16,19 @@ struct TranslateLiveContextTests {
         expect(!TranslateLiveContextBuffer.isNonSpeechCaption("שלום לכולם"),
                "Hebrew speech must survive the music filter")
 
+        expect(TranslateLiveContextBuffer.isRepeatingHallucination(
+            "תודה רבה. תודה רבה. תודה רבה. תודה רבה. תודה רבה."),
+            "reject repeated Hebrew false recognition")
+        expect(TranslateLiveContextBuffer.isUnreliableTranscript(
+            "תודה רבה. תודה רבה. תודה רבה. תודה רבה."),
+            "repeated Hebrew captions must not reach TTS")
+        expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
+            "תודה רבה לכל הצופים, נשוב אליכם אחרי החדשות."),
+            "legitimate Hebrew broadcast sentence is retained")
+        expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
+            "bonjour les amis, bienvenue au journal télévisé ce soir"),
+            "legitimate French broadcast sentence is retained")
+
         var buffer = TranslateLiveContextBuffer()
         let first = buffer.receive("שלום", paused: false)
         expect(first.provisional == "שלום", "speech starts provisional")
