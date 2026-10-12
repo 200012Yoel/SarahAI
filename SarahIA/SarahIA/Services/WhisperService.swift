@@ -26,6 +26,11 @@ public final class WhisperService: ObservableObject {
     /// Translate Live reads the microphone continuously while Whisper and
     /// neural playback work asynchronously. Separate from normal chat callbacks.
     public var onLiveInterpretationChunk: ((String, Bool) -> Void)?
+    /// Used only if the installed iOS Translation framework cannot handle
+    /// Hebrew directly. Whisper decodes the SAME audio twice: Hebrew captions
+    /// plus an English intermediate for Apple's offline English→French model.
+    public var onLiveEnglishPivotChunk: ((String, String, Bool) -> Void)?
+    public var liveDualDecodeEnglish = false
     /// Bounded recent verified transcript for Whisper's contextual decoding.
     /// Assign on main thread after a live caption becomes stable.
     public var liveRecognitionContext = ""
@@ -137,6 +142,8 @@ public final class WhisperService: ObservableObject {
         isLiveInterpreting = false
         stopRecordingWithoutTranscription()
         onLiveInterpretationChunk = nil
+        onLiveEnglishPivotChunk = nil
+        liveDualDecodeEnglish = false
         onLiveInterpretationError = nil
         onLiveMicrophoneChanged?(false)
         onLiveMicrophoneChanged = nil
@@ -573,6 +580,7 @@ public final class WhisperService: ObservableObject {
         let transcriptionGeneration = generation
         isTranscribing = true
         let useEnglishTranslation = translateSpeechToEnglish
+        let dualDecodeEnglish = deliverToLive && liveDualDecodeEnglish && !useEnglishTranslation
         let inferenceLanguage = preferredLanguageCode ?? "auto"
         // Reinjecting the last Whisper hypothesis into the next 2-second
         // TV chunk caused feedback hallucinations ("תודה רבה" dozens of
@@ -651,6 +659,41 @@ public final class WhisperService: ObservableObject {
             }
             let text = pieces.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 
+            // A second decode is only enabled for the Hebrew→English→French
+            // fallback. Never replace the actual Hebrew source caption with
+            // the intermediate English text.
+            var englishPivot: String? = nil
+            if dualDecodeEnglish, !text.isEmpty,
+               !TranslateLiveContextBuffer.isUnreliableTranscript(text) {
+                var englishParams = params
+                englishParams.translate = true
+                let englishResult: Int32 = inferenceLanguage.withCString { language in
+                    englishParams.language = language
+                    return audio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, englishParams, pointer.baseAddress, Int32(audio.count))
+                    }
+                }
+                if englishResult == 0 {
+                    let englishCount = whisper_full_n_segments(context)
+                    var englishPieces: [String] = []
+                    if englishCount > 0 {
+                        for index in 0..<englishCount {
+                            if let value = whisper_full_get_segment_text(context, index) {
+                                let fragment = String(cString: value)
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !fragment.isEmpty { englishPieces.append(fragment) }
+                            }
+                        }
+                    }
+                    let candidate = englishPieces.joined(separator: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !TranslateLiveContextBuffer.isUnreliableTranscript(candidate),
+                       candidate.range(of: "[A-Za-z]", options: .regularExpression) != nil {
+                        englishPivot = candidate
+                    }
+                }
+            }
+
             DispatchQueue.main.async {
                 self.isFinalizing = false
                 self.isTranscribing = false
@@ -660,8 +703,12 @@ public final class WhisperService: ObservableObject {
                 }
                 self.currentText = text
                 if deliverToLive {
-                    if !text.isEmpty {
+                    if let englishPivot, dualDecodeEnglish {
+                        self.onLiveEnglishPivotChunk?(text, englishPivot, endsAtPause)
+                    } else if !dualDecodeEnglish, !text.isEmpty {
                         self.onLiveInterpretationChunk?(text, endsAtPause)
+                    } else if dualDecodeEnglish, !text.isEmpty {
+                        self.onLiveInterpretationError?("Whisper n'a pas produit d'anglais fiable pour cet extrait. Nouvelle écoute en cours.")
                     }
                 } else if final {
                     // An empty transcription is still the end of an utterance.
