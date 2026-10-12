@@ -26,6 +26,12 @@ public final class AudioSessionManager {
         return continuousVoiceSessionActive
     }
 
+    public var isInterpreterSessionActive: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return interpreterPrefersPhoneMicrophone
+    }
+
     private init() {
         setupObservers()
     }
