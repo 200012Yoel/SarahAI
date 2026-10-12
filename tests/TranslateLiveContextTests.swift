@@ -37,6 +37,12 @@ struct TranslateLiveContextTests {
         expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
             "bonjour les amis, bienvenue au journal télévisé ce soir"),
             "legitimate French broadcast sentence is retained")
+        expect(TranslateLiveContextBuffer.isMostlyHebrew("תמר זהורי"),
+               "Hebrew news name should be accepted")
+        expect(!TranslateLiveContextBuffer.isMostlyHebrew("I'm sorry. I'm sorry."),
+               "English Whisper hallucination is not a Hebrew source")
+        expect(!TranslateLiveContextBuffer.isMostlyHebrew("This is a French broadcast"),
+               "reject Latin words from an explicitly Hebrew stream")
         expect(TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
             "I'm sorry. I'm sorry.", hebrewSource: "תמר זהורי"),
             "reject screenshot's fabricated repeated English apology")
