@@ -754,6 +754,16 @@ public final class ChatViewModel: ObservableObject {
         isBargeInMonitorActive = false
         voicePlaybackError = nil
 
+        // Do not block first microphone activation with Supertonic startup.
+        // Preload on its background queue once the voice conversation is up.
+        let session = voiceSessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self,
+                  self.voiceSessionGeneration == session,
+                  self.isContinuousConversationActive else { return }
+            NeuralVoiceService.shared.prepareForVoiceConversation()
+        }
+
         guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
             voiceStatus = .listening(level: micInputLevel)
