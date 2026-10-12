@@ -116,6 +116,18 @@ public final class WhisperService: ObservableObject {
         startRecording(autoFinalizeOnSilence: false)
     }
 
+    /// iOS can stop AVAudioEngine after a route change or incoming call
+    /// without changing our published isRecording flag. Recover the actual
+    /// engine rather than showing a false "microphone active" indicator.
+    public func recoverLiveMicrophoneIfNeeded() {
+        guard isLiveInterpreting else { return }
+        guard context != nil else { return } // Initial model load will start it.
+        guard !audioEngine.isRunning || !isRecording else { return }
+        stopRecordingWithoutTranscription()
+        AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+        startRecording(autoFinalizeOnSilence: false)
+    }
+
     public func stopLiveInterpretation() {
         liveStreamToken = UUID()
         livePendingChunks.removeAll()
