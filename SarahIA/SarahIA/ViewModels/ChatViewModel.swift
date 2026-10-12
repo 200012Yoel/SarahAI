@@ -25,6 +25,22 @@ public enum VoiceInteractionStatus: Equatable {
 @MainActor
 public final class ChatViewModel: ObservableObject {
     
+    /// Repair dead hardware input after the system has had time to settle.
+    /// Don't interfere with Sarah's current spoken answer or revive a
+    /// microphone the user deliberately muted.
+    private func recoverVoiceInputAfterRouteChange() {
+        let token = voiceSessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
+            guard let self, self.voiceSessionGeneration == token,
+                  self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted,
+                  !self.voiceManager.isSpeaking,
+                  !self.isTyping,
+                  !WhisperService.shared.isMicrophoneEngineRunning else { return }
+            self.rearmMicrophoneAfterSilence(delay: 0.10)
+        }
+    }
+
     // MARK: - Published UI State
     @Published public var activeAgent: AgentType = .sarah
     @Published public var appMode: AppMode = .text
@@ -204,6 +220,37 @@ public final class ChatViewModel: ObservableObject {
         isVoicePipelinePrepared = true
 
         setupVoicePipeline()
+
+        // iOS can interrupt AVAudioEngine for a phone call, Bluetooth route
+        // switch or Siri, leaving the Voice Orb on "Je t'écoute" while the
+        // audio input has actually stopped. Recover once after iOS resumes,
+        // using the existing session-generation guard so Stop stays final.
+        NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self else { return }
+                guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+                switch type {
+                case .began:
+                    self.shouldResumeVoiceAfterSystemInterruption =
+                        self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted
+                case .ended:
+                    guard self.shouldResumeVoiceAfterSystemInterruption else { return }
+                    self.shouldResumeVoiceAfterSystemInterruption = false
+                    self.recoverVoiceInputAfterRouteChange()
+                @unknown default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.recoverVoiceInputAfterRouteChange()
+            }
+            .store(in: &cancellables)
 
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
