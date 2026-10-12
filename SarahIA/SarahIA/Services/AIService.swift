@@ -29,8 +29,20 @@ public final class QwenLocalCodeRuntime {
     public static let shared = QwenLocalCodeRuntime()
     private let queue = DispatchQueue(label: "com.sarahia.qwen.codegen", qos: .userInitiated)
     private var backendInitialized = false
+    #if canImport(llama)
+    // Own the GGUF weights once on the serial queue. Re-loading a 639 MB
+    // model for EVERY news sentence made "real-time" translation impossible.
+    private var cachedModelURL: URL?
+    private var cachedModel: OpaquePointer?
+    #endif
 
     private init() {}
+
+    deinit {
+        #if canImport(llama)
+        if let cachedModel { llama_model_free(cachedModel) }
+        #endif
+    }
 
     public var isRuntimeLinked: Bool {
         #if canImport(llama)
@@ -84,15 +96,29 @@ public final class QwenLocalCodeRuntime {
             backendInitialized = true
         }
 
-        let modelParams = llama_model_default_params()
-        guard let model = llama_model_load_from_file(modelURL.path.cString(using: .utf8), modelParams) else {
-            throw NSError(
-                domain: "SarahQwenRuntime",
-                code: 1002,
-                userInfo: [NSLocalizedDescriptionKey: "Impossible de charger le modèle Qwen3 GGUF."]
-            )
+        let model: OpaquePointer
+        if cachedModelURL == modelURL, let existing = cachedModel {
+            model = existing
+        } else {
+            if let previous = cachedModel {
+                llama_model_free(previous)
+                cachedModel = nil
+                cachedModelURL = nil
+            }
+            let modelParams = llama_model_default_params()
+            guard let loaded = llama_model_load_from_file(
+                modelURL.path.cString(using: .utf8), modelParams
+            ) else {
+                throw NSError(
+                    domain: "SarahQwenRuntime",
+                    code: 1002,
+                    userInfo: [NSLocalizedDescriptionKey: "Impossible de charger le modèle Qwen3 GGUF."]
+                )
+            }
+            model = loaded
+            cachedModel = loaded
+            cachedModelURL = modelURL
         }
-        defer { llama_model_free(model) }
 
         guard let vocab = llama_model_get_vocab(model) else {
             throw NSError(
@@ -148,7 +174,7 @@ public final class QwenLocalCodeRuntime {
         }
         tokens = Array(tokens.prefix(Int(tokenCount)))
 
-        let outputBudget = max(256, min(maxTokens, 4096))
+        let outputBudget = max(48, min(maxTokens, 4096))
         let maxContext = 8192
         let maxPromptTokens = max(512, maxContext - outputBudget - 64)
         if tokens.count > maxPromptTokens {
@@ -526,7 +552,10 @@ public final class AIService {
         // 4. Inférence Réelle : Routage selon la RAM et compatibilité matérielle
         if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
             // Le détecteur choisit le Qwen3 le plus puissant que ce téléphone peut charger durablement.
-            if BackgroundModelDownloader.isModelDownloaded, BackgroundModelDownloader.localModelURL != nil {
+            if (BackgroundModelDownloader.isModelDownloaded &&
+                 BackgroundModelDownloader.localModelURL != nil) ||
+                Bundle.main.url(forResource: "Qwen3-0.6B-Q8_0",
+                    withExtension: "gguf", subdirectory: "TranslationModels") != nil {
                 // Le dialogue général passe maintenant par le même vrai runtime
                 // Qwen3 GGUF / llama.cpp que Raphaël, avec un prompt Sarah dédié.
                 generateLocalAssistantResponse(
@@ -597,9 +626,14 @@ public final class AIService {
             return
         }
 
-        guard ModelSelectionEngine.shared.isLocalGGUFAllowed(),
-              BackgroundModelDownloader.isModelDownloaded,
-              let modelURL = BackgroundModelDownloader.localModelURL else {
+        let bundledModel = Bundle.main.url(
+            forResource: "Qwen3-0.6B-Q8_0", withExtension: "gguf",
+            subdirectory: "TranslationModels"
+        )
+        let downloadedModel = BackgroundModelDownloader.isModelDownloaded
+            ? BackgroundModelDownloader.localModelURL : nil
+        guard (ModelSelectionEngine.shared.isLocalGGUFAllowed() || bundledModel != nil),
+              let modelURL = bundledModel ?? downloadedModel else {
             completion(.failure(NSError(
                 domain: "SarahLocalUnderstanding",
                 code: 425,
