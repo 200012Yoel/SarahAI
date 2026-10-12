@@ -34,6 +34,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         let source: String
         let input: String
         let fromEnglishPivot: Bool
+        let capturedAt = Date()
     }
 
     public static func commandPair(_ text: String) -> (from: String, to: String)? {
@@ -420,9 +421,11 @@ public final class YoannTranslateLiveService: ObservableObject {
                 )
                 continue
             }
-            if incoming.count >= 8 {
-                incoming.removeFirst()
-                errorMessage = "Le modèle n'arrive pas à suivre : un ancien passage a été ignoré."
+            // Keep newest words rather than replaying several old news
+            // sentences. TV/radio broadcasts do not wait for inference.
+            if !incoming.isEmpty {
+                incoming.removeAll(keepingCapacity: true)
+                errorMessage = "Yoann rattrape le direct : un ancien extrait a été remplacé."
             }
             incoming.append(PendingTranslation(
                 source: stable, input: stable, fromEnglishPivot: false
@@ -474,9 +477,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         lastSource = hebrew
         provisionalSource = ""
         recentSourceContext = hebrew
-        if incoming.count >= 8 {
-            incoming.removeFirst()
-            errorMessage = "Le téléphone traduit moins vite que la chaîne. Un extrait ancien a été ignoré."
+        if !incoming.isEmpty {
+            incoming.removeAll(keepingCapacity: true)
+            errorMessage = "Yoann rattrape le direct : un ancien extrait a été remplacé."
         }
         incoming.append(PendingTranslation(
             source: hebrew, input: intermediate, fromEnglishPivot: true
@@ -716,6 +719,15 @@ public final class YoannTranslateLiveService: ObservableObject {
         isTranslating = true
         let fragment = incoming.removeFirst()
         waitingTranslations = incoming.count
+        // If Qwen took too long for the previous sentence, skip a queued
+        // fragment that's already far behind live broadcast time.
+        if Date().timeIntervalSince(fragment.capturedAt) > 9.0 {
+            translationBusy = false
+            isTranslating = false
+            errorMessage = "Le direct a avancé : extrait trop ancien ignoré."
+            translateNext(token: token)
+            return
+        }
 
         let native: ((String) async throws -> String)?
         if fragment.fromEnglishPivot {
@@ -830,9 +842,10 @@ public final class YoannTranslateLiveService: ObservableObject {
             return
         }
 
-        if outgoing.count >= 10 {
-            outgoing.removeFirst()
-            errorMessage = "La lecture vocale a du retard : un ancien passage a été ignoré."
+        // The French voice must also stay near the TV's current words.
+        if !outgoing.isEmpty {
+            outgoing.removeAll(keepingCapacity: true)
+            errorMessage = "La voix rattrape le direct : sous-titres récents prioritaires."
         }
         outgoing.append(Segment(source: original, translation: result))
         playNextSpeech(token: token)
