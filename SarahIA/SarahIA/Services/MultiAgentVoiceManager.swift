@@ -10,6 +10,9 @@ public final class AgentVoiceManager: NSObject {
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
     public var onSpeechError: ((String) -> Void)?
+    /// True while the offline TTS model is generating audio, before playback starts.
+    public private(set) var isPreparingSpeech = false
+    public var onSpeechPreparationStarted: (() -> Void)?
 
     private let neural = NeuralVoiceService.shared
     private var pendingSpeechBlock: (() -> Void)?
@@ -22,13 +25,16 @@ public final class AgentVoiceManager: NSObject {
     private override init() {
         super.init()
         neural.onStarted = { [weak self] in
+            self?.isPreparingSpeech = false
             self?.onSpeechStarted?()
         }
         neural.onFinished = { [weak self] in
+            self?.isPreparingSpeech = false
             self?.finishSpeech()
         }
         neural.onFailure = { [weak self] message in
             print("⚠️ [Sarah Neuronal TTS] \(message)")
+            self?.isPreparingSpeech = false
             self?.onSpeechError?(message)
         }
     }
@@ -63,6 +69,8 @@ public final class AgentVoiceManager: NSObject {
         let cleaned = cleanTextForSpeech(text)
         guard !cleaned.isEmpty else { return }
         currentSpokenText = cleaned
+        isPreparingSpeech = true
+        onSpeechPreparationStarted?()
         neural.speak(text: cleaned, for: agent, speed: rate)
     }
 
@@ -84,6 +92,8 @@ public final class AgentVoiceManager: NSObject {
             self?.speak(text: second, for: targetAgent)
         }
         currentSpokenText = first
+        isPreparingSpeech = true
+        onSpeechPreparationStarted?()
         neural.speak(text: first, for: sourceAgent)
     }
 
@@ -113,6 +123,8 @@ public final class AgentVoiceManager: NSObject {
         let text = websiteTexts[websiteIndex]
         currentSpokenText = text
         websiteItemStart?(websiteIndex)
+        isPreparingSpeech = true
+        onSpeechPreparationStarted?()
         neural.speak(text: text, for: agent)
     }
 
@@ -150,6 +162,7 @@ public final class AgentVoiceManager: NSObject {
         pendingSpeechBlock = nil
         clearSequence()
         currentSpokenText = ""
+        isPreparingSpeech = false
         neural.stop()
     }
 
