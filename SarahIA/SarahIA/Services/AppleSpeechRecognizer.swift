@@ -172,7 +172,15 @@ public final class WhisperSpeechRecognizer: NSObject {
     /// Starts local Whisper capture. In continuous voice mode `preserveActiveSpeech`
     /// keeps Sarah's TTS playing so microphone voice activity can barge in instantly.
     public func startListening(autoFinalizeOnSilence: Bool = true, preserveActiveSpeech: Bool = false) {
-        guard !isListening, !whisper.isTranscribing else { return }
+        guard !whisper.isTranscribing else { return }
+        if isListening && whisper.isMicrophoneEngineRunning { return }
+        // After an AVAudioSession route switch, Combine may still report
+        // "listening" while AVAudioEngine is actually stopped. The old
+        // guard silently ignored every retry, even when the user said "allô".
+        if isListening && !whisper.isMicrophoneEngineRunning {
+            isListening = false
+            state = .idle
+        }
         self.preserveActiveSpeech = preserveActiveSpeech
         self.suppressNextExternalFinalCallback = false
 
