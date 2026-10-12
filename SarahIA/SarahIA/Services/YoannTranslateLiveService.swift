@@ -3,6 +3,9 @@ import SwiftUI
 import AVFoundation
 import UIKit
 import Combine
+#if canImport(Translation)
+import Translation
+#endif
 
 /// Simultaneous-style interpreter for external speech (person/TV/PC) heard
 /// through the iPhone microphone. Whisper records continuously on device,
@@ -47,6 +50,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var headphoneConnected = false
     @Published public private(set) var waitingTranslations = 0
     @Published public private(set) var microphoneLevel: Float = 0
+    @Published public private(set) var preparingSystemTranslation = false
+    @Published public private(set) var isSystemTranslationReady = false
 
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
@@ -62,6 +67,15 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var previousWhisperLanguage: String?
     private var customTranslationServerURL = ""
     private var localEnglishTranslation = false
+    private var nativeTranslator: ((String) async throws -> String)?
+    private var nativeTranslationUnavailable = false
+
+    /// Apple Translation supplies Hebrew→French entirely on iPhone if the
+    /// language pack is available, without requiring the user's Debian server.
+    public var shouldAttemptSystemTranslation: Bool {
+        customTranslationServerURL.isEmpty && sourceLanguage == "he"
+            && targetLanguage == "fr"
+    }
 
     private var incoming: [String] = []
     private var outgoing: [Segment] = []
@@ -120,6 +134,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         isPlayingAudio = false
         lastAcceptedChunk = ""
         lastAcceptedAt = .distantPast
+        nativeTranslator = nil
+        nativeTranslationUnavailable = false
+        preparingSystemTranslation = false
+        isSystemTranslationReady = false
         sessionToken = UUID()
         isActive = true
 
@@ -216,6 +234,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         outgoing.removeAll()
         waitingTranslations = 0
         translationBusy = false
+        nativeTranslator = nil
+        preparingSystemTranslation = false
+        isSystemTranslationReady = false
+        nativeTranslationUnavailable = true
         micLevelSubscription?.cancel()
         micLevelSubscription = nil
         microphoneLevel = 0
@@ -291,12 +313,92 @@ public final class YoannTranslateLiveService: ObservableObject {
         updateStatus()
     }
 
+    // MARK: - Native iOS Translation (installed language packs; no server)
+
+    #if canImport(Translation)
+    @available(iOS 18.0, *)
+    public func useSystemTranslation(_ session: TranslationSession) async {
+        let token = sessionToken
+        guard isActive, shouldAttemptSystemTranslation else { return }
+
+        preparingSystemTranslation = true
+        updateStatus()
+        do {
+            // SwiftUI's translationTask allows iOS to request permission to
+            // download the Hebrew/French pair once. The user chooses whether.
+            try await session.prepareTranslation()
+            guard isActive, sessionToken == token, !Task.isCancelled else { return }
+
+            nativeTranslator = { text in
+                let result = try await session.translate(text)
+                return result.targetText
+            }
+            nativeTranslationUnavailable = false
+            preparingSystemTranslation = false
+            isSystemTranslationReady = true
+            errorMessage = nil
+            translateNext(token: token)
+            updateStatus()
+
+            // TranslationSession supplied by translationTask is valid only
+            // while the task/view is alive. Never retain it after this exits.
+            while !Task.isCancelled && isActive && sessionToken == token {
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } catch { break }
+            }
+        } catch {
+            guard isActive, sessionToken == token else { return }
+            nativeTranslationUnavailable = true
+            preparingSystemTranslation = false
+            isSystemTranslationReady = false
+            errorMessage = "Traduction iOS indisponible : \(error.localizedDescription). Vérifie les langues hébreu/français ou configure ton serveur dans ⚙️."
+            translateNext(token: token)
+            updateStatus()
+        }
+        guard sessionToken == token else { return }
+        nativeTranslator = nil
+        isSystemTranslationReady = false
+        preparingSystemTranslation = false
+    }
+    #endif
+
     private func translateNext(token: UUID) {
         guard isActive, sessionToken == token, !translationBusy, !incoming.isEmpty else { return }
+
+        // On iOS 27, don't discard real broadcast sentences before the
+        // system has had a chance to install and prepare its translation pack.
+        if shouldAttemptSystemTranslation && nativeTranslator == nil
+                && !nativeTranslationUnavailable {
+            if #available(iOS 18.0, *) {
+                preparingSystemTranslation = true
+                updateStatus()
+                return
+            }
+        }
         translationBusy = true
         isTranslating = true
         let fragment = incoming.removeFirst()
         waitingTranslations = incoming.count
+
+        if shouldAttemptSystemTranslation, let native = nativeTranslator {
+            Task { [weak self] in
+                guard let self, self.isActive, self.sessionToken == token else { return }
+                do {
+                    let output = try await native(fragment)
+                    self.finishTranslation(.translated(output), original: fragment, token: token)
+                } catch {
+                    // Don't silently label a failed system translation as a
+                    // valid French answer. An explicitly configured server
+                    // remains the fallback for other language combinations.
+                    self.finishTranslation(
+                        .unavailable("Traduction iOS : \(error.localizedDescription). Vérifie les modèles hébreu/français dans iOS."),
+                        original: fragment, token: token
+                    )
+                }
+            }
+            return
+        }
 
         TranslateLiveTranslationBackend.translate(
             text: fragment,
@@ -305,19 +407,27 @@ public final class YoannTranslateLiveService: ObservableObject {
             serverURL: customTranslationServerURL
         ) { [weak self] outcome in
             DispatchQueue.main.async {
-                guard let self, self.isActive, self.sessionToken == token else { return }
-                self.translationBusy = false
-                self.isTranslating = false
-                switch outcome {
-                case .translated(let output):
-                    self.appendTranslated(text: output, original: fragment, token: token)
-                case .unavailable(let reason):
-                    self.errorMessage = reason
-                }
-                self.translateNext(token: token)
-                self.updateStatus()
+                self?.finishTranslation(outcome, original: fragment, token: token)
             }
         }
+        updateStatus()
+    }
+
+    private func finishTranslation(
+        _ outcome: TranslateLiveTranslationBackend.Outcome,
+        original: String,
+        token: UUID
+    ) {
+        guard isActive, sessionToken == token else { return }
+        translationBusy = false
+        isTranslating = false
+        switch outcome {
+        case .translated(let output):
+            appendTranslated(text: output, original: original, token: token)
+        case .unavailable(let reason):
+            errorMessage = reason
+        }
+        translateNext(token: token)
         updateStatus()
     }
 
@@ -380,6 +490,8 @@ public final class YoannTranslateLiveService: ObservableObject {
             status = "🔊 Voix française en lecture, le micro continue d'écouter…"
         } else if isPreparingSpeech {
             status = "⌛ Préparation de la voix neuronale…"
+        } else if preparingSystemTranslation {
+            status = "⌛ Préparation de la traduction hébreu → français sur l’iPhone…"
         } else if translationBusy {
             status = "🎙️ Écoute continue, traduction en cours…"
         } else {
