@@ -19,8 +19,8 @@ public enum TranslateLiveTranslationBackend {
     // translation model, never a predetermined answer.
 
     /// Qwen3 GGUF is Apache-2.0 and the app already links llama.cpp.
-    /// The weights are downloaded separately to Application Support, not
-    /// magically present just because the library is linked to the IPA.
+    /// The IPA bundles the verified Qwen3 0.6B GGUF for immediate offline
+    /// Hebrew ↔ French translation; an existing downloaded Qwen may also be used.
     #if os(iOS)
     private static var bundledQwenModel: URL? {
         Bundle.main.url(forResource: "Qwen3-0.6B-Q8_0", withExtension: "gguf",
@@ -65,7 +65,7 @@ public enum TranslateLiveTranslationBackend {
         let toLabel = target == "fr" ? "français" : "hébreu"
         let system = """
         /no_think
-        Tu es un moteur neuronal de traduction simultanée de (fromLabel) vers (toLabel).
+        Tu es un moteur neuronal de traduction simultanée de \(fromLabel) vers \(toLabel).
         Traduis fidèlement les paroles entendues, y compris les noms propres.
         Retourne UNIQUEMENT leur traduction, sans présentation, excuses, raisonnement ni guillemets.
         Si une expression est difficile, conserve son nom propre, mais n'invente aucun contexte.
