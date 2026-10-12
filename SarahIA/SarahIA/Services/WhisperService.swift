@@ -69,9 +69,9 @@ public final class WhisperService: ObservableObject {
     private let silenceThreshold: TimeInterval = 0.92
     private let minimumUtteranceSeconds: Double = 0.35
     private let maximumUtteranceSeconds: Double = 30
-    private let liveSilenceThreshold: TimeInterval = 0.28
-    private let liveMaxChunkSeconds: Double = 2.1
-    private let liveMinChunkSeconds: Double = 0.50
+    private let liveSilenceThreshold: TimeInterval = 0.55
+    private let liveMaxChunkSeconds: Double = 4.5
+    private let liveMinChunkSeconds: Double = 1.15
     private let activityDBThreshold: Float = -48
 
     private init() {}
@@ -396,8 +396,10 @@ public final class WhisperService: ObservableObject {
             let duration = Double(self.samples.count) / self.targetSampleRate
 
             if self.isLiveInterpreting {
-                // A greeting such as "shalom" is flushed after a brief pause,
-                // whereas continuous speech is segmented every ~2 seconds.
+                // Wait for enough phonetic context for Whisper Base, particularly
+                // Hebrew news. Sub-second/2-second chunks were hallucinating
+                // repeated words, even with a hard-coded Hebrew language.
+                // Short greetings still flush on a genuine pause.
                 // Never stop AVAudioEngine here; sample collection and inference
                 // run on separate queues.
                 let briefPause = self.hasDetectedSpeech
@@ -586,9 +588,9 @@ public final class WhisperService: ObservableObject {
             params.n_threads = threadCount
             params.temperature_inc = -1
             if deliverToLive {
-                // Cap runaway 2-second TV decodes and suppress music tokens.
+                // Cap live TV decodes and suppress music tokens.
                 // These flags are available in pinned whisper.cpp v1.9.4.
-                params.max_tokens = 64
+                params.max_tokens = 112
                 params.suppress_blank = true
                 params.suppress_nst = true
                 params.no_speech_thold = 0.45
