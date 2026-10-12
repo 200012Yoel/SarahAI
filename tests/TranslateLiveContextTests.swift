@@ -22,6 +22,15 @@ struct TranslateLiveContextTests {
         expect(TranslateLiveContextBuffer.isUnreliableTranscript(
             "תודה רבה. תודה רבה. תודה רבה. תודה רבה."),
             "repeated Hebrew captions must not reach TTS")
+        expect(TranslateLiveContextBuffer.isRepeatingHallucination(
+            "האז כתב, האז כתב, האז כתב, כתב, כתב, כתב, כתב, כתב, כתב"),
+            "reject single-word Hebrew hallucinations seen in user screenshot")
+        expect(TranslateLiveContextBuffer.isRepeatingHallucination(
+            "כתב כתב כתב כתב כתב כתב כתב כתב כתב כתב"),
+            "reject repeated Hebrew tokens even without a prefix")
+        expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
+            "שלום שלום חברים ברוכים הבאים למהדורת הערב"),
+            "allow normal Hebrew greeting with a repeated word")
         expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
             "תודה רבה לכל הצופים, נשוב אליכם אחרי החדשות."),
             "legitimate Hebrew broadcast sentence is retained")
