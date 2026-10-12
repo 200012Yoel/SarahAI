@@ -666,6 +666,27 @@ public final class ChatViewModel: ObservableObject {
         }
     }
 
+    /// Select the voice agent immediately without waiting for an LLM reply.
+    public func selectVoiceAgent(_ agent: AgentType) {
+        guard activeAgent != agent else { return }
+        messageGenerationID = UUID()
+        isTyping = false
+        isPreparingVoiceReply = false
+        voiceManager.stop()
+        activeAgent = agent
+        currentSpeakingText = nil
+        liveTranscriptionText = ""
+        if isContinuousConversationActive && !isVoiceMicrophoneMuted {
+            if WhisperSpeechRecognizer.shared.isListening {
+                voiceStatus = .listening(level: micInputLevel)
+            } else {
+                rearmMicrophoneAfterSilence(delay: 0.08)
+            }
+        } else {
+            voiceStatus = .idle
+        }
+    }
+
     public func activateTranslateLive(from source: String = "he", to target: String = "fr") {
         // A dedicated mode: dismiss all competing audio and present after any
         // full-screen voice sheet has finished its dismissal animation.
@@ -850,6 +871,39 @@ public final class ChatViewModel: ObservableObject {
 
     // MARK: - Envoi de Message & Orchestration Multi-Agents
     
+    /// Recognize explicit short commands, never random agent names in TV audio.
+    private static func voiceAgentSwitchTarget(_ text: String) -> AgentType? {
+        let normalized = text.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "fr_FR")
+        ).lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        let words = normalized.split(whereSeparator: { $0.isWhitespace })
+        guard words.count <= 12 else { return nil }
+        let explicit = [
+            "passe moi", "passe a", "passe au", "passe avec",
+            "je veux parler", "je voudrais parler", "parler avec",
+            "parler a", "mets moi", "mets", "choisis",
+            "bascule", "active l'agent", "change pour",
+            "je veux yoann", "je veux sarah", "ouvre yoann",
+            "ouvre sarah"
+        ].contains(where: { normalized.contains($0) })
+        func named(_ variants: [String]) -> Bool {
+            variants.contains { words.contains(Substring($0)) }
+        }
+        if named(["yoann", "yohan", "yoan", "johan"]) &&
+            (explicit || words.count == 1) { return .yohan }
+        if named(["sarah", "sara"]) &&
+            (explicit || words.count == 1) { return .sarah }
+        if named(["tom"]) &&
+            (explicit || words.count == 1) { return .tom }
+        if named(["raphael", "esther", "ester"]) &&
+            (explicit || words.count == 1) { return .esther }
+        return nil
+    }
+
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -859,6 +913,12 @@ public final class ChatViewModel: ObservableObject {
         if let pair = YoannTranslateLiveService.commandPair(text) {
             inputText = ""
             activateTranslateLive(from: pair.from, to: pair.to)
+            return
+        }
+        if isContinuousConversationActive,
+           let agent = Self.voiceAgentSwitchTarget(text) {
+            inputText = ""
+            selectVoiceAgent(agent)
             return
         }
         let generationID = UUID()
