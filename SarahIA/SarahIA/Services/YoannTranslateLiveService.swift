@@ -751,7 +751,8 @@ public final class YoannTranslateLiveService: ObservableObject {
                 to: TranslateLiveLanguages.engineCode(for: targetLanguage)
             ) { [weak self] outcome in
                 DispatchQueue.main.async {
-                    self?.finishTranslation(outcome, original: fragment.source, token: token)
+                    self?.finishTranslation(outcome, original: fragment.source, token: token,
+                                            capturedAt: fragment.capturedAt)
                 }
             }
             updateStatus()
@@ -763,13 +764,15 @@ public final class YoannTranslateLiveService: ObservableObject {
                 guard let self, self.isActive, self.sessionToken == token else { return }
                 do {
                     let result = try await native(fragment.input)
-                    self.finishTranslation(.translated(result), original: fragment.source, token: token)
+                    self.finishTranslation(.translated(result), original: fragment.source, token: token,
+                                           capturedAt: fragment.capturedAt)
                 } catch {
                     guard self.isActive, self.sessionToken == token else { return }
                     if fragment.fromEnglishPivot {
                         self.finishTranslation(
                             .unavailable("Traduction anglais → français interrompue : \(error.localizedDescription)"),
-                            original: fragment.source, token: token
+                            original: fragment.source, token: token,
+                            capturedAt: fragment.capturedAt
                         )
                     } else if self.shouldAttemptSystemTranslation
                                 && self.customTranslationServerURL.isEmpty {
@@ -783,7 +786,8 @@ public final class YoannTranslateLiveService: ObservableObject {
                     } else {
                         self.finishTranslation(
                             .unavailable("Traduction locale impossible : \(error.localizedDescription)"),
-                            original: fragment.source, token: token
+                            original: fragment.source, token: token,
+                            capturedAt: fragment.capturedAt
                         )
                     }
                 }
@@ -807,11 +811,21 @@ public final class YoannTranslateLiveService: ObservableObject {
     private func finishTranslation(
         _ outcome: TranslateLiveTranslationBackend.Outcome,
         original: String,
-        token: UUID
+        token: UUID,
+        capturedAt: Date
     ) {
         guard isActive, sessionToken == token else { return }
         translationBusy = false
         isTranslating = false
+        // A completed translation cannot be allowed to interrupt a more
+        // recent TV bulletin after a long CPU stall. Continue listening and
+        // prefer the freshest waiting phrase, rather than replaying old news.
+        if Date().timeIntervalSince(capturedAt) > 13.0 && !incoming.isEmpty {
+            errorMessage = "Interprétation dépassée par le direct : paroles récentes prioritaires."
+            translateNext(token: token)
+            updateStatus()
+            return
+        }
         switch outcome {
         case .translated(let output):
             appendTranslated(text: output, original: original, token: token)
