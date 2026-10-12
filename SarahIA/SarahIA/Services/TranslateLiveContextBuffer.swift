@@ -77,6 +77,19 @@ public struct TranslateLiveContextBuffer {
     /// caption. On TV/music the bilingual decoder sometimes hallucinates
     /// "I'm sorry. I'm sorry." for a short Hebrew name or silence. Such a
     /// string is NOT valid evidence of a translation and must never reach TTS.
+    /// Reject hallucinated Latin captions from a recognizer explicitly
+    /// locked to Hebrew. Music/noise sometimes gives Whisper English tokens
+    /// despite a Hebrew-language setting.
+    public static func isMostlyHebrew(_ text: String) -> Bool {
+        var hebrew = 0
+        var letters = 0
+        for scalar in text.unicodeScalars {
+            if CharacterSet.letters.contains(scalar) { letters += 1 }
+            if (0x05D0...0x05EA).contains(scalar.value) { hebrew += 1 }
+        }
+        return hebrew >= 2 && hebrew * 5 >= max(1, letters) * 3
+    }
+
     public static func isSuspiciousEnglishPivot(
         _ english: String, hebrewSource: String
     ) -> Bool {
