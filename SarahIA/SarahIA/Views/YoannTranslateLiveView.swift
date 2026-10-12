@@ -54,13 +54,18 @@ public struct YoannTranslateLiveView: View {
         }
         .background(darkNavy.ignoresSafeArea())
         .background(alignment: .topLeading) {
-            // iOS 27 supports Hebrew in system-wide translation. The
-            // SwiftUI task owns the session and may ask permission to
-            // download its offline language pack on the first launch.
+            // The iOS Translation framework can reject a particular
+            // Hebrew→French pair, even if iOS lists Hebrew for system-wide
+            // translation. Replace the hidden task with English→French
+            // when the runtime reports that direct pair unsupported.
             #if canImport(Translation)
             if #available(iOS 18.0, *), live.isActive,
                live.shouldAttemptSystemTranslation {
-                YoannNativeTranslationSessionHost(live: live)
+                YoannNativeTranslationSessionHost(
+                    live: live,
+                    sourceCode: live.needsEnglishPivotTranslation ? "en" : "he"
+                )
+                    .id(live.needsEnglishPivotTranslation ? "translate-en-fr" : "translate-he-fr")
                     .frame(width: 1, height: 1)
                     .accessibilityHidden(true)
             }
@@ -473,14 +478,19 @@ private struct TranslateLiveLanguagePicker: View {
 @available(iOS 18.0, *)
 private struct YoannNativeTranslationSessionHost: View {
     @ObservedObject var live: YoannTranslateLiveService
+    let sourceCode: String
 
     var body: some View {
         Color.clear
             .translationTask(
-                source: Locale.Language(identifier: "he"),
+                source: Locale.Language(identifier: sourceCode),
                 target: Locale.Language(identifier: "fr")
             ) { session in
-                await live.useSystemTranslation(session)
+                if sourceCode == "en" {
+                    await live.useEnglishPivotTranslation(session)
+                } else {
+                    await live.useSystemTranslation(session)
+                }
             }
     }
 }
