@@ -50,6 +50,20 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         super.init()
     }
 
+    /// Warm up the bundled offline TTS once *after* the microphone starts.
+    /// The same serial synthesis queue is used by actual speech, so model
+    /// initialization cannot race with the first generated reply.
+    public func prepareForVoiceConversation() {
+        synthesisQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try self.loadModel()
+            } catch {
+                print("⚠️ [Sarah voice preload] \(error.localizedDescription)")
+            }
+        }
+    }
+
     public func stop() {
         // Invalidate the result of any synthesis that is still in flight.
         generation = UUID()
