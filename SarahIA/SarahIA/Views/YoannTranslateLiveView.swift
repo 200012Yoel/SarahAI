@@ -183,19 +183,18 @@ public struct YoannTranslateLiveView: View {
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .accessibilityIdentifier("translateLiveMissingTargetVoice")
+            } else if sourceLanguage == "he" && targetLanguage == "fr" {
+                Text(live.isSystemTranslationReady
+                    ? "Traduction hébreu → français sur l’iPhone active"
+                    : "Préparation de la traduction iOS. Accepte les langues si iOS le demande.")
+                    .font(.system(size: 11))
+                    .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
+                    .lineLimit(2)
             } else if !translationServerURL.isEmpty &&
                       TranslateLiveTranslationBackend.validatedURL(translationServerURL) == nil {
                 Text("Adresse du serveur de traduction invalide. Vérifie ⚙️.")
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
-            } else if sourceLanguage == "he" && targetLanguage == "fr"
-                        && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(live.isSystemTranslationReady
-                    ? "Traduction locale iOS hébreu → français activée"
-                    : "Préparation de la traduction locale iOS. Accepte le téléchargement des langues si demandé.")
-                    .font(.system(size: 11))
-                    .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
-                    .lineLimit(2)
             } else if !TranslateLiveLanguages.isEnglish(targetLanguage)
                       && translationServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("Phrases complètes : serveur de traduction requis dans ⚙️.")
