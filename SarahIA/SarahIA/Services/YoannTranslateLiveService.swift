@@ -30,6 +30,12 @@ public final class YoannTranslateLiveService: ObservableObject {
         let translation: String
     }
 
+    private struct PendingTranslation {
+        let source: String
+        let input: String
+        let fromEnglishPivot: Bool
+    }
+
     public static func commandPair(_ text: String) -> (from: String, to: String)? {
         TranslateLiveLanguages.pairFromCommand(text)
     }
@@ -52,6 +58,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var microphoneLevel: Float = 0
     @Published public private(set) var preparingSystemTranslation = false
     @Published public private(set) var isSystemTranslationReady = false
+    @Published public private(set) var needsEnglishPivotTranslation = false
+    @Published public private(set) var isUsingEnglishPivot = false
     @Published public private(set) var translationSetupMessage = "Vérification du moteur hébreu → français…"
 
     public private(set) var sourceLanguage = "he"
@@ -69,6 +77,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var customTranslationServerURL = ""
     private var localEnglishTranslation = false
     private var nativeTranslator: ((String) async throws -> String)?
+    private var nativeEnglishToFrenchTranslator: ((String) async throws -> String)?
     private var nativeTranslationUnavailable = false
 
     /// Apple Translation supplies Hebrew→French entirely on iPhone if the
@@ -77,7 +86,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         sourceLanguage == "he" && targetLanguage == "fr"
     }
 
-    private var incoming: [String] = []
+    private var incoming: [PendingTranslation] = []
     private var outgoing: [Segment] = []
     private var translationBusy = false
     private var contextBuffer = TranslateLiveContextBuffer()
@@ -137,7 +146,11 @@ public final class YoannTranslateLiveService: ObservableObject {
         lastAcceptedChunk = ""
         lastAcceptedAt = .distantPast
         nativeTranslator = nil
+        nativeEnglishToFrenchTranslator = nil
         nativeTranslationUnavailable = false
+        needsEnglishPivotTranslation = false
+        isUsingEnglishPivot = false
+        whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
         translationSetupMessage = "Vérification du pack de traduction hébreu → français…"
@@ -197,8 +210,14 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         let token = sessionToken
         whisper.onLiveInterpretationChunk = { [weak self] chunk, paused in
-            guard let self, self.isActive, self.sessionToken == token else { return }
+            guard let self, self.isActive, self.sessionToken == token,
+                  !self.isUsingEnglishPivot else { return }
             self.receive(chunk: chunk, paused: paused, token: token)
+        }
+        whisper.onLiveEnglishPivotChunk = { [weak self] source, english, paused in
+            guard let self, self.isActive, self.sessionToken == token,
+                  self.isUsingEnglishPivot else { return }
+            self.receiveEnglishPivot(source: source, english: english, paused: paused, token: token)
         }
         whisper.onLiveInterpretationError = { [weak self] message in
             guard let self, self.isActive, self.sessionToken == token else { return }
@@ -272,6 +291,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         waitingTranslations = 0
         translationBusy = false
         nativeTranslator = nil
+        nativeEnglishToFrenchTranslator = nil
+        needsEnglishPivotTranslation = false
+        isUsingEnglishPivot = false
+        whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
         nativeTranslationUnavailable = true
@@ -336,6 +359,11 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         for stable in update.committed {
             lastSource = stable
+            if needsEnglishPivotTranslation && !isUsingEnglishPivot {
+                // Hold off instead of passing raw Hebrew text into an
+                // unsupported iOS translation pair.
+                continue
+            }
             if localEnglishTranslation {
                 // Whisper has already produced a stable English rendering.
                 appendTranslated(
@@ -347,10 +375,73 @@ public final class YoannTranslateLiveService: ObservableObject {
                 incoming.removeFirst()
                 errorMessage = "Le modèle n'arrive pas à suivre : un ancien passage a été ignoré."
             }
-            incoming.append(stable)
+            incoming.append(PendingTranslation(
+                source: stable, input: stable, fromEnglishPivot: false
+            ))
         }
         waitingTranslations = incoming.count
         translateNext(token: token)
+        updateStatus()
+    }
+
+    /// Fallback that preserves Hebrew captions while using the offline
+    /// Whisper speech-to-English decoder and Apple's English→French pack.
+    /// Input is paired on the *same microphone audio*, not guessed from
+    /// the Hebrew transcription.
+    private func receiveEnglishPivot(
+        source: String, english: String, paused: Bool, token: UUID
+    ) {
+        guard isActive, sessionToken == token, isUsingEnglishPivot else { return }
+        let hebrew = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let intermediate = english.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !TranslateLiveContextBuffer.isUnreliableTranscript(hebrew),
+              !TranslateLiveContextBuffer.isUnreliableTranscript(intermediate),
+              intermediate.range(of: "[A-Za-z]", options: .regularExpression) != nil,
+              !hebrew.isEmpty else { return }
+        if hebrew == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
+            return
+        }
+        lastAcceptedChunk = hebrew
+        lastAcceptedAt = Date()
+        lastSource = hebrew
+        provisionalSource = ""
+        recentSourceContext = hebrew
+        if incoming.count >= 8 {
+            incoming.removeFirst()
+            errorMessage = "Le téléphone traduit moins vite que la chaîne. Un extrait ancien a été ignoré."
+        }
+        incoming.append(PendingTranslation(
+            source: hebrew, input: intermediate, fromEnglishPivot: true
+        ))
+        waitingTranslations = incoming.count
+        translateNext(token: token)
+        updateStatus()
+    }
+
+    private func requestEnglishPivot(token: UUID) {
+        guard isActive, sessionToken == token,
+              shouldAttemptSystemTranslation,
+              customTranslationServerURL.isEmpty else { return }
+        nativeTranslationUnavailable = true
+        nativeTranslator = nil
+        isSystemTranslationReady = false
+        incoming.removeAll()
+        waitingTranslations = 0
+        needsEnglishPivotTranslation = true
+        translationSetupMessage = "Traduction iOS directe indisponible. Préparation du relais local hébreu → anglais → français…"
+        errorMessage = nil
+        activateEnglishPivotIfReady(token: token)
+    }
+
+    private func activateEnglishPivotIfReady(token: UUID) {
+        guard isActive, sessionToken == token, needsEnglishPivotTranslation,
+              nativeEnglishToFrenchTranslator != nil else { return }
+        whisper.liveDualDecodeEnglish = true
+        isUsingEnglishPivot = true
+        isSystemTranslationReady = true
+        preparingSystemTranslation = false
+        translationSetupMessage = "Relais hors ligne actif : Whisper hébreu → anglais, puis iOS anglais → français."
+        errorMessage = nil
         updateStatus()
     }
 
