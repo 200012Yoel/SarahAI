@@ -21,11 +21,22 @@ public enum TranslateLiveTranslationBackend {
     /// Qwen3 GGUF is Apache-2.0 and the app already links llama.cpp.
     /// The weights are downloaded separately to Application Support, not
     /// magically present just because the library is linked to the IPA.
+    #if os(iOS)
+    private static var bundledQwenModel: URL? {
+        Bundle.main.url(forResource: "Qwen3-0.6B-Q8_0", withExtension: "gguf",
+                        subdirectory: "TranslationModels")
+    }
+
+    private static var translationModelURL: URL? {
+        if let bundled = bundledQwenModel { return bundled }
+        guard ModelSelectionEngine.shared.isLocalGGUFAllowed(),
+              BackgroundModelDownloader.isModelDownloaded else { return nil }
+        return BackgroundModelDownloader.localModelURL
+    }
+
     public static var isLocalQwenReady: Bool {
         QwenLocalCodeRuntime.shared.isRuntimeLinked
-            && ModelSelectionEngine.shared.isLocalGGUFAllowed()
-            && BackgroundModelDownloader.isModelDownloaded
-            && BackgroundModelDownloader.localModelURL != nil
+            && translationModelURL != nil
     }
 
     /// Translate *directly* between Hebrew and French with the on-device
@@ -37,7 +48,7 @@ public enum TranslateLiveTranslationBackend {
     ) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isLocalQwenReady,
-              let modelURL = BackgroundModelDownloader.localModelURL else {
+              let modelURL = translationModelURL else {
             completion(.unavailable("Le modèle Qwen3 local n'est pas encore téléchargé sur l'iPhone."))
             return
         }
@@ -93,6 +104,16 @@ public enum TranslateLiveTranslationBackend {
             }
         }
     }
+
+    #else
+    public static var isLocalQwenReady: Bool { false }
+    public static func translateWithLocalQwen(
+        text: String, from source: String, to target: String,
+        completion: @escaping (Outcome) -> Void
+    ) {
+        completion(.unavailable("Le moteur Qwen3 requiert un appareil iOS et llama.cpp."))
+    }
+    #endif
 
     private static func normalized(_ text: String) -> String {
         text.lowercased().trimmingCharacters(
