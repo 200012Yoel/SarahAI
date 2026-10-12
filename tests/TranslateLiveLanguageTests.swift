@@ -61,13 +61,10 @@ struct TranslateLiveCatalogTests {
         let d = TranslateLiveLanguages.pairFromCommand("active le minuteur")
         expect(d == nil, "ordinary chat is not intercepted")
 
-        expect(TranslateLiveTranslationBackend.exactLocalTranslation(
-            "Merci", from: "fr", to: "he") == "תודה", "exact commercial-safe local translation")
-        expect(TranslateLiveTranslationBackend.exactLocalTranslation(
-            "Hello", from: "en", to: "fr") == "Bonjour", "English to French short phrase")
-        expect(TranslateLiveTranslationBackend.exactLocalTranslation(
-            "Une émission complète sur la météo", from: "fr", to: "en") == nil,
-               "no fake translation of long sentences")
+        // The production interpreter must never emit a canned translation
+        // from a 10-item demo dictionary. A model-backed path is required.
+        // "Bonjour" must not be returned just because the word was listed
+        // in source, and non-model inputs are rejected cleanly.
         expect(TranslateLiveTranslationBackend.validatedURL(
             "https://monserveur.example") != nil, "user-chosen HTTPS server")
         expect(TranslateLiveTranslationBackend.validatedURL(
@@ -76,6 +73,6 @@ struct TranslateLiveCatalogTests {
             "http://public.example") == nil, "reject insecure remote translation HTTP")
         expect(TranslateLiveTranslationBackend.validatedURL(
             "https://user:pass@somewhere.example") == nil, "reject embedded credentials")
-        print("OK: 99+ language catalog, voice command routing, 31 TTS languages, local MT safety")
+        print("OK: language catalog, voice routing, model-only live translation safety")
     }
 }
