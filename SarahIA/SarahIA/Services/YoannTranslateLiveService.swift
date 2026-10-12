@@ -464,12 +464,11 @@ public final class YoannTranslateLiveService: ObservableObject {
             guard isActive, sessionToken == token, !Task.isCancelled else { return }
             switch available {
             case .unsupported:
-                nativeTranslationUnavailable = true
+                // Native Hebrew→French is absent on this particular iOS.
+                // Never ask the user to repeatedly install an unsupported
+                // language pack. Try offline Whisper→English→French instead.
                 preparingSystemTranslation = false
-                isSystemTranslationReady = false
-                translationSetupMessage = "La traduction hébreu → français n'est pas prise en charge par cet iOS."
-                errorMessage = translationSetupMessage + " Un moteur hors ligne compatible ou un serveur personnel est nécessaire."
-                translateNext(token: token)
+                requestEnglishPivot(token: token)
                 updateStatus()
                 return
             case .supported:
@@ -527,9 +526,8 @@ public final class YoannTranslateLiveService: ObservableObject {
             nativeTranslationUnavailable = true
             preparingSystemTranslation = false
             isSystemTranslationReady = false
-            translationSetupMessage = "Traduction iOS non disponible : \(error.localizedDescription)"
-            errorMessage = translationSetupMessage + ". Installe le pack avec Internet une fois, ou configure un serveur dans ⚙️."
-            translateNext(token: token)
+            translationSetupMessage = "Traduction iOS directe indisponible : \(error.localizedDescription)"
+            requestEnglishPivot(token: token)
             updateStatus()
         }
         guard sessionToken == token else { return }
@@ -537,68 +535,138 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSystemTranslationReady = false
         preparingSystemTranslation = false
     }
+    /// English→French is a widely supported offline Apple Translation pair.
+    /// This view-hosted session is activated only if native Hebrew→French is
+    /// rejected. Whisper provides the English intermediate locally.
+    @available(iOS 18.0, *)
+    public func useEnglishPivotTranslation(_ session: TranslationSession) async {
+        let token = sessionToken
+        guard isActive, needsEnglishPivotTranslation else { return }
+        translationSetupMessage = "Vérification du pack anglais → français sur l'iPhone…"
+        do {
+            let source = Locale.Language(identifier: "en")
+            let target = Locale.Language(identifier: "fr")
+            let availability = LanguageAvailability()
+            let state = await availability.status(from: source, to: target)
+            guard isActive, sessionToken == token, !Task.isCancelled else { return }
+            switch state {
+            case .unsupported:
+                translationSetupMessage = "Même la paire anglais → français est indisponible dans le framework iOS."
+                errorMessage = translationSetupMessage + " Un autre modèle de traduction hors ligne est nécessaire."
+                return
+            case .supported:
+                translationSetupMessage = "Installe une seule fois les langues anglais → français demandées par iOS."
+            case .installed:
+                translationSetupMessage = "Pack anglais → français déjà installé."
+            @unknown default:
+                translationSetupMessage = "Vérification des langues anglaise et française…"
+            }
+            try await session.prepareTranslation()
+            guard isActive, sessionToken == token, !Task.isCancelled else { return }
+            var installed = false
+            for _ in 0..<20 {
+                let current = await availability.status(from: source, to: target)
+                guard isActive, sessionToken == token, !Task.isCancelled else { return }
+                if current == .installed {
+                    installed = true
+                    break
+                }
+                translationSetupMessage = "Téléchargement initial du pack anglais → français…"
+                try await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+            guard installed else {
+                throw NSError(domain: "SarahTranslateLive", code: 4,
+                    userInfo: [NSLocalizedDescriptionKey: "Pack anglais → français non installé. Une connexion initiale est nécessaire."])
+            }
+            nativeEnglishToFrenchTranslator = { text in
+                let result = try await session.translate(text)
+                return result.targetText
+            }
+            activateEnglishPivotIfReady(token: token)
+            while !Task.isCancelled && isActive && sessionToken == token,
+                  needsEnglishPivotTranslation {
+                do {
+                    try await Task.sleep(nanoseconds: 500_000_000)
+                } catch { break }
+            }
+        } catch {
+            guard isActive, sessionToken == token else { return }
+            translationSetupMessage = "Relais anglais → français : \(error.localizedDescription)"
+            errorMessage = translationSetupMessage
+        }
+        guard sessionToken == token else { return }
+        nativeEnglishToFrenchTranslator = nil
+        isSystemTranslationReady = false
+        isUsingEnglishPivot = false
+        whisper.liveDualDecodeEnglish = false
+    }
     #endif
 
     private func translateNext(token: UUID) {
         guard isActive, sessionToken == token, !translationBusy, !incoming.isEmpty else { return }
 
-        // On iOS 27, don't discard real broadcast sentences before the
-        // system has had a chance to install and prepare its translation pack.
-        if shouldAttemptSystemTranslation && nativeTranslator == nil
-                && !nativeTranslationUnavailable
-                && customTranslationServerURL.isEmpty {
-            // When a user-owned translator is configured, do not stall every
-            // TV sentence while Apple's optional language pack prepares.
-            if #available(iOS 18.0, *) {
-                preparingSystemTranslation = true
+        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
+            if needsEnglishPivotTranslation && !isUsingEnglishPivot {
+                // Wait for the English→French pack rather than sending Hebrew
+                // to a demonstrably unsupported local translation backend.
                 updateStatus()
                 return
             }
+            if !needsEnglishPivotTranslation && nativeTranslator == nil
+                && !nativeTranslationUnavailable {
+                if #available(iOS 18.0, *) {
+                    preparingSystemTranslation = true
+                    updateStatus()
+                    return
+                }
+            }
         }
+
         translationBusy = true
         isTranslating = true
         let fragment = incoming.removeFirst()
         waitingTranslations = incoming.count
 
-        if shouldAttemptSystemTranslation, let native = nativeTranslator {
+        let native: ((String) async throws -> String)?
+        if fragment.fromEnglishPivot {
+            native = nativeEnglishToFrenchTranslator
+        } else if shouldAttemptSystemTranslation {
+            native = nativeTranslator
+        } else {
+            native = nil
+        }
+
+        if let native {
             Task { [weak self] in
                 guard let self, self.isActive, self.sessionToken == token else { return }
                 do {
-                    let output = try await native(fragment)
-                    self.finishTranslation(.translated(output), original: fragment, token: token)
+                    let result = try await native(fragment.input)
+                    self.finishTranslation(.translated(result), original: fragment.source, token: token)
                 } catch {
-                    // Don't silently label a failed system translation as a
-                    // valid French answer. An explicitly configured server
-                    // remains the fallback for other language combinations.
-                    self.nativeTranslator = nil
-                    self.nativeTranslationUnavailable = true
-                    self.isSystemTranslationReady = false
-                    if !self.customTranslationServerURL.isEmpty {
-                        // The user's local server is a second, independent
-                        // engine if iOS cannot translate this fragment.
-                        self.translationBusy = false
-                        self.isTranslating = false
-                        self.incoming.insert(fragment, at: 0)
-                        self.translateNext(token: token)
-                    } else {
-                        self.finishTranslation(
-                            .unavailable("Traduction iOS : \(error.localizedDescription). Autorise le téléchargement hébreu/français ou configure un serveur dans ⚙️."),
-                            original: fragment, token: token
-                        )
+                    guard self.isActive, self.sessionToken == token else { return }
+                    if fragment.fromEnglishPivot {
+                        self.errorMessage = "Traduction anglais → français interrompue : \(error.localizedDescription)"
+                    } else if self.shouldAttemptSystemTranslation
+                                && self.customTranslationServerURL.isEmpty {
+                        self.requestEnglishPivot(token: token)
                     }
+                    self.finishTranslation(
+                        .unavailable("Traduction locale impossible : \(error.localizedDescription)"),
+                        original: fragment.source, token: token
+                    )
                 }
             }
             return
         }
 
         TranslateLiveTranslationBackend.translate(
-            text: fragment,
-            from: TranslateLiveLanguages.engineCode(for: sourceLanguage),
+            text: fragment.input,
+            from: fragment.fromEnglishPivot ? "en" : TranslateLiveLanguages.engineCode(for: sourceLanguage),
             to: TranslateLiveLanguages.engineCode(for: targetLanguage),
             serverURL: customTranslationServerURL
         ) { [weak self] outcome in
             DispatchQueue.main.async {
-                self?.finishTranslation(outcome, original: fragment, token: token)
+                self?.finishTranslation(outcome, original: fragment.source, token: token)
             }
         }
         updateStatus()
