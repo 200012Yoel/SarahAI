@@ -96,7 +96,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSpeakingTranslation = true
         neural.speak(
             text: "Bonjour. Je suis Yoann. Si tu m'entends, le haut-parleur fonctionne.",
-            for: .yohan, language: "fr", qualitySteps: 5
+            for: .yohan, language: "fr", qualitySteps: 5,
+            dedicatedInterpreter: true
         )
         updateStatus()
     }
@@ -480,7 +481,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         neural.speak(
             text: part.translation, for: .yohan,
             language: TranslateLiveLanguages.engineCode(for: targetLanguage),
-            qualitySteps: 5
+            qualitySteps: 5,
+            dedicatedInterpreter: true
         )
     }
 
