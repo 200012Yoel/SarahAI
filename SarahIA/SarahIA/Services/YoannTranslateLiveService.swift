@@ -82,6 +82,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var translationBusy = false
     private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
     private var lastAcceptedChunk = ""
     private var lastAcceptedAt = Date.distantPast
     private var micLevelSubscription: AnyCancellable?
@@ -175,7 +176,23 @@ public final class YoannTranslateLiveService: ObservableObject {
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.updateAudioRoute() }
+            Task { @MainActor in
+                guard let self else { return }
+                self.updateAudioRoute()
+                self.scheduleMicrophoneRecovery(token: self.sessionToken)
+            }
+        }
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let value = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  value == AVAudioSession.InterruptionType.ended.rawValue else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                self.scheduleMicrophoneRecovery(token: self.sessionToken)
+            }
         }
 
         let token = sessionToken
@@ -268,6 +285,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         if let routeObserver {
             NotificationCenter.default.removeObserver(routeObserver)
             self.routeObserver = nil
+        }
+        if let interruptionObserver {
+            NotificationCenter.default.removeObserver(interruptionObserver)
+            self.interruptionObserver = nil
         }
         // Restore listeners BEFORE canceling playback so an old session
         // cannot receive a synthetic "speech finished" event.
@@ -551,6 +572,16 @@ public final class YoannTranslateLiveService: ObservableObject {
             qualitySteps: 5,
             dedicatedInterpreter: true
         )
+    }
+
+    private func scheduleMicrophoneRecovery(token: UUID) {
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.whisper.recoverLiveMicrophoneIfNeeded()
+            self.isListening = self.whisper.isRecording
+            self.updateStatus()
+        }
     }
 
     private func updateAudioRoute() {
