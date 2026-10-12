@@ -37,6 +37,15 @@ struct TranslateLiveContextTests {
         expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
             "bonjour les amis, bienvenue au journal télévisé ce soir"),
             "legitimate French broadcast sentence is retained")
+        expect(TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+            "I'm sorry. I'm sorry.", hebrewSource: "תמר זהורי"),
+            "reject screenshot's fabricated repeated English apology")
+        expect(TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+            "I am sorry. I am sorry.", hebrewSource: "שלום לכולם"),
+            "reject repeated English sentences regardless of apostrophe")
+        expect(!TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+            "Good evening and welcome to the news.", hebrewSource: "ערב טוב וברוכים הבאים לחדשות"),
+            "keep normal sentence translated from Hebrew")
 
         var buffer = TranslateLiveContextBuffer()
         let first = buffer.receive("שלום", paused: false)
