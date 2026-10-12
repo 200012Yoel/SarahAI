@@ -354,7 +354,11 @@ public final class AIService {
     // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM & Cloud Fallback Mock)
     
     /// Traite la requête utilisateur de manière asynchrone avec do/catch global et fallback de débogage garanti
-    public func processQuery(_ question: String, completion: @escaping (String) -> Void) {
+    public func processQuery(
+        _ question: String,
+        voiceMode: Bool = false,
+        completion: @escaping (String) -> Void
+    ) {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             completion("[DEBUG] Le bouton fonctionne, mais le texte envoyé est vide.")
@@ -525,7 +529,9 @@ public final class AIService {
             if BackgroundModelDownloader.isModelDownloaded, BackgroundModelDownloader.localModelURL != nil {
                 // Le dialogue général passe maintenant par le même vrai runtime
                 // Qwen3 GGUF / llama.cpp que Raphaël, avec un prompt Sarah dédié.
-                generateLocalAssistantResponse(prompt: trimmed) { [weak self] result in
+                generateLocalAssistantResponse(
+                    prompt: trimmed, maxTokens: voiceMode ? 280 : 1280
+                ) { [weak self] result in
                     guard let self = self else { return }
                     switch result {
                     case .success(let localText):
@@ -578,6 +584,7 @@ public final class AIService {
     /// que les pronoms, corrections et questions de suivi restent cohérents.
     public func generateLocalAssistantResponse(
         prompt: String,
+        maxTokens: Int = 1280,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -622,7 +629,7 @@ public final class AIService {
             modelURL: modelURL,
             system: system,
             user: contextualPrompt,
-            maxTokens: 1280,
+            maxTokens: maxTokens,
             completion: completion
         )
     }
