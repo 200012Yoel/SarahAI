@@ -39,6 +39,12 @@ public struct VoiceOrbModalView: View {
     private var statusTitle: String {
         switch viewModel.voiceStatus {
         case .processing:
+            if viewModel.isPreparingVoiceReply {
+                return "\(viewModel.activeAgent.displayName) prépare sa voix…"
+            }
+            if viewModel.isTyping {
+                return "\(viewModel.activeAgent.displayName) réfléchit…"
+            }
             return WhisperService.shared.isModelLoading
                 ? "Chargement de Whisper…" : "Transcription en cours…"
         case .starting:
@@ -64,8 +70,14 @@ public struct VoiceOrbModalView: View {
                 ? "Initialisation du modèle Whisper sur l'iPhone…"
                 : "Autorise le micro si iOS te le demande."
         case .processing:
+            if viewModel.isPreparingVoiceReply {
+                return "Génération locale de la réponse audio…"
+            }
+            if viewModel.isTyping {
+                return "Réponse en cours de préparation."
+            }
             return WhisperService.shared.isModelLoading
-                ? "Le modèle vocal démarre sur l'iPhone, patiente un instant."
+                ? "Le modèle Whisper démarre sur l'iPhone."
                 : "Whisper analyse la dernière phrase."
         case .speaking:
             return "\(viewModel.activeAgent.displayName) répond à voix haute."
