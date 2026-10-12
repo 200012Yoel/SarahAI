@@ -52,6 +52,11 @@ public final class WhisperService: ObservableObject {
     public var preferredLanguageCode: String? = nil
 
     private let audioEngine = AVAudioEngine()
+
+    /// Check the real audio engine, not the UI's stale microphone flag.
+    public var isMicrophoneEngineRunning: Bool {
+        audioEngine.isRunning && isRecording
+    }
     private let audioQueue = DispatchQueue(label: "sarah.whisper.audio", qos: .userInitiated)
     private let inferenceQueue = DispatchQueue(label: "sarah.whisper.inference", qos: .userInitiated)
     private var converter: AVAudioConverter?
@@ -630,6 +635,18 @@ public final class WhisperService: ObservableObject {
             return
         }
 
+        // Preserve every recorded sample; append only silence when a short
+        // "allô" clip is too brief for robust Whisper decoding.
+        var inferenceAudio = audio
+        if !deliverToLive {
+            let minimumSamples = Int(targetSampleRate * 1.4)
+            if inferenceAudio.count < minimumSamples {
+                inferenceAudio.append(contentsOf: repeatElement(
+                    Float(0), count: minimumSamples - inferenceAudio.count
+                ))
+            }
+        }
+
         // Stopping/reopening the voice screen invalidates any in-flight
         // transcription so stale microphone data can never send a chat message.
         let transcriptionGeneration = generation
@@ -690,14 +707,14 @@ public final class WhisperService: ObservableObject {
                 // pointer must remain alive for the WHOLE whisper_full call.
                 // Keep no_context enabled so prior unrelated chats do not leak.
                 if recentPrompt.isEmpty {
-                    return audio.withUnsafeBufferPointer { pointer in
-                        whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+                    return inferenceAudio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, params, pointer.baseAddress, Int32(inferenceAudio.count))
                     }
                 }
                 return recentPrompt.withCString { prompt in
                     params.initial_prompt = prompt
-                    return audio.withUnsafeBufferPointer { pointer in
-                        whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+                    return inferenceAudio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, params, pointer.baseAddress, Int32(inferenceAudio.count))
                     }
                 }
             }
@@ -737,8 +754,8 @@ public final class WhisperService: ObservableObject {
                 englishParams.translate = true
                 let englishResult: Int32 = inferenceLanguage.withCString { language in
                     englishParams.language = language
-                    return audio.withUnsafeBufferPointer { pointer in
-                        whisper_full(context, englishParams, pointer.baseAddress, Int32(audio.count))
+                    return inferenceAudio.withUnsafeBufferPointer { pointer in
+                        whisper_full(context, englishParams, pointer.baseAddress, Int32(inferenceAudio.count))
                     }
                 }
                 if englishResult == 0 {
