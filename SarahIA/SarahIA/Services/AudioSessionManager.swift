@@ -99,11 +99,13 @@ public final class AudioSessionManager {
             stateLock.lock()
             let interpreterMode = interpreterPrefersPhoneMicrophone
             stateLock.unlock()
-            // Normal voice chat uses HFP. The interpreter additionally allows
-            // output-only A2DP and explicitly prefers the built-in iPhone mic
-            // so external Hebrew speech stays near the microphone.
+            // The interpreter is specifically hands-free: always use the
+            // iPhone microphone and loudspeaker to hear a television while
+            // speaking French. Bluetooth auto-routing made some sessions
+            // appear silent because playback was sent to stored earbuds.
+            // Ordinary Sarah chat still permits Bluetooth headsets.
             let audioOptions: AVAudioSession.CategoryOptions = interpreterMode
-                ? [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                ? [.defaultToSpeaker]
                 : [.defaultToSpeaker, .allowBluetooth]
             try session.setCategory(
                 .playAndRecord,
