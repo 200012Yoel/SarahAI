@@ -28,8 +28,10 @@ public struct VoiceOrbModalView: View {
         self.onOpenSettings = onOpenSettings
     }
 
+    // Keep the entire existing Voice UI magenta for every agent. Only the
+    // central animated star receives the historical agent color.
     private var accent: Color {
-        viewModel.activeAgent.themeColor
+        Color(red: 1.0, green: 0.18, blue: 0.65)
     }
 
     private var normalizedLevel: CGFloat {
@@ -347,7 +349,7 @@ public struct VoiceOrbModalView: View {
             level: normalizedLevel,
             isSpeaking: isSarahSpeaking,
             isMuted: viewModel.isVoiceMicrophoneMuted,
-            accentColor: accent
+            accentColor: viewModel.activeAgent.themeColor
         )
         .contentShape(Circle())
         .onTapGesture {
