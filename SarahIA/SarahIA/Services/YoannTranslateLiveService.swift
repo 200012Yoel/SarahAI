@@ -403,9 +403,14 @@ public final class YoannTranslateLiveService: ObservableObject {
         let hebrew = source.trimmingCharacters(in: .whitespacesAndNewlines)
         let intermediate = english.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !TranslateLiveContextBuffer.isUnreliableTranscript(hebrew),
-              !TranslateLiveContextBuffer.isUnreliableTranscript(intermediate),
+              !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+                intermediate, hebrewSource: hebrew
+              ),
               intermediate.range(of: "[A-Za-z]", options: .regularExpression) != nil,
-              !hebrew.isEmpty else { return }
+              !hebrew.isEmpty else {
+            errorMessage = "Traduction incertaine ignorée : Whisper n'a pas compris cet extrait de la chaîne."
+            return
+        }
         if hebrew == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
             return
         }
