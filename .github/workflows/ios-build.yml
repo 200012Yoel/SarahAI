@@ -161,7 +161,12 @@ jobs:
 
           cd "$PROJECT_DIR"
           set -o pipefail
-          xcodebuild \
+          # GitHub release-hosted ONNX Runtime XCFramework downloads can
+          # temporarily return HTTP 500/502/503 during SwiftPM resolution.
+          # Retry *only* such dependency/network failures, never Swift errors.
+          for attempt in 1 2 3; do
+            echo "iOS build attempt $attempt of 3"
+            if xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme SarahIA \
             -configuration Release \
@@ -179,7 +184,17 @@ jobs:
             FRAMEWORK_SEARCH_PATHS="$WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
             OTHER_LDFLAGS='$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ] && grep -Eq 'Could not resolve package dependencies|badResponseStatusCode\\((500|502|503)\\)|HTTP (500|502|503)' "$GITHUB_WORKSPACE/xcodebuild.log"; then
+              echo "Transient Swift Package Manager download failure; retrying in $((attempt * 20)) seconds."
+              sleep $((attempt * 20))
+            else
+              echo "Non-retryable iOS compilation failure."
+              exit 1
+            fi
+          done
           grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
 
       - name: Bundle local AI frameworks, Whisper model and licenses
