@@ -65,6 +65,24 @@ struct TranslateLiveCatalogTests {
         // from a 10-item demo dictionary. A model-backed path is required.
         // "Bonjour" must not be returned just because the word was listed
         // in source, and non-model inputs are rejected cleanly.
+        // This regression previously passed because production served a
+        // canned list of 10 greetings. With no installed neural translator,
+        // even familiar phrases must be reported unavailable, never faked.
+        for sample in ["שלום", "תודה רבה", "ערב טוב", "מה נשמע"] {
+            var returned = false
+            TranslateLiveTranslationBackend.translate(
+                text: sample, from: "he", to: "fr", serverURL: ""
+            ) { outcome in
+                switch outcome {
+                case .translated:
+                    fatalError("A prerecorded translation was returned for " + sample)
+                case .unavailable:
+                    returned = true
+                }
+            }
+            expect(returned, "No prerecorded Hebrew phrase for " + sample)
+        }
+
         expect(TranslateLiveTranslationBackend.validatedURL(
             "https://monserveur.example") != nil, "user-chosen HTTPS server")
         expect(TranslateLiveTranslationBackend.validatedURL(
