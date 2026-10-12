@@ -41,6 +41,7 @@ public final class ChatViewModel: ObservableObject {
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
     @Published public var voicePlaybackError: String? = nil
+    @Published public var isPreparingVoiceReply = false
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -95,7 +96,8 @@ public final class ChatViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.voiceSessionGeneration == generation,
                   self.isContinuousConversationActive, !self.isVoiceMicrophoneMuted,
-                  !self.voiceManager.isSpeaking, !self.isTyping else { return }
+                  !self.voiceManager.isSpeaking,
+                  !self.voiceManager.isPreparingSpeech, !self.isTyping else { return }
             self.voiceStatus = .starting
             WhisperSpeechRecognizer.shared.startListening(
                 autoFinalizeOnSilence: true,
@@ -513,14 +515,23 @@ public final class ChatViewModel: ObservableObject {
             self.sendMessage(cleaned)
         }
         
+        voiceManager.onSpeechPreparationStarted = { [weak self] in
+            guard let self else { return }
+            self.isPreparingVoiceReply = true
+            self.currentSpeakingText = self.voiceManager.currentSpokenText
+            if self.isContinuousConversationActive { self.voiceStatus = .processing }
+        }
+
         voiceManager.onSpeechError = { [weak self] message in
             guard let self else { return }
+            self.isPreparingVoiceReply = false
             self.voicePlaybackError = message
         }
 
         voiceManager.onSpeechStarted = { [weak self] in
             guard let self = self else { return }
             self.voicePlaybackError = nil
+            self.isPreparingVoiceReply = false
             self.isSpeaking = true
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             self.voiceStatus = .speaking
@@ -547,6 +558,7 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = false
+            self.isPreparingVoiceReply = false
             self.currentSpeakingText = nil
             self.haptics.speechFinished()
 
@@ -564,23 +576,15 @@ public final class ChatViewModel: ObservableObject {
                 // pour surveiller une interruption afin qu'aucun résidu d'écho ne
                 // devienne un faux message, puis on repart sur une capture propre.
                 WhisperSpeechRecognizer.shared.stopListening()
-                self.isMicRunning = false
-                self.voiceStatus = .starting
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-                    guard self.isContinuousConversationActive,
-                          !self.isVoiceMicrophoneMuted,
-                          !self.voiceManager.isSpeaking else { return }
-                    WhisperSpeechRecognizer.shared.startListening(
-                        autoFinalizeOnSilence: true,
-                        preserveActiveSpeech: true
-                    )
-                    self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
-                    self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
-                }
+                self.rearmMicrophoneAfterSilence(delay: 0.10)
+            } else if WhisperSpeechRecognizer.shared.isListening {
+                // Genuine barge-in: preserve the user's already active utterance.
+                self.isMicRunning = true
+                self.voiceStatus = .listening(level: self.micInputLevel)
             } else {
-                // Barge-in : Whisper est déjà en train d'enregistrer l'utilisateur.
-                self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
-                self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
+                // TTS generation may fail *before* onSpeechStarted. In that case
+                // there was never a barge-in tap to keep alive: rearm explicitly.
+                self.rearmMicrophoneAfterSilence(delay: 0.12)
             }
         }
     }
@@ -737,6 +741,7 @@ public final class ChatViewModel: ObservableObject {
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
         voiceSessionGeneration = UUID()
+        isPreparingVoiceReply = false
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
@@ -790,6 +795,7 @@ public final class ChatViewModel: ObservableObject {
         messageGenerationID = UUID()
         websiteGenerationID = UUID()
         isTyping = false
+        isPreparingVoiceReply = false
         voiceStatus = .idle
         AIProgressiveScheduler.shared.cancelAllTasks()
         voiceManager.stop()
