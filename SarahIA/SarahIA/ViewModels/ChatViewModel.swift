@@ -757,6 +757,18 @@ public final class ChatViewModel: ObservableObject {
         voiceStatus = .idle
     }
     
+    /// Test one of the six distinct bundled Supertonic voices without
+    /// starting microphone capture. Install the same voice callbacks as the
+    /// real conversation so any missing model/audio failure is visible.
+    public func previewAgentVoice(_ agent: AgentType) {
+        ensureVoicePipelinePrepared()
+        voicePlaybackError = nil
+        voiceManager.speak(
+            text: "Bonjour. Je suis \(agent.displayName). Écoute ma voix, différente des autres agents.",
+            for: agent
+        )
+    }
+
     public func speakMessage(_ text: String) {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
