@@ -58,7 +58,7 @@ public final class MultiAgentCoordinator {
     ) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = normalize(trimmed)
-        let sourceAgent = currentAgent ?? .sarah
+        let sourceAgent = (currentAgent ?? .sarah).currentAgent
         
         // 1. Détection prioritaire d'un ordre explicite de passage / bascule d'agent
         if let switchMatch = detectSwitchCommand(normalized: normalized, original: trimmed) {
@@ -70,7 +70,7 @@ public final class MultiAgentCoordinator {
         // par défaut, mais une demande qui cite un spécialiste doit être routée
         // vers celui-ci (ex. « Raphaël, génère un site Internet »).
         let detectedAgent = detectTargetAgent(normalized: normalized)
-        let resolvedAgent = explicitAgent ?? (detectedAgent == .sarah ? sourceAgent : detectedAgent)
+        let resolvedAgent = (explicitAgent ?? (detectedAgent == .sarah ? sourceAgent : detectedAgent)).currentAgent
         
         // 2.5 Détection de question sur l'identité ("Tu es qui ?", "Qui es-tu ?", "C'est quoi les noms des agents ?", "Quels sont les agents ?")
         if let identityResponse = evaluateAgentIdentityAndTeam(normalized: normalized, activeAgent: resolvedAgent) {
@@ -87,7 +87,8 @@ public final class MultiAgentCoordinator {
             processWithEsther(text: trimmed, completion: completion)
             
         case .tom:
-            processWithTom(text: trimmed, completion: completion)
+            // Legacy Tom sessions now use the visible Ethel agent.
+            processWithEthel(text: trimmed, completion: completion)
             
         case .sarah:
             processWithSarah(
@@ -119,21 +120,20 @@ public final class MultiAgentCoordinator {
         
         if isAskingTeam {
             let teamDescription = """
-            Voici l'équipe complète de vos 6 agents intégrés :
+            Voici l'équipe complète de vos 5 agents intégrés :
 
             👑 **Sarah [Patronne & Pilote]** : Coordination générale, mémoire locale, flash, batterie et requêtes du quotidien.
-            🌍 **Tom [Histoire & Géopolitique]** : Histoire mondiale depuis 1948, conflits internationaux et débats politiques.
             💻 **Raphaël [Développeur]** : Sites web, apps iOS, SwiftUI, scripts et studio de code.
             🇮🇱 **Yohan [Traducteur Français ⇔ Hébreu]** : Dictionnaire expert bilingue, grammaire, racines hébraïques et phonétique.
             🤖 **Nathan [Réseaux Sociaux & IA]** : Création de contenus, préparation de publications et veille IA.
             ✨ **Ethel [Intelligence Créative & Spécialisée]** : Agent féminin polyvalent au thème Bleu & Rouge, prête pour ses futurs modules dédiés.
 
-            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Tom », « Je veux parler à Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
+            *Vous pouvez parler à n'importe lequel d'entre nous en disant par exemple : « Passe-moi Ethel », « Je veux parler à Raphaël », « Donne-moi Yoann » ou « Passe-moi Ethel » !*
             """
             return AgentResponse(
                 agent: activeAgent,
                 text: teamDescription,
-                spokenText: "Nous sommes 6 agents dans cette application : Sarah la patronne, Tom pour l'histoire, Raphaël pour le développement, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
+                spokenText: "Nous sommes 5 agents dans cette application : Sarah la patronne, Raphaël pour le développement, Yoann pour la traduction en hébreu, Nathan pour les réseaux sociaux et Ethel pour la créativité.",
                 openStudio: false,
                 generatedCode: nil
             )
@@ -147,9 +147,8 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .yohan, text: text, spokenText: spoken)
                 
             case .tom:
-                let text = "🌍 **Tom [Histoire & Géopolitique]**\n\nJe suis **Tom**, votre agent spécialisé en histoire politique contemporaine et relations internationales depuis 1948. Je peux vous éclairer sur les conflits du Moyen-Orient, la Ve République, la guerre froide ou les dynamiques géopolitiques mondiales."
-                let spoken = "Je m'appelle Tom ! Je suis votre agent expert en histoire contemporaine et géopolitique mondiale depuis 1948. De quel sujet historique ou politique souhaites-tu débattre ?"
-                return AgentResponse(agent: .tom, text: text, spokenText: spoken)
+                let text = "✨ **Ethel [Création & Design]**\n\nJe suis Ethel, ton agent créatif."
+                return AgentResponse(agent: .ethel, text: text, spokenText: "Je suis Ethel, ton agent créatif.")
                 
             case .esther:
                 let text = "💻 **Raphaël [Développeur]**\n\nJe m'appelle **Raphaël**, l'agent développeur de l'équipe. Je peux préparer des sites web, des bases SwiftUI pour iPhone, des scripts Python et des prototypes à améliorer avec vous dans le chat."
@@ -157,8 +156,8 @@ public final class MultiAgentCoordinator {
                 return AgentResponse(agent: .esther, text: text, spokenText: spoken)
                 
             case .sarah:
-                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Tom, Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
-                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Tom, Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
+                let text = "👑 **Sarah [Patronne & Pilote]**\n\nJe suis **Sarah**, la patronne et l'intelligence artificielle principale de l'application ! Je pilote l'équipe avec Raphaël, Yoann, Nathan et Ethel, je gère votre mémoire locale, les commandes système de votre iPhone et vos requêtes du quotidien."
+                let spoken = "Je suis Sarah, l'intelligence artificielle principale et la patronne de l'application. Je coordonne Raphaël, Yoann, Nathan, Ethel et moi-même pour vous assister au mieux."
                 return AgentResponse(agent: .sarah, text: text, spokenText: spoken)
                 
             case .nathan:
@@ -223,7 +222,7 @@ public final class MultiAgentCoordinator {
         ]
         
         let yohanTokens = ["yoann", "yohan", "yoan", "johan", "yohan traducteur", "yoann traducteur"]
-        let tomTokens = ["tom", "thomas"]
+        let tomTokens = ["tom", "thomas"] // anciens alias vers Ethel
         let estherTokens = ["l agent developpeur", "le developpeur", "agent developpeur", "developpeur", "agent de codage", "agent code", "esther", "ester", "esther code", "raphael", "raphaël", "raph", "rafael"]
         let sarahTokens = ["sarah", "sara", "la patronne", "pilote"]
         let nathanTokens = ["nathan", "natan", "l expert ia", "expert ia"]
@@ -259,7 +258,7 @@ public final class MultiAgentCoordinator {
                 let targetPattern = kw + name
                 if norm.contains(" " + targetPattern) || norm.hasPrefix(targetPattern) || norm.contains(targetPattern) {
                     let residual = extractResidual(trigger: kw, agentToken: name)
-                    return SwitchCommandMatch(targetAgent: .tom, residualPrompt: residual)
+                    return SwitchCommandMatch(targetAgent: .ethel, residualPrompt: residual)
                 }
             }
         }
@@ -318,7 +317,7 @@ public final class MultiAgentCoordinator {
         for name in tomTokens {
             if normalized == name || normalized.starts(with: name + " ") {
                 let res = normalized.replacingOccurrences(of: name, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-                return SwitchCommandMatch(targetAgent: .tom, residualPrompt: res)
+                return SwitchCommandMatch(targetAgent: .ethel, residualPrompt: res)
             }
         }
         for name in estherTokens {
@@ -381,7 +380,7 @@ public final class MultiAgentCoordinator {
             return .esther
         }
         
-        // Tom (Histoire, Géopolitique depuis 1948, Conflits, Débats, Wikipédia, Ve République)
+        // General knowledge now stays with Sarah; Tom is no longer visible.
         if normalized.contains("tom") ||
            normalized.contains("histoire") || normalized.contains("geopolitique") ||
            normalized.contains("guerre") || normalized.contains("conflit") ||
@@ -390,7 +389,7 @@ public final class MultiAgentCoordinator {
            normalized.contains("israel histoire") || normalized.contains("1948") ||
            normalized.contains("president") || normalized.contains("onu") ||
            normalized.contains("otan") || normalized.contains("europe") {
-            return .tom
+            return .sarah
         }
         
         // Nathan (Réseaux Sociaux, Instagram, TikTok, YouTube, Partage)
@@ -431,7 +430,7 @@ public final class MultiAgentCoordinator {
         if !cleanResidual.isEmpty && cleanResidual != "bonjour" && cleanResidual != "salut" {
             switch targetAgent {
             case .tom:
-                processWithTom(text: cleanResidual, completion: completion)
+                processWithEthel(text: cleanResidual, completion: completion)
             case .esther:
                 processWithEsther(text: cleanResidual, completion: completion)
             case .yohan:
@@ -460,8 +459,8 @@ public final class MultiAgentCoordinator {
             }
             sourceName = "👑 **Sarah**"
         case .tom:
-            transitionLine = "Pas de problème Yoël, je te le passe !"
-            sourceName = "🌍 **Tom**"
+            transitionLine = "Pas de problème, je te passe Ethel !"
+            sourceName = "✨ **Ethel**"
         case .esther:
             transitionLine = "Ça marche, je te la passe tout de suite !"
             sourceName = "💻 **Raphaël**"
@@ -478,15 +477,13 @@ public final class MultiAgentCoordinator {
         
         switch targetAgent {
         case .tom:
-            let tomGreeting = "Bonjour Yoël ! C'est Tom. Je prends la suite. De quoi souhaites-tu discuter ? Conflits du Moyen-Orient, histoire politique mondiale depuis 1948 ou grands débats internationaux ?"
-            let fullText = "\(sourceName) : *\(transitionLine)*\n\n🌍 **Tom [Histoire & Géopolitique]** :\n\(tomGreeting)"
-            
+            let greeting = "Bonjour, je suis Ethel. Je m'occupe des créations et du design."
             completion(AgentResponse(
-                agent: .tom,
-                text: fullText,
-                spokenText: "\(transitionLine) \(tomGreeting)",
+                agent: .ethel,
+                text: "✨ **Ethel** : \(greeting)",
+                spokenText: greeting,
                 handoffSarahTransition: transitionLine,
-                handoffAgentGreeting: tomGreeting,
+                handoffAgentGreeting: greeting,
                 handoffSourceAgent: sourceAgent
             ))
             
