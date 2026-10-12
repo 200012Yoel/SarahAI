@@ -292,27 +292,9 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            // The agent name previously *minimized* the voice screen.
-            // A visible chevron must actually switch the conversation agent.
-            Menu {
-                Button { viewModel.selectVoiceAgent(.sarah) } label: {
-                    Label("Parler avec Sarah", systemImage: "waveform")
-                }
-                Button { viewModel.selectVoiceAgent(.yohan) } label: {
-                    Label("Parler avec Yoann", systemImage: "person.wave.2")
-                }
-                Button {
-                    viewModel.activateTranslateLive(from: "he", to: "fr")
-                } label: {
-                    Label("Traduction hébreu → français", systemImage: "character.book.closed")
-                }
-                Divider()
-                Button { viewModel.selectVoiceAgent(.tom) } label: {
-                    Label("Parler avec Tom", systemImage: "globe")
-                }
-                Button { viewModel.selectVoiceAgent(.esther) } label: {
-                    Label("Parler avec Raphaël", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
+            Button {
+                HapticService.shared.buttonTap()
+                closeVoiceSurface()
             } label: {
                 VStack(spacing: 4) {
                     HStack(spacing: 6) {
@@ -322,12 +304,14 @@ public struct VoiceOrbModalView: View {
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(.white)
-                    Text("Changer d'agent · Traduction")
+
+                    Text("Réduire · écoute maintenue")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.62))
                 }
             }
-            .accessibilityLabel("Choisir Sarah, Yoann ou la traduction en direct")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
 
             Spacer()
 
