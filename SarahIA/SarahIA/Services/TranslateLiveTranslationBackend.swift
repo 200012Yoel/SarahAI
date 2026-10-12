@@ -71,8 +71,9 @@ public enum TranslateLiveTranslationBackend {
         Si une expression est difficile, conserve son nom propre, mais n'invente aucun contexte.
         """
         QwenLocalCodeRuntime.shared.generate(
-            modelURL: modelURL, system: system, user: clean,
-            maxTokens: 176
+            modelURL: modelURL, system: system,
+            user: "/no_think\n" + clean,
+            maxTokens: 88, fastTranslation: true
         ) { result in
             switch result {
             case .failure(let error):
