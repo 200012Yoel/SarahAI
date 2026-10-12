@@ -718,6 +718,16 @@ public final class YoannTranslateLiveService: ObservableObject {
         guard isActive, sessionToken == token else { return }
         let result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !result.isEmpty else { return }
+        // A real model can still hallucinate a repeated stock sentence.
+        // Do not print/speak it as if it were the TV presenter's words.
+        let phrases = result.lowercased()
+            .split(whereSeparator: { ".!?;".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) }
+            .filter { !$0.isEmpty }
+        if phrases.count >= 2 && Set(phrases).count == 1 {
+            errorMessage = "Réponse française répétitive ignorée : traduction insuffisamment fiable."
+            return
+        }
         errorMessage = nil
         lastTranslation = result
         history.insert(Phrase(source: original, translation: result), at: 0)
