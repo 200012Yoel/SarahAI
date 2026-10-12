@@ -208,8 +208,12 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
                 self?.isMicRunning = listening
-                if listening {
-                    self?.voiceStatus = .listening(level: 0.5)
+                if listening, let self,
+                   self.isContinuousConversationActive,
+                   !self.voiceManager.isSpeaking,
+                   !self.isPreparingVoiceReply,
+                   !self.isTyping {
+                    self.voiceStatus = .listening(level: self.micInputLevel)
                 }
             }
             .store(in: &cancellables)
@@ -226,6 +230,17 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
+                // The microphone also listens during interruption monitoring.
+                // Its state must never overwrite a speaking agent's visible state.
+                if self.isContinuousConversationActive && self.voiceManager.isSpeaking {
+                    self.voiceStatus = .speaking
+                    return
+                }
+                if self.isContinuousConversationActive &&
+                   (self.isTyping || self.isPreparingVoiceReply) {
+                    self.voiceStatus = .processing
+                    return
+                }
                 switch WhisperSpeechRecognizer.shared.state {
                 case .idle:
                     if self.isTyping {
@@ -518,6 +533,7 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.onSpeechPreparationStarted = { [weak self] in
             guard let self else { return }
             self.isPreparingVoiceReply = true
+            self.voicePlaybackError = nil
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             if self.isContinuousConversationActive { self.voiceStatus = .processing }
         }
