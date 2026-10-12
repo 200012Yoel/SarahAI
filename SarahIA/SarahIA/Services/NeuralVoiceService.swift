@@ -40,6 +40,9 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
     private let synthesisQueue = DispatchQueue(label: "sarah.local-neural-tts", qos: .userInitiated)
     private var model: SherpaOnnxOfflineTtsWrapper? // accessed on synthesisQueue only
     private var player: AVAudioPlayer?
+    // Prevent Yoann's interpreted speech from invoking Sarah's chat
+    // onFinished/onStarted handlers and accidentally restarting her mic.
+    private var isInterpreterPlayback = false
     private var generation = UUID() // accessed on main queue only
     public private(set) var isSpeaking = false
 
@@ -53,16 +56,19 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         player?.stop()
         player = nil
         isSpeaking = false
+        isInterpreterPlayback = false
         NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
         AudioSessionManager.shared.deactivateSession()
     }
 
     public func speak(
         text: String, for agent: AgentType, language: String = "fr",
-        speed: Float = 1.0, qualitySteps: Int = 8
+        speed: Float = 1.0, qualitySteps: Int = 8,
+        dedicatedInterpreter: Bool = false
     ) {
         assert(Thread.isMainThread)
         stop()
+        isInterpreterPlayback = dedicatedInterpreter
         let token = generation
         let sanitized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sanitized.isEmpty else {
@@ -76,8 +82,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         // Do not read Hebrew text using a French/English voice and pretend it is correct.
         let containsHebrew = sanitized.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
         guard !containsHebrew else {
-            onFailure?("Voix hébraïque hors ligne indisponible. Aucun moteur Apple n'est utilisé.")
-            onPlaybackError?("La synthèse vocale hébraïque n'est pas installée.")
+            reportSpeechFailure("La synthèse vocale hébraïque n'est pas installée.")
             finishPlayback()
             return
         }
@@ -87,14 +92,13 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         // unsupported scripts into a French voice (false language claims).
         guard TranslateLiveLanguages.spokenOutputCodes.contains(language) else {
             let message = "Pas de voix Supertonic 3 disponible pour la langue \(language)."
-            onFailure?(message)
-            onPlaybackError?(message)
+            reportSpeechFailure(message)
             finishPlayback()
             return
         }
         let selectedLanguage = language
         let sid = Profile.forAgent(agent).speakerID
-        onGenerationStarted?()
+        if dedicatedInterpreter { onGenerationStarted?() }
         synthesisQueue.async { [weak self] in
             guard let self else { return }
             do {
@@ -141,19 +145,20 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                         self.player = playback
                         self.isSpeaking = true
                         NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
-                        self.onStarted?()
-                        self.onPlaybackStarted?()
+                        if self.isInterpreterPlayback {
+                            self.onPlaybackStarted?()
+                        } else {
+                            self.onStarted?()
+                        }
                     } catch {
-                        self.onFailure?(error.localizedDescription)
-                        self.onPlaybackError?(error.localizedDescription)
+                        self.reportSpeechFailure(error.localizedDescription)
                         self.finishPlayback()
                     }
                 }
             } catch {
                 DispatchQueue.main.async {
                     guard self.generation == token else { return }
-                    self.onFailure?(error.localizedDescription)
-                        self.onPlaybackError?(error.localizedDescription)
+                    self.reportSpeechFailure(error.localizedDescription)
                     self.finishPlayback()
                 }
             }
@@ -197,20 +202,32 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         return instance
     }
 
+    private func reportSpeechFailure(_ message: String) {
+        if isInterpreterPlayback {
+            onPlaybackError?(message)
+        } else {
+            onFailure?(message)
+        }
+    }
+
     private func finishPlayback() {
+        let wasInterpreterPlayback = isInterpreterPlayback
+        isInterpreterPlayback = false
         isSpeaking = false
         player = nil
         NotificationCenter.default.post(name: NSNotification.Name("SarahNeuralSpeechStateChanged"), object: nil)
         AudioSessionManager.shared.deactivateSession()
-        onFinished?()
-        onPlaybackFinished?()
+        if wasInterpreterPlayback {
+            onPlaybackFinished?()
+        } else {
+            onFinished?()
+        }
     }
 
     public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         guard self.player === player else { return }
         if !flag {
-            onFailure?("La sortie audio a été interrompue par iOS.")
-            onPlaybackError?("La sortie audio a été interrompue par iOS.")
+            reportSpeechFailure("La sortie audio a été interrompue par iOS.")
         }
         finishPlayback()
     }
