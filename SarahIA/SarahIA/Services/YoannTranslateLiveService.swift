@@ -396,7 +396,13 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         lastAcceptedChunk = cleaned
         lastAcceptedAt = Date()
-        let update = contextBuffer.receive(cleaned, paused: paused)
+        // Live Whisper chunks are already discrete, non-overlapping audio.
+        // Waiting for another 3.4-second chunk to commit each caption added
+        // a complete extra chunk of broadcast latency. Qwen can translate
+        // the current committed chunk immediately.
+        let update = contextBuffer.receive(
+            cleaned, paused: isUsingLocalQwen || paused
+        )
 
         // The caption may change while the next words are understood.
         // Spoken output NEVER consumes this provisional text.
