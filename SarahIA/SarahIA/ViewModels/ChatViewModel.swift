@@ -84,6 +84,7 @@ public final class ChatViewModel: ObservableObject {
     // A cancelled or superseded request must never publish a late reply.
     private var messageGenerationID = UUID()
     private var isBargeInMonitorActive = false
+    private var voicePlaybackStartedAt = Date.distantPast
     private var voiceSessionGeneration = UUID()
 
     /// One rearm path for silence, failed/empty transcription and TTS end.
@@ -496,7 +497,8 @@ public final class ChatViewModel: ObservableObject {
                   self.isContinuousConversationActive,
                   !self.isVoiceMicrophoneMuted,
                   self.isBargeInMonitorActive,
-                  self.voiceManager.isSpeaking else { return }
+                  self.voiceManager.isSpeaking,
+                  Date().timeIntervalSince(self.voicePlaybackStartedAt) > 0.65 else { return }
 
             // AVAudioSession .voiceChat fournit l'annulation d'écho. Dès qu'une
             // vraie voix traverse le VAD Whisper, Sarah s'arrête immédiatement,
@@ -560,7 +562,21 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
 
-            self.isBargeInMonitorActive = true
+            self.voicePlaybackStartedAt = Date()
+            // Listening to Sarah through the iPhone speaker made Whisper
+            // interpret Sarah's own answer as barge-in, instantly cutting
+            // her TTS off. Only enable simultaneous mic monitoring when the
+            // output is physically isolated by headphones.
+            let outputTypes = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
+            let isolatedOutput = outputTypes.contains {
+                [.headphones, .bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains($0)
+            }
+            self.isBargeInMonitorActive = isolatedOutput
+            guard isolatedOutput else {
+                self.isMicRunning = false
+                return
+            }
+
             AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
             if !WhisperSpeechRecognizer.shared.isListening {
                 WhisperSpeechRecognizer.shared.startListening(
