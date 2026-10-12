@@ -301,7 +301,8 @@ public struct ChatScreenView: View {
                         diameter: 52,
                         level: min(max(CGFloat(viewModel.micInputLevel), 0), 1),
                         isSpeaking: compactVoiceIsSpeaking,
-                        isMuted: viewModel.isVoiceMicrophoneMuted
+                        isMuted: viewModel.isVoiceMicrophoneMuted,
+                        accentColor: viewModel.activeAgent.themeColor
                     )
                     .frame(width: 52, height: 52)
                 }
