@@ -61,6 +61,7 @@ public struct ContentView: View {
                     .background(Color.black)
                     .ignoresSafeArea(.container, edges: [.top, .bottom])
                     .offset(x: -sidebarWidth * (1 - progress))
+                    .transition(.move(edge: .leading))
                     .simultaneousGesture(drawerGesture(width: sidebarWidth, opening: false))
                     .zIndex(31)
                 }
