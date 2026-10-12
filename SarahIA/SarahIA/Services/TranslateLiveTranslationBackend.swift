@@ -18,6 +18,82 @@ public enum TranslateLiveTranslationBackend {
     // substitution. Every translated caption must come from a real
     // translation model, never a predetermined answer.
 
+    /// Qwen3 GGUF is Apache-2.0 and the app already links llama.cpp.
+    /// The weights are downloaded separately to Application Support, not
+    /// magically present just because the library is linked to the IPA.
+    public static var isLocalQwenReady: Bool {
+        QwenLocalCodeRuntime.shared.isRuntimeLinked
+            && ModelSelectionEngine.shared.isLocalGGUFAllowed()
+            && BackgroundModelDownloader.isModelDownloaded
+            && BackgroundModelDownloader.localModelURL != nil
+    }
+
+    /// Translate *directly* between Hebrew and French with the on-device
+    /// Qwen model, bypassing Whisper's inaccurate English bridge.
+    /// This function never substitutes a phrasebook translation.
+    public static func translateWithLocalQwen(
+        text: String, from source: String, to target: String,
+        completion: @escaping (Outcome) -> Void
+    ) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isLocalQwenReady,
+              let modelURL = BackgroundModelDownloader.localModelURL else {
+            completion(.unavailable("Le modèle Qwen3 local n'est pas encore téléchargé sur l'iPhone."))
+            return
+        }
+        guard (source == "he" && target == "fr") ||
+              (source == "fr" && target == "he") else {
+            completion(.unavailable("Ce moteur est configuré pour hébreu ↔ français."))
+            return
+        }
+        guard !clean.isEmpty else {
+            completion(.unavailable("Aucun passage à traduire."))
+            return
+        }
+        let fromLabel = source == "he" ? "hébreu" : "français"
+        let toLabel = target == "fr" ? "français" : "hébreu"
+        let system = """
+        /no_think
+        Tu es un moteur neuronal de traduction simultanée de (fromLabel) vers (toLabel).
+        Traduis fidèlement les paroles entendues, y compris les noms propres.
+        Retourne UNIQUEMENT leur traduction, sans présentation, excuses, raisonnement ni guillemets.
+        Si une expression est difficile, conserve son nom propre, mais n'invente aucun contexte.
+        """
+        QwenLocalCodeRuntime.shared.generate(
+            modelURL: modelURL, system: system, user: clean,
+            maxTokens: 176
+        ) { result in
+            switch result {
+            case .failure(let error):
+                completion(.unavailable("Qwen3 local : " + error.localizedDescription))
+            case .success(let raw):
+                var output = raw.replacingOccurrences(
+                    of: #"<think>[\s\S]*?</think>"#,
+                    with: "", options: .regularExpression
+                )
+                output = output
+                    .replacingOccurrences(of: "<|im_end|>", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if output.hasPrefix("Traduction :") {
+                    output = String(output.dropFirst("Traduction :".count))
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                // Reject empty, echo, irrelevant Latin text masquerading as
+                // Hebrew, and repeated model hallucinations.
+                guard !output.isEmpty, normalized(output) != normalized(clean),
+                      !TranslateLiveContextBuffer.isUnreliableTranscript(output),
+                      (target != "he" || TranslateLiveContextBuffer.isMostlyHebrew(output)),
+                      (target != "fr" || output.range(
+                          of: "[A-Za-zÀ-ÿ]", options: .regularExpression
+                      ) != nil) else {
+                    completion(.unavailable("Qwen3 n'a pas produit une traduction fiable de cet extrait."))
+                    return
+                }
+                completion(.translated(output))
+            }
+        }
+    }
+
     private static func normalized(_ text: String) -> String {
         text.lowercased().trimmingCharacters(
             in: .whitespacesAndNewlines.union(.punctuationCharacters)
