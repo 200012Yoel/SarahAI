@@ -189,9 +189,7 @@ public struct YoannTranslateLiveView: View {
                     .lineLimit(2)
                     .accessibilityIdentifier("translateLiveMissingTargetVoice")
             } else if sourceLanguage == "he" && targetLanguage == "fr" {
-                Text(live.isSystemTranslationReady
-                    ? "Traduction hébreu → français hors ligne active sur l’iPhone"
-                    : live.translationSetupMessage)
+                Text(live.translationSetupMessage)
                     .font(.system(size: 11))
                     .foregroundColor(live.isSystemTranslationReady ? .green : .white.opacity(0.8))
                     .lineLimit(2)
@@ -341,7 +339,8 @@ public struct YoannTranslateLiveView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("La moitié supérieure affiche toujours la traduction demandée ; la moitié inférieure affiche la langue parlée.")
-                    Text("Hébreu → français : Yoann essaie d'abord la traduction locale iOS lorsque cette paire est prise en charge et téléchargée. Pour les autres paires ou si la traduction système est indisponible, connecte un serveur neuronal dans les réglages.")
+                    Text("Hébreu → français : aucun pack hébreu Apple n'est nécessaire. Whisper traduit les paroles en anglais, puis le véritable moteur iOS traduit cet anglais en français si son pack est installé. Un serveur neuronal Marian configuré ici traduit directement l'hébreu en français.")
+                    Text("Aucune phrase pré-écrite n'est utilisée en mode direct. Sans modèle de traduction actif, Yoann signale l'erreur et ne fabrique pas de sous-titres.")
                     TextField("Serveur de traduction local ou HTTPS", text: $translationServerURL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
@@ -474,7 +473,8 @@ private struct TranslateLiveLanguagePicker: View {
 
 #if canImport(Translation)
 /// The system owns this task and the TranslationSession; never store its
-/// session after this view disappears. Runs only for Hebrew→French on iOS 18+.
+/// session after this view disappears. English→French relay is the default
+/// on devices without a system Hebrew translation language pack.
 @available(iOS 18.0, *)
 private struct YoannNativeTranslationSessionHost: View {
     @ObservedObject var live: YoannTranslateLiveService
