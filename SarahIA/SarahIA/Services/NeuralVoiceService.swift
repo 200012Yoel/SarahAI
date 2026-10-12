@@ -78,15 +78,28 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
             return
         }
 
-        // Supertonic 3 does not list Hebrew among its supported languages.
-        // Do not read Hebrew text using a French/English voice and pretend it is correct.
-        let containsHebrew = sanitized.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
-        guard !containsHebrew else {
+        // Supertonic 3 does not include a Hebrew voice. Previously ONE
+        // Hebrew word inside a predominantly French reply silenced the
+        // entire answer. Preserve audible French/Latin text, while refusing
+        // to mispronounce a Hebrew-only request as French speech.
+        let containsHebrew = sanitized.unicodeScalars.contains {
+            (0x0590...0x05FF).contains($0.value)
+        }
+        if language == "he" {
             reportSpeechFailure("La synthèse vocale hébraïque n'est pas installée.")
             finishPlayback()
             return
         }
-
+        let preparedText = containsHebrew
+            ? sanitized.unicodeScalars.map { scalar -> String in
+                (0x0590...0x05FF).contains(scalar.value) ? " " : String(scalar)
+              }.joined().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            : sanitized
+        guard preparedText.rangeOfCharacter(from: .letters) != nil else {
+            reportSpeechFailure("Cette réponse ne contient pas de texte prononçable par la voix installée.")
+            finishPlayback()
+            return
+        }
 
         // Supertonic 3 can voice these 31 languages directly. Never force
         // unsupported scripts into a French voice (false language claims).
@@ -114,7 +127,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                 options.speed = max(0.75, min(configuredSpeed, 1.4))
                 options.extra = ["lang": selectedLanguage]
                 let result = engine.generateWithConfig(
-                    text: sanitized,
+                    text: preparedText,
                     config: options,
                     callback: nil,
                     arg: nil
