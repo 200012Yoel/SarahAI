@@ -45,6 +45,19 @@ public struct TranslateLiveContextBuffer {
         }.map(String.init)
         guard words.count >= 6 else { return false }
 
+        // Whisper Base can also get stuck on a *single* frequent word after
+        // a few changing prefix words ("האז כתב ... כתב כתב כתב").
+        // The old prefix-only detector let these false captions through.
+        if words.count >= 9 {
+            var counts: [String: Int] = [:]
+            for word in words { counts[word, default: 0] += 1 }
+            if let largest = counts.values.max(),
+               largest >= 6,
+               largest * 10 >= words.count * 5 {
+                return true
+            }
+        }
+
         for size in 1...min(8, words.count / 4) {
             let unit = Array(words.prefix(size))
             var repeats = 0
