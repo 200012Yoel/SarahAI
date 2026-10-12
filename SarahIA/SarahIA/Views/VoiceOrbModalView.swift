@@ -80,7 +80,9 @@ public struct VoiceOrbModalView: View {
                 ? "Le modèle Whisper démarre sur l'iPhone."
                 : "Whisper analyse la dernière phrase."
         case .speaking:
-            return "\(viewModel.activeAgent.displayName) répond à voix haute."
+            return viewModel.isMicRunning
+                ? "Tu peux parler pour interrompre \(viewModel.activeAgent.displayName)."
+                : "\(viewModel.activeAgent.displayName) parle. Réactivation du micro…"
         case .listening:
             return "Parle normalement, \(viewModel.activeAgent.displayName) écoute."
         case .idle:
