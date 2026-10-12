@@ -560,7 +560,11 @@ public final class WhisperService: ObservableObject {
         isTranscribing = true
         let useEnglishTranslation = translateSpeechToEnglish
         let inferenceLanguage = preferredLanguageCode ?? "auto"
-        let recentPrompt = deliverToLive ? String(liveRecognitionContext.suffix(220)) : ""
+        // Reinjecting the last Whisper hypothesis into the next 2-second
+        // TV chunk caused feedback hallucinations ("תודה רבה" dozens of
+        // times). Preserve context at the interpreter level instead; live
+        // microphone recognition must start each short chunk unprompted.
+        let recentPrompt = ""
         inferenceQueue.async { [weak self] in
             guard let self, let context = self.context else {
                 DispatchQueue.main.async {
@@ -581,6 +585,14 @@ public final class WhisperService: ObservableObject {
             params.single_segment = false
             params.n_threads = threadCount
             params.temperature_inc = -1
+            if deliverToLive {
+                // Cap runaway 2-second TV decodes and suppress music tokens.
+                // These flags are available in pinned whisper.cpp v1.9.4.
+                params.max_tokens = 64
+                params.suppress_blank = true
+                params.suppress_nst = true
+                params.no_speech_thold = 0.45
+            }
 
             let result: Int32 = inferenceLanguage.withCString { language in
                 params.language = language
