@@ -60,6 +60,14 @@ struct TranslateLiveCatalogTests {
                "bare Translate Live still launches dedicated screen")
         let d = TranslateLiveLanguages.pairFromCommand("active le minuteur")
         expect(d == nil, "ordinary chat is not intercepted")
+        let e = TranslateLiveLanguages.pairFromCommand("Yoann, traduis ce qui passe à la télé")
+        expect(e?.from == "he" && e?.to == "fr", "spoken Yoann television translation command")
+        let f = TranslateLiveLanguages.pairFromCommand("Mets la traduction de la chaîne israélienne")
+        expect(f?.from == "he" && f?.to == "fr", "spoken Israeli television launch command")
+        expect(TranslateLiveLanguages.pairFromCommand("Passe-moi Yoann") == nil,
+               "switch to Yoann without wrongly opening interpreter")
+        expect(TranslateLiveLanguages.pairFromCommand("Je veux parler à Yoann") == nil,
+               "agent conversation is different from television translation")
 
         // The production interpreter must never emit a canned translation
         // from a 10-item demo dictionary. A model-backed path is required.
