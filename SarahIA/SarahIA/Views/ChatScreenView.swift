@@ -172,8 +172,8 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Traduis en hébreu : "
                     },
-                    .default(Text("🌍 Tom · Histoire")) {
-                        viewModel.activeAgent = .tom
+                    .default(Text("✨ Ethel · Création")) {
+                        viewModel.activeAgent = .ethel
                         viewModel.inputText = "Explique-moi "
                     },
                     .default(Text("🎙️ Mode vocal Sarah")) {
@@ -339,7 +339,7 @@ public struct ChatScreenView: View {
                 Button("Sarah") { viewModel.activeAgent = .sarah }
                 Button("Raphaël") { viewModel.activeAgent = .esther }
                 Button("Yohan") { viewModel.activeAgent = .yohan }
-                Button("Tom") { viewModel.activeAgent = .tom }
+                Button("Ethel") { viewModel.activeAgent = .ethel }
                 Divider()
                 Button("Outils") { isShowingActionSheet = true }
             } label: {
