@@ -14,34 +14,14 @@ public enum TranslateLiveTranslationBackend {
         case unavailable(String)
     }
 
-    /// Only exact short phrases are recognized by this local demo dictionary.
-    /// Partial word-for-word replacement is intentionally disabled: it can
-    /// mistranslate TV news and produce confidently wrong spoken results.
-    private static let exactPhrases: [[String: String]] = [
-        ["he": "שלום", "fr": "Bonjour", "en": "Hello"],
-        ["he": "תודה", "fr": "Merci", "en": "Thank you"],
-        ["he": "תודה רבה", "fr": "Merci beaucoup", "en": "Thank you very much"],
-        ["he": "בבקשה", "fr": "S'il vous plaît", "en": "Please"],
-        ["he": "להתראות", "fr": "Au revoir", "en": "Goodbye"],
-        ["he": "כן", "fr": "Oui", "en": "Yes"],
-        ["he": "לא", "fr": "Non", "en": "No"],
-        ["he": "לילה טוב", "fr": "Bonne nuit", "en": "Good night"],
-        ["he": "ערב טוב", "fr": "Bonsoir", "en": "Good evening"],
-        ["he": "מה נשמע", "fr": "Comment ça va ?", "en": "How are you?"]
-    ]
+    // Production interpreter: NO built-in canned sentences or word
+    // substitution. Every translated caption must come from a real
+    // translation model, never a predetermined answer.
 
     private static func normalized(_ text: String) -> String {
         text.lowercased().trimmingCharacters(
             in: .whitespacesAndNewlines.union(.punctuationCharacters)
         )
-    }
-
-    public static func exactLocalTranslation(_ text: String, from: String, to: String) -> String? {
-        guard from != "auto", from != to else { return nil }
-        let key = normalized(text)
-        return exactPhrases.first(where: { pair in
-            pair[from].map { normalized($0) == key } ?? false
-        })?[to]
     }
 
     public static func translate(
@@ -57,14 +37,10 @@ public enum TranslateLiveTranslationBackend {
             completion(.unavailable("La langue source est identique à la destination."))
             return
         }
-        if let local = exactLocalTranslation(cleaned, from: source, to: target) {
-            completion(.translated(local))
-            return
-        }
         guard let url = validatedURL(serverURL)?.appendingPathComponent("translate") else {
             completion(.unavailable(
-                "Traduction complète indisponible. Configure ton serveur neuronal dans les réglages ⚙️. "
-                + "Whisper traduit également certaines langues directement en anglais."
+                "Aucun véritable moteur de traduction n'est prêt pour cette langue. "
+                + "Configure un serveur neuronal privé dans ⚙️ ou utilise le relais Whisper anglais → français."
             ))
             return
         }
