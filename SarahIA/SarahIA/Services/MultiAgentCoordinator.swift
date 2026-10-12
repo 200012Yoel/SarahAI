@@ -847,7 +847,7 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
     }
     
     private func processWithSarah(
-        text: String, preferFastVoice: Bool, completion: @escaping (AgentResponse) -> Void
+        text: String, preferFastVoice: Bool = false, completion: @escaping (AgentResponse) -> Void
     ) {
         AIService.shared.processQuery(text, voiceMode: preferFastVoice) { response in
             completion(AgentResponse(
