@@ -59,6 +59,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var preparingSystemTranslation = false
     @Published public private(set) var isSystemTranslationReady = false
     @Published public private(set) var needsEnglishPivotTranslation = false
+    @Published public private(set) var isUsingLocalQwen = false
     @Published public private(set) var isUsingEnglishPivot = false
     @Published public private(set) var translationSetupMessage = "Vérification du moteur hébreu → français…"
 
@@ -86,12 +87,20 @@ public final class YoannTranslateLiveService: ObservableObject {
         sourceLanguage == "he" && targetLanguage == "fr"
     }
 
+    private var isHebrewFrenchPair: Bool {
+        let source = TranslateLiveLanguages.engineCode(for: sourceLanguage)
+        let target = TranslateLiveLanguages.engineCode(for: targetLanguage)
+        return (source == "he" && target == "fr") ||
+               (source == "fr" && target == "he")
+    }
+
     private var incoming: [PendingTranslation] = []
     private var outgoing: [Segment] = []
     private var translationBusy = false
     private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
+    private var qwenDownloadObserver: NSObjectProtocol?
     private var lastAcceptedChunk = ""
     private var lastAcceptedAt = Date.distantPast
     private var lastEnglishIntermediate = ""
@@ -156,6 +165,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         nativeTranslationUnavailable = false
         needsEnglishPivotTranslation = false
         isUsingEnglishPivot = false
+        isUsingLocalQwen = false
         whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
@@ -261,15 +271,34 @@ public final class YoannTranslateLiveService: ObservableObject {
             // which will drain the next queued segment once.
         }
 
-        // Hebrew is not installed or offered in Apple Translate on the
-        // user's iPhone. Direct Hebrew→French LanguageAvailability returns
-        // unsupported, so do not force that broken system path or make the
-        // user wait for an impossible Hebrew language download.
-        // Start the *real* Whisper speech-to-English → iOS English→French
-        // neural relay immediately. A configured user-owned Marian server
-        // still takes priority for direct Hebrew→French translation.
-        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
-            requestEnglishPivot(token: token)
+        // An installed Qwen3 GGUF translates Hebrew↔French directly.
+        // Qwen model WEIGHTS are downloaded into Application Support; the IPA
+        // only contains the llama.cpp inference runtime.
+        if isHebrewFrenchPair && customTranslationServerURL.isEmpty {
+            if TranslateLiveTranslationBackend.isLocalQwenReady {
+                activateLocalQwen(token: token)
+            } else {
+                if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
+                    // Existing BackgroundModelDownloader uses Wi-Fi only and
+                    // resumes downloads. Never silently use cellular data.
+                    BackgroundModelDownloader.shared.startQwenModelDownload()
+                    translationSetupMessage = "Téléchargement Wi-Fi de Qwen3 en cours. Un moteur direct hébreu ↔ français sera disponible après installation."
+                }
+                if shouldAttemptSystemTranslation {
+                    requestEnglishPivot(token: token)
+                } else {
+                    errorMessage = "Installe d'abord Qwen3 depuis le Wi-Fi pour traduire français → hébreu sans serveur."
+                }
+            }
+            qwenDownloadObserver = NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("SarahModelDownloadCompleted"),
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.activateLocalQwen(token: self.sessionToken)
+                }
+            }
         }
 
         status = "Initialisation de Whisper… Le micro reste actif tant que ce mode est ouvert."
@@ -277,7 +306,8 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         // If the SwiftUI English translationTask is not attached, explain
         // why captions cannot yet appear instead of simulating responses.
-        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
+        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty
+           && !isUsingLocalQwen {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 12_000_000_000)
                 guard let self, self.isActive, self.sessionToken == token,
@@ -308,6 +338,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         nativeEnglishToFrenchTranslator = nil
         needsEnglishPivotTranslation = false
         isUsingEnglishPivot = false
+        isUsingLocalQwen = false
         whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
@@ -326,6 +357,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         if let interruptionObserver {
             NotificationCenter.default.removeObserver(interruptionObserver)
             self.interruptionObserver = nil
+        }
+        if let qwenDownloadObserver {
+            NotificationCenter.default.removeObserver(qwenDownloadObserver)
+            self.qwenDownloadObserver = nil
         }
         // Restore listeners BEFORE canceling playback so an old session
         // cannot receive a synthetic "speech finished" event.
@@ -451,9 +486,29 @@ public final class YoannTranslateLiveService: ObservableObject {
         updateStatus()
     }
 
+    /// Model-backed bidirectional translation. Never reuse English pivot
+    /// captions after Qwen3 becomes available or produce canned phrases.
+    private func activateLocalQwen(token: UUID) {
+        guard isActive, sessionToken == token, isHebrewFrenchPair,
+              customTranslationServerURL.isEmpty,
+              TranslateLiveTranslationBackend.isLocalQwenReady else { return }
+        needsEnglishPivotTranslation = false
+        isUsingEnglishPivot = false
+        isUsingLocalQwen = true
+        whisper.liveDualDecodeEnglish = false
+        preparingSystemTranslation = false
+        isSystemTranslationReady = true
+        incoming.removeAll()
+        waitingTranslations = 0
+        translationSetupMessage = "Traduction neuronale locale Qwen3 active : hébreu ↔ français direct, sans anglais ni réseau."
+        errorMessage = nil
+        updateStatus()
+    }
+
     private func requestEnglishPivot(token: UUID) {
         guard isActive, sessionToken == token,
               shouldAttemptSystemTranslation,
+              !isUsingLocalQwen,
               customTranslationServerURL.isEmpty else { return }
         nativeTranslationUnavailable = true
         nativeTranslator = nil
@@ -639,7 +694,8 @@ public final class YoannTranslateLiveService: ObservableObject {
     private func translateNext(token: UUID) {
         guard isActive, sessionToken == token, !translationBusy, !incoming.isEmpty else { return }
 
-        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty {
+        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty
+            && !isUsingLocalQwen {
             if needsEnglishPivotTranslation && !isUsingEnglishPivot {
                 // Wait for the English→French pack rather than sending Hebrew
                 // to a demonstrably unsupported local translation backend.
@@ -668,6 +724,20 @@ public final class YoannTranslateLiveService: ObservableObject {
             native = nativeTranslator
         } else {
             native = nil
+        }
+
+        if isUsingLocalQwen && !fragment.fromEnglishPivot {
+            TranslateLiveTranslationBackend.translateWithLocalQwen(
+                text: fragment.input,
+                from: TranslateLiveLanguages.engineCode(for: sourceLanguage),
+                to: TranslateLiveLanguages.engineCode(for: targetLanguage)
+            ) { [weak self] outcome in
+                DispatchQueue.main.async {
+                    self?.finishTranslation(outcome, original: fragment.source, token: token)
+                }
+            }
+            updateStatus()
+            return
         }
 
         if let native {
