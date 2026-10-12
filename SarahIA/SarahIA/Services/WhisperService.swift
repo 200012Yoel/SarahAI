@@ -749,7 +749,9 @@ public final class WhisperService: ObservableObject {
             // the intermediate English text.
             var englishPivot: String? = nil
             if dualDecodeEnglish, !text.isEmpty,
-               !TranslateLiveContextBuffer.isUnreliableTranscript(text) {
+               !TranslateLiveContextBuffer.isUnreliableTranscript(text),
+               (inferenceLanguage != "he" ||
+                    TranslateLiveContextBuffer.isMostlyHebrew(text)) {
                 var englishParams = params
                 englishParams.translate = true
                 let englishResult: Int32 = inferenceLanguage.withCString { language in
