@@ -645,15 +645,25 @@ public final class YoannTranslateLiveService: ObservableObject {
                 } catch {
                     guard self.isActive, self.sessionToken == token else { return }
                     if fragment.fromEnglishPivot {
-                        self.errorMessage = "Traduction anglais → français interrompue : \(error.localizedDescription)"
+                        self.finishTranslation(
+                            .unavailable("Traduction anglais → français interrompue : \(error.localizedDescription)"),
+                            original: fragment.source, token: token
+                        )
                     } else if self.shouldAttemptSystemTranslation
                                 && self.customTranslationServerURL.isEmpty {
+                        // Switching engines is recoverable, not a user-facing
+                        // translation failure. Keep the status focused on the
+                        // upcoming Whisper→English→French attempt.
+                        self.translationBusy = false
+                        self.isTranslating = false
                         self.requestEnglishPivot(token: token)
+                        self.updateStatus()
+                    } else {
+                        self.finishTranslation(
+                            .unavailable("Traduction locale impossible : \(error.localizedDescription)"),
+                            original: fragment.source, token: token
+                        )
                     }
-                    self.finishTranslation(
-                        .unavailable("Traduction locale impossible : \(error.localizedDescription)"),
-                        original: fragment.source, token: token
-                    )
                 }
             }
             return
