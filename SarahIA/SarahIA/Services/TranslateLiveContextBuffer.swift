@@ -73,6 +73,36 @@ public struct TranslateLiveContextBuffer {
         return false
     }
 
+    /// Check the *English* hypothesis from Whisper against its paired Hebrew
+    /// caption. On TV/music the bilingual decoder sometimes hallucinates
+    /// "I'm sorry. I'm sorry." for a short Hebrew name or silence. Such a
+    /// string is NOT valid evidence of a translation and must never reach TTS.
+    public static func isSuspiciousEnglishPivot(
+        _ english: String, hebrewSource: String
+    ) -> Bool {
+        let cleaned = english.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if isUnreliableTranscript(cleaned) { return true }
+        let sentences = cleaned.split(whereSeparator: { ".!?;".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) }
+            .filter { !$0.isEmpty }
+        if sentences.count >= 2,
+           Set(sentences).count == 1 {
+            return true
+        }
+        let englishWords = cleaned.split(whereSeparator: {
+            $0.isWhitespace || ".,!?;:".contains($0)
+        }).map(String.init)
+        let sourceWords = hebrewSource.split(whereSeparator: { $0.isWhitespace })
+        // A short Hebrew proper noun turning into a long stock apology
+        // is an especially common Whisper fallback when audio is unclear.
+        let apologetic = cleaned.contains("i'm sorry") || cleaned.contains("i am sorry")
+        if sourceWords.count <= 3 && apologetic && englishWords.count >= 4 {
+            return true
+        }
+        return false
+    }
+
     public static func isUnreliableTranscript(_ text: String) -> Bool {
         isNonSpeechCaption(text) || isRepeatingHallucination(text)
     }
