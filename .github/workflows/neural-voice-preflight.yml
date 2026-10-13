@@ -79,7 +79,17 @@ jobs:
           grep -q 'if !localEnglishTranslation' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
           grep -q 'livePendingChunks.count > 2' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'SarahResponseCleaner.clean' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
-          echo 'Static voice migration checks passed'
+          # Camera, Vision and Sarah Intelligence regressions.
+          grep -q '<key>NSCameraUsageDescription</key>' SarahIA/SarahIA/Info.plist
+          grep -q '<key>NSPhotoLibraryUsageDescription</key>' SarahIA/SarahIA/Info.plist
+          grep -q 'AVCaptureDevice.authorizationStatus(for: .video)' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'AVCaptureDevice.authorizationStatus(for: .video)' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'VNClassifyImageRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
+          grep -q 'VNRecognizeTextRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
+          grep -q 'sarahia://voice' SarahIA/SarahIA/Views/SettingsView.swift
+          grep -q 'showActivationHalo' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'SarahOpenDeepLink' SarahIA/SarahIA/ContentView.swift
+          echo 'Static voice, camera and accessibility checks passed'
       - name: Swift syntax parsing
         run: |
           set -euo pipefail
@@ -102,6 +112,9 @@ jobs:
             SarahIA/SarahIA/Views/VoiceOrbModalView.swift \
             SarahIA/SarahIA/ContentView.swift \
             SarahIA/SarahIA/Views/ChatScreenView.swift \
+            SarahIA/SarahIA/Views/SettingsView.swift \
+            SarahIA/SarahIA/Services/LocalVisionEngine.swift \
+            SarahIA/SarahIA/SarahIAApp.swift \
             SarahIA/SarahIA/Views/MessageList.swift; do
             swiftc -frontend -parse "$swift"
           done
