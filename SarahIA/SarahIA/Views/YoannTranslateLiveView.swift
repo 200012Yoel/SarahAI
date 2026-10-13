@@ -149,8 +149,9 @@ public struct YoannTranslateLiveView: View {
                 } label: {
                     Image(systemName: live.isActive ? "stop.circle.fill" : "play.circle.fill")
                         .font(.system(size: 29))
-                        .foregroundColor(.white)
+                        .foregroundColor(live.isActive ? .orange : .green)
                 }
+                .accessibilityIdentifier("translateLive.startStop")
                 .disabled(!live.isActive &&
                     TranslateLiveLanguages.engineCode(for: sourceLanguage)
                     == TranslateLiveLanguages.engineCode(for: targetLanguage))
@@ -216,6 +217,27 @@ public struct YoannTranslateLiveView: View {
                     .foregroundColor(.orange)
             }
 
+            HStack(spacing: 10) {
+                Label(live.isListening ? "Micro actif" : "Micro arrêté",
+                      systemImage: live.isListening ? "mic.fill" : "mic.slash.fill")
+                    .foregroundColor(live.isListening ? .green : .white.opacity(0.55))
+                    .accessibilityIdentifier("translateLive.micStatus")
+                if live.isTranslating {
+                    ProgressView().tint(.white)
+                    Text("Traduction…").foregroundColor(.cyan)
+                } else if live.isPlayingAudio {
+                    Label("Voix en cours", systemImage: "waveform")
+                        .foregroundColor(.green)
+                }
+                Spacer(minLength: 0)
+                Text("En attente : \(live.waitingTranslations)")
+                    .monospacedDigit()
+                    .foregroundColor(.white.opacity(0.65))
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .lineLimit(1)
+            .accessibilityIdentifier("translateLive.pipelineStatus")
+
             HStack(spacing: 6) {
                 Text(live.audioOutputDescription)
                     .foregroundColor(.white.opacity(0.85))
@@ -250,7 +272,10 @@ public struct YoannTranslateLiveView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(matteBlue)
+        .background(
+            LinearGradient(colors: [matteBlue, darkNavy.opacity(0.95)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
         .accessibilityIdentifier("translateLiveTranslatedTopHalf")
     }
 
