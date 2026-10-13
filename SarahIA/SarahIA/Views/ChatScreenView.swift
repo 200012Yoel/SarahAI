@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
+import AVFoundation
 
 /// Écran principal SarahIA.
 ///
@@ -19,6 +20,8 @@ public struct ChatScreenView: View {
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
+    @State private var cameraAlertMessage: String? = nil
+    @State private var isShowingCameraAlert = false
     @State private var isShowingFileImporter = false
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
@@ -53,6 +56,35 @@ public struct ChatScreenView: View {
             DispatchQueue.main.async {
                 viewModel.appendVisionAnalysis(image: image, result: result)
             }
+        }
+    }
+
+    private func openCameraSafely() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            cameraAlertMessage = "La caméra n'est pas disponible sur cet appareil. Tu peux choisir une image dans Photos."
+            isShowingCameraAlert = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            isShowingCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        isShowingCamera = true
+                    } else {
+                        cameraAlertMessage = "Accès à la caméra refusé. Autorise Sarah IA dans Réglages pour prendre une photo."
+                        isShowingCameraAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            cameraAlertMessage = "L'accès à la caméra est désactivé pour Sarah IA. Ouvre les Réglages de l'iPhone pour l'autoriser."
+            isShowingCameraAlert = true
+        @unknown default:
+            cameraAlertMessage = "Impossible de vérifier l'autorisation de la caméra."
+            isShowingCameraAlert = true
         }
     }
 
@@ -114,6 +146,15 @@ public struct ChatScreenView: View {
                 isShowingCamera = false
                 if let image { handleCameraImage(image) }
             }
+        }
+        .alert("Caméra Sarah", isPresented: $isShowingCameraAlert) {
+            Button("OK", role: .cancel) {}
+            Button("Choisir une photo") {
+                selectedPhotoItem = nil
+                isShowingPhotoPicker = true
+            }
+        } message: {
+            Text(cameraAlertMessage ?? "La caméra est indisponible.")
         }
         .fileImporter(
             isPresented: $isShowingFileImporter,
@@ -230,7 +271,7 @@ public struct ChatScreenView: View {
             },
             onOpenCamera: {
                 keyboard.dismiss()
-                isShowingCamera = true
+                openCameraSafely()
             },
             onOpenFile: {
                 keyboard.dismiss()
@@ -1647,7 +1688,7 @@ private struct SarahCameraPicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.sourceType = .camera
         picker.delegate = context.coordinator
         return picker
     }
