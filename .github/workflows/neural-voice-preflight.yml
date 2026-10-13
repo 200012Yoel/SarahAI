@@ -87,9 +87,10 @@ jobs:
           grep -q 'VNClassifyImageRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
           grep -q 'VNRecognizeTextRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
           grep -q 'sarahia://voice' SarahIA/SarahIA/Views/SettingsView.swift
-          grep -q 'showActivationHalo' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
-          grep -q 'SarahOpenDeepLink' SarahIA/SarahIA/ContentView.swift
-          echo 'Static voice, camera and accessibility checks passed'
+          grep -q 'NSCameraUsageDescription' SarahIA/SarahIA/Info.plist
+          grep -q 'openCameraSafely()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          ! grep -q 'SarahIntelligenceAccessibilitySettingsView' SarahIA/SarahIA/Views/SettingsView.swift
+          echo 'Static voice, camera and map checks passed'
       - name: Swift syntax parsing
         run: |
           set -euo pipefail
