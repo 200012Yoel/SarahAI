@@ -84,8 +84,14 @@ public struct MessageList: View {
                     ForEach(messages) { message in
                         if !message.isFromUser,
                            let mapQuery = SarahMapIntent.query(in: message.content) {
-                            SarahWorldMapCard(query: mapQuery)
-                                .id(message.id)
+                            if #available(iOS 15.0, *) {
+                                SarahWorldMapCard(query: mapQuery)
+                                    .id(message.id)
+                            } else {
+                                Text("La carte 3D nécessite iOS 15 ou plus.")
+                                    .foregroundColor(.white)
+                                    .id(message.id)
+                            }
                         } else {
                             ChatBubbleView(
                                 message: message,
