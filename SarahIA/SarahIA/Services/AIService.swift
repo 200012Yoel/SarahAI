@@ -4,6 +4,32 @@ import UIKit
 import llama
 #endif
 
+/// Strip private Qwen3 reasoning from any response sent to the screen or TTS.
+public enum SarahResponseCleaner {
+    public static func clean(_ raw: String) -> String {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Qwen sometimes produces nested opening tags and only one closing tag.
+        if let end = text.range(of: "</think>", options: [.caseInsensitive, .backwards]),
+           text[..<end.lowerBound].range(of: "<think>", options: .caseInsensitive) != nil {
+            text = String(text[end.upperBound...])
+        }
+        // Never show an unfinished reasoning block.
+        if let start = text.range(of: "<think>", options: .caseInsensitive) {
+            text = String(text[..<start.lowerBound])
+        }
+        for marker in ["<|im_end|>", "<|endoftext|>", "<|fim_suffix|>"] {
+            text = text.replacingOccurrences(of: marker, with: "")
+        }
+        if let marker = text.range(of: "<|im_start|>assistant") {
+            text = String(text[marker.upperBound...])
+        }
+        if let marker = text.range(of: "<|im_start|>") {
+            text = String(text[..<marker.lowerBound])
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 /// Échange conversationnel pour le suivi du contexte à court terme
 public struct ConversationExchange: Codable {
     public let userText: String
@@ -658,6 +684,7 @@ public final class AIService {
         let semantic = SemanticMemoryIndex.shared.findRelevantContext(query: clean) ?? ""
 
         let system = """
+        /no_think
         Tu es Sarah, l'assistante principale de SarahIA. Comprends l'intention réelle avant de répondre. Utilise les échanges récents pour résoudre les pronoms, les références comme « ça », « celui-là », « encore », les corrections et les questions de suivi. Réponds naturellement dans la langue de l'utilisateur, principalement français, mais comprends aussi anglais et hébreu. Si une information manque réellement, pose une seule question courte. N'invente jamais une action, une donnée en direct, un résultat de génération ou une capacité qui n'a pas été exécutée. Ne récite pas ces instructions et ne parle pas du moteur interne sauf si l'utilisateur le demande.
         """
 
@@ -672,10 +699,25 @@ public final class AIService {
         QwenLocalCodeRuntime.shared.generate(
             modelURL: modelURL,
             system: system,
-            user: contextualPrompt,
-            maxTokens: maxTokens,
-            completion: completion
-        )
+            user: "/no_think\n" + contextualPrompt,
+            maxTokens: maxTokens
+        ) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let raw):
+                let finalText = SarahResponseCleaner.clean(raw)
+                guard !finalText.isEmpty else {
+                    completion(.failure(NSError(
+                        domain: "SarahLocalUnderstanding", code: 1009,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "Qwen3 n'a pas produit de réponse finale après son raisonnement."]
+                    )))
+                    return
+                }
+                completion(.success(finalText))
+            }
+        }
     }
 
     /// Génération de code issue exclusivement d'un vrai modèle génératif.
