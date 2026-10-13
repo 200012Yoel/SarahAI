@@ -82,14 +82,20 @@ public struct MessageList: View {
                     }
 
                     ForEach(messages) { message in
-                        ChatBubbleView(
-                            message: message,
-                            isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
-                            onPlayTapped: { onToggleSpeech?(message) },
-                            onRegenerate: { onRegenerate?(message) },
-                            onOpenStudio: onOpenStudio
-                        )
-                        .id(message.id)
+                        if !message.isFromUser,
+                           let mapQuery = SarahMapIntent.query(in: message.content) {
+                            SarahWorldMapCard(query: mapQuery)
+                                .id(message.id)
+                        } else {
+                            ChatBubbleView(
+                                message: message,
+                                isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
+                                onPlayTapped: { onToggleSpeech?(message) },
+                                onRegenerate: { onRegenerate?(message) },
+                                onOpenStudio: onOpenStudio
+                            )
+                            .id(message.id)
+                        }
                     }
 
                     if isTyping {
