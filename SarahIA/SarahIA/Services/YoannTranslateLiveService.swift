@@ -386,12 +386,26 @@ public final class YoannTranslateLiveService: ObservableObject {
         if TranslateLiveContextBuffer.isUnreliableTranscript(chunk) {
             // Music and long repeated token loops are Whisper hypotheses,
             // not a verified translation of the TV broadcast.
-            errorMessage = "Whisper entend de la musique ou répète des mots. Vérifie que la chaîne parle réellement la langue choisie."
+            errorMessage = "Extrait incertain ignoré : Whisper a peut-être entendu de la musique ou du bruit."
             provisionalSource = ""
+            lastSource = ""
             return
         }
         let cleaned = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
+        // Whisper can hallucinate the same short Hebrew clause across
+        // separate 3.4-second windows, well beyond the old 1.6s filter.
+        if cleaned == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 8.0 {
+            provisionalSource = ""
+            errorMessage = "Extrait répété par Whisper : attente de nouvelles paroles."
+            return
+        }
+        // Respect the selected source language; music can produce confident
+        // Latin-script words even when Whisper is locked to Hebrew.
+        if TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he"
+            && !TranslateLiveContextBuffer.isMostlyHebrew(cleaned) {
+            provisionalSource = ""
+            lastSource = ""
+            errorMessage = "Paroles hébraïques non reconnues de façon fiable."
             return
         }
         lastAcceptedChunk = cleaned
@@ -840,7 +854,14 @@ public final class YoannTranslateLiveService: ObservableObject {
     private func appendTranslated(text: String, original: String, token: UUID) {
         guard isActive, sessionToken == token else { return }
         let result = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !result.isEmpty else { return }
+        // A punctuation-only result such as ":" is not a translation.
+        // Never display or pronounce it as a TV presenter's words.
+        guard !result.isEmpty,
+              result.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }),
+              !TranslateLiveContextBuffer.isUnreliableTranscript(result) else {
+            errorMessage = "Traduction incertaine ignorée."
+            return
+        }
         // A real model can still hallucinate a repeated stock sentence.
         // Do not print/speak it as if it were the TV presenter's words.
         let phrases = result.lowercased()
