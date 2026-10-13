@@ -60,9 +60,11 @@ public enum TranslateLiveLanguages {
         ]
     ).sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
 
-    public static let sourceOptions: [Language] = [
-        Language(id: "auto", label: "Détection automatique")
-    ] + available
+    // The four requested choices. Both English accents use Whisper's "en"
+    // recognition code; audio output accent depends on available TTS voices.
+    public static let interpreterOptions: [Language] = ["he", "fr", "en-US", "en-GB"]
+        .compactMap { code in available.first(where: { $0.id == code }) }
+    public static let sourceOptions: [Language] = interpreterOptions
 
     public static let favorites: [Language] = ["he", "fr", "en-GB", "en-US", "en", "es", "ar", "de", "it", "pt"]
         .compactMap { code in available.first(where: { $0.id == code }) }
