@@ -34,7 +34,7 @@ if sum('\u0590'<=x<='\u05ff' for x in transcript)<4:
     raise SystemExit('FAIL: Whisper did not recognize Hebrew from the audio fixture.')
 PY
 git clone -q --depth 1 --branch v0.4.1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
-cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TESTS=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF
+cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_COMMON=ON -DLLAMA_BUILD_TOOLS=ON -DLLAMA_BUILD_APP=OFF -DGGML_NATIVE=OFF -DGGML_METAL=OFF
 cmake --build "$RUNNER_TEMP/llama.cpp/build" -j 4 --target llama-cli
 curl -fL --retry 3 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf' -o "$RUNNER_TEMP/qwen.gguf"
 python3 - <<'PY'
