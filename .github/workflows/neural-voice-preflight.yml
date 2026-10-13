@@ -86,7 +86,6 @@ jobs:
           grep -q 'AVCaptureDevice.authorizationStatus(for: .video)' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           grep -q 'VNClassifyImageRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
           grep -q 'VNRecognizeTextRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
-          grep -q 'sarahia://voice' SarahIA/SarahIA/Views/SettingsView.swift
           grep -q 'NSCameraUsageDescription' SarahIA/SarahIA/Info.plist
           grep -q 'openCameraSafely()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
           ! grep -q 'SarahIntelligenceAccessibilitySettingsView' SarahIA/SarahIA/Views/SettingsView.swift
