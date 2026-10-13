@@ -19,8 +19,6 @@ public struct VoiceOrbModalView: View {
     @State private var isShowingCameraAlert = false
     @State private var cameraAlertMessage = ""
     @State private var isShowingFileImporter = false
-    @AppStorage("sarahIntelligenceHaloEnabled") private var haloEnabled = true
-    @State private var showActivationHalo = false
 
     public init(
         viewModel: ChatViewModel,
@@ -189,40 +187,10 @@ public struct VoiceOrbModalView: View {
                 viewModel.inputText = "Impossible d'ouvrir le fichier : \(error.localizedDescription)"
             }
         }
-        .overlay {
-            if showActivationHalo && haloEnabled {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(
-                        AngularGradient(
-                            colors: [.cyan, .blue, .purple, .pink, .cyan],
-                            center: .center
-                        ), lineWidth: 5
-                    )
-                    .blur(radius: 4)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color.cyan.opacity(0.68), lineWidth: 1.5)
-                    }
-                    .padding(2)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .transition(.opacity)
-            }
-        }
         .onAppear {
             // Reopening the sheet must not restart speech or unmute the mic.
             if !viewModel.isContinuousConversationActive {
                 viewModel.startVoiceConversation()
-            }
-            guard haloEnabled else { return }
-            withAnimation(.easeInOut(duration: 0.28)) {
-                showActivationHalo = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                withAnimation(.easeOut(duration: 0.55)) {
-                    showActivationHalo = false
-                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
