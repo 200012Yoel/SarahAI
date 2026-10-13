@@ -136,17 +136,6 @@ public struct YoannTranslateLiveView: View {
                         .foregroundColor(.orange)
                         .accessibilityLabel("Voix de la langue choisie non disponible")
                 }
-                // Test the bundled French neural speaker independently of
-                // Whisper recognition and any translation server.
-                Button { live.testFrenchSpeaker() } label: {
-                    Image(systemName: "speaker.wave.2.circle.fill")
-                        .font(.system(size: 27))
-                        .foregroundColor(.white)
-                }
-                .disabled(!live.isActive)
-                .accessibilityLabel("Tester le haut-parleur avec la voix française")
-                .accessibilityIdentifier("translateLiveTestFrenchSpeaker")
-
                 Button {
                     if live.isActive {
                         live.stop()
@@ -204,7 +193,7 @@ public struct YoannTranslateLiveView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if !canSpeakTarget {
-                Text("Voix \(TranslateLiveLanguages.label(for: targetLanguage)) indisponible dans cette version. Le bouton 🔊 teste la voix française.")
+                Text("Voix \(TranslateLiveLanguages.label(for: targetLanguage)) non disponible : traduction affichée sans lecture audio.")
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
                     .lineLimit(2)
@@ -402,28 +391,6 @@ public struct YoannTranslateLiveView: View {
                     if !canSpeakTarget {
                         Text("Aucune voix neuronale intégrée pour \(TranslateLiveLanguages.label(for: targetLanguage)) : affichage du texte seulement.")
                             .foregroundColor(.orange)
-                    }
-                    Button {
-                        showsDetails = false
-                        live.testFrenchSpeaker()
-                    } label: {
-                        Label("Tester la sortie audio française", systemImage: "speaker.wave.2.fill")
-                            .font(.headline)
-                    }
-                    .disabled(!live.isActive)
-                    .accessibilityIdentifier("translateLiveSettingsTestSpeaker")
-                    Button {
-                        live.testOfflineTranslation()
-                    } label: {
-                        Label("Tester Qwen3 hors ligne (sans micro)", systemImage: "character.bubble")
-                            .font(.headline)
-                    }
-                    .disabled(!live.isActive || live.isTranslating)
-                    .accessibilityIdentifier("translateLiveSettingsTestTranslation")
-                    if !live.translationDiagnostic.isEmpty {
-                        Text(live.translationDiagnostic)
-                            .foregroundColor(.cyan)
-                            .accessibilityLabel(live.translationDiagnostic)
                     }
                     if !live.headphoneConnected {
                         Text("Sans écouteurs, la voix émise par le haut-parleur peut être reprise par le microphone.")
