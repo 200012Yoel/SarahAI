@@ -243,28 +243,33 @@ public final class QwenLocalCodeRuntime {
             consumed += chunkCount
         }
 
-        func piece(for token: llama_token) -> String {
+        // llama.cpp token pieces are *byte sequences*, not guaranteed
+        // individual UTF-8 strings. Hebrew and accented French characters
+        // can span adjacent tokens. Decoding token by token used to silently
+        // DROP their partial bytes and corrupt live translations.
+        func pieceBytes(for token: llama_token) -> Data {
             var bytes = [CChar](repeating: 0, count: 16)
             var written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
             if written < 0 {
                 bytes = [CChar](repeating: 0, count: Int(-written))
                 written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
             }
-            guard written > 0 else { return "" }
-            let data = Data(bytes.prefix(Int(written)).map { UInt8(bitPattern: $0) })
-            return String(data: data, encoding: .utf8) ?? ""
+            guard written > 0 else { return Data() }
+            return Data(bytes.prefix(Int(written)).map { UInt8(bitPattern: $0) })
         }
 
-        var result = ""
+        var generatedBytes = Data()
         var position = tokens.count
 
         for _ in 0..<outputBudget {
             let token = llama_sampler_sample(sampler, context, -1)
             if llama_vocab_is_eog(vocab, token) { break }
 
-            let fragment = piece(for: token)
-            result += fragment
-            if result.contains("<|im_end|>") { break }
+            generatedBytes.append(pieceBytes(for: token))
+            // ChatML terminator is ASCII, but only inspect a valid UTF-8
+            // prefix. The complete generated text is decoded once below.
+            if let partial = String(data: generatedBytes, encoding: .utf8),
+               partial.contains("<|im_end|>") { break }
 
             var batch = llama_batch_init(1, 0, 1)
             defer { llama_batch_free(batch) }
@@ -280,7 +285,7 @@ public final class QwenLocalCodeRuntime {
             if position >= maxContext - 1 { break }
         }
 
-        let clean = result
+        let clean = String(decoding: generatedBytes, as: UTF8.self)
             .replacingOccurrences(of: "<|im_end|>", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -288,7 +293,7 @@ public final class QwenLocalCodeRuntime {
             throw NSError(
                 domain: "SarahQwenRuntime",
                 code: 1008,
-                userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a produit aucun code."]
+                userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a produit aucune réponse."]
             )
         }
         return clean
