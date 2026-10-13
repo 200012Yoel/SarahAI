@@ -17,6 +17,10 @@ public struct YoannTranslateLiveView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var live = YoannTranslateLiveService()
     @AppStorage("yoann_translate_live_server") private var translationServerURL = ""
+    @AppStorage("yoann_translate_live_output_mode") private var selectedOutput = "headphones"
+    private var preferredOutput: AudioSessionManager.InterpreterOutputMode {
+        AudioSessionManager.InterpreterOutputMode(rawValue: selectedOutput) ?? .headphones
+    }
     @State private var sourceLanguage: String
     @State private var targetLanguage: String
     @State private var pickerMode: PickerMode?
@@ -89,7 +93,8 @@ public struct YoannTranslateLiveView: View {
         }
         .onAppear {
             setLandscapeEnabled(true)
-            live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
+            live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL,
+                       outputMode: preferredOutput)
         }
         .onDisappear {
             live.stop()
@@ -97,6 +102,7 @@ public struct YoannTranslateLiveView: View {
         }
         .onChange(of: sourceLanguage) { _ in restartIfActive() }
         .onChange(of: targetLanguage) { _ in restartIfActive() }
+        .onChange(of: selectedOutput) { _ in restartIfActive() }
     }
 
     // MARK: - Upper 50%: requested translation
@@ -147,7 +153,8 @@ public struct YoannTranslateLiveView: View {
                     } else {
                         live.start(
                             from: sourceLanguage, to: targetLanguage,
-                            serverURL: translationServerURL
+                            serverURL: translationServerURL,
+                            outputMode: preferredOutput
                         )
                     }
                 } label: {
@@ -219,6 +226,19 @@ public struct YoannTranslateLiveView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
             }
+
+            HStack(spacing: 6) {
+                Text(live.audioOutputDescription)
+                    .foregroundColor(.white.opacity(0.85))
+                    .accessibilityLabel(live.audioOutputDescription)
+                Spacer(minLength: 0)
+                Text(live.audioInputDescription)
+                    .foregroundColor(.white.opacity(0.70))
+                    .accessibilityLabel(live.audioInputDescription)
+            }
+            .font(.system(size: 10, weight: .medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
 
             HStack(spacing: 6) {
                 if let error = live.errorMessage {
@@ -354,7 +374,19 @@ public struct YoannTranslateLiveView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("La moitié supérieure affiche toujours la traduction demandée ; la moitié inférieure affiche la langue parlée.")
-                    Text("Hébreu → français : aucun pack hébreu Apple n'est nécessaire. Whisper traduit les paroles en anglais, puis le véritable moteur iOS traduit cet anglais en français si son pack est installé. Un serveur neuronal Marian configuré ici traduit directement l'hébreu en français.")
+                    Text("Écouteurs recommandés : le microphone reste actif pour capter la télé, la voix française doit être entendue dans les écouteurs. Si iOS impose le micro du casque Bluetooth, Yoann l'indique ci-dessous.")
+                    Picker("Sortie audio", selection: $selectedOutput) {
+                        Text("🎧 Écouteurs (recommandé)").tag("headphones")
+                        Text("🔊 Haut-parleur (expérimental)").tag("speaker")
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("translateLiveAudioOutputMode")
+                    Text(live.audioOutputDescription + " · " + live.audioInputDescription)
+                        .fontWeight(.medium)
+                    if let routeWarning = live.audioRouteWarning {
+                        Text(routeWarning).foregroundColor(.orange)
+                    }
+                    Text("Hébreu → français : Whisper transcrit localement les paroles et Qwen3 fournit la traduction directe hors ligne. Le relais de traduction Apple ou un serveur personnel est disponible comme solution de secours.")
                     Text("Aucune phrase pré-écrite n'est utilisée en mode direct. Sans modèle de traduction actif, Yoann signale l'erreur et ne fabrique pas de sous-titres.")
                     TextField("Serveur de traduction local ou HTTPS", text: $translationServerURL)
                         .textInputAutocapitalization(.never)
@@ -375,7 +407,7 @@ public struct YoannTranslateLiveView: View {
                         showsDetails = false
                         live.testFrenchSpeaker()
                     } label: {
-                        Label("Tester le haut-parleur en français", systemImage: "speaker.wave.2.fill")
+                        Label("Tester la sortie audio française", systemImage: "speaker.wave.2.fill")
                             .font(.headline)
                     }
                     .disabled(!live.isActive)
