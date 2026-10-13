@@ -155,11 +155,19 @@ public final class AudioSessionManager {
             } else {
                 audioOptions = [.defaultToSpeaker, .allowBluetooth]
             }
-            try session.setCategory(
-                .playAndRecord,
-                mode: audioMode,
-                options: audioOptions
-            )
+            if audioMode == .measurement {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: audioOptions
+                )
+            } else {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .voiceChat,
+                    options: audioOptions
+                )
+            }
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true)
             ensureAudibleOutputRouteIfNeeded()
