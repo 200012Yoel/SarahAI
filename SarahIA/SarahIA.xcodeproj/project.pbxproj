@@ -37,6 +37,7 @@
 		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
 		A1B2C3D40001000100000030 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000030 /* SidebarView.swift */; };
 		A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000031 /* ChatScreenView.swift */; };
+		A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */; };
 		A1B2C3D40001000100000032 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000032 /* Conversation.swift */; };
 		A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */; };
 		A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000035 /* AudioSessionManager.swift */; };
@@ -145,6 +146,7 @@
 		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000031 /* ChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreenView.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWorldMapCard.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000032 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechRecognizer.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000035 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
@@ -356,6 +358,7 @@
 				A1B2C3D40002000100000019 /* SettingsView.swift */,
 				A1B2C3D40002000100000030 /* SidebarView.swift */,
 				A1B2C3D40002000100000031 /* ChatScreenView.swift */,
+				A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */,
 				A1B2C3D40002000100000037 /* MessageList.swift */,
 				A1B2C3D40002000100000038 /* MessageBar.swift */,
 				A1B2C3D40002000100000040 /* LegacyChatViewController.swift */,
@@ -499,6 +502,7 @@
 				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
 				A1B2C3D40001000100000030 /* SidebarView.swift in Sources */,
 				A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */,
+				A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */,
 				A1B2C3D40001000100000032 /* Conversation.swift in Sources */,
 				A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */,
 				A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */,
