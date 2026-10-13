@@ -67,6 +67,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var isUsingLocalQwen = false
     @Published public private(set) var isUsingEnglishPivot = false
     @Published public private(set) var translationSetupMessage = "Vérification du moteur hébreu → français…"
+    @Published public private(set) var translationDiagnostic = ""
 
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
@@ -130,6 +131,40 @@ public final class YoannTranslateLiveService: ObservableObject {
         updateStatus()
     }
 
+    /// Runs an actual model translation on a fixed sample without creating
+    /// fabricated live captions or sending anything to speech synthesis.
+    /// This isolates the model from microphone recognition and audio routing.
+    public func testOfflineTranslation() {
+        guard isActive else {
+            translationDiagnostic = "Démarre Yoann avant ce test."
+            return
+        }
+        guard !translationBusy, !isTranslating else {
+            translationDiagnostic = "Traduction en direct occupée : réessaie pendant une pause."
+            return
+        }
+        guard TranslateLiveTranslationBackend.isLocalQwenReady else {
+            translationDiagnostic = "Modèle Qwen3 hors ligne indisponible."
+            return
+        }
+        let token = sessionToken
+        translationDiagnostic = "Test réel de Qwen3 en cours…"
+        TranslateLiveTranslationBackend.translateWithLocalQwen(
+            text: "שלום, ערב טוב",
+            from: "he", to: "fr"
+        ) { [weak self] outcome in
+            DispatchQueue.main.async {
+                guard let self, self.isActive, self.sessionToken == token else { return }
+                switch outcome {
+                case .translated(let french):
+                    self.translationDiagnostic = "Qwen3 a répondu : " + french
+                case .unavailable(let reason):
+                    self.translationDiagnostic = "Échec du modèle local : " + reason
+                }
+            }
+        }
+    }
+
     public func start(
         from source: String, to target: String, serverURL: String = "",
         outputMode: AudioSessionManager.InterpreterOutputMode = .headphones
@@ -150,6 +185,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         localEnglishTranslation = TranslateLiveLanguages.isEnglish(target)
             && !TranslateLiveLanguages.isEnglish(source)
         errorMessage = nil
+        translationDiagnostic = ""
         lastSource = ""
         provisionalSource = ""
         recentSourceContext = ""
