@@ -52,17 +52,19 @@ public enum TranslateLiveTranslationBackend {
             completion(.unavailable("Le modèle Qwen3 local n'est pas encore téléchargé sur l'iPhone."))
             return
         }
-        guard (source == "he" && target == "fr") ||
-              (source == "fr" && target == "he") else {
-            completion(.unavailable("Ce moteur est configuré pour hébreu ↔ français."))
+        guard ["he", "fr", "en"].contains(source),
+              ["he", "fr", "en"].contains(target),
+              source != target else {
+            completion(.unavailable("Cette paire de langues n'est pas prise en charge par le moteur local."))
             return
         }
         guard !clean.isEmpty else {
             completion(.unavailable("Aucun passage à traduire."))
             return
         }
-        let fromLabel = source == "he" ? "hébreu" : "français"
-        let toLabel = target == "fr" ? "français" : "hébreu"
+        let labels = ["he": "hébreu israélien", "fr": "français", "en": "anglais"]
+        let fromLabel = labels[source] ?? source
+        let toLabel = labels[target] ?? target
         let system = """
         /no_think
         Tu es un moteur neuronal de traduction simultanée de \(fromLabel) vers \(toLabel).
@@ -92,7 +94,7 @@ public enum TranslateLiveTranslationBackend {
                 guard !output.isEmpty, normalized(output) != normalized(clean),
                       !TranslateLiveContextBuffer.isUnreliableTranscript(output),
                       (target != "he" || TranslateLiveContextBuffer.isMostlyHebrew(output)),
-                      (target != "fr" || output.range(
+                      (target == "he" || output.range(
                           of: "[A-Za-zÀ-ÿ]", options: .regularExpression
                       ) != nil) else {
                     completion(.unavailable("Qwen3 n'a pas produit une traduction fiable de cet extrait."))
