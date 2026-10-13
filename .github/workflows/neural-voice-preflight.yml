@@ -113,6 +113,8 @@ jobs:
             SarahIA/SarahIA/ContentView.swift \
             SarahIA/SarahIA/Views/ChatScreenView.swift \
             SarahIA/SarahIA/Views/SettingsView.swift \
+            SarahIA/SarahIA/Views/SarahWorldMapCard.swift \
+            SarahIA/SarahIA/Views/SarahNavigationOptions.swift \
             SarahIA/SarahIA/Services/LocalVisionEngine.swift \
             SarahIA/SarahIA/SarahIAApp.swift \
             SarahIA/SarahIA/Views/MessageList.swift; do
