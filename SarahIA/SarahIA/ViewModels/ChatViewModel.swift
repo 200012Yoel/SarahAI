@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import AVFoundation
 import UIKit
+import PDFKit
 
 /// Mode d'affichage actif de l'application Sarah AI
 public enum AppMode: String, Codable {
@@ -179,17 +180,44 @@ public final class ChatViewModel: ObservableObject {
 
         let name = url.lastPathComponent.isEmpty ? "Fichier" : url.lastPathComponent
         do {
-            let data = try Data(contentsOf: url)
-            let previewData = data.prefix(24_000)
-            let preview = String(data: previewData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Read only a bounded preview from Files/iCloud. Never load
+            // large documents completely into the application's RAM.
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard size <= 20 * 1024 * 1024 else {
+                inputText = "Le fichier \(name) dépasse 20 Mo. Sélectionne une version plus petite."
+                return
+            }
+            let ext = url.pathExtension.lowercased()
+            let plainText = ["txt", "md", "csv", "json", "xml", "html", "log", "swift", "py", "js"]
+                .contains(ext)
+            let preview: String?
+            if plainText {
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                preview = String(data: handle.readData(ofLength: 24_000), encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if ext == "pdf" {
+                let pdf = PDFDocument(url: url)
+                let firstPages = (0..<min(3, pdf?.pageCount ?? 0))
+                    .compactMap { pdf?.page(at: $0)?.string }
+                    .joined(separator: "\n")
+                preview = String(firstPages.prefix(8_000))
+            } else {
+                preview = nil
+            }
             var content = "📎 **Fichier ajouté : \(name)**"
             if let preview, !preview.isEmpty {
                 content += "\n\n```\n\(String(preview.prefix(8_000)))\n```"
             }
+            if !plainText && ext != "pdf" {
+                content += "\n\nCe type de fichier n'a pas encore de lecteur de contenu intégré."
+            }
             appendMessage(Message(content: content, isFromUser: true))
             if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                inputText = "Analyse le fichier \(name)"
+                inputText = preview?.isEmpty == false
+                    ? "Analyse le contenu du fichier \(name) ci-dessus."
+                    : "J'ai sélectionné le fichier \(name)."
             }
         } catch {
             inputText = "Impossible d'ouvrir \(name) : \(error.localizedDescription)"
