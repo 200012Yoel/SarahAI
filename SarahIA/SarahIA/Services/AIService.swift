@@ -603,10 +603,11 @@ public final class AIService {
                         let cleaned = localText.decodingHTMLEntities()
                         self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                         DispatchQueue.main.async { completion(cleaned) }
-                    case .failure:
-                        let fallback = self.generateSyncResponse(for: trimmed)
-                        self.recordExchange(userText: trimmed, assistantResponse: fallback)
-                        DispatchQueue.main.async { completion(fallback.decodingHTMLEntities()) }
+                    case .failure(let error):
+                        // Never pass a prewritten question-answer script as
+                        // a genuine model-generated voice or chat response.
+                        let explanation = "Le modèle local ne peut pas répondre pour le moment : \(error.localizedDescription)"
+                        DispatchQueue.main.async { completion(explanation) }
                     }
                 }
                 return
