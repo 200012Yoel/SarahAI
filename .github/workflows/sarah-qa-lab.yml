@@ -7,6 +7,7 @@ on:
     paths:
       - 'SarahIA/**'
       - '.maestro/sarah-qa-e2e.yaml'
+      - '.github/scripts/sarah_qa_real_hebrew_audio.sh'
       - '.github/workflows/sarah-qa-lab.yml'
 
 permissions:
