@@ -42,9 +42,9 @@ import json,os,pathlib,re,subprocess,time,wave
 out=pathlib.Path('qa-artifacts')
 hebrew=(out/'hebrew-recognized-clean.txt').read_text(encoding='utf-8').strip()
 prompt='<|im_start|>system\n/no_think\nTraduis fidèlement les paroles en hébreu vers le français. Renvoie uniquement la traduction française, sans explication, sans commentaire et sans inventer de phrase.\n<|im_end|>\n<|im_start|>user\n/no_think\n'+hebrew+'\n<|im_end|>\n<|im_start|>assistant\n'
-cmd=[os.environ['RUNNER_TEMP']+'/llama.cpp/build/bin/llama-cli','-m',os.environ['RUNNER_TEMP']+'/qwen.gguf','-p',prompt,'-n','130','-c','2048','-t','4','-ngl','0','--temp','0.1','--no-display-prompt']
+cmd=[os.environ['RUNNER_TEMP']+'/llama.cpp/build/bin/llama-cli','-m',os.environ['RUNNER_TEMP']+'/qwen.gguf','-p',prompt,'-n','96','-c','1024','-t','4','-ngl','0','--temp','0.1','--no-display-prompt','--single-turn','--simple-io']
 start=time.monotonic()
-p=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',timeout=250)
+p=subprocess.run(cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',timeout=160)
 elapsed=time.monotonic()-start
 (out/'qwen-cli.log').write_text(p.stdout,encoding='utf-8')
 if p.returncode: raise SystemExit('Qwen translation command failed.')
@@ -73,8 +73,8 @@ verified_prompt=prompt.replace(hebrew,verified_hebrew)
 verified_cmd=list(cmd)
 verified_cmd[verified_cmd.index('-p')+1]=verified_prompt
 mt_start=time.monotonic()
-verification=subprocess.run(verified_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
-                           text=True,errors='replace',timeout=250)
+verification=subprocess.run(verified_cmd,stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                           text=True,errors='replace',timeout=160)
 (out/'qwen-verified-source.log').write_text(verification.stdout,encoding='utf-8')
 verified_result=re.sub(r'<think>[\\s\\S]*?</think>','',verification.stdout).strip()
 if '</think>' in verified_result: verified_result=verified_result.split('</think>')[-1].strip()
