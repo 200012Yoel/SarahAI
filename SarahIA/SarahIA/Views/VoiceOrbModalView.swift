@@ -16,6 +16,8 @@ public struct VoiceOrbModalView: View {
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
+    @State private var isShowingCameraAlert = false
+    @State private var cameraAlertMessage = ""
     @State private var isShowingFileImporter = false
 
     public init(
@@ -26,6 +28,35 @@ public struct VoiceOrbModalView: View {
         self.viewModel = viewModel
         self.onOpenMenu = onOpenMenu
         self.onOpenSettings = onOpenSettings
+    }
+
+    private func openCameraSafely() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            cameraAlertMessage = "Caméra indisponible sur cet appareil. Utilise Photos."
+            isShowingCameraAlert = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            isShowingCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        isShowingCamera = true
+                    } else {
+                        cameraAlertMessage = "Accès refusé. Autorise la caméra dans Réglages iOS → Sarah IA."
+                        isShowingCameraAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            cameraAlertMessage = "Sarah IA ne dispose pas de l'autorisation d'utiliser la caméra."
+            isShowingCameraAlert = true
+        @unknown default:
+            cameraAlertMessage = "La caméra n'est pas disponible."
+            isShowingCameraAlert = true
+        }
     }
 
     // Keep the entire existing Voice UI magenta for every agent. Only the
@@ -134,6 +165,15 @@ public struct VoiceOrbModalView: View {
                 isShowingCamera = false
                 if let image { analyzeCameraImage(image) }
             }
+        }
+        .alert("Caméra Sarah", isPresented: $isShowingCameraAlert) {
+            Button("OK", role: .cancel) {}
+            Button("Choisir une photo") {
+                selectedPhotoItem = nil
+                isShowingPhotoPicker = true
+            }
+        } message: {
+            Text(cameraAlertMessage)
         }
         .fileImporter(
             isPresented: $isShowingFileImporter,
@@ -380,7 +420,7 @@ public struct VoiceOrbModalView: View {
 
                 Button {
                     HapticService.shared.buttonTap()
-                    isShowingCamera = true
+                    openCameraSafely()
                 } label: {
                     Label("Appareil photo", systemImage: "camera")
                 }
