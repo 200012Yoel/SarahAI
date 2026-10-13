@@ -1045,7 +1045,7 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
                 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let rawText = response.text
                 var responseContent = SarahResponseCleaner.clean(rawText.decodingHTMLEntities())
                 if responseContent.isEmpty {
                     responseContent = "Je n'ai pas obtenu de réponse finale lisible. Réessaie, s'il te plaît."
