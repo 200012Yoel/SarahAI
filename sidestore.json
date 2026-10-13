@@ -1,18 +1,15 @@
 {
   "name": "Sarah IA",
-  "identifier": "com.200012yoel.SarahIA.source",
-  "sourceURL": "https://raw.githubusercontent.com/200012Yoel/SarahAI/claude/github-pro-connection-io7of3/sidestore.json",
   "apps": [
     {
       "name": "Sarah IA · Translate Live",
       "bundleIdentifier": "com.200012yoel.SarahIA",
       "version": "1.0",
-      "versionDescription": "Whisper Medium + Apple Translation, live TV subtitles without headphones",
-      "downloadURL": "https://github.com/200012Yoel/SarahAI/releases/download/sarah-ia-translate-live/SarahIA.ipa",
+      "subtitle": "Live speech translation without headphones",
+      "downloadURL": "https://www.dropbox.com/scl/fi/0000000000000000/SarahIA.ipa?rlkey=0000000000000000&dl=1",
       "developerName": "Yoel",
-      "iconURL": "https://raw.githubusercontent.com/200012Yoel/SarahAI/main/SarahIA/Assets.xcassets/AppIcon.appiconset/1024.png",
-      "tintColor": "007AFF",
-      "subtitle": "Live speech translation without headphones"
+      "iconURL": "",
+      "tintColor": "007AFF"
     }
   ]
 }
