@@ -83,6 +83,13 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var isEngineReady = false
     @Published public private(set) var engineDescription = "Choix du moteur de traduction…"
 
+    // Names used by the Translate Live screen.
+    public var translationSetupMessage: String { engineDescription }
+    public var isSystemTranslationReady: Bool { isEngineReady }
+    public var waitingTranslations: Int { pending.count }
+    /// Whisper chunks are committed directly; there is no provisional text.
+    public var provisionalSource: String { "" }
+
     public private(set) var outputMode: AudioSessionManager.InterpreterOutputMode = .subtitles
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
