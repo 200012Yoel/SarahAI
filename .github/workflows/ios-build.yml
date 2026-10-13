@@ -10,15 +10,11 @@ on:
         type: choice
         options: ['no', 'yes']
         default: 'no'
-  # Trigger only from an explicit Sarah IPA build request file.
-  push:
-    branches: [feature/neural-voices-whisper-only-20261011]
-    paths:
-      - '.github/request-sarah-ipa-build.txt'
+  # Future IPA builds require explicit manual confirmation.
 
 jobs:
   build:
-    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    if: inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
