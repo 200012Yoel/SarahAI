@@ -367,6 +367,15 @@ public struct ChatScreenView: View {
 
             Spacer(minLength: 4)
 
+            // One tap to the real Hebrew-to-French interpreter.
+            glassCircleButton(systemName: "waveform") {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                viewModel.activateTranslateLive(from: "he", to: "fr")
+            }
+            .accessibilityIdentifier("sarah.translateLive.open")
+            .accessibilityLabel("Ouvrir la traduction en direct de Yoann")
+
             glassCircleButton(systemName: "gearshape.fill") {
                 HapticService.shared.buttonTap()
                 keyboard.dismiss()
