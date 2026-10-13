@@ -93,11 +93,14 @@ public final class YoannTranslateLiveService: ObservableObject {
         sourceLanguage == "he" && targetLanguage == "fr"
     }
 
-    private var isHebrewFrenchPair: Bool {
+    // Whisper performs source -> English directly. Remaining requested
+    // pairs use Qwen locally, never a predefined sentence table.
+    private var needsLocalNeuralTranslation: Bool {
         let source = TranslateLiveLanguages.engineCode(for: sourceLanguage)
         let target = TranslateLiveLanguages.engineCode(for: targetLanguage)
-        return (source == "he" && target == "fr") ||
-               (source == "fr" && target == "he")
+        return ["he", "fr", "en"].contains(source)
+            && ["he", "fr", "en"].contains(target)
+            && source != target && target != "en"
     }
 
     private var incoming: [PendingTranslation] = []
@@ -168,7 +171,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = false
-        translationSetupMessage = "Vérification du pack de traduction hébreu → français…"
+        translationSetupMessage = "Vérification des moteurs de traduction locaux…"
         sessionToken = UUID()
         isActive = true
 
@@ -279,7 +282,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         // An installed Qwen3 GGUF translates Hebrew↔French directly.
         // Qwen model WEIGHTS are downloaded into Application Support; the IPA
         // only contains the llama.cpp inference runtime.
-        if isHebrewFrenchPair && customTranslationServerURL.isEmpty {
+        if needsLocalNeuralTranslation && customTranslationServerURL.isEmpty {
             if TranslateLiveTranslationBackend.isLocalQwenReady {
                 activateLocalQwen(token: token)
             } else {
@@ -292,7 +295,7 @@ public final class YoannTranslateLiveService: ObservableObject {
                 if shouldAttemptSystemTranslation {
                     requestEnglishPivot(token: token)
                 } else {
-                    errorMessage = "Installe d'abord Qwen3 depuis le Wi-Fi pour traduire français → hébreu sans serveur."
+                    errorMessage = "Le modèle Qwen local manque pour cette paire. Installe-le en Wi-Fi."
                 }
             }
             qwenDownloadObserver = NotificationCenter.default.addObserver(
@@ -522,7 +525,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     /// Model-backed bidirectional translation. Never reuse English pivot
     /// captions after Qwen3 becomes available or produce canned phrases.
     private func activateLocalQwen(token: UUID) {
-        guard isActive, sessionToken == token, isHebrewFrenchPair,
+        guard isActive, sessionToken == token, needsLocalNeuralTranslation,
               customTranslationServerURL.isEmpty,
               TranslateLiveTranslationBackend.isLocalQwenReady else { return }
         needsEnglishPivotTranslation = false
@@ -534,7 +537,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSystemTranslationReady = true
         incoming.removeAll()
         waitingTranslations = 0
-        translationSetupMessage = "Traduction neuronale locale Qwen3 active : hébreu ↔ français direct, sans anglais ni réseau."
+        translationSetupMessage = "Qwen3 local actif : \(TranslateLiveLanguages.label(for: sourceLanguage)) → \(TranslateLiveLanguages.label(for: targetLanguage))."
         errorMessage = nil
         updateStatus()
     }
