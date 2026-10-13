@@ -343,3 +343,21 @@ jobs:
           prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Translate Live IPA (single release, overwritten each build)
+        if: github.ref == 'refs/heads/claude/github-pro-connection-io7of3'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sarah-ia-translate-live
+          name: 'Sarah IA · Traduction en direct'
+          body: |
+            Build #${{ github.run_number }} (commit ${{ github.sha }}).
+            Traduction en direct : Whisper Medium + Traduire d'Apple sur l'iPhone,
+            mode sous-titres sans écouteurs. Hébreu et anglais → français.
+            IPA auto-signée pour Sideloadly/SideStore.
+          files: dist/SarahIA.ipa
+          overwrite_files: true
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
