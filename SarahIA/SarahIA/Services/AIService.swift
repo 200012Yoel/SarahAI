@@ -413,9 +413,9 @@ public final class AIService {
         return triggers.contains { norm.contains($0) || norm.starts(with: $0) }
     }
     
-    // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM & Cloud Fallback Mock)
+    // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM)
     
-    /// Traite la requête utilisateur de manière asynchrone avec do/catch global et fallback de débogage garanti
+    /// Traite la requête utilisateur de manière asynchrone et signale les vrais échecs.
     public func processQuery(
         _ question: String,
         voiceMode: Bool = false,
@@ -423,7 +423,7 @@ public final class AIService {
     ) {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            completion("[DEBUG] Le bouton fonctionne, mais le texte envoyé est vide.")
+            completion("Écris ou dicte un message pour démarrer une conversation.")
             return
         }
         
