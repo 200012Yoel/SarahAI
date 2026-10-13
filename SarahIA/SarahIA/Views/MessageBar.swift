@@ -5,7 +5,7 @@ import UIKit
 /// - la capsule centrale est un vrai UITextField natif sur toute sa surface ;
 /// - + = Photos / Appareil photo / Fichier ;
 /// - micro = dictée locale ;
-/// - waveform = mode vocal Sarah ;
+/// - étoile = mode vocal Sarah ;
 /// - carré = arrêt de la génération.
 @available(iOS 15.0, *)
 public struct MessageBar: View {
@@ -240,7 +240,7 @@ public struct MessageBar: View {
                         .fill(Color.white)
                         .frame(width: 12, height: 12)
                 } else {
-                    Image(systemName: hasText ? "arrow.up" : "waveform")
+                    Image(systemName: hasText ? "arrow.up" : "sparkle")
                         .font(.system(size: 19, weight: hasText ? .bold : .semibold))
                         .foregroundColor(.white)
                 }
