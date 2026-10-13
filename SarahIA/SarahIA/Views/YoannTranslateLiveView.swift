@@ -412,6 +412,19 @@ public struct YoannTranslateLiveView: View {
                     }
                     .disabled(!live.isActive)
                     .accessibilityIdentifier("translateLiveSettingsTestSpeaker")
+                    Button {
+                        live.testOfflineTranslation()
+                    } label: {
+                        Label("Tester Qwen3 hors ligne (sans micro)", systemImage: "character.bubble")
+                            .font(.headline)
+                    }
+                    .disabled(!live.isActive || live.isTranslating)
+                    .accessibilityIdentifier("translateLiveSettingsTestTranslation")
+                    if !live.translationDiagnostic.isEmpty {
+                        Text(live.translationDiagnostic)
+                            .foregroundColor(.cyan)
+                            .accessibilityLabel(live.translationDiagnostic)
+                    }
                     if !live.headphoneConnected {
                         Text("Sans écouteurs, la voix émise par le haut-parleur peut être reprise par le microphone.")
                     }
