@@ -5,7 +5,6 @@ import Foundation
 /// Interactive, real-data worldwide map inside Sarah's chat.
 /// MapLibre + OpenFreeMap vector tiles; Nominatim + Overpass are called ONLY
 /// following an explicit search. All results come from the network, never mocks.
-@available(iOS 15.0, *)
 public enum SarahMapIntent {
     public static func wantsMap(_ text: String) -> Bool {
         let n = text.folding(options: [.diacriticInsensitive, .caseInsensitive],
