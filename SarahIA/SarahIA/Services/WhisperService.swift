@@ -741,6 +741,15 @@ public final class WhisperService: ObservableObject {
             var pieces: [String] = []
             if count > 0 {
                 for index in 0..<count {
+                    // The microphone energy detector also triggers on television
+                    // music and background noise. Reject Whisper segments that
+                    // the model itself marks as likely non-speech before the
+                    // words reach captions, Qwen or French speech synthesis.
+                    // Normal Sarah conversation keeps its existing behavior.
+                    if deliverToLive {
+                        let noSpeech = whisper_full_get_segment_no_speech_prob(context, index)
+                        if noSpeech.isFinite && noSpeech >= 0.72 { continue }
+                    }
                     if let cText = whisper_full_get_segment_text(context, index) {
                         let text = String(cString: cText).trimmingCharacters(in: .whitespacesAndNewlines)
                         if !text.isEmpty { pieces.append(text) }
