@@ -1,0 +1,30 @@
+{
+  "name": "Sarah IA",
+  "identifier": "com.200012yoel.SarahIA.source",
+  "sourceURL": "https://raw.githubusercontent.com/200012Yoel/SarahAI/claude/github-pro-connection-io7of3/sidestore.json",
+  "apps": [
+    {
+      "name": "Sarah IA · Translate Live",
+      "bundleIdentifier": "com.200012yoel.SarahIA",
+      "version": "1.0",
+      "versionDescription": "Whisper Medium + Apple Translation, live TV subtitles without headphones",
+      "downloadURL": "https://github.com/200012Yoel/SarahAI/releases/download/sarah-ia-translate-live/SarahIA.ipa",
+      "iconURL": "",
+      "tintColor": "007AFF",
+      "permissions": [
+        {
+          "type": "photos",
+          "usageDescription": "Sarah needs access to photos for document import"
+        },
+        {
+          "type": "microphone",
+          "usageDescription": "Sarah uses the microphone for continuous voice input and translation"
+        },
+        {
+          "type": "network",
+          "usageDescription": "Sarah connects to Apple Translation services"
+        }
+      ]
+    }
+  ]
+}
