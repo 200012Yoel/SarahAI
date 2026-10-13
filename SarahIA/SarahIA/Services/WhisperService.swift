@@ -804,6 +804,11 @@ public final class WhisperService: ObservableObject {
                     completion?(nil)
                     return
                 }
+                // Clear stale subtitles if a segment was decoded but every
+                // hypothesis was rejected as non-speech. Never feed it to Qwen.
+                if deliverToLive && count > 0 && text.isEmpty {
+                    self.onLiveInterpretationError?("Whisper : aucune parole fiable dans cet extrait.")
+                }
                 self.currentText = text
                 if deliverToLive {
                     if let englishPivot, dualDecodeEnglish {
