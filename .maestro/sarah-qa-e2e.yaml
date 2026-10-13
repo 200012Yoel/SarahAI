@@ -12,10 +12,12 @@ appId: com.sarahia.app
 - assertVisible:
     id: "translateLiveOriginalBottomHalf"
 - takeScreenshot: qa-artifacts/02-translate-live
-- tapOn:
-    id: "translateLive.startStop"
+# Translate Live starts listening automatically on presentation.
+# The microphone status is observable even without a physical TV feed.
 - assertVisible:
     id: "translateLive.pipelineStatus"
+- assertVisible:
+    id: "translateLive.micStatus"
 - takeScreenshot: qa-artifacts/03-translate-live-ecoute
 # This simulator check cannot verify physical iPhone microphone, TV, echo
 # cancellation or Bluetooth audio; those require physical-device QA.
