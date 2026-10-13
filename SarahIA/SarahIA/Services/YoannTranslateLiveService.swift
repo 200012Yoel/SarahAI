@@ -854,6 +854,17 @@ public final class YoannTranslateLiveService: ObservableObject {
             appendTranslated(text: output, original: original, token: token)
         case .unavailable(let reason):
             errorMessage = reason
+            // A bundled Qwen model can exist but fail to initialize under
+            // iOS memory pressure. Fall back to real offline translation
+            // instead of repeatedly retrying a broken GGUF inference.
+            if isUsingLocalQwen && reason.hasPrefix("Qwen3 local :")
+                && shouldAttemptSystemTranslation
+                && customTranslationServerURL.isEmpty {
+                isUsingLocalQwen = false
+                isSystemTranslationReady = false
+                translationSetupMessage = "Qwen3 n'a pas pu démarrer. Basculement vers le relais Whisper et traduction iOS…"
+                requestEnglishPivot(token: token)
+            }
         }
         translateNext(token: token)
         updateStatus()
