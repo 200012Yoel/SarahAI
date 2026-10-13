@@ -164,7 +164,7 @@ public final class LocalVisionEngine {
                     let barcodeRequest = VNDetectBarcodesRequest()
                     let classifyRequest = VNClassifyImageRequest()
                     let textRequest = VNRecognizeTextRequest()
-                    textRequest.recognitionLevel = .fast
+                    textRequest.recognitionLevel = .accurate
                     textRequest.usesLanguageCorrection = true
                     
                     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
@@ -244,10 +244,16 @@ public final class LocalVisionEngine {
                     return
                 }
                 
-                // Détection de substitution par défaut
-                detectedFrench = "objet devant la caméra"
-                detectedEmoji = "📷"
-                detectedArticle = "un"
+                // No model detection: report uncertainty rather than
+                // fabricating an object classification or a confidence score.
+                let unknown = VisionAnalysisResult(
+                    objectLabel: "non identifié",
+                    naturalSpokenResponse: "Je n'arrive pas à identifier précisément ce que montre cette image. Essaie une photo plus nette ou mieux éclairée.",
+                    detectedText: "",
+                    confidence: 0
+                )
+                DispatchQueue.main.async { completion(unknown) }
+                return
             }
             
             // 2. Formulation naturelle de Sarah (« C'est une bouteille », « Je vois un piano »)
@@ -273,7 +279,7 @@ public final class LocalVisionEngine {
                 objectLabel: detectedFrench,
                 naturalSpokenResponse: spokenResponse,
                 detectedText: recognizedText,
-                confidence: highestConfidence > 0 ? highestConfidence : 0.75
+                confidence: highestConfidence
             )
             
             DispatchQueue.main.async {
