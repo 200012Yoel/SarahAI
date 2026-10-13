@@ -1006,6 +1006,21 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(userMessage)
         inputText = ""
 
+        // A genuine geocoded world-map card, with live OSM businesses, is
+        // part of the conversation, not a fabricated AI location answer.
+        if SarahMapIntent.wantsMap(text) {
+            appendMessage(Message(
+                content: SarahMapIntent.payload(text),
+                isFromUser: false,
+                agentID: AgentType.sarah.rawValue
+            ))
+            isTyping = false
+            if isContinuousConversationActive {
+                voiceManager.speak(text: "J'ouvre la carte du monde en trois dimensions. Je cherche le lieu demandé.", for: .sarah)
+            }
+            return
+        }
+
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
         // Le même parcours sert aussi à reprendre et améliorer la dernière maquette créée.
         if WebsiteBrief.shouldOpenBuilder(for: text) {
