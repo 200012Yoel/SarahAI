@@ -802,7 +802,8 @@ public final class YoannTranslateLiveService: ObservableObject {
             serverURL: customTranslationServerURL
         ) { [weak self] outcome in
             DispatchQueue.main.async {
-                self?.finishTranslation(outcome, original: fragment.source, token: token)
+                self?.finishTranslation(outcome, original: fragment.source, token: token,
+                                        capturedAt: fragment.capturedAt)
             }
         }
         updateStatus()
