@@ -103,6 +103,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var incoming: [PendingTranslation] = []
     private var outgoing: [Segment] = []
     private var translationBusy = false
+    private var consecutiveQwenFailures = 0
     private var contextBuffer = TranslateLiveContextBuffer()
     private var routeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
@@ -147,6 +148,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         incoming.removeAll()
         outgoing.removeAll()
         translationBusy = false
+        consecutiveQwenFailures = 0
         isTranslating = false
         isSpeakingTranslation = false
         waitingTranslations = 0
@@ -526,6 +528,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         needsEnglishPivotTranslation = false
         isUsingEnglishPivot = false
         isUsingLocalQwen = true
+        consecutiveQwenFailures = 0
         whisper.liveDualDecodeEnglish = false
         preparingSystemTranslation = false
         isSystemTranslationReady = true
@@ -749,7 +752,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         waitingTranslations = incoming.count
         // If Qwen took too long for the previous sentence, skip a queued
         // fragment that's already far behind live broadcast time.
-        if Date().timeIntervalSince(fragment.capturedAt) > 9.0 {
+        if Date().timeIntervalSince(fragment.capturedAt) > 9.0 && !incoming.isEmpty {
             translationBusy = false
             isTranslating = false
             errorMessage = "Le direct a avancé : extrait trop ancien ignoré."
@@ -851,19 +854,24 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         switch outcome {
         case .translated(let output):
+            consecutiveQwenFailures = 0
             appendTranslated(text: output, original: original, token: token)
         case .unavailable(let reason):
             errorMessage = reason
-            // A bundled Qwen model can exist but fail to initialize under
-            // iOS memory pressure. Fall back to real offline translation
-            // instead of repeatedly retrying a broken GGUF inference.
-            if isUsingLocalQwen && reason.hasPrefix("Qwen3 local :")
-                && shouldAttemptSystemTranslation
-                && customTranslationServerURL.isEmpty {
-                isUsingLocalQwen = false
-                isSystemTranslationReady = false
-                translationSetupMessage = "Qwen3 n'a pas pu démarrer. Basculement vers le relais Whisper et traduction iOS…"
-                requestEnglishPivot(token: token)
+            if isUsingLocalQwen {
+                consecutiveQwenFailures += 1
+                // Runtime memory errors trigger an immediate recovery. Two
+                // unusable neural outputs also trigger a real fallback instead
+                // of leaving television captions permanently untranslated.
+                let hardFailure = reason.hasPrefix("Qwen3 local :")
+                if (hardFailure || consecutiveQwenFailures >= 2)
+                    && shouldAttemptSystemTranslation
+                    && customTranslationServerURL.isEmpty {
+                    isUsingLocalQwen = false
+                    isSystemTranslationReady = false
+                    translationSetupMessage = "Qwen3 ne parvient pas à traduire ce flux. Préparation du relais Whisper → anglais → français…"
+                    requestEnglishPivot(token: token)
+                }
             }
         }
         translateNext(token: token)
