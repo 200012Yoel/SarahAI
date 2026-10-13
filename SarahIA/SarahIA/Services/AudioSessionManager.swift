@@ -121,14 +121,20 @@ public final class AudioSessionManager {
             stateLock.lock()
             let interpreterMode = interpreterPrefersPhoneMicrophone
             stateLock.unlock()
-            // Bluetooth output is essential for headphone interpretation.
-            // A2DP carries high-quality speech output, while HFP allows
-            // duplex fallback when the hardware does not support independent
-            // built-in microphone + Bluetooth playback.
-            // Do not disable Bluetooth just to prefer the iPhone microphone.
-            let audioOptions: AVAudioSession.CategoryOptions = interpreterMode
-                ? [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
-                : [.defaultToSpeaker, .allowBluetooth]
+            // On iOS, enabling HFP *and* A2DP gives HFP priority.
+            // That silently switches the microphone to the earbuds and
+            // prevents reliable pickup of an external television.
+            // Translate Live uses A2DP output-only so the built-in iPhone
+            // microphone can remain the input. Ordinary Sarah keeps HFP.
+            // The experimental phone speaker mode does not use Bluetooth.
+            let audioOptions: AVAudioSession.CategoryOptions
+            if interpreterMode {
+                audioOptions = currentInterpreterOutputMode == .headphones
+                    ? [.defaultToSpeaker, .allowBluetoothA2DP]
+                    : [.defaultToSpeaker]
+            } else {
+                audioOptions = [.defaultToSpeaker, .allowBluetooth]
+            }
             try session.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
