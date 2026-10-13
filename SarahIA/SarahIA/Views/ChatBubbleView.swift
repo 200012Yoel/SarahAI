@@ -126,7 +126,9 @@ public struct ChatBubbleView: View {
                 }
 
                 if !message.isVisionReport {
-                    let rawContent = message.contentWithoutInlinePayloads
+                    let rawContent = message.isFromUser
+                        ? message.contentWithoutInlinePayloads
+                        : SarahResponseCleaner.clean(message.contentWithoutInlinePayloads)
                     let displayContent: String = {
                         if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
                             let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
