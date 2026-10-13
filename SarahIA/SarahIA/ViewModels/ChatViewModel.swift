@@ -1046,7 +1046,10 @@ public final class ChatViewModel: ObservableObject {
                 }
                 
                 let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
-                var responseContent = rawText.decodingHTMLEntities()
+                var responseContent = SarahResponseCleaner.clean(rawText.decodingHTMLEntities())
+                if responseContent.isEmpty {
+                    responseContent = "Je n'ai pas obtenu de réponse finale lisible. Réessaie, s'il te plaît."
+                }
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
@@ -1077,9 +1080,10 @@ public final class ChatViewModel: ObservableObject {
                             targetAgent: response.agent
                         )
                     } else {
-                        let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText)
+                        let candidate = (response.spokenText.isEmpty ? responseContent : response.spokenText)
                             .decodingHTMLEntities()
-                        self.voiceManager.speak(text: spoken, for: response.agent)
+                        let spoken = SarahResponseCleaner.clean(candidate)
+                        self.voiceManager.speak(text: spoken.isEmpty ? responseContent : spoken, for: response.agent)
                     }
                 }
             }
