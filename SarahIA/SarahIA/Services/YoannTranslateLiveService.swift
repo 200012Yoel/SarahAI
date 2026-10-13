@@ -238,6 +238,12 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         whisper.onLiveInterpretationError = { [weak self] message in
             guard let self, self.isActive, self.sessionToken == token else { return }
+            if message.hasPrefix("Whisper : aucune parole fiable") {
+                // A rejected music/noise chunk must not leave its preceding
+                // caption visible as though these were current TV words.
+                self.lastSource = ""
+                self.provisionalSource = ""
+            }
             self.errorMessage = message
             self.updateStatus()
         }
