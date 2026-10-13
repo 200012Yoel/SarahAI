@@ -158,7 +158,11 @@ public final class ChatViewModel: ObservableObject {
 
 
     public func appendVisionAnalysis(image: UIImage, result: LocalVisionEngine.VisionAnalysisResult) {
-        let imageData = image.jpegData(compressionQuality: 0.88)
+        // Limit persisted camera images to prevent memory pressure or a large
+        // conversation archive from repeatedly crashing older iPhones.
+        let imageData = LocalVisionEngine.prepareImageForAnalysis(
+            image, maxDimension: 1080, quality: 0.76
+        )?.data
         let textSuffix = result.detectedText.isEmpty ? "" : "\n\n📝 **Texte détecté** : \(result.detectedText)"
         appendMessage(
             Message(
