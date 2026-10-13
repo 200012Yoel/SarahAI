@@ -496,13 +496,15 @@ public final class YoannTranslateLiveService: ObservableObject {
             }
             // Keep newest words rather than replaying several old news
             // sentences. TV/radio broadcasts do not wait for inference.
-            if !incoming.isEmpty {
-                incoming.removeAll(keepingCapacity: true)
-                errorMessage = "Yoann rattrape le direct : un ancien extrait a été remplacé."
-            }
             incoming.append(PendingTranslation(
                 source: stable, input: stable, fromEnglishPivot: false
             ))
+            // Preserve one additional pending TV phrase while decoding Qwen.
+            // Keep the queue bounded so live broadcasts cannot build backlog.
+            if incoming.count > 2 {
+                incoming.removeFirst(incoming.count - 2)
+                errorMessage = "Yoann rattrape le direct : extraits les plus récents prioritaires."
+            }
         }
         waitingTranslations = incoming.count
         translateNext(token: token)
@@ -550,13 +552,13 @@ public final class YoannTranslateLiveService: ObservableObject {
         lastSource = hebrew
         provisionalSource = ""
         recentSourceContext = hebrew
-        if !incoming.isEmpty {
-            incoming.removeAll(keepingCapacity: true)
-            errorMessage = "Yoann rattrape le direct : un ancien extrait a été remplacé."
-        }
         incoming.append(PendingTranslation(
             source: hebrew, input: intermediate, fromEnglishPivot: true
         ))
+        if incoming.count > 2 {
+            incoming.removeFirst(incoming.count - 2)
+            errorMessage = "Yoann rattrape le direct : extraits les plus récents prioritaires."
+        }
         waitingTranslations = incoming.count
         translateNext(token: token)
         updateStatus()
