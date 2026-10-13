@@ -34,7 +34,6 @@
 		A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */; };
 		A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000027 /* ClipboardCompanion.swift */; };
 		A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000028 /* WakeWordDetector.swift */; };
-		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
 		A1B2C3D40001000100000030 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000030 /* SidebarView.swift */; };
 		A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000031 /* ChatScreenView.swift */; };
 		A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */; };
@@ -144,7 +143,6 @@
 		A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalScriptSandbox.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000027 /* ClipboardCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCompanion.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000028 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000031 /* ChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreenView.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWorldMapCard.swift; sourceTree = "<group>"; };
@@ -304,7 +302,6 @@
 				A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */,
 				A1B2C3D40002000100000027 /* ClipboardCompanion.swift */,
 				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
-				A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */,
 				A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */,
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
@@ -502,7 +499,6 @@
 				A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */,
 				A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */,
 				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
-				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
 				A1B2C3D40001000100000030 /* SidebarView.swift in Sources */,
 				A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */,
 				A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */,
