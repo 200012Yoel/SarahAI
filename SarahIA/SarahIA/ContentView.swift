@@ -107,6 +107,13 @@ public struct ContentView: View {
                 WhisperService.shared.prepareModel()
             }
         }
+        // The compact voice surface can remain active after the sheet is dismissed.
+        // Always stop microphone capture when the whole app enters the background.
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            if viewModel.isContinuousConversationActive {
+                viewModel.stopVoiceConversation()
+            }
+        }
         .onChange(of: isShowingSettings) { isPresented in
             if isPresented {
                 viewModel.closeDrawer()

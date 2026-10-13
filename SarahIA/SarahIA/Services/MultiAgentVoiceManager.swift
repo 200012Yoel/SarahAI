@@ -14,6 +14,14 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     public var onSpeechStarted: (() -> Void)?
     public var onSpeechFinished: (() -> Void)?
     private var pendingSpeechBlock: (() -> Void)? = nil
+    // Website builder cards are narrated using actual TTS completions, not timers.
+    private var websiteGuideSequenceTexts: [String] = []
+    private var websiteGuideSequenceAgent: AgentType?
+    private var websiteGuideSequenceIndex = 0
+    private var websiteGuideItemStarted: ((Int) -> Void)?
+    private var websiteGuideCompletion: (() -> Void)?
+    private var isWebsiteGuideSequenceActive = false
+    private var suppressNextCancelCallback = false
     
     // Cache de voix résolues et garanties 100% uniques et distinctes par agent
     private var agentVoices: [AgentType: AVSpeechSynthesisVoice] = [:]
@@ -294,6 +302,90 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         return AVSpeechUtterance(attributedString: attributedText)
     }
     
+    private func clearWebsiteGuideSequence() {
+        websiteGuideSequenceTexts = []
+        websiteGuideSequenceAgent = nil
+        websiteGuideSequenceIndex = 0
+        websiteGuideItemStarted = nil
+        websiteGuideCompletion = nil
+        isWebsiteGuideSequenceActive = false
+    }
+
+    private func stopForWebsiteGuideReplacement() {
+        pendingSpeechBlock = nil
+        clearWebsiteGuideSequence()
+        if synthesizer.isSpeaking {
+            suppressNextCancelCallback = true
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+    }
+
+    private func websiteGuideUtterance(text: String, agent: AgentType) -> AVSpeechUtterance {
+        let utterance = makeUtterance(text: text)
+        utterance.voice = getSiriVoice(for: agent)
+        switch agent {
+        case .sarah:
+            utterance.pitchMultiplier = 1.05
+            utterance.rate = 0.51
+        case .nathan:
+            utterance.pitchMultiplier = 0.95
+            utterance.rate = 0.53
+        case .esther:
+            utterance.pitchMultiplier = 1.12
+            utterance.rate = 0.49
+        case .tom:
+            utterance.pitchMultiplier = 0.84
+            utterance.rate = 0.46
+        case .yohan:
+            utterance.pitchMultiplier = 0.91
+            utterance.rate = 0.50
+        case .ethel:
+            utterance.pitchMultiplier = 1.18
+            utterance.rate = 0.48
+        }
+        return utterance
+    }
+
+    private func speakNextWebsiteGuideItem() {
+        guard isWebsiteGuideSequenceActive,
+              let agent = websiteGuideSequenceAgent,
+              websiteGuideSequenceIndex < websiteGuideSequenceTexts.count else { return }
+
+        let index = websiteGuideSequenceIndex
+        let text = websiteGuideSequenceTexts[index]
+        currentSpokenText = text
+        websiteGuideItemStarted?(index)
+        AudioSessionManager.shared.configurePlaybackSession()
+        synthesizer.speak(websiteGuideUtterance(text: text, agent: agent))
+    }
+
+    /// Read each builder option in sync with AVSpeechSynthesizer completion.
+    public func speakSequence(
+        texts: [String],
+        for agent: AgentType,
+        onItemStart: @escaping (Int) -> Void,
+        completion: @escaping () -> Void
+    ) {
+        if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+            WhisperSpeechRecognizer.shared.stopListening()
+        }
+
+        stopForWebsiteGuideReplacement()
+        let cleaned = texts.map(cleanTextForSpeech).filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else {
+            completion()
+            return
+        }
+
+        websiteGuideSequenceTexts = cleaned
+        websiteGuideSequenceAgent = agent
+        websiteGuideSequenceIndex = 0
+        websiteGuideItemStarted = onItemStart
+        websiteGuideCompletion = completion
+        isWebsiteGuideSequenceActive = true
+        speakNextWebsiteGuideItem()
+    }
+
     /// Énonciation vocale dédiée pour l'agent ciblé avec timbre Siri personnalisé
     public func speak(text: String, as agent: AgentPersona, rate: Float = AVSpeechUtteranceDefaultSpeechRate) {
         // Hors mode vocal continu, on conserve le comportement mono-source.
@@ -403,6 +495,7 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
     
     public func stop() {
         pendingSpeechBlock = nil
+        clearWebsiteGuideSequence()
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -428,14 +521,36 @@ public final class AgentVoiceManager: NSObject, AVSpeechSynthesizerDelegate {
         if let next = pendingSpeechBlock {
             pendingSpeechBlock = nil
             next()
-        } else {
+            return
+        }
+
+        if isWebsiteGuideSequenceActive {
+            websiteGuideSequenceIndex += 1
+            if websiteGuideSequenceIndex < websiteGuideSequenceTexts.count {
+                speakNextWebsiteGuideItem()
+                return
+            }
+
+            let completion = websiteGuideCompletion
+            clearWebsiteGuideSequence()
             currentSpokenText = ""
+            completion?()
             AudioSessionManager.shared.deactivateSession()
             onSpeechFinished?()
+            return
         }
+
+        currentSpokenText = ""
+        AudioSessionManager.shared.deactivateSession()
+        onSpeechFinished?()
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        if suppressNextCancelCallback {
+            suppressNextCancelCallback = false
+            return
+        }
+        clearWebsiteGuideSequence()
         currentSpokenText = ""
         AudioSessionManager.shared.deactivateSession()
         onSpeechFinished?()

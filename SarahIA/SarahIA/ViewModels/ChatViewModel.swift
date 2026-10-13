@@ -76,6 +76,8 @@ public final class ChatViewModel: ObservableObject {
     private var isVoicePipelinePrepared = false
     private var shouldResumeVoiceAfterSystemInterruption = false
     private var websiteGenerationID = UUID()
+    // A cancelled or superseded request must never publish a late reply.
+    private var messageGenerationID = UUID()
     private var isBargeInMonitorActive = false
     
     public init() {
@@ -285,6 +287,9 @@ public final class ChatViewModel: ObservableObject {
         if !silently { haptics.buttonTap() }
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
+        isTyping = false
         let newSessionId = UUID()
         currentConversationId = newSessionId
         messages = []
@@ -305,6 +310,9 @@ public final class ChatViewModel: ObservableObject {
         haptics.buttonTap()
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
+        isTyping = false
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -535,6 +543,48 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    /// Read a contextual instruction without stopping the live microphone session.
+    public func speakWebsiteGuide(_ text: String) {
+        ensureVoicePipelinePrepared()
+        guard isContinuousConversationActive else { return }
+        activeAgent = .esther
+        voiceManager.speak(text: text, for: .esther)
+    }
+
+    /// Highlight builder cards as their own audio finishes rather than using timers.
+    public func speakWebsiteGuideSequence(
+        _ texts: [String],
+        onItemStart: @escaping (Int) -> Void,
+        completion: @escaping () -> Void
+    ) {
+        ensureVoicePipelinePrepared()
+        guard isContinuousConversationActive else {
+            completion()
+            return
+        }
+        activeAgent = .esther
+        voiceManager.speakSequence(
+            texts: texts,
+            for: .esther,
+            onItemStart: onItemStart,
+            completion: completion
+        )
+    }
+
+    /// Cancel narration only; keep the user's voice conversation alive.
+    public func cancelWebsiteGuideSpeech() {
+        guard isContinuousConversationActive else { return }
+        voiceManager.stop()
+        currentSpeakingText = nil
+        isSpeaking = false
+        if !isVoiceMicrophoneMuted && !WhisperSpeechRecognizer.shared.isListening {
+            WhisperSpeechRecognizer.shared.startListening(
+                autoFinalizeOnSilence: true,
+                preserveActiveSpeech: true
+            )
+        }
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -626,9 +676,12 @@ public final class ChatViewModel: ObservableObject {
     
     public func cancelCurrentGeneration() {
         haptics.buttonTap()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
         isTyping = false
         voiceStatus = .idle
         AIProgressiveScheduler.shared.cancelAllTasks()
+        voiceManager.stop()
     }
 
     // MARK: - Envoi de Message & Orchestration Multi-Agents
@@ -636,7 +689,9 @@ public final class ChatViewModel: ObservableObject {
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        
+        let generationID = UUID()
+        messageGenerationID = generationID
+
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
@@ -671,7 +726,8 @@ public final class ChatViewModel: ObservableObject {
             DispatchQueue.main.async {
                 // Une réponse calculée pour une ancienne discussion ne doit jamais réapparaître
                 // dans un nouveau chat après un redémarrage, un archivage ou un changement de fil.
-                guard self.currentConversationId == responseConversationID else { return }
+                guard self.currentConversationId == responseConversationID,
+                      self.messageGenerationID == generationID else { return }
                 // Basculer l'agent actif selon la décision de routage / passation de main
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     self.activeAgent = response.agent
