@@ -518,14 +518,14 @@ public final class WhisperService: ObservableObject {
         _ audio: [Float], endsAtPause: Bool, generation: UUID
     ) {
         guard isLiveInterpreting, self.generation == generation else { return }
-        // Live radio cannot pause. A one-item pending queue retains only
-        // the newest complete chunk while inference is already underway.
-        // This prevents an ever-growing subtitle/voice delay on iPhone.
-        if !livePendingChunks.isEmpty {
-            livePendingChunks.removeAll(keepingCapacity: true)
-            onLiveInterpretationError?("Traduction en direct : un extrait ancien a été remplacé par des paroles plus récentes.")
-        }
+        // Keep at most two recent audio windows waiting while the current
+        // decode runs. Dropping every queued window loses entire TV phrases
+        // during ordinary CPU spikes. A strict bound prevents runaway lag.
         livePendingChunks.append(LiveChunk(audio: audio, endsAtPause: endsAtPause))
+        if livePendingChunks.count > 2 {
+            livePendingChunks.removeFirst(livePendingChunks.count - 2)
+            onLiveInterpretationError?("Le direct est plus rapide que le décodage audio. Certains passages ont été ignorés.")
+        }
         drainLiveChunks(generation: generation)
     }
 
