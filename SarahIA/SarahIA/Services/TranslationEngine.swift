@@ -170,14 +170,14 @@ public final class TranslationEngine {
         }
         
         guard NetworkMonitor.shared.isOnline else {
-            completion(clean)
+            completion("Traduction indisponible hors connexion pour cette phrase.")
             return
         }
         
         // 2. Requête API distante sécurisée avec timeout 4s
         guard let encoded = clean.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=\(sourceLang)|\(targetLang.rawValue)") else {
-            completion(clean)
+            completion("Traduction indisponible : requête invalide.")
             return
         }
         
@@ -192,8 +192,8 @@ public final class TranslationEngine {
                !translatedText.lowercased().contains("no query specified") {
                 completion(translatedText)
             } else {
-                // Fallback sur le texte d'origine
-                completion(clean)
+                // Never mislabel the untranslated source as a translation.
+                completion("Traduction momentanément indisponible.")
             }
         }.resume()
     }
