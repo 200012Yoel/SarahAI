@@ -150,7 +150,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         // Un deep link peut être à l'origine même de la création de la scène.
         if let url = connectionOptions.urlContexts.first?.url {
-            AppDelegate.handleDeepLink(url)
+            // A cold-start URL arrives before SwiftUI has subscribed to
+            // SarahOpenDeepLink. Re-deliver after the root view is mounted.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                AppDelegate.handleDeepLink(url)
+            }
         }
     }
 
