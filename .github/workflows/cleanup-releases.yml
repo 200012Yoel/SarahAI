@@ -1,0 +1,63 @@
+name: Nettoyage des anciennes IPA
+
+# Lancement manuel uniquement : Actions › Nettoyage des anciennes IPA ›
+# Run workflow, puis taper SUPPRIMER dans le champ de confirmation.
+# Supprime les releases (et leurs tags) sauf celles listées à garder, et
+# désactive le workflow Neural Voice Migration Preflight. L'historique des
+# builds n'est pas modifié.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Tape SUPPRIMER pour confirmer (action définitive)'
+        required: true
+        default: ''
+      keep_releases:
+        description: 'Tags des releases à garder (séparés par des espaces)'
+        required: false
+        default: 'sarah-ia-4.0-latest sarah-ia-translate-live'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cleanup:
+    if: inputs.confirm == 'SUPPRIMER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      KEEP: ${{ inputs.keep_releases }}
+    steps:
+      - name: Supprimer les releases (sauf celles à garder) et leurs tags
+        run: |
+          set -uo pipefail
+          deleted=0
+          gh api --paginate "repos/$REPO/releases?per_page=100" \
+            --jq '.[] | "\(.id) \(.tag_name)"' > releases.txt
+          while read -r id tag; do
+            if [[ " $KEEP " == *" $tag "* ]]; then
+              echo "Gardée : $tag"
+              continue
+            fi
+            if gh api -X DELETE "repos/$REPO/releases/$id" --silent; then
+              gh api -X DELETE "repos/$REPO/git/refs/tags/$tag" --silent || true
+              deleted=$((deleted + 1))
+            else
+              echo "Échec : $tag"
+            fi
+          done < releases.txt
+          echo "Releases supprimées : $deleted"
+
+      - name: Désactiver le workflow Neural Voice Migration Preflight
+        run: |
+          id=$(gh api "repos/$REPO/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.name == "Neural Voice Migration Preflight") | .id')
+          if [ -z "$id" ]; then
+            echo "Workflow introuvable"
+          else
+            gh api -X PUT "repos/$REPO/actions/workflows/$id/disable" --silent \
+              && echo "Workflow désactivé" || echo "Désactivation impossible"
+          fi
