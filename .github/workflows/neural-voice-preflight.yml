@@ -1,0 +1,149 @@
+name: Neural Voice Migration Preflight
+
+on:
+  push:
+    branches:
+      - feature/neural-voices-whisper-only-20261011
+  pull_request:
+    paths:
+      - 'SarahIA/**'
+      - 'docs/VOICE_LICENSES.md'
+      - '.github/workflows/neural-voice-preflight.yml'
+
+jobs:
+  static-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify modern on-device voice pipeline
+        run: |
+          set -euo pipefail
+          test -s docs/VOICE_LICENSES.md
+          grep -q 'import whisper' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'whisper_full(' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'import SherpaOnnx' SarahIA/SarahIA/Services/NeuralVoiceService.swift
+          grep -q 'SherpaOnnxOfflineTtsWrapper' SarahIA/SarahIA/Services/NeuralVoiceService.swift
+          grep -q 'Supertonic3' .github/workflows/ios-build.yml
+          grep -q 'OpenRAIL-M' docs/VOICE_LICENSES.md
+          grep -q '1.13.8' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'func commandPair(' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'whisper.stopLiveInterpretation()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'neural.onPlaybackFinished' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'startLiveInterpretation()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'YoannTranslateLiveView(' SarahIA/SarahIA/ContentView.swift
+          grep -q 'YoannTranslateLiveService.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'YoannTranslateLiveView.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'TranslateLiveLanguages.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'TranslateLiveTranslationBackend.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'TranslateLiveContextBuffer.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -q 'initial_prompt' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'recentSourceContext' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'provisionalSource' SarahIA/SarahIA/Views/YoannTranslateLiveView.swift
+          grep -q 'translateSpeechToEnglish' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'spokenOutputCodes' SarahIA/SarahIA/Services/TranslateLiveLanguages.swift
+          grep -q 'validatedURL' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
+          grep -q 'func startLiveInterpretation()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'func stopLiveInterpretation()' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'let liveSilenceThreshold' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'onLiveInterpretationChunk' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'let part = outgoing.removeFirst()' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'scheduleNextListen' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          # Regression guard: real iPhone input bus and empty-result recovery.
+          grep -q 'input.outputFormat(forBus: 0)' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'self.onFinalTranscription?(text)' SarahIA/SarahIA/Services/WhisperService.swift
+          # Voice reliability regression: "allô" must not wait behind a
+          # 30-second noise-locked VAD, and the app must recover a dead mic.
+          grep -q 'private var desiredModelName: String { "ggml-base" }' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'private let maximumUtteranceSeconds: Double = 7.5' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'isMicrophoneEngineRunning' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
+          grep -q 'watchVoiceMicrophone(generation:' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'rearmMicrophoneAfterSilence' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'func retryVoiceMicrophone' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'Bienvenue dans Sarah' SarahIA/SarahIA/Views/MessageList.swift
+          grep -q 'case .starting:' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          # Regression: a minimized voice session keeps its bubble above the composer.
+          grep -q 'private var compactVoiceBubble:' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'sarah.voice.compactOrb' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'sarah.voice.compactStop' SarahIA/SarahIA/Views/ChatScreenView.swift
+          ! grep -q 'private var compactVoiceOrb:' SarahIA/SarahIA/ContentView.swift
+          ! sed -n '/private func closeVoiceSurface()/,/^    }/p' SarahIA/SarahIA/Views/VoiceOrbModalView.swift | grep -q 'stopVoiceConversation()'
+          ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
+          test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
+          # Production release must not contain synthetic French or Hebrew
+          # demonstration utterances masquerading as a live result.
+          ! grep -q 'testFrenchSpeaker' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'testOfflineTranslation' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'Ceci est un test en arrière-plan réussi' SarahIA/SarahIA/Services/AIService.swift
+          ! grep -q '\[DEBUG\]' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'if !localEnglishTranslation' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'livePendingChunks.count > 2' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'SarahResponseCleaner.clean' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
+          # Camera, Vision and Sarah Intelligence regressions.
+          grep -q '<key>NSCameraUsageDescription</key>' SarahIA/SarahIA/Info.plist
+          grep -q '<key>NSPhotoLibraryUsageDescription</key>' SarahIA/SarahIA/Info.plist
+          grep -q 'AVCaptureDevice.authorizationStatus(for: .video)' SarahIA/SarahIA/Views/ChatScreenView.swift
+          grep -q 'AVCaptureDevice.authorizationStatus(for: .video)' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          grep -q 'VNClassifyImageRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
+          grep -q 'VNRecognizeTextRequest()' SarahIA/SarahIA/Services/LocalVisionEngine.swift
+          grep -q 'NSCameraUsageDescription' SarahIA/SarahIA/Info.plist
+          grep -q 'openCameraSafely()' SarahIA/SarahIA/Views/VoiceOrbModalView.swift
+          ! grep -q 'SarahIntelligenceAccessibilitySettingsView' SarahIA/SarahIA/Views/SettingsView.swift
+          echo 'Static voice, camera and map checks passed'
+      - name: Swift syntax parsing
+        run: |
+          set -euo pipefail
+          for swift in \
+            SarahIA/SarahIA/Services/NeuralVoiceService.swift \
+            SarahIA/SarahIA/Services/YoannTranslateLiveService.swift \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
+            SarahIA/SarahIA/Services/TranslateLiveContextBuffer.swift \
+            SarahIA/SarahIA/Views/YoannTranslateLiveView.swift \
+            SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift \
+            SarahIA/SarahIA/Services/SpeechManager.swift \
+            SarahIA/SarahIA/Services/TTSService.swift \
+            SarahIA/SarahIA/Services/TTSManager.swift \
+            SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift \
+            SarahIA/SarahIA/Models/AgentType.swift \
+            SarahIA/SarahIA/ViewModels/ChatViewModel.swift \
+            SarahIA/SarahIA/Services/WhisperService.swift \
+            SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift \
+            SarahIA/SarahIA/Views/VoiceOrbModalView.swift \
+            SarahIA/SarahIA/ContentView.swift \
+            SarahIA/SarahIA/Views/ChatScreenView.swift \
+            SarahIA/SarahIA/Views/SettingsView.swift \
+            SarahIA/SarahIA/Views/SarahWorldMapCard.swift \
+            SarahIA/SarahIA/Views/SarahNavigationOptions.swift \
+            SarahIA/SarahIA/Services/LocalVisionEngine.swift \
+            SarahIA/SarahIA/SarahIAApp.swift \
+            SarahIA/SarahIA/Views/MessageList.swift; do
+            swiftc -frontend -parse "$swift"
+          done
+
+      - name: Run offline Translate Live language tests
+        run: |
+          set -euo pipefail
+          swiftc -O \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
+            tests/TranslateLiveLanguageTests.swift \
+            -o /tmp/sarah_translate_live_language_tests
+          /tmp/sarah_translate_live_language_tests
+
+      - name: Run incremental speech context and English dialect tests
+        run: |
+          set -euo pipefail
+          swiftc -O \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveContextBuffer.swift \
+            tests/TranslateLiveContextTests.swift \
+            -o /tmp/sarah_translate_live_context_tests
+          /tmp/sarah_translate_live_context_tests
+
+      - name: Check real Hebrew French Marian server protocol
+        run: |
+          set -euo pipefail
+          python3 -m py_compile server/translate-live/app.py
+          python3 -m unittest discover -s tests -p 'test_translate_live_server.py' -v
+

@@ -11,6 +11,16 @@ import AVFoundation
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
+    /// Landscape is permitted only while the dedicated interpreter screen is open.
+    static var translateLiveLandscapeOnly = false
+
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        Self.translateLiveLandscapeOnly ? .landscape : .portrait
+    }
+
     /// Conservé uniquement pour compatibilité avec certains appels hérités.
     /// La fenêtre active appartient maintenant à SceneDelegate.
     var window: UIWindow?
@@ -140,7 +150,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         // Un deep link peut être à l'origine même de la création de la scène.
         if let url = connectionOptions.urlContexts.first?.url {
-            AppDelegate.handleDeepLink(url)
+            // A cold-start URL arrives before SwiftUI has subscribed to
+            // SarahOpenDeepLink. Re-deliver after the root view is mounted.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                AppDelegate.handleDeepLink(url)
+            }
         }
     }
 

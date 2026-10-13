@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -12,11 +13,11 @@ public struct VoiceOrbModalView: View {
     private let onOpenMenu: () -> Void
     private let onOpenSettings: () -> Void
 
-    @State private var pulse = false
-    @State private var drift = false
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
+    @State private var isShowingCameraAlert = false
+    @State private var cameraAlertMessage = ""
     @State private var isShowingFileImporter = false
 
     public init(
@@ -29,8 +30,39 @@ public struct VoiceOrbModalView: View {
         self.onOpenSettings = onOpenSettings
     }
 
+    private func openCameraSafely() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            cameraAlertMessage = "Caméra indisponible sur cet appareil. Utilise Photos."
+            isShowingCameraAlert = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            isShowingCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        isShowingCamera = true
+                    } else {
+                        cameraAlertMessage = "Accès refusé. Autorise la caméra dans Réglages iOS → Sarah IA."
+                        isShowingCameraAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            cameraAlertMessage = "Sarah IA ne dispose pas de l'autorisation d'utiliser la caméra."
+            isShowingCameraAlert = true
+        @unknown default:
+            cameraAlertMessage = "La caméra n'est pas disponible."
+            isShowingCameraAlert = true
+        }
+    }
+
+    // Keep the entire existing Voice UI magenta for every agent. Only the
+    // central animated star receives the historical agent color.
     private var accent: Color {
-        viewModel.activeAgent.themeColor
+        Color(red: 1.0, green: 0.18, blue: 0.65)
     }
 
     private var normalizedLevel: CGFloat {
@@ -40,29 +72,56 @@ public struct VoiceOrbModalView: View {
     private var statusTitle: String {
         switch viewModel.voiceStatus {
         case .processing:
-            return "Je réfléchis…"
+            if viewModel.isPreparingVoiceReply {
+                return "\(viewModel.activeAgent.displayName) prépare sa voix…"
+            }
+            if viewModel.isTyping {
+                return "\(viewModel.activeAgent.displayName) réfléchit…"
+            }
+            return WhisperService.shared.isModelLoading
+                ? "Chargement de Whisper…" : "Transcription en cours…"
+        case .starting:
+            return "Activation du microphone…"
         case .speaking:
-            return "Sarah parle"
+            return "\(viewModel.activeAgent.displayName) parle"
         case .error:
             return "Micro indisponible"
-        default:
-            if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Je t’écoute."
-            }
-            return viewModel.isMicRunning ? "Je t’écoute." : "Micro coupé"
+        case .listening:
+            return "Je t'écoute"
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted || !viewModel.isContinuousConversationActive
+                ? "Micro coupé" : "Micro en attente…"
         }
     }
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .error:
-            return "Touchez le micro pour réessayer"
+        case .error(let reason):
+            return reason
+        case .starting:
+            return WhisperService.shared.isModelLoading
+                ? "Initialisation du modèle Whisper sur l'iPhone…"
+                : "Autorise le micro si iOS te le demande."
         case .processing:
-            return "Un instant…"
+            if viewModel.isPreparingVoiceReply {
+                return "Génération locale de la réponse audio…"
+            }
+            if viewModel.isTyping {
+                return "Réponse en cours de préparation."
+            }
+            return WhisperService.shared.isModelLoading
+                ? "Le modèle Whisper démarre sur l'iPhone."
+                : "Whisper analyse la dernière phrase."
         case .speaking:
-            return "Tu peux interrompre Sarah en touchant le micro"
-        default:
-            return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
+            return viewModel.isMicRunning
+                ? "Tu peux parler pour interrompre \(viewModel.activeAgent.displayName)."
+                : "\(viewModel.activeAgent.displayName) parle. Réactivation du micro…"
+        case .listening:
+            return "Parle normalement, \(viewModel.activeAgent.displayName) écoute."
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted
+                ? "Touche le micro pour reprendre."
+                : "Touche le micro pour parler."
         }
     }
 
@@ -71,7 +130,7 @@ public struct VoiceOrbModalView: View {
             let compact = proxy.size.height < 430
 
             ZStack {
-                Color.black
+                Color(red: 0.006, green: 0.014, blue: 0.041)
                     .ignoresSafeArea()
 
                 RadialGradient(
@@ -107,6 +166,15 @@ public struct VoiceOrbModalView: View {
                 if let image { analyzeCameraImage(image) }
             }
         }
+        .alert("Caméra Sarah", isPresented: $isShowingCameraAlert) {
+            Button("OK", role: .cancel) {}
+            Button("Choisir une photo") {
+                selectedPhotoItem = nil
+                isShowingPhotoPicker = true
+            }
+        } message: {
+            Text(cameraAlertMessage)
+        }
         .fileImporter(
             isPresented: $isShowingFileImporter,
             allowedContentTypes: [.item],
@@ -120,8 +188,6 @@ public struct VoiceOrbModalView: View {
             }
         }
         .onAppear {
-            pulse = true
-            drift = true
             // Reopening the sheet must not restart speech or unmute the mic.
             if !viewModel.isContinuousConversationActive {
                 viewModel.startVoiceConversation()
@@ -199,6 +265,33 @@ public struct VoiceOrbModalView: View {
             }
             .frame(minHeight: 76)
 
+            if let voiceError = viewModel.voicePlaybackError {
+                Label("Voix neuronale : \(voiceError)", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+            }
+
+            if case .error = viewModel.voiceStatus {
+                HStack(spacing: 16) {
+                    Button("Réessayer") { viewModel.retryVoiceMicrophone() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accent)
+                    if AVAudioSession.sharedInstance().recordPermission == .denied {
+                        Button("Réglages micro") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white)
+                    }
+                }
+                .font(.subheadline)
+                .padding(.top, 8)
+            }
+
             Spacer(minLength: 24)
 
             composer
@@ -241,15 +334,26 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            VStack(spacing: 2) {
-                Text(viewModel.activeAgent.displayName)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+            Button {
+                HapticService.shared.buttonTap()
+                closeVoiceSurface()
+            } label: {
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(viewModel.activeAgent.displayName)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
                     .foregroundColor(.white)
 
-                Text("Mode vocal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.46))
+                    Text("Réduire · écoute maintenue")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.62))
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
 
             Spacer()
 
@@ -264,7 +368,9 @@ public struct VoiceOrbModalView: View {
     }
 
     private func closeVoiceSurface() {
-        viewModel.stopVoiceConversation()
+        // Dismiss the sheet only. The ChatScreenView bubble owns explicit Stop.
+        // Swipe-to-dismiss, opening the menu and opening settings all preserve
+        // the current conversation while Sarah stays in the foreground.
         withAnimation(.easeOut(duration: 0.16)) {
             viewModel.isShowingVoiceOrbModal = false
         }
@@ -272,102 +378,31 @@ public struct VoiceOrbModalView: View {
 
     // MARK: - Orbe Sarah
 
+    private var isSarahSpeaking: Bool {
+        if case .speaking = viewModel.voiceStatus { return true }
+        return false
+    }
+
     private func orb(size: CGFloat) -> some View {
-        let core = size * 0.72
-        let voiceBoost = 1.0 + normalizedLevel * 0.065
-
-        return ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            accent.opacity(0.30),
-                            accent.opacity(0.08),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: core * 0.20,
-                        endRadius: size * 0.52
-                    )
-                )
-                .frame(width: size, height: size)
-                .blur(radius: size > 150 ? 15 : 8)
-
-            ForEach(0..<2) { index in
-                Circle()
-                    .stroke(
-                        accent.opacity(index == 0 ? 0.40 : 0.18),
-                        lineWidth: 1
-                    )
-                    .frame(
-                        width: core + CGFloat(index * 30),
-                        height: core + CGFloat(index * 30)
-                    )
-                    .scaleEffect(
-                        (pulse ? 1.025 : 0.985)
-                        + normalizedLevel * CGFloat(index + 1) * 0.014
-                    )
-                    .animation(
-                        Animation.easeInOut(duration: 1.7 + Double(index) * 0.25)
-                            .repeatForever(autoreverses: true),
-                        value: pulse
-                    )
-            }
-
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.96),
-                                accent.opacity(0.94),
-                                accent
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                Circle()
-                    .fill(Color.white.opacity(0.54))
-                    .frame(width: core * 0.48, height: core * 0.48)
-                    .blur(radius: size > 150 ? 17 : 8)
-                    .offset(
-                        x: drift ? -core * 0.08 : core * 0.09,
-                        y: drift ? core * 0.07 : -core * 0.07
-                    )
-                    .animation(
-                        Animation.easeInOut(duration: 3.0).repeatForever(autoreverses: true),
-                        value: drift
-                    )
-
-                Image(systemName: viewModel.activeAgent.iconName)
-                    .font(.system(size: max(18, core * 0.16), weight: .bold))
-                    .foregroundColor(.white)
-                    .shadow(color: Color.black.opacity(0.18), radius: 4, x: 0, y: 2)
-            }
-            .frame(width: core, height: core)
-            .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(0.46), lineWidth: 1.5)
-            )
-            .shadow(color: accent.opacity(0.58), radius: size > 150 ? 18 : 10)
-            .scaleEffect((pulse ? 1.012 : 0.992) * voiceBoost)
-            .animation(
-                Animation.spring(response: 0.26, dampingFraction: 0.76),
-                value: normalizedLevel
-            )
-        }
+        SarahReactiveVoiceOrb(
+            diameter: size,
+            level: normalizedLevel,
+            isSpeaking: isSarahSpeaking,
+            isMuted: viewModel.isVoiceMicrophoneMuted,
+            accentColor: viewModel.activeAgent.themeColor
+        )
         .contentShape(Circle())
         .onTapGesture {
             HapticService.shared.buttonTap()
-            if viewModel.isMicRunning {
+            if viewModel.isContinuousConversationActive {
+                // A muted microphone must unmute without resetting an active reply.
                 viewModel.toggleMicrophone()
             } else {
                 viewModel.startVoiceConversation()
             }
         }
+        .accessibilityLabel("Orbe vocal \(viewModel.activeAgent.displayName). " + statusTitle)
+        .accessibilityAddTraits(.isButton)
     }
 
     // MARK: - Barre inférieure
@@ -385,7 +420,7 @@ public struct VoiceOrbModalView: View {
 
                 Button {
                     HapticService.shared.buttonTap()
-                    isShowingCamera = true
+                    openCameraSafely()
                 } label: {
                     Label("Appareil photo", systemImage: "camera")
                 }
@@ -495,6 +530,147 @@ public struct VoiceOrbModalView: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+/// Orbe partagé entre le mode vocal plein écran et la bulle du chat.
+/// Écoute et synthèse utilisent le même rendu, mais l'activité vocale est
+/// visualisée différemment selon l'état. Aucun arrêt du microphone ici.
+@available(iOS 15.0, *)
+public struct SarahReactiveVoiceOrb: View {
+    public let diameter: CGFloat
+    public let level: CGFloat
+    public let isSpeaking: Bool
+    public let isMuted: Bool
+    public let accentColor: Color
+    // The orb itself stays Sarah's original pink. Only the central sparkle
+    // reflects the agent's historic theme color (Yohan blue, Ethel red, etc).
+    private let originalPink = Color(red: 1.0, green: 0.18, blue: 0.65)
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathe = false
+
+    public init(diameter: CGFloat, level: CGFloat, isSpeaking: Bool = false, isMuted: Bool = false, accentColor: Color = .blue) {
+        self.diameter = diameter
+        self.level = level
+        self.isSpeaking = isSpeaking
+        self.isMuted = isMuted
+        self.accentColor = accentColor
+    }
+
+    private var activity: CGFloat {
+        guard !isMuted else { return 0 }
+        return max(min(level, 1), isSpeaking ? 0.45 : 0)
+    }
+
+    public var body: some View {
+        let core = diameter * 0.73
+
+        return ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            originalPink.opacity(isMuted ? 0.12 : 0.35),
+                            originalPink.opacity(0.16),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: core * 0.15,
+                        endRadius: diameter * 0.54
+                    )
+                )
+                .frame(width: diameter, height: diameter)
+                .blur(radius: diameter * 0.065)
+
+            // La bordure réagit à la voix, même lorsque le texte est en cours
+            // de synthèse et que le niveau microphone est momentanément faible.
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                originalPink.opacity(0.48),
+                                originalPink.opacity(0.22),
+                                Color.white.opacity(0.10)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: max(1, diameter * 0.006)
+                    )
+                    .frame(
+                        width: core + CGFloat(index + 1) * diameter * 0.06,
+                        height: core + CGFloat(index + 1) * diameter * 0.06
+                    )
+                    .scaleEffect(1 + activity * (0.045 + CGFloat(index) * 0.032)
+                                 + (breathe ? 0.025 : 0))
+                    .opacity(isMuted ? 0.25 : 0.78 - Double(index) * 0.16)
+                    .animation(.easeOut(duration: 0.16), value: activity)
+                    .animation(
+                        reduceMotion ? .none :
+                            .easeInOut(duration: 1.5 + Double(index) * 0.35)
+                                .repeatForever(autoreverses: true),
+                        value: breathe
+                    )
+            }
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white.opacity(0.90),
+                            originalPink.opacity(0.84),
+                            originalPink,
+                            originalPink.opacity(0.48)
+                        ],
+                        center: UnitPoint(x: 0.31, y: 0.22),
+                        startRadius: 0,
+                        endRadius: core * 0.78
+                    )
+                )
+                .frame(width: core, height: core)
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(0.86), originalPink.opacity(0.45), .white.opacity(0.14)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: max(1, core * 0.008)
+                    )
+                )
+                .overlay(
+                    Circle()
+                        .fill(Color.white.opacity(0.28))
+                        .frame(width: core * 0.45, height: core * 0.45)
+                        .blur(radius: core * 0.12)
+                        .offset(x: breathe ? -core * 0.16 : -core * 0.07,
+                                y: breathe ? -core * 0.15 : -core * 0.05)
+                        .mask(Circle().frame(width: core, height: core))
+                        .animation(
+                            reduceMotion ? .none :
+                                .easeInOut(duration: 2.8).repeatForever(autoreverses: true),
+                            value: breathe
+                        )
+                )
+                .overlay(
+                    Image(systemName: "sparkle")
+                        .font(.system(size: max(12, core * 0.25), weight: .medium))
+                        .foregroundColor(accentColor)
+                        .shadow(color: accentColor.opacity(0.85), radius: core * 0.06)
+                )
+                .shadow(
+                    color: originalPink.opacity(isMuted ? 0.12 : 0.54),
+                    radius: diameter * 0.075
+                )
+                .scaleEffect(1 + activity * 0.025 + (breathe && !reduceMotion ? 0.012 : 0))
+                .animation(.easeOut(duration: 0.16), value: activity)
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
+        .onAppear { breathe = !reduceMotion }
+        .onChange(of: reduceMotion) { value in breathe = !value }
     }
 }
 

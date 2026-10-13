@@ -18,6 +18,19 @@ public final class AudioSessionManager {
 
     private let stateLock = NSLock()
     private var continuousVoiceSessionActive = false
+    private var interpreterPrefersPhoneMicrophone = false
+    /// Earphones first for TV interpretation. Speaker is an explicit experimental mode.
+    public enum InterpreterOutputMode: String {
+        case headphones
+        case speaker
+    }
+    private var interpreterOutputMode: InterpreterOutputMode = .headphones
+
+    public var currentInterpreterOutputMode: InterpreterOutputMode {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return interpreterOutputMode
+    }
 
     public var isContinuousVoiceSessionActive: Bool {
         stateLock.lock()
@@ -25,11 +38,32 @@ public final class AudioSessionManager {
         return continuousVoiceSessionActive
     }
 
+    public var isInterpreterSessionActive: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return interpreterPrefersPhoneMicrophone
+    }
+
     private init() {
         setupObservers()
     }
 
     // MARK: - Mode vocal continu
+
+    /// Dedicated interpreter audio route. Keep the phone microphone pointed
+    /// at an external person / TV while letting Bluetooth earbuds play Yoann.
+    /// iOS hardware may choose a different route; do not silently claim success.
+    public func beginContinuousInterpreterSession(
+        outputMode: InterpreterOutputMode = .headphones
+    ) {
+        stateLock.lock()
+        interpreterPrefersPhoneMicrophone = true
+        interpreterOutputMode = outputMode
+        continuousVoiceSessionActive = true
+        stateLock.unlock()
+        configureVoiceConversationSession()
+        preferBuiltInInterpreterMicrophone()
+    }
 
     /// Ouvre la session audio une seule fois pour tout le cycle vocal.
     public func beginContinuousVoiceSession() {
@@ -52,6 +86,8 @@ public final class AudioSessionManager {
         stateLock.lock()
         let wasActive = continuousVoiceSessionActive
         continuousVoiceSessionActive = false
+        interpreterPrefersPhoneMicrophone = false
+        interpreterOutputMode = .headphones
         stateLock.unlock()
 
         guard wasActive else { return }
@@ -65,6 +101,7 @@ public final class AudioSessionManager {
         guard isContinuousVoiceSessionActive else { return }
         ensureContinuousSessionActive()
         ensureAudibleOutputRouteIfNeeded()
+        preferBuiltInInterpreterMicrophone()
     }
 
     /// Réactive la session sans changer catégorie, mode ou route. Utilisé pour
@@ -81,13 +118,27 @@ public final class AudioSessionManager {
     private func configureVoiceConversationSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            // A2DP is a playback-only Bluetooth profile. Keeping it enabled during
-            // a bidirectional voice-chat session can make iOS select a route without
-            // a usable microphone. HFP/HSP is handled by .allowBluetooth instead.
+            stateLock.lock()
+            let interpreterMode = interpreterPrefersPhoneMicrophone
+            stateLock.unlock()
+            // On iOS, enabling HFP *and* A2DP gives HFP priority.
+            // That silently switches the microphone to the earbuds and
+            // prevents reliable pickup of an external television.
+            // Translate Live uses A2DP output-only so the built-in iPhone
+            // microphone can remain the input. Ordinary Sarah keeps HFP.
+            // The experimental phone speaker mode does not use Bluetooth.
+            let audioOptions: AVAudioSession.CategoryOptions
+            if interpreterMode {
+                audioOptions = currentInterpreterOutputMode == .headphones
+                    ? [.defaultToSpeaker, .allowBluetoothA2DP]
+                    : [.defaultToSpeaker]
+            } else {
+                audioOptions = [.defaultToSpeaker, .allowBluetooth]
+            }
             try session.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth]
+                options: audioOptions
             )
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true)
@@ -98,18 +149,70 @@ public final class AudioSessionManager {
         }
     }
 
-    /// `AVSpeechSynthesizer` peut démarrer alors que la route courante reste sur
+    private func preferBuiltInInterpreterMicrophone() {
+        stateLock.lock()
+        let preferPhoneMic = interpreterPrefersPhoneMicrophone
+        stateLock.unlock()
+        guard preferPhoneMic else { return }
+        let session = AVAudioSession.sharedInstance()
+        guard let input = session.availableInputs?.first(where: { $0.portType == .builtInMic }) else {
+            print("⚠️ [Translate Live] Entrée microphone interne non disponible sur cette route.")
+            return
+        }
+        guard session.preferredInput?.uid != input.uid else { return }
+        let hasHeadphoneOutput = session.currentRoute.outputs.contains {
+            $0.portType == .headphones || $0.portType == .bluetoothA2DP
+                || $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+        }
+        do {
+            try session.setPreferredInput(input)
+            // Some Bluetooth HFP accessories cannot mix the phone microphone
+            // with their speaker. If selecting the internal mic kicks the
+            // user's earbuds off, restore automatic input selection instead.
+            if currentInterpreterOutputMode == .headphones && hasHeadphoneOutput {
+                let outputStillOnHeadphones = session.currentRoute.outputs.contains {
+                    $0.portType == .headphones || $0.portType == .bluetoothA2DP
+                        || $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+                }
+                if !outputStillOnHeadphones {
+                    try session.setPreferredInput(nil)
+                    print("🎧 [Translate Live] Casque prioritaire : micro accessoire utilisé si iOS l'impose.")
+                }
+            }
+        } catch {
+            print("⚠️ [Translate Live] Le micro iPhone n'a pas pu être préféré : \(error.localizedDescription)")
+        }
+    }
+
+    /// La synthèse vocale peut démarrer alors que la route courante reste sur
     /// l'écouteur interne. On ne force le haut-parleur que dans ce cas précis,
     /// afin de préserver les casques Bluetooth/AirPlay et le contrôle de volume iOS.
     private func ensureAudibleOutputRouteIfNeeded() {
         let session = AVAudioSession.sharedInstance()
         let outputs = session.currentRoute.outputs
-        let isReceiverOnly = outputs.count == 1 && outputs.first?.portType == .builtInReceiver
-        guard isReceiverOnly else { return }
+        stateLock.lock()
+        let interpreterSession = interpreterPrefersPhoneMicrophone
+        let requestedOutput = interpreterOutputMode
+        stateLock.unlock()
+
+        let hasHeadphones = outputs.contains {
+            $0.portType == .headphones || $0.portType == .bluetoothA2DP
+                || $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+        }
+        // Keep the selected headset route intact. Never force the speaker
+        // while an interpreter is supposed to speak into an earpiece.
+        if interpreterSession && requestedOutput == .headphones && hasHeadphones { return }
+
+        // Speaker mode is opt-in. Headphone mode without a connected headset
+        // falls back to the built-in speaker with a visible UI warning.
+        let shouldForceSpeaker = interpreterSession && requestedOutput == .speaker
+        let receiverOnly = outputs.count == 1 && outputs.first?.portType == .builtInReceiver
+        guard shouldForceSpeaker || (!hasHeadphones && receiverOnly) else { return }
+        guard !outputs.contains(where: { $0.portType == .builtInSpeaker }) else { return }
 
         do {
             try session.overrideOutputAudioPort(.speaker)
-            print("🔊 [AudioSessionManager] Sortie vocale replacée sur le haut-parleur.")
+            print("🔊 [AudioSessionManager] Sortie vocale sur le haut-parleur.")
         } catch {
             print("⚠️ [AudioSessionManager] Route haut-parleur: \(error.localizedDescription)")
         }
@@ -241,6 +344,7 @@ public final class AudioSessionManager {
         // la session existante et on ne corrige que le cas écouteur interne.
         ensureContinuousSessionActive()
         ensureAudibleOutputRouteIfNeeded()
+        preferBuiltInInterpreterMicrophone()
     }
 
     @objc private func handleAppWillResignActive() {

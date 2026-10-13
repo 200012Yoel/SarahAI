@@ -47,6 +47,7 @@ public final class WhisperSpeechRecognizer: NSObject {
     private let whisper = WhisperService.shared
     private var preserveActiveSpeech = false
     private var suppressNextExternalFinalCallback = false
+    private var permissionStartToken = UUID()
 
     #if canImport(Combine)
     private var cancellables = Set<AnyCancellable>()
@@ -67,7 +68,11 @@ public final class WhisperSpeechRecognizer: NSObject {
             self.currentLiveText = text
             self.isListening = false
             self.state = .processing
-            HapticService.shared.notificationSuccess()
+            // Empty recognitions are normal with television audio, background
+            // noise or a short breath. Do not pretend a message was understood.
+            if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                HapticService.shared.notificationSuccess()
+            }
             if self.suppressNextExternalFinalCallback {
                 self.suppressNextExternalFinalCallback = false
             } else {
@@ -167,7 +172,18 @@ public final class WhisperSpeechRecognizer: NSObject {
     /// Starts local Whisper capture. In continuous voice mode `preserveActiveSpeech`
     /// keeps Sarah's TTS playing so microphone voice activity can barge in instantly.
     public func startListening(autoFinalizeOnSilence: Bool = true, preserveActiveSpeech: Bool = false) {
-        guard !isListening, !whisper.isTranscribing else { return }
+        guard !whisper.isTranscribing else { return }
+        if isListening && whisper.isMicrophoneEngineRunning { return }
+        // After an AVAudioSession route switch, Combine may still report
+        // "listening" while AVAudioEngine is actually stopped. The old
+        // guard silently ignored every retry, even when the user said "allô".
+        if isListening && !whisper.isMicrophoneEngineRunning {
+            // Clear Whisper's *own* stale isRecording flag too, otherwise its
+            // internal guard rejects every attempted microphone restart.
+            whisper.stopRecordingWithoutTranscription()
+            isListening = false
+            state = .idle
+        }
         self.preserveActiveSpeech = preserveActiveSpeech
         self.suppressNextExternalFinalCallback = false
 
@@ -180,8 +196,14 @@ public final class WhisperSpeechRecognizer: NSObject {
 
         let permission = AVAudioSession.sharedInstance().recordPermission
         if permission == .undetermined {
+            let token = UUID()
+            permissionStartToken = token
             requestAuthorization { [weak self] granted in
-                guard let self else { return }
+                guard let self, self.permissionStartToken == token else {
+                    // The screen was closed or user muted while iOS displayed
+                    // its microphone permission prompt. Never reopen silently.
+                    return
+                }
                 guard granted else {
                     self.state = .error("Autorisation microphone refusée")
                     return
@@ -213,6 +235,7 @@ public final class WhisperSpeechRecognizer: NSObject {
     }
 
     public func stopListening() {
+        permissionStartToken = UUID()
         suppressNextExternalFinalCallback = false
         whisper.stopRecordingWithoutTranscription()
         if isListening {

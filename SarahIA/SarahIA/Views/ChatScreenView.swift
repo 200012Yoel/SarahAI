@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
+import AVFoundation
 
 /// Écran principal SarahIA.
 ///
@@ -19,6 +20,8 @@ public struct ChatScreenView: View {
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
+    @State private var cameraAlertMessage: String? = nil
+    @State private var isShowingCameraAlert = false
     @State private var isShowingFileImporter = false
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
@@ -53,6 +56,35 @@ public struct ChatScreenView: View {
             DispatchQueue.main.async {
                 viewModel.appendVisionAnalysis(image: image, result: result)
             }
+        }
+    }
+
+    private func openCameraSafely() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            cameraAlertMessage = "La caméra n'est pas disponible sur cet appareil. Tu peux choisir une image dans Photos."
+            isShowingCameraAlert = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            isShowingCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        isShowingCamera = true
+                    } else {
+                        cameraAlertMessage = "Accès à la caméra refusé. Autorise Sarah IA dans Réglages pour prendre une photo."
+                        isShowingCameraAlert = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            cameraAlertMessage = "L'accès à la caméra est désactivé pour Sarah IA. Ouvre les Réglages de l'iPhone pour l'autoriser."
+            isShowingCameraAlert = true
+        @unknown default:
+            cameraAlertMessage = "Impossible de vérifier l'autorisation de la caméra."
+            isShowingCameraAlert = true
         }
     }
 
@@ -115,6 +147,15 @@ public struct ChatScreenView: View {
                 if let image { handleCameraImage(image) }
             }
         }
+        .alert("Caméra Sarah", isPresented: $isShowingCameraAlert) {
+            Button("OK", role: .cancel) {}
+            Button("Choisir une photo") {
+                selectedPhotoItem = nil
+                isShowingPhotoPicker = true
+            }
+        } message: {
+            Text(cameraAlertMessage ?? "La caméra est indisponible.")
+        }
         .fileImporter(
             isPresented: $isShowingFileImporter,
             allowedContentTypes: [.item],
@@ -164,12 +205,16 @@ public struct ChatScreenView: View {
                     .default(Text("🎵 Musique")) {
                         viewModel.inputText = "Compose une musique "
                     },
+                    .default(Text("🎙️ Yoann · Translate Live (PC → iPhone)")) {
+                        keyboard.dismiss()
+                        viewModel.activateTranslateLive(from: "he", to: "fr")
+                    },
                     .default(Text("🇮🇱 Yohan · Traduction")) {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Traduis en hébreu : "
                     },
-                    .default(Text("🌍 Tom · Histoire")) {
-                        viewModel.activeAgent = .tom
+                    .default(Text("✨ Ethel · Création")) {
+                        viewModel.activeAgent = .ethel
                         viewModel.inputText = "Explique-moi "
                     },
                     .default(Text("🎙️ Mode vocal Sarah")) {
@@ -202,7 +247,19 @@ public struct ChatScreenView: View {
     }
 
     private var composerDock: some View {
-        MessageBar(
+        VStack(alignment: .trailing, spacing: 6) {
+            // Bubble anchored to the composer, not to the entire screen.
+            // It therefore remains just above the input bar when the keyboard moves.
+            if viewModel.isContinuousConversationActive &&
+               !viewModel.isShowingVoiceOrbModal &&
+               !viewModel.isShowingTranslateLive &&
+               !viewModel.isDrawerOpen {
+                compactVoiceBubble
+                    .padding(.trailing, 16)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
+            MessageBar(
             text: $viewModel.inputText,
             activeAgent: $viewModel.activeAgent,
             isRecording: viewModel.isMicRunning,
@@ -214,7 +271,7 @@ public struct ChatScreenView: View {
             },
             onOpenCamera: {
                 keyboard.dismiss()
-                isShowingCamera = true
+                openCameraSafely()
             },
             onOpenFile: {
                 keyboard.dismiss()
@@ -231,8 +288,82 @@ public struct ChatScreenView: View {
                 viewModel.isShowingVAICodingStudio = true
             }
         )
-        .padding(.top, 3)
-        .padding(.bottom, 6)
+            .padding(.top, 3)
+            .padding(.bottom, 6)
+        }
+    }
+
+    private var compactVoiceStatus: String {
+        switch viewModel.voiceStatus {
+        case .starting: return "Activation…"
+        case .listening: return "Sarah écoute"
+        case .processing: return "Transcription…"
+        case .speaking: return "Sarah parle"
+        case .error: return "Micro indisponible"
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted ? "Micro en pause" : "Mode vocal actif"
+        }
+    }
+
+    private var compactVoiceIsSpeaking: Bool {
+        if case .speaking = viewModel.voiceStatus { return true }
+        return false
+    }
+
+    private var compactVoiceBubble: some View {
+        HStack(spacing: 7) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.94))
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.white.opacity(0.10)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Arrêter complètement le mode vocal")
+            .accessibilityIdentifier("sarah.voice.compactStop")
+
+            Button {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                viewModel.isShowingVoiceOrbModal = true
+            } label: {
+                HStack(spacing: 8) {
+                    Text(compactVoiceStatus)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.96))
+                        .lineLimit(1)
+
+                    SarahReactiveVoiceOrb(
+                        diameter: 52,
+                        level: min(max(CGFloat(viewModel.micInputLevel), 0), 1),
+                        isSpeaking: compactVoiceIsSpeaking,
+                        isMuted: viewModel.isVoiceMicrophoneMuted,
+                        accentColor: viewModel.activeAgent.themeColor
+                    )
+                    .frame(width: 52, height: 52)
+                }
+                .padding(.leading, 10)
+                .padding(.trailing, 3)
+                .padding(.vertical, 1)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.045, green: 0.075, blue: 0.17).opacity(0.98))
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(Color(red: 0.34, green: 0.62, blue: 1).opacity(0.30), lineWidth: 1)
+                )
+                .shadow(color: Color.blue.opacity(0.15), radius: 12, x: 0, y: 3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Rouvrir le mode vocal, " + compactVoiceStatus)
+            .accessibilityIdentifier("sarah.voice.compactOrb")
+        }
     }
 
     private var topBar: some View {
@@ -249,7 +380,7 @@ public struct ChatScreenView: View {
                 Button("Sarah") { viewModel.activeAgent = .sarah }
                 Button("Raphaël") { viewModel.activeAgent = .esther }
                 Button("Yohan") { viewModel.activeAgent = .yohan }
-                Button("Tom") { viewModel.activeAgent = .tom }
+                Button("Ethel") { viewModel.activeAgent = .ethel }
                 Divider()
                 Button("Outils") { isShowingActionSheet = true }
             } label: {
@@ -276,6 +407,15 @@ public struct ChatScreenView: View {
             .buttonStyle(PlainButtonStyle())
 
             Spacer(minLength: 4)
+
+            // One tap to the real Hebrew-to-French interpreter.
+            glassCircleButton(systemName: "waveform") {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                viewModel.activateTranslateLive(from: "he", to: "fr")
+            }
+            .accessibilityIdentifier("sarah.translateLive.open")
+            .accessibilityLabel("Ouvrir la traduction en direct de Yoann")
 
             glassCircleButton(systemName: "gearshape.fill") {
                 HapticService.shared.buttonTap()
@@ -1548,7 +1688,7 @@ private struct SarahCameraPicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.sourceType = .camera
         picker.delegate = context.coordinator
         return picker
     }

@@ -129,7 +129,8 @@ public final class WebRTCVoiceCallManager: NSObject {
         HapticService.shared.notificationSuccess()
         
         // 1. Démarrage de la capture micro basse latence
-        startAudioEngineInputTap()
+        // WhisperSpeechRecognizer owns capture during translated calls.
+        // Running the second audio engine caused exclusive microphone conflicts.
         
         // 2. Démarrage du pipeline de traduction temps réel
         translationPipeline.startPipeline(with: languagePair)

@@ -1,6 +1,5 @@
 import UIKit
 import AVFoundation
-import Speech
 import WebKit
 
 /// Contrôleur UIKit 100% Natif de Secours (iOS 12 à iOS 14 / iPhone 5s, 6, 6 Plus)
@@ -1818,7 +1817,7 @@ public final class LegacySettingsViewController: UIViewController {
             row.addSubview(tStack)
             
             let nameLbl = UILabel()
-            nameLbl.text = "\(agent.displayName) — Voix Siri \(agent.siriVoiceNumber)"
+            nameLbl.text = "\(agent.displayName) — Voix locale \(agent.neuralVoiceLabel)"
             nameLbl.font = UIFont.systemFont(ofSize: 14, weight: .bold)
             nameLbl.textColor = .white
             
