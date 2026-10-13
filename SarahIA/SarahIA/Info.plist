@@ -71,6 +71,10 @@
 		<string>waze</string>
 		<string>maps</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Sarah IA utilise la caméra uniquement lorsque vous le demandez pour analyser une photo, un document ou un objet avec Apple Vision.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sarah IA vous permet de sélectionner une image dans vos photos pour l’analyser localement, uniquement à votre demande.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sarah IA utilise le microphone pour le mode vocal et transcrit votre voix localement sur l’iPhone avec OpenAI Whisper.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
