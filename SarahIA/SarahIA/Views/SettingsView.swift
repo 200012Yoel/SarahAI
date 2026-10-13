@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 /// Vue Réglages de Sarah AI Multi-Agents : moteurs locaux, voix et runtime de code agentique optionnel :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -85,6 +86,26 @@ public struct SettingsView: View {
                                 tint: .pink,
                                 title: "Sarah Engine",
                                 detail: "Activation et mode vocal"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: SarahIntelligenceAccessibilitySettingsView(),
+                                icon: "hand.tap.fill",
+                                tint: .cyan,
+                                title: "Accessibilité",
+                                detail: "Toucher le dos · Sarah Intelligence"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: SarahVisionSettingsView(),
+                                icon: "camera.viewfinder",
+                                tint: .green,
+                                title: "Vision et caméra",
+                                detail: "Autorisations, analyse d’images et OCR"
                             )
 
                             settingsDivider
@@ -1948,5 +1969,113 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+
+@available(iOS 15.0, *)
+private struct SarahIntelligenceAccessibilitySettingsView: View {
+    @AppStorage("sarahIntelligenceHaloEnabled") private var haloEnabled = true
+    @State private var didCopy = false
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.system(size: 29))
+                        .foregroundColor(.cyan)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Sarah Intelligence")
+                            .font(.headline)
+                        Text("Un raccourci iOS ouvre directement le mode vocal de Sarah.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+
+            Section("Halo lumineux") {
+                Toggle("Halo au lancement du mode vocal", isOn: $haloEnabled)
+                    .tint(.cyan)
+                Text("Le halo s’affiche dans Sarah. iOS ne permet pas de l’afficher par-dessus d’autres applications.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Configurer le double ou triple toucher") {
+                ForEach([
+                    "Ouvre l’app Raccourcis d’Apple.",
+                    "Crée un raccourci avec l’action « Ouvrir des URL » et l’adresse sarahia://voice.",
+                    "Ouvre Réglages iOS → Accessibilité → Toucher → Toucher le dos de l’appareil.",
+                    "Choisis Toucher 2 fois ou Toucher 3 fois, puis sélectionne ton raccourci Sarah."
+                ], id: \.self) { instruction in
+                    Label(instruction, systemImage: "checkmark.circle")
+                        .font(.subheadline)
+                }
+                Button {
+                    UIPasteboard.general.string = "sarahia://voice"
+                    didCopy = true
+                } label: {
+                    Label(didCopy ? "Lien copié" : "Copier le lien d’activation", systemImage: "doc.on.doc")
+                }
+                Button {
+                    guard let url = URL(string: "sarahia://voice") else { return }
+                    UIApplication.shared.open(url)
+                } label: {
+                    Label("Essayer Sarah Intelligence", systemImage: "waveform.circle.fill")
+                }
+            }
+            Section {
+                Text("Le geste est configuré par iOS, pas automatiquement par Sarah. Les raccourcis nécessitent que l’iPhone autorise leur ouverture.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Accessibilité")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+@available(iOS 15.0, *)
+private struct SarahVisionSettingsView: View {
+    private var cameraStatus: String {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: return "Autorisé"
+        case .notDetermined: return "À demander au premier lancement"
+        case .restricted: return "Restreint par iOS"
+        case .denied: return "Refusé"
+        @unknown default: return "Inconnu"
+        }
+    }
+
+    var body: some View {
+        List {
+            Section("Caméra") {
+                LabeledContent("Autorisation", value: cameraStatus)
+                Label(UIImagePickerController.isSourceTypeAvailable(.camera)
+                      ? "Caméra détectée" : "Caméra indisponible",
+                      systemImage: "camera")
+                Button {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                } label: {
+                    Label("Ouvrir les autorisations de Sarah", systemImage: "gear")
+                }
+            }
+            Section("Analyse locale") {
+                Label("Reconnaissance d’objets avec Apple Vision", systemImage: "viewfinder")
+                Label("Lecture de texte OCR", systemImage: "text.viewfinder")
+                Label("Images choisies depuis Photos", systemImage: "photo.on.rectangle")
+                Text("L’analyse Vision fonctionne sur l’iPhone. Ce n’est pas un modèle multimodal capable de comprendre chaque détail d’une scène.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Vision et caméra")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
