@@ -444,7 +444,8 @@ public struct YoannTranslateLiveView: View {
 
     private func restartIfActive() {
         guard live.isActive else { return }
-        live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL)
+        live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL,
+                   outputMode: preferredOutput)
     }
 
     /// Request rotation for this screen only. Normal Sarah and Yoann stay portrait.
