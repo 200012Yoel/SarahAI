@@ -83,7 +83,7 @@ public struct YoannTranslateLiveView: View {
                 title: mode == .source ? "Langue entendue" : "Langue de traduction",
                 options: mode == .source
                     ? TranslateLiveLanguages.sourceOptions
-                    : TranslateLiveLanguages.available,
+                    : TranslateLiveLanguages.interpreterOptions,
                 selected: mode == .source ? $sourceLanguage : $targetLanguage,
                 isTarget: mode == .target
             )
