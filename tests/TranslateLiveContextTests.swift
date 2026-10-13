@@ -28,6 +28,10 @@ struct TranslateLiveContextTests {
         expect(TranslateLiveContextBuffer.isRepeatingHallucination(
             "כתב כתב כתב כתב כתב כתב כתב כתב כתב כתב"),
             "reject repeated Hebrew tokens even without a prefix")
+        expect(TranslateLiveContextBuffer.isRepeatingHallucination(
+            "שלום, תבין, תבין, תבין, תבין, תבין, תבין."),
+            "reject hallucination captured in the real Hebrew WAV test")
+
         expect(!TranslateLiveContextBuffer.isRepeatingHallucination(
             "שלום שלום חברים ברוכים הבאים למהדורת הערב"),
             "allow normal Hebrew greeting with a repeated word")
