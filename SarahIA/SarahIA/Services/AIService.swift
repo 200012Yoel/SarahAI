@@ -1830,23 +1830,4 @@ public final class AIService {
         pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
     }
     
-    // MARK: - Méthodes de Diagnostic & Tests de Charge
-    
-    public func generateBackgroundTestResponse(query: String) -> String {
-        return generateSyncResponse(for: query)
-    }
-    
-    // MARK: - Test en Arrière-Plan
-    
-    @available(iOS 13.0, *)
-    public func generateBackgroundTestResponse() async -> String {
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-        return "Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée."
-    }
-    
-    public func generateBackgroundTestResponse(completion: @escaping (String) -> Void) {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-            completion("Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée.")
-        }
-    }
 }
