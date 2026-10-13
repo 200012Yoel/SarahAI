@@ -79,10 +79,7 @@ public enum TranslateLiveTranslationBackend {
             case .failure(let error):
                 completion(.unavailable("Qwen3 local : " + error.localizedDescription))
             case .success(let raw):
-                var output = raw.replacingOccurrences(
-                    of: #"<think>[\s\S]*?</think>"#,
-                    with: "", options: .regularExpression
-                )
+                var output = SarahResponseCleaner.clean(raw)
                 output = output
                     .replacingOccurrences(of: "<|im_end|>", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
