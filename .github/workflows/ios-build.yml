@@ -10,15 +10,11 @@ on:
         type: choice
         options: ['no', 'yes']
         default: 'no'
-  push:
-    branches: [main, feature/neural-voices-whisper-only-20261011]
-    paths:
-      - 'SarahIA/**'
-      - '.github/workflows/ios-build.yml'
+  # Compilation IPA uniquement après validation manuelle.
 
 jobs:
   build:
-    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    if: inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
