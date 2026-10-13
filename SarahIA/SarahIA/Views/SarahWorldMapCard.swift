@@ -10,7 +10,7 @@ public enum SarahMapIntent {
         let n = text.folding(options: [.diacriticInsensitive, .caseInsensitive],
                              locale: Locale(identifier: "fr_FR")).lowercased()
         let place = ["restaurant", "cafe", "hotel", "boutique", "commerce",
-                     "aeroport", "gare", "adresse", "carte", "plan",
+                     "aeroport", "gare", "adresse", "carte", "plan", "pharmacie",
                      "ou se trouve", "ou est situe", "autour de moi"]
             .contains(where: { n.contains($0) })
         let seeking = ["trouv", "cherch", "montr", "affich", "voir", "ouvre",
@@ -64,7 +64,7 @@ public struct SarahWorldMapCard: View {
             .padding(14)
 
             SarahWorldMapWebView(query: query, onDestination: nil)
-                .frame(height: 250)
+                .frame(height: 305)
                 .allowsHitTesting(false)
                 .overlay {
                     Button { expanded = true } label: { Color.clear }
@@ -260,7 +260,8 @@ private struct SarahWorldMapWebView: UIViewRepresentable {
             let prefix = location.folding(options: [.diacriticInsensitive, .caseInsensitive],
                                           locale: Locale(identifier: "fr_FR")).lowercased()
             for word in ["restaurants ", "restaurant ", "cafes ", "cafe ", "hotels ", "hotel ",
-                         "boutiques ", "boutique ", "recherche ", "cherche ", "montre ", "voir "] {
+                         "pharmacie ", "pharmacies ", "boutiques ", "boutique ",
+                         "recherche ", "cherche ", "montre ", "voir "] {
                 if prefix.hasPrefix(word) { location = String(location.dropFirst(word.count)); break }
             }
             location = location.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -295,7 +296,8 @@ private struct SarahWorldMapWebView: UIViewRepresentable {
                     self?.onDestination?(destination)
                 }
                 self.send(["kind":"location","lat":latitude,"lon":longitude,"name":label])
-                let category = folded.contains("restaurant") ? "restaurant"
+                let category = folded.contains("pharmacie") ? "pharmacy"
+                    : folded.contains("restaurant") ? "restaurant"
                     : folded.contains("cafe") ? "cafe" : folded.contains("hotel") ? "hotel"
                     : folded.contains("boutique") || folded.contains("commerce") ? "shop" : ""
                 if category.isEmpty { self.isLoading = false; return }
