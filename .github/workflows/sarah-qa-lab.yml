@@ -94,6 +94,11 @@ jobs:
           with open(os.environ['GITHUB_ENV'],'a') as f: f.write('SIM_UDID='+udid+'\n')
           print('Simulator:',udid)
           PY
+      - name: Install Java 17 for Maestro
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Capture genuine screen video and screenshots
         run: |
           set -euo pipefail
@@ -122,6 +127,22 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SarahIA-QA-Screenshots-Videos
+          path: qa-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  real-hebrew-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate spoken Hebrew and run real local Whisper-Qwen processing
+        run: bash .github/scripts/sarah_qa_real_hebrew_audio.sh
+      - name: Upload voice WAV, actual transcripts, timings and model logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-QA-Real-Hebrew-Audio
           path: qa-artifacts/
           if-no-files-found: warn
           retention-days: 14
