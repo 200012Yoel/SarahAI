@@ -55,6 +55,10 @@ public final class YoannTranslateLiveService: ObservableObject {
     @Published public private(set) var history: [Phrase] = []
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var headphoneConnected = false
+    @Published public private(set) var audioOutputDescription = "Sortie audio : vérification…"
+    @Published public private(set) var audioInputDescription = "Microphone : vérification…"
+    @Published public private(set) var audioRouteWarning: String?
+    public private(set) var outputMode: AudioSessionManager.InterpreterOutputMode = .headphones
     @Published public private(set) var waitingTranslations = 0
     @Published public private(set) var microphoneLevel: Float = 0
     @Published public private(set) var preparingSystemTranslation = false
@@ -119,14 +123,17 @@ public final class YoannTranslateLiveService: ObservableObject {
         errorMessage = nil
         isSpeakingTranslation = true
         neural.speak(
-            text: "Bonjour. Je suis Yoann. Si tu m'entends, le haut-parleur fonctionne.",
+            text: "Bonjour. Je suis Yoann. Si tu m'entends, la sortie audio fonctionne.",
             for: .yohan, language: "fr", qualitySteps: 5,
             dedicatedInterpreter: true
         )
         updateStatus()
     }
 
-    public func start(from source: String, to target: String, serverURL: String = "") {
+    public func start(
+        from source: String, to target: String, serverURL: String = "",
+        outputMode: AudioSessionManager.InterpreterOutputMode = .headphones
+    ) {
         stop()
         guard TranslateLiveLanguages.engineCode(for: source)
                 != TranslateLiveLanguages.engineCode(for: target),
@@ -138,6 +145,7 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         sourceLanguage = source
         targetLanguage = target
+        self.outputMode = outputMode
         customTranslationServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         localEnglishTranslation = TranslateLiveLanguages.isEnglish(target)
             && !TranslateLiveLanguages.isEnglish(source)
@@ -180,7 +188,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         // Set an interpreter-specific route BEFORE starting the input tap.
         // This prefers the iPhone microphone while AirPods/earbuds can play
         // translated speech through an output route that supports it.
-        AudioSessionManager.shared.beginContinuousInterpreterSession()
+        AudioSessionManager.shared.beginContinuousInterpreterSession(outputMode: outputMode)
 
         previousPlaybackFinished = neural.onPlaybackFinished
         previousPlaybackStarted = neural.onPlaybackStarted
@@ -310,6 +318,9 @@ public final class YoannTranslateLiveService: ObservableObject {
 
         status = "Initialisation de Whisper… Le micro reste actif tant que ce mode est ouvert."
         whisper.startLiveInterpretation()
+        // Preload the real neural French speaker on its own serial queue.
+        // The microphone must begin first, without waiting for TTS startup.
+        neural.prepareForVoiceConversation()
 
         // If the SwiftUI English translationTask is not attached, explain
         // why captions cannot yet appear instead of simulating responses.
@@ -929,11 +940,47 @@ public final class YoannTranslateLiveService: ObservableObject {
     }
 
     private func updateAudioRoute() {
-        let types = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
+        let route = AVAudioSession.sharedInstance().currentRoute
+        let types = route.outputs.map(\.portType)
         headphoneConnected = types.contains(.headphones)
             || types.contains(.bluetoothHFP)
             || types.contains(.bluetoothA2DP)
             || types.contains(.bluetoothLE)
+
+        if types.contains(.bluetoothA2DP) {
+            audioOutputDescription = "🎧 Sortie : écouteurs Bluetooth (stéréo)"
+        } else if types.contains(.bluetoothHFP) || types.contains(.bluetoothLE) {
+            audioOutputDescription = "🎧 Sortie : écouteurs Bluetooth (appel)"
+        } else if types.contains(.headphones) {
+            audioOutputDescription = "🎧 Sortie : écouteurs filaires"
+        } else if types.contains(.builtInSpeaker) {
+            audioOutputDescription = "🔊 Sortie : haut-parleur iPhone"
+        } else if types.contains(.builtInReceiver) {
+            audioOutputDescription = "📱 Sortie : écouteur interne iPhone"
+        } else {
+            audioOutputDescription = "Sortie audio : route inconnue"
+        }
+
+        let inputs = route.inputs.map(\.portType)
+        if inputs.contains(.builtInMic) {
+            audioInputDescription = "🎙️ Micro : iPhone (vers la télé)"
+        } else if inputs.contains(.bluetoothHFP) {
+            audioInputDescription = "🎙️ Micro : écouteurs Bluetooth"
+        } else if inputs.contains(.headsetMic) {
+            audioInputDescription = "🎙️ Micro : casque filaire"
+        } else {
+            audioInputDescription = "Micro : entrée inconnue"
+        }
+
+        if outputMode == .headphones && !headphoneConnected {
+            audioRouteWarning = "Aucun écouteur détecté. Connecte tes écouteurs pour éviter que Yoann ne réécoute sa propre voix."
+        } else if outputMode == .headphones && !inputs.contains(.builtInMic) {
+            audioRouteWarning = "iOS utilise le micro du casque. Approche ce micro de la télévision, ou essaie un casque filaire."
+        } else if outputMode == .speaker {
+            audioRouteWarning = "Mode haut-parleur expérimental : l'annulation d'écho iOS ne garantit pas l'absence de retour audio."
+        } else {
+            audioRouteWarning = nil
+        }
         updateStatus()
     }
 
