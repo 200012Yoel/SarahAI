@@ -63,11 +63,17 @@ public struct SarahWorldMapCard: View {
             }
             .padding(14)
 
-            SarahWorldMapWebView(query: query)
-                .frame(height: 350)
-                .accessibilityIdentifier("sarah.map3d.webview")
+            SarahWorldMapWebView(query: query, onDestination: nil)
+                .frame(height: 250)
+                .allowsHitTesting(false)
+                .overlay {
+                    Button { expanded = true } label: { Color.clear }
+                        .accessibilityLabel("Ouvrir la carte détaillée en plein écran")
+                        .accessibilityIdentifier("sarah.map3d.expand")
+                }
+                .accessibilityIdentifier("sarah.map3d.preview")
 
-            Text("Tourne, incline et zoome. Les bâtiments 3D dépendent des données disponibles.")
+            Text("Touchez la carte pour explorer le lieu et préparer un itinéraire.")
                 .font(.system(size: 11))
                 .foregroundColor(.white.opacity(0.6))
                 .padding(.horizontal, 14)
@@ -77,27 +83,82 @@ public struct SarahWorldMapCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.14)))
         .fullScreenCover(isPresented: $expanded) {
-            NavigationView {
-                SarahWorldMapWebView(query: query)
-                    .navigationTitle("Sarah · Explorer en 3D")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Fermer") { expanded = false }
-                        }
-                    }
-                    .background(Color.black.ignoresSafeArea())
-            }
-            .preferredColorScheme(.dark)
+            SarahWorldMapDetailScreen(query: query, dismiss: { expanded = false })
+                .preferredColorScheme(.dark)
         }
+    }
+}
+
+
+@available(iOS 15.0, *)
+private struct SarahWorldMapDetailScreen: View {
+    let query: String
+    let dismiss: () -> Void
+    @State private var selection: SarahMapDestination?
+    @State private var satellite = false
+    @StateObject private var icons = SarahNavigationAppIcons()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button(action: dismiss) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.09),
+                                    in: RoundedRectangle(cornerRadius: 13))
+                }
+                .accessibilityLabel("Retour à Sarah")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(selection?.name ?? "Sarah · Carte 3D")
+                        .font(.system(size: 17, weight: .bold))
+                        .lineLimit(2)
+                    Text(selection?.address ?? "Recherche de l’adresse en cours…")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.66))
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    satellite.toggle()
+                } label: {
+                    Image(systemName: satellite ? "square.3.layers.3d" : "globe.europe.africa.fill")
+                        .font(.system(size: 18))
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.09),
+                                    in: RoundedRectangle(cornerRadius: 13))
+                }
+                .accessibilityLabel(satellite ? "Carte 3D vectorielle" : "Vue satellite Apple")
+            }
+            .foregroundColor(.white)
+            .padding(12)
+            .background(Color(red: 0.065, green: 0.08, blue: 0.125))
+            ZStack {
+                SarahWorldMapWebView(query: query) { location in
+                    selection = location
+                }
+                .opacity(satellite ? 0 : 1)
+                .allowsHitTesting(!satellite)
+                if satellite {
+                    SarahSatelliteMapView(destination: selection)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            SarahNavigationOptions(destination: selection, icons: icons)
+        }
+        .background(Color.black.ignoresSafeArea())
+        .task { await icons.load() }
     }
 }
 
 @available(iOS 15.0, *)
 private struct SarahWorldMapWebView: UIViewRepresentable {
     let query: String
+    let onDestination: ((SarahMapDestination) -> Void)?
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onDestination: onDestination)
+    }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -120,14 +181,30 @@ private struct SarahWorldMapWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKScriptMessageHandler {
         weak var web: WKWebView?
+        let onDestination: ((SarahMapDestination) -> Void)?
+        init(onDestination: ((SarahMapDestination) -> Void)?) {
+            self.onDestination = onDestination
+        }
         private var isLoading = false
         private var lastGeocode = Date.distantPast
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "sarahMap",
                   let input = message.body as? [String: Any],
-                  let operation = input["action"] as? String,
-                  operation == "search",
+                  let operation = input["action"] as? String else { return }
+            if operation == "selectPlace" {
+                guard let name = input["name"] as? String,
+                      let latitude = input["lat"] as? Double,
+                      let longitude = input["lon"] as? Double else { return }
+                let address = (input["address"] as? String) ?? name
+                let destination = SarahMapDestination(name: name,
+                    latitude: latitude, longitude: longitude, address: address)
+                DispatchQueue.main.async { [weak self] in
+                    self?.onDestination?(destination)
+                }
+                return
+            }
+            guard operation == "search",
                   let query = input["query"] as? String,
                   !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   query.count <= 220 else { return }
@@ -212,6 +289,11 @@ private struct SarahWorldMapWebView: UIViewRepresentable {
                     return
                 }
                 let label = (first["display_name"] as? String) ?? location
+                let destination = SarahMapDestination(name: location,
+                    latitude: latitude, longitude: longitude, address: label)
+                DispatchQueue.main.async { [weak self] in
+                    self?.onDestination?(destination)
+                }
                 self.send(["kind":"location","lat":latitude,"lon":longitude,"name":label])
                 let category = folded.contains("restaurant") ? "restaurant"
                     : folded.contains("cafe") ? "cafe" : folded.contains("hotel") ? "hotel"
@@ -312,6 +394,12 @@ window.sarahMapReceive=function(event){
       const title=document.createElement('strong');title.textContent=place.name;container.appendChild(title);
       if(place.address){const line=document.createElement('p');line.textContent=place.address;container.appendChild(line);}
       const popup=new maplibregl.Popup({offset:20}).setDOMContent(container);
+      element.addEventListener('click',()=>{
+        try { window.webkit.messageHandlers.sarahMap.postMessage({
+          action:'selectPlace',name:place.name,address:place.address||place.name,
+          lat:place.lat,lon:place.lon
+        }); } catch(error) {}
+      });
       markers.push(new maplibregl.Marker({element}).setLngLat([place.lon,place.lat]).setPopup(popup).addTo(map));
    }
    say(event.places.length+' lieux trouvés autour de cette adresse (données OpenStreetMap). Appuie sur un point bleu.');
