@@ -53,3 +53,17 @@ test.txt
 *.log
 *.ps1
 xcode_errors.txt
+
+# Sarah IA - generated QA reports and simulator output
+QA-DerivedData/
+qa-artifacts/
+ui-smoke-artifacts/
+*.xcresult/
+*.xcarchive/
+*.xcactivitylog
+
+# Local AI model binaries: downloaded by CI, never committed to Git
+*.gguf
+ggml-*.bin
+*.onnx
+models-cache/
