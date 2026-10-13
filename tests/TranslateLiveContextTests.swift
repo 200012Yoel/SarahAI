@@ -15,6 +15,14 @@ struct TranslateLiveContextTests {
                "normal French speech must survive the music filter")
         expect(!TranslateLiveContextBuffer.isNonSpeechCaption("שלום לכולם"),
                "Hebrew speech must survive the music filter")
+        expect(TranslateLiveContextBuffer.isNonSpeechCaption("Thanks for watching!"),
+               "Whisper video-credit hallucination is not dialogue")
+        expect(TranslateLiveContextBuffer.isNonSpeechCaption("Merci d'avoir regardé cette vidéo"),
+               "French credit hallucination is not dialogue")
+        expect(TranslateLiveContextBuffer.isNonSpeechCaption("תודה שצפיתם"),
+               "Hebrew credit hallucination is not dialogue")
+        expect(!TranslateLiveContextBuffer.isNonSpeechCaption("The minister spoke about the budget"),
+               "A real English news sentence is kept")
 
         expect(TranslateLiveContextBuffer.isRepeatingHallucination(
             "תודה רבה. תודה רבה. תודה רבה. תודה רבה. תודה רבה."),

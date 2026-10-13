@@ -67,7 +67,19 @@ public final class WhisperService: ObservableObject {
     // Hebrew interpretation; use it for French conversation as well.
     // Keep a single context in RAM and avoid model hot-swaps when switching
     // between Sarah and Yoann.
-    private var desiredModelName: String { "ggml-base" }
+    private var desiredModelName: String {
+        // Base is far too weak for Hebrew (and for translation in general).
+        // Translate Live uses the multilingual Medium model when the IPA
+        // ships it; ordinary chat keeps the lighter Base model.
+        if liveModelRequested,
+           Bundle.main.url(forResource: Self.liveModelName, withExtension: "bin",
+                           subdirectory: "WhisperModels") != nil {
+            return Self.liveModelName
+        }
+        return "ggml-base"
+    }
+    private static let liveModelName = "ggml-medium-q5_0"
+    private var liveModelRequested = false
     private var samples: [Float] = []
     private var automaticFinalize = true
     private var hasDetectedSpeech = false
@@ -94,12 +106,16 @@ public final class WhisperService: ObservableObject {
     // Force French chat to hand off short recorded windows rather than
     // leaving "Je t'écoute" frozen for thirty seconds.
     private let maximumUtteranceSeconds: Double = 7.5
-    private let liveSilenceThreshold: TimeInterval = 0.42
-    // More frequent source captions for continuous TV: Qwen translates
-    // each chunk directly without the old double Whisper→English pass.
-    private let liveMaxChunkSeconds: Double = 3.4
-    private let liveMinChunkSeconds: Double = 1.0
+    // TV speech: Whisper needs whole clauses. Short 1–3 s windows cut
+    // words in half and made it hallucinate. Flush on a real pause after
+    // at least 2.5 s, or force a cut at 7 s of continuous speech.
+    private let liveSilenceThreshold: TimeInterval = 0.38
+    private let liveMaxChunkSeconds: Double = 7.0
+    private let liveMinChunkSeconds: Double = 2.5
     private let activityDBThreshold: Float = -48
+    /// Adaptive noise floor for Translate Live: a TV always produces some
+    /// sound (music, ambience), so a fixed -48 dB threshold never sees a pause.
+    private var liveNoiseFloorDB: Float = -60
 
     private init() {}
 
@@ -137,7 +153,9 @@ public final class WhisperService: ObservableObject {
         livePendingChunks.removeAll()
         liveInferenceBusy = false
         liveRecognitionContext = ""
+        liveNoiseFloorDB = -60
         isLiveInterpreting = true
+        liveModelRequested = true
         liveStartRequested = true
         AudioSessionManager.shared.beginContinuousVoiceSession()
         startRecording(autoFinalizeOnSilence: false)
@@ -162,6 +180,7 @@ public final class WhisperService: ObservableObject {
         liveRecognitionContext = ""
         liveStartRequested = false
         isLiveInterpreting = false
+        liveModelRequested = false
         stopRecordingWithoutTranscription()
         onLiveInterpretationChunk = nil
         onLiveEnglishPivotChunk = nil
@@ -288,7 +307,17 @@ public final class WhisperService: ObservableObject {
         }
         input.removeTap(onBus: 0)
 
-        if AudioSessionManager.shared.isContinuousVoiceSessionActive {
+        if isLiveInterpreting && AudioSessionManager.shared.isRawInterpreterCapture {
+            // Subtitle mode: nothing is played back, so no echo to cancel.
+            // Voice processing would treat the distant TV as noise.
+            do {
+                if input.isVoiceProcessingEnabled {
+                    try input.setVoiceProcessingEnabled(false)
+                }
+            } catch {
+                print("⚠️ [Whisper] Désactivation du traitement vocal impossible: \(error.localizedDescription)")
+            }
+        } else if AudioSessionManager.shared.isContinuousVoiceSessionActive {
             do {
                 if !input.isVoiceProcessingEnabled {
                     try input.setVoiceProcessingEnabled(true)
@@ -439,9 +468,19 @@ public final class WhisperService: ObservableObject {
             // platform AEC; require stronger and sustained VAD on speaker.
             // A headphone route uses a much shorter 2-chunk threshold.
             let speakerMonitor = !self.isLiveInterpreting && self.voiceReplyPlayingOnSpeaker
-            let effectiveThreshold: Float = speakerMonitor
+            var effectiveThreshold: Float = speakerMonitor
                 ? max(self.activityDBThreshold, -41)
                 : self.activityDBThreshold
+            if self.isLiveInterpreting {
+                // Follow the TV's background level: drop quickly to quiet
+                // passages, rise slowly so speech itself is not absorbed.
+                if db < self.liveNoiseFloorDB {
+                    self.liveNoiseFloorDB = db
+                } else {
+                    self.liveNoiseFloorDB += 0.01 * (db - self.liveNoiseFloorDB)
+                }
+                effectiveThreshold = max(-55, self.liveNoiseFloorDB + 7)
+            }
             let minimumChunks = speakerMonitor ? 6 : 2
             if db >= effectiveThreshold {
                 self.hasDetectedSpeech = true

@@ -7,33 +7,53 @@ import Combine
 import Translation
 #endif
 
-/// Simultaneous-style interpreter for external speech (person/TV/PC) heard
-/// through the iPhone microphone. Whisper records continuously on device,
-/// including during transcription and neural playback. Chunks are processed
-/// on independent bounded queues. The user explicitly stops the session.
+/// Live interpreter for external speech (TV, video, person) heard through
+/// the iPhone microphone.
 ///
-/// An earbud is strongly recommended: iOS voiceChat echo suppression exists,
-/// but speaker playback in the same room cannot guarantee perfect isolation.
+/// Pipeline:
+///   microphone → Whisper (on device) → Apple Translation (on device) → subtitles
+///
+/// * English → French: Whisper transcribes English, Apple translates EN→FR.
+/// * Hebrew → French: if iOS offers a Hebrew→French pack it is used directly;
+///   otherwise Whisper translates the Hebrew speech to English itself and
+///   Apple translates EN→FR. No tiny LLM guesses the meaning any more.
+///
+/// The default output is subtitles only, so the phone can sit in front of
+/// the TV without headphones and without hearing itself.
 @available(iOS 16.2, *)
 @MainActor
 public final class YoannTranslateLiveService: ObservableObject {
     public typealias Language = TranslateLiveLanguages.Language
 
-    public struct Phrase: Identifiable {
+    public struct Phrase: Identifiable, Equatable {
         public let id = UUID()
         public let source: String
         public let translation: String
     }
 
-    private struct Segment {
-        let source: String
-        let translation: String
+    /// How a heard sentence becomes a translation.
+    public enum Engine: Equatable {
+        case none
+        /// Whisper transcribes the source, Apple Translation translates it.
+        case appleDirect
+        /// Whisper translates the speech to English, Apple translates English → target.
+        case whisperEnglishThenApple
+        /// Whisper translates the speech straight to English (target is English).
+        case whisperToEnglish
+        /// User-owned LibreTranslate-compatible server set in the settings.
+        case server
     }
 
-    private struct PendingTranslation {
+    /// Language pair handed to the SwiftUI `translationTask` host.
+    public struct ApplePair: Equatable {
+        public let source: String
+        public let target: String
+        public var id: String { source + "-" + target }
+    }
+
+    private struct Pending {
         let source: String
         let input: String
-        let fromEnglishPivot: Bool
         let capturedAt = Date()
     }
 
@@ -43,34 +63,33 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     @Published public private(set) var isActive = false
     @Published public private(set) var isListening = false
-    @Published public private(set) var isSpeakingTranslation = false
-    @Published public private(set) var isPreparingSpeech = false
-    @Published public private(set) var isPlayingAudio = false
     @Published public private(set) var isTranslating = false
-    @Published public private(set) var status = "Prêt à écouter une personne ou une vidéo."
+    @Published public private(set) var isPlayingAudio = false
+    @Published public private(set) var status = "Prêt à écouter la télévision ou une personne."
+    /// Last recognized words (source language, or Whisper's English when relaying).
     @Published public private(set) var lastSource = ""
-    @Published public private(set) var provisionalSource = ""
-    @Published public private(set) var recentSourceContext = ""
     @Published public private(set) var lastTranslation = ""
     @Published public private(set) var history: [Phrase] = []
     @Published public private(set) var errorMessage: String?
+    /// Non-blocking information (noise ignored, catching up with live…).
+    @Published public private(set) var hint: String?
     @Published public private(set) var headphoneConnected = false
     @Published public private(set) var audioOutputDescription = "Sortie audio : vérification…"
     @Published public private(set) var audioInputDescription = "Microphone : vérification…"
     @Published public private(set) var audioRouteWarning: String?
-    public private(set) var outputMode: AudioSessionManager.InterpreterOutputMode = .headphones
-    @Published public private(set) var waitingTranslations = 0
     @Published public private(set) var microphoneLevel: Float = 0
-    @Published public private(set) var preparingSystemTranslation = false
-    @Published public private(set) var isSystemTranslationReady = false
-    @Published public private(set) var needsEnglishPivotTranslation = false
-    @Published public private(set) var isUsingLocalQwen = false
-    @Published public private(set) var isUsingEnglishPivot = false
-    @Published public private(set) var translationSetupMessage = "Vérification du moteur hébreu → français…"
-    @Published public private(set) var translationDiagnostic = ""
+    @Published public private(set) var engine: Engine = .none
+    @Published public private(set) var applePair: ApplePair?
+    @Published public private(set) var isEngineReady = false
+    @Published public private(set) var engineDescription = "Choix du moteur de traduction…"
 
+    public private(set) var outputMode: AudioSessionManager.InterpreterOutputMode = .subtitles
     public private(set) var sourceLanguage = "he"
     public private(set) var targetLanguage = "fr"
+
+    /// True when the lower pane shows Whisper's English relay instead of the
+    /// original words (Hebrew without an Apple Hebrew pack).
+    public var showsEnglishRelay: Bool { engine == .whisperEnglishThenApple }
 
     private let whisper = WhisperService.shared
     private let neural = NeuralVoiceService.shared
@@ -82,48 +101,24 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var previousWhisperTranslation = false
     private var previousWhisperLanguage: String?
     private var customTranslationServerURL = ""
-    private var localEnglishTranslation = false
-    private var nativeTranslator: ((String) async throws -> String)?
-    private var nativeEnglishToFrenchTranslator: ((String) async throws -> String)?
-    private var nativeTranslationUnavailable = false
+    private var appleTranslator: ((String) async throws -> String)?
 
-    /// Apple Translation supplies Hebrew→French entirely on iPhone if the
-    /// language pack is available, without requiring the user's Debian server.
-    public var shouldAttemptSystemTranslation: Bool {
-        sourceLanguage == "he" && targetLanguage == "fr"
-    }
-
-    // Whisper performs source -> English directly. Remaining requested
-    // pairs use Qwen locally, never a predefined sentence table.
-    private var needsLocalNeuralTranslation: Bool {
-        let source = TranslateLiveLanguages.engineCode(for: sourceLanguage)
-        let target = TranslateLiveLanguages.engineCode(for: targetLanguage)
-        return ["he", "fr", "en"].contains(source)
-            && ["he", "fr", "en"].contains(target)
-            && source != target && target != "en"
-    }
-
-    private var incoming: [PendingTranslation] = []
-    private var outgoing: [Segment] = []
-    private var translationBusy = false
-    private var consecutiveQwenFailures = 0
-    private var contextBuffer = TranslateLiveContextBuffer()
+    private var pending: [Pending] = []
+    private var speechQueue: [String] = []
+    private var isSpeaking = false
+    private var lastChunk = ""
+    private var lastChunkAt = Date.distantPast
     private var routeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
-    private var qwenDownloadObserver: NSObjectProtocol?
-    private var lastAcceptedChunk = ""
-    private var lastAcceptedAt = Date.distantPast
-    private var lastEnglishIntermediate = ""
-    private var lastEnglishIntermediateSource = ""
-    private var lastEnglishIntermediateAt = Date.distantPast
     private var micLevelSubscription: AnyCancellable?
 
     public init() {}
 
-    /// Audible diagnostic: speak a known French phrase with the real bundled
+    // MARK: - Start / stop
+
     public func start(
         from source: String, to target: String, serverURL: String = "",
-        outputMode: AudioSessionManager.InterpreterOutputMode = .headphones
+        outputMode: AudioSessionManager.InterpreterOutputMode = .subtitles
     ) {
         stop()
         guard TranslateLiveLanguages.engineCode(for: source)
@@ -138,79 +133,429 @@ public final class YoannTranslateLiveService: ObservableObject {
         targetLanguage = target
         self.outputMode = outputMode
         customTranslationServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        localEnglishTranslation = TranslateLiveLanguages.isEnglish(target)
-            && !TranslateLiveLanguages.isEnglish(source)
         errorMessage = nil
-        translationDiagnostic = ""
+        hint = nil
         lastSource = ""
-        provisionalSource = ""
-        recentSourceContext = ""
-        contextBuffer.reset()
         lastTranslation = ""
         history.removeAll()
-        incoming.removeAll()
-        outgoing.removeAll()
-        translationBusy = false
-        consecutiveQwenFailures = 0
+        pending.removeAll()
+        speechQueue.removeAll()
+        isSpeaking = false
         isTranslating = false
-        isSpeakingTranslation = false
-        waitingTranslations = 0
-        isPreparingSpeech = false
         isPlayingAudio = false
-        lastAcceptedChunk = ""
-        lastAcceptedAt = .distantPast
-        lastEnglishIntermediate = ""
-        lastEnglishIntermediateSource = ""
-        lastEnglishIntermediateAt = .distantPast
-        nativeTranslator = nil
-        nativeEnglishToFrenchTranslator = nil
-        nativeTranslationUnavailable = false
-        needsEnglishPivotTranslation = false
-        isUsingEnglishPivot = false
-        isUsingLocalQwen = false
-        whisper.liveDualDecodeEnglish = false
-        preparingSystemTranslation = false
-        isSystemTranslationReady = false
-        translationSetupMessage = "Vérification des moteurs de traduction locaux…"
+        lastChunk = ""
+        lastChunkAt = .distantPast
+        appleTranslator = nil
+        applePair = nil
+        engine = .none
+        isEngineReady = false
+        engineDescription = "Choix du moteur de traduction…"
         sessionToken = UUID()
         isActive = true
+        let token = sessionToken
 
-        // Ownership of the mic must never be shared with regular assistant chat.
+        // The interpreter owns the microphone; regular chat voice must stop.
         WhisperSpeechRecognizer.shared.stopListening()
         AgentVoiceManager.shared.stop()
-        // Set an interpreter-specific route BEFORE starting the input tap.
-        // This prefers the iPhone microphone while AirPods/earbuds can play
-        // translated speech through an output route that supports it.
         AudioSessionManager.shared.beginContinuousInterpreterSession(outputMode: outputMode)
 
-        previousPlaybackFinished = neural.onPlaybackFinished
-        previousPlaybackStarted = neural.onPlaybackStarted
-        previousGenerationStarted = neural.onGenerationStarted
-        previousPlaybackError = neural.onPlaybackError
         previousWhisperTranslation = whisper.translateSpeechToEnglish
         previousWhisperLanguage = whisper.preferredLanguageCode
-        whisper.translateSpeechToEnglish = localEnglishTranslation
-        whisper.preferredLanguageCode = source == "auto"
-            ? nil : TranslateLiveLanguages.engineCode(for: source)
+        whisper.liveDualDecodeEnglish = false
 
-        // A live input meter distinguishes "microphone is open" from actual
-        // captured sound, without recording private audio samples in logs.
         micLevelSubscription = whisper.$micEnergyLevel
             .receive(on: DispatchQueue.main)
             .sink { [weak self] value in
                 self?.microphoneLevel = value
             }
 
+        installObservers(token: token)
+        if speaksAloud {
+            installVoiceCallbacks(token: token)
+            neural.prepareForVoiceConversation()
+        }
         updateAudioRoute()
+        status = "Choix du moteur de traduction…"
+        chooseEngine(token: token)
+    }
+
+    public func stop() {
+        sessionToken = UUID()
+        guard isActive else { return }
+        isActive = false
+        isListening = false
+        isTranslating = false
+        isPlayingAudio = false
+        isSpeaking = false
+        pending.removeAll()
+        speechQueue.removeAll()
+        appleTranslator = nil
+        applePair = nil
+        engine = .none
+        isEngineReady = false
+        micLevelSubscription?.cancel()
+        micLevelSubscription = nil
+        microphoneLevel = 0
+
+        if let routeObserver {
+            NotificationCenter.default.removeObserver(routeObserver)
+            self.routeObserver = nil
+        }
+        if let interruptionObserver {
+            NotificationCenter.default.removeObserver(interruptionObserver)
+            self.interruptionObserver = nil
+        }
+        // Restore listeners BEFORE canceling playback so an old session
+        // cannot receive a synthetic "speech finished" event.
+        if previousPlaybackFinished != nil || previousPlaybackStarted != nil
+            || previousGenerationStarted != nil || previousPlaybackError != nil {
+            neural.onPlaybackFinished = previousPlaybackFinished
+            neural.onPlaybackStarted = previousPlaybackStarted
+            neural.onGenerationStarted = previousGenerationStarted
+            neural.onPlaybackError = previousPlaybackError
+        }
+        previousPlaybackFinished = nil
+        previousPlaybackStarted = nil
+        previousGenerationStarted = nil
+        previousPlaybackError = nil
+        neural.stop()
+        whisper.stopLiveInterpretation()
+        whisper.translateSpeechToEnglish = previousWhisperTranslation
+        whisper.preferredLanguageCode = previousWhisperLanguage
+        AudioSessionManager.shared.endContinuousVoiceSession()
+        status = "Traduction arrêtée."
+    }
+
+    private var speaksAloud: Bool {
+        outputMode != .subtitles
+            && TranslateLiveLanguages.spokenOutputCodes.contains(
+                TranslateLiveLanguages.engineCode(for: targetLanguage))
+    }
+
+    // MARK: - Engine selection
+
+    private func chooseEngine(token: UUID) {
+        let source = TranslateLiveLanguages.engineCode(for: sourceLanguage)
+        let target = TranslateLiveLanguages.engineCode(for: targetLanguage)
+
+        if !customTranslationServerURL.isEmpty,
+           TranslateLiveTranslationBackend.validatedURL(customTranslationServerURL) != nil {
+            activate(.server, pair: nil, whisperTranslates: false, token: token)
+            return
+        }
+        if target == "en" && source != "en" {
+            activate(.whisperToEnglish, pair: nil, whisperTranslates: true, token: token)
+            return
+        }
+
+        #if canImport(Translation)
+        if #available(iOS 18.0, *) {
+            Task { [weak self] in
+                let availability = LanguageAvailability()
+                let targetLocale = Locale.Language(identifier: target)
+                var direct: LanguageAvailability.Status = .unsupported
+                if source != "auto" {
+                    direct = await availability.status(
+                        from: Locale.Language(identifier: source), to: targetLocale)
+                }
+                let relay = await availability.status(
+                    from: Locale.Language(identifier: "en"), to: targetLocale)
+                guard let self, self.isActive, self.sessionToken == token else { return }
+                if direct != .unsupported {
+                    self.activate(.appleDirect, pair: ApplePair(source: source, target: target),
+                                  whisperTranslates: false, token: token)
+                } else if relay != .unsupported && source != "en" {
+                    self.activate(.whisperEnglishThenApple,
+                                  pair: ApplePair(source: "en", target: target),
+                                  whisperTranslates: true, token: token)
+                } else {
+                    self.fail("La traduction \(TranslateLiveLanguages.label(for: self.sourceLanguage)) → \(TranslateLiveLanguages.label(for: self.targetLanguage)) n'est pas disponible hors ligne sur cet iPhone.")
+                }
+            }
+            return
+        }
+        #endif
+        fail("La traduction hors ligne d'Apple nécessite iOS 18 ou plus récent.")
+    }
+
+    private func activate(_ engine: Engine, pair: ApplePair?, whisperTranslates: Bool, token: UUID) {
+        guard isActive, sessionToken == token else { return }
+        self.engine = engine
+        applePair = pair
+        let sourceLabel = TranslateLiveLanguages.label(for: sourceLanguage)
+        let targetLabel = TranslateLiveLanguages.label(for: targetLanguage)
+        switch engine {
+        case .appleDirect:
+            engineDescription = "Whisper (\(sourceLabel)) → Traduire d'Apple → \(targetLabel), sur l'iPhone."
+        case .whisperEnglishThenApple:
+            engineDescription = "Whisper comprend le \(sourceLabel.lowercased()) et le rend en anglais, puis Traduire d'Apple → \(targetLabel). Tout reste sur l'iPhone."
+        case .whisperToEnglish:
+            engineDescription = "Whisper traduit directement vers l'anglais, sur l'iPhone."
+            isEngineReady = true
+        case .server:
+            engineDescription = "Whisper sur l'iPhone, traduction par ton serveur personnel."
+            isEngineReady = true
+        case .none:
+            break
+        }
+
+        whisper.translateSpeechToEnglish = whisperTranslates
+        whisper.preferredLanguageCode = sourceLanguage == "auto"
+            ? nil : TranslateLiveLanguages.engineCode(for: sourceLanguage)
+
+        whisper.onLiveInterpretationChunk = { [weak self] chunk, _ in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.receive(chunk: chunk, token: token)
+        }
+        whisper.onLiveEnglishPivotChunk = nil
+        whisper.onLiveInterpretationError = { [weak self] message in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            // Noise/music rejections and catch-up notices are normal on TV.
+            if message.hasPrefix("Whisper : aucune parole fiable")
+                || message.hasPrefix("Le direct est plus rapide") {
+                self.hint = message.hasPrefix("Le direct")
+                    ? "Le direct va plus vite que l'iPhone : quelques mots ont été sautés."
+                    : "Musique ou bruit ignoré."
+                return
+            }
+            self.errorMessage = message
+            self.updateStatus()
+        }
+        whisper.onLiveMicrophoneChanged = { [weak self] listening in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.isListening = listening
+            self.updateStatus()
+        }
+        status = "Chargement de Whisper…"
+        whisper.startLiveInterpretation()
+        updateStatus()
+    }
+
+    private func fail(_ message: String) {
+        errorMessage = message
+        engineDescription = message
+        updateStatus()
+    }
+
+    // MARK: - Apple Translation (installed language packs, offline)
+
+    #if canImport(Translation)
+    /// Called by the hidden `translationTask` host while the screen is open.
+    /// The session is only valid inside that task, so this function keeps
+    /// running until the interpreter stops or the pair changes.
+    @available(iOS 18.0, *)
+    public func attach(_ session: TranslationSession, pair: ApplePair) async {
+        let token = sessionToken
+        guard isActive, applePair == pair else { return }
+        engineDescription = "Préparation de Traduire (\(pair.source) → \(pair.target))…"
+        do {
+            // Shows Apple's one-time download sheet when the pack is missing.
+            try await session.prepareTranslation()
+        } catch {
+            guard isActive, sessionToken == token else { return }
+            fail("Langue non téléchargée pour Traduire. Ouvre Réglages › Apps › Traduire › Langues téléchargées, installe anglais et français, puis relance. (\(error.localizedDescription))")
+            return
+        }
+        guard isActive, sessionToken == token, applePair == pair else { return }
+        appleTranslator = { text in
+            try await session.translate(text).targetText
+        }
+        isEngineReady = true
+        errorMessage = nil
+        updateStatus()
+        translateNext()
+
+        while !Task.isCancelled && isActive && sessionToken == token && applePair == pair {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+        if sessionToken == token {
+            appleTranslator = nil
+            isEngineReady = false
+        }
+    }
+    #endif
+
+    // MARK: - Recognized speech
+
+    private func receive(chunk: String, token: UUID) {
+        guard isActive, sessionToken == token else { return }
+        let text = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if TranslateLiveContextBuffer.isUnreliableTranscript(text) {
+            hint = "Musique ou bruit ignoré."
+            return
+        }
+        // Whisper sometimes returns the exact same clause for two windows.
+        if text == lastChunk && Date().timeIntervalSince(lastChunkAt) < 8 {
+            return
+        }
+        // Whisper locked to Hebrew can still print Latin words on music.
+        if engine == .appleDirect || engine == .server,
+           TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he",
+           !TranslateLiveContextBuffer.isMostlyHebrew(text) {
+            hint = "Passage non reconnu comme de l'hébreu, ignoré."
+            return
+        }
+        if engine == .whisperEnglishThenApple || engine == .whisperToEnglish,
+           TranslateLiveContextBuffer.isSuspiciousEnglishPivot(text, hebrewSource: "") {
+            hint = "Passage incompréhensible ignoré."
+            return
+        }
+        lastChunk = text
+        lastChunkAt = Date()
+        errorMessage = nil
+        hint = nil
+
+        switch engine {
+        case .whisperToEnglish:
+            lastSource = ""
+            appendTranslated(text, source: "")
+        case .appleDirect, .whisperEnglishThenApple, .server:
+            lastSource = text
+            pending.append(Pending(source: text, input: text))
+            // A live broadcast never waits: keep only the freshest phrases.
+            if pending.count > 3 {
+                pending.removeFirst(pending.count - 3)
+                hint = "Rattrapage du direct : phrases les plus récentes en priorité."
+            }
+            translateNext()
+        case .none:
+            break
+        }
+        updateStatus()
+    }
+
+    private func translateNext() {
+        guard isActive, !isTranslating, !pending.isEmpty else { return }
+        let token = sessionToken
+
+        switch engine {
+        case .appleDirect, .whisperEnglishThenApple:
+            guard let translator = appleTranslator else {
+                updateStatus() // Waiting for the language pack.
+                return
+            }
+            let item = pending.removeFirst()
+            isTranslating = true
+            updateStatus()
+            Task { [weak self] in
+                let outcome: TranslateLiveTranslationBackend.Outcome
+                do {
+                    outcome = .translated(try await translator(item.input))
+                } catch {
+                    outcome = .unavailable("Traduire : " + error.localizedDescription)
+                }
+                self?.finish(outcome, item: item, token: token)
+            }
+        case .server:
+            let item = pending.removeFirst()
+            isTranslating = true
+            updateStatus()
+            TranslateLiveTranslationBackend.translate(
+                text: item.input,
+                from: TranslateLiveLanguages.engineCode(for: sourceLanguage),
+                to: TranslateLiveLanguages.engineCode(for: targetLanguage),
+                serverURL: customTranslationServerURL
+            ) { [weak self] outcome in
+                Task { @MainActor in
+                    self?.finish(outcome, item: item, token: token)
+                }
+            }
+        case .whisperToEnglish, .none:
+            pending.removeAll()
+        }
+    }
+
+    private func finish(
+        _ outcome: TranslateLiveTranslationBackend.Outcome, item: Pending, token: UUID
+    ) {
+        guard isActive, sessionToken == token else { return }
+        isTranslating = false
+        switch outcome {
+        case .translated(let output):
+            appendTranslated(output, source: item.source)
+        case .unavailable(let reason):
+            errorMessage = reason
+        }
+        translateNext()
+        updateStatus()
+    }
+
+    private func appendTranslated(_ text: String, source: String) {
+        guard isActive else { return }
+        let result = SarahResponseCleaner.clean(text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !result.isEmpty,
+              result.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }),
+              !TranslateLiveContextBuffer.isUnreliableTranscript(result) else {
+            return
+        }
+        lastTranslation = result
+        history.insert(Phrase(source: source, translation: result), at: 0)
+        if history.count > 80 { history.removeLast(history.count - 80) }
+
+        guard speaksAloud else { return }
+        // Keep the voice close to the live picture: only the newest phrase waits.
+        speechQueue = [result]
+        speakNext(token: sessionToken)
+    }
+
+    // MARK: - Optional spoken output (headphones / speaker modes)
+
+    private func installVoiceCallbacks(token: UUID) {
+        previousPlaybackFinished = neural.onPlaybackFinished
+        previousPlaybackStarted = neural.onPlaybackStarted
+        previousGenerationStarted = neural.onGenerationStarted
+        previousPlaybackError = neural.onPlaybackError
+        neural.onGenerationStarted = { [weak self] in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.updateStatus()
+        }
+        neural.onPlaybackStarted = { [weak self] in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            self.isPlayingAudio = true
+            self.updateStatus()
+        }
+        neural.onPlaybackFinished = { [weak self] in
+            guard let self, self.sessionToken == token else { return }
+            self.isSpeaking = false
+            self.isPlayingAudio = false
+            self.speakNext(token: token)
+        }
+        neural.onPlaybackError = { [weak self] message in
+            guard let self, self.sessionToken == token else { return }
+            self.hint = "Voix indisponible : " + message
+        }
+    }
+
+    private func speakNext(token: UUID) {
+        guard isActive, sessionToken == token, !isSpeaking, !speechQueue.isEmpty else {
+            updateStatus()
+            return
+        }
+        let phrase = speechQueue.removeFirst()
+        isSpeaking = true
+        neural.speak(
+            text: phrase, for: .yohan,
+            language: TranslateLiveLanguages.engineCode(for: targetLanguage),
+            qualitySteps: 5,
+            dedicatedInterpreter: true
+        )
+        updateStatus()
+    }
+
+    // MARK: - Audio route
+
+    private func installObservers(token: UUID) {
         routeObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: AVAudioSession.sharedInstance(),
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.isActive, self.sessionToken == token else { return }
                 self.updateAudioRoute()
-                self.scheduleMicrophoneRecovery(token: self.sessionToken)
+                self.scheduleMicrophoneRecovery(token: token)
             }
         }
         interruptionObserver = NotificationCenter.default.addObserver(
@@ -221,725 +566,10 @@ public final class YoannTranslateLiveService: ObservableObject {
             guard let value = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   value == AVAudioSession.InterruptionType.ended.rawValue else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.scheduleMicrophoneRecovery(token: self.sessionToken)
-            }
-        }
-
-        let token = sessionToken
-        whisper.onLiveInterpretationChunk = { [weak self] chunk, paused in
-            guard let self, self.isActive, self.sessionToken == token,
-                  !self.isUsingEnglishPivot else { return }
-            self.receive(chunk: chunk, paused: paused, token: token)
-        }
-        whisper.onLiveEnglishPivotChunk = { [weak self] source, english, paused in
-            guard let self, self.isActive, self.sessionToken == token,
-                  self.isUsingEnglishPivot else { return }
-            self.receiveEnglishPivot(source: source, english: english, paused: paused, token: token)
-        }
-        whisper.onLiveInterpretationError = { [weak self] message in
-            guard let self, self.isActive, self.sessionToken == token else { return }
-            if message.hasPrefix("Whisper : aucune parole fiable") {
-                // A rejected music/noise chunk must not leave its preceding
-                // caption visible as though these were current TV words.
-                self.lastSource = ""
-                self.provisionalSource = ""
-            }
-            self.errorMessage = message
-            self.updateStatus()
-        }
-        whisper.onLiveMicrophoneChanged = { [weak self] listening in
-            guard let self, self.isActive, self.sessionToken == token else { return }
-            self.isListening = listening
-            self.updateStatus()
-        }
-        neural.onGenerationStarted = { [weak self] in
-            guard let self, self.isActive, self.sessionToken == token else { return }
-            self.isPreparingSpeech = true
-            self.isPlayingAudio = false
-            self.updateStatus()
-        }
-        neural.onPlaybackStarted = { [weak self] in
-            guard let self, self.isActive, self.sessionToken == token else { return }
-            self.isPreparingSpeech = false
-            self.isPlayingAudio = true
-            self.updateStatus()
-        }
-        neural.onPlaybackFinished = { [weak self] in
-            guard let self, self.sessionToken == token else { return }
-            self.isSpeakingTranslation = false
-            self.isPreparingSpeech = false
-            self.isPlayingAudio = false
-            self.playNextSpeech(token: token)
-        }
-        neural.onPlaybackError = { [weak self] message in
-            guard let self, self.sessionToken == token else { return }
-            self.errorMessage = "La voix n'a pas pu être générée : " + message
-            // NeuralVoiceService signals onPlaybackFinished after the error,
-            // which will drain the next queued segment once.
-        }
-
-        // An installed Qwen3 GGUF translates Hebrew↔French directly.
-        // Qwen model WEIGHTS are downloaded into Application Support; the IPA
-        // only contains the llama.cpp inference runtime.
-        if needsLocalNeuralTranslation && customTranslationServerURL.isEmpty {
-            if TranslateLiveTranslationBackend.isLocalQwenReady {
-                activateLocalQwen(token: token)
-            } else {
-                if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
-                    // Existing BackgroundModelDownloader uses Wi-Fi only and
-                    // resumes downloads. Never silently use cellular data.
-                    BackgroundModelDownloader.shared.startQwenModelDownload()
-                    translationSetupMessage = "Téléchargement Wi-Fi de Qwen3 en cours. Un moteur direct hébreu ↔ français sera disponible après installation."
-                }
-                if shouldAttemptSystemTranslation {
-                    requestEnglishPivot(token: token)
-                } else {
-                    errorMessage = "Le modèle Qwen local manque pour cette paire. Installe-le en Wi-Fi."
-                }
-            }
-            qwenDownloadObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("SarahModelDownloadCompleted"),
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.activateLocalQwen(token: self.sessionToken)
-                }
-            }
-        }
-
-        status = "Initialisation de Whisper… Le micro reste actif tant que ce mode est ouvert."
-        whisper.startLiveInterpretation()
-        // Preload the real neural French speaker on its own serial queue.
-        // The microphone must begin first, without waiting for TTS startup.
-        neural.prepareForVoiceConversation()
-
-        // If the SwiftUI English translationTask is not attached, explain
-        // why captions cannot yet appear instead of simulating responses.
-        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty
-           && !isUsingLocalQwen {
-            Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 12_000_000_000)
-                guard let self, self.isActive, self.sessionToken == token,
-                      self.nativeEnglishToFrenchTranslator == nil,
-                      !self.isUsingEnglishPivot else { return }
-                self.preparingSystemTranslation = false
-                self.translationSetupMessage = "Le moteur anglais → français n'a pas démarré. Vérifie les langues anglais et français de Traduire sur cet iPhone."
-                self.errorMessage = self.translationSetupMessage
-                self.updateStatus()
-            }
-        }
-    }
-
-    public func stop() {
-        sessionToken = UUID()
-        guard isActive else { return }
-        isActive = false
-        isListening = false
-        isTranslating = false
-        isSpeakingTranslation = false
-        isPreparingSpeech = false
-        isPlayingAudio = false
-        incoming.removeAll()
-        outgoing.removeAll()
-        waitingTranslations = 0
-        translationBusy = false
-        nativeTranslator = nil
-        nativeEnglishToFrenchTranslator = nil
-        needsEnglishPivotTranslation = false
-        isUsingEnglishPivot = false
-        isUsingLocalQwen = false
-        whisper.liveDualDecodeEnglish = false
-        preparingSystemTranslation = false
-        isSystemTranslationReady = false
-        nativeTranslationUnavailable = true
-        micLevelSubscription?.cancel()
-        micLevelSubscription = nil
-        microphoneLevel = 0
-        provisionalSource = ""
-        recentSourceContext = ""
-        contextBuffer.reset()
-
-        if let routeObserver {
-            NotificationCenter.default.removeObserver(routeObserver)
-            self.routeObserver = nil
-        }
-        if let interruptionObserver {
-            NotificationCenter.default.removeObserver(interruptionObserver)
-            self.interruptionObserver = nil
-        }
-        if let qwenDownloadObserver {
-            NotificationCenter.default.removeObserver(qwenDownloadObserver)
-            self.qwenDownloadObserver = nil
-        }
-        // Restore listeners BEFORE canceling playback so an old session
-        // cannot receive a synthetic "speech finished" event.
-        neural.onPlaybackFinished = previousPlaybackFinished
-        neural.onPlaybackStarted = previousPlaybackStarted
-        neural.onGenerationStarted = previousGenerationStarted
-        neural.onPlaybackError = previousPlaybackError
-        previousPlaybackFinished = nil
-        previousPlaybackStarted = nil
-        previousGenerationStarted = nil
-        previousPlaybackError = nil
-        neural.stop()
-        whisper.stopLiveInterpretation()
-        whisper.translateSpeechToEnglish = previousWhisperTranslation
-        whisper.preferredLanguageCode = previousWhisperLanguage
-        AudioSessionManager.shared.endContinuousVoiceSession()
-        status = "Translate Live arrêté."
-    }
-
-    private func receive(chunk: String, paused: Bool, token: UUID) {
-        guard isActive, sessionToken == token else { return }
-        if TranslateLiveContextBuffer.isUnreliableTranscript(chunk) {
-            // Music and long repeated token loops are Whisper hypotheses,
-            // not a verified translation of the TV broadcast.
-            errorMessage = "Extrait incertain ignoré : Whisper a peut-être entendu de la musique ou du bruit."
-            provisionalSource = ""
-            lastSource = ""
-            return
-        }
-        let cleaned = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Whisper can hallucinate the same short Hebrew clause across
-        // separate 3.4-second windows, well beyond the old 1.6s filter.
-        if cleaned == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 3.4 {
-            provisionalSource = ""
-            errorMessage = "Extrait répété par Whisper : attente de nouvelles paroles."
-            return
-        }
-        // Respect the selected source language; music can produce confident
-        // Latin-script words even when Whisper is locked to Hebrew.
-        if !localEnglishTranslation
-            && TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he"
-            && !TranslateLiveContextBuffer.isMostlyHebrew(cleaned) {
-            provisionalSource = ""
-            lastSource = ""
-            errorMessage = "Paroles hébraïques non reconnues de façon fiable."
-            return
-        }
-        lastAcceptedChunk = cleaned
-        lastAcceptedAt = Date()
-        // Live Whisper chunks are already discrete, non-overlapping audio.
-        // Waiting for another 3.4-second chunk to commit each caption added
-        // a complete extra chunk of broadcast latency. Qwen can translate
-        // the current committed chunk immediately.
-        let update = contextBuffer.receive(
-            cleaned, paused: isUsingLocalQwen || paused
-        )
-
-        // The caption may change while the next words are understood.
-        // Spoken output NEVER consumes this provisional text.
-        provisionalSource = update.provisional
-        recentSourceContext = update.recentContext
-
-        // Only committed source text feeds subsequent Whisper prompts.
-        // Context remains short to avoid repetitions and hallucinations.
-        whisper.liveRecognitionContext = update.recentContext
-
-        for stable in update.committed {
-            lastSource = stable
-            if needsEnglishPivotTranslation && !isUsingEnglishPivot {
-                // Hold off instead of passing raw Hebrew text into an
-                // unsupported iOS translation pair.
-                continue
-            }
-            if localEnglishTranslation {
-                // Whisper has already produced a stable English rendering.
-                appendTranslated(
-                    text: stable, original: "Voix → anglais via Whisper", token: token
-                )
-                continue
-            }
-            // Keep newest words rather than replaying several old news
-            // sentences. TV/radio broadcasts do not wait for inference.
-            incoming.append(PendingTranslation(
-                source: stable, input: stable, fromEnglishPivot: false
-            ))
-            // Preserve one additional pending TV phrase while decoding Qwen.
-            // Keep the queue bounded so live broadcasts cannot build backlog.
-            if incoming.count > 2 {
-                incoming.removeFirst(incoming.count - 2)
-                errorMessage = "Yoann rattrape le direct : extraits les plus récents prioritaires."
-            }
-        }
-        waitingTranslations = incoming.count
-        translateNext(token: token)
-        updateStatus()
-    }
-
-    /// Fallback that preserves Hebrew captions while using the offline
-    /// Whisper speech-to-English decoder and Apple's English→French pack.
-    /// Input is paired on the *same microphone audio*, not guessed from
-    /// the Hebrew transcription.
-    private func receiveEnglishPivot(
-        source: String, english: String, paused: Bool, token: UUID
-    ) {
-        guard isActive, sessionToken == token, isUsingEnglishPivot else { return }
-        let hebrew = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        let intermediate = english.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !TranslateLiveContextBuffer.isUnreliableTranscript(hebrew),
-              (sourceLanguage != "he" || TranslateLiveContextBuffer.isMostlyHebrew(hebrew)),
-              !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
-                intermediate, hebrewSource: hebrew
-              ),
-              intermediate.range(of: "[A-Za-z]", options: .regularExpression) != nil,
-              !hebrew.isEmpty else {
-            errorMessage = "Traduction incertaine ignorée : Whisper n'a pas compris cet extrait de la chaîne."
-            return
-        }
-        if hebrew == lastAcceptedChunk && Date().timeIntervalSince(lastAcceptedAt) < 1.6 {
-            return
-        }
-        let normalizedEnglish = intermediate.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-        // Repeated stock translations for *different* Hebrew clauses
-        // are not evidence of real interpretation. Drop them before iOS TTS.
-        if normalizedEnglish == lastEnglishIntermediate,
-           hebrew != lastEnglishIntermediateSource,
-           Date().timeIntervalSince(lastEnglishIntermediateAt) < 25 {
-            errorMessage = "Whisper répète une traduction anglaise sans rapport avec le nouvel hébreu. Extrait ignoré."
-            return
-        }
-        lastEnglishIntermediate = normalizedEnglish
-        lastEnglishIntermediateSource = hebrew
-        lastEnglishIntermediateAt = Date()
-        lastAcceptedChunk = hebrew
-        lastAcceptedAt = Date()
-        lastSource = hebrew
-        provisionalSource = ""
-        recentSourceContext = hebrew
-        incoming.append(PendingTranslation(
-            source: hebrew, input: intermediate, fromEnglishPivot: true
-        ))
-        if incoming.count > 2 {
-            incoming.removeFirst(incoming.count - 2)
-            errorMessage = "Yoann rattrape le direct : extraits les plus récents prioritaires."
-        }
-        waitingTranslations = incoming.count
-        translateNext(token: token)
-        updateStatus()
-    }
-
-    /// Model-backed bidirectional translation. Never reuse English pivot
-    /// captions after Qwen3 becomes available or produce canned phrases.
-    private func activateLocalQwen(token: UUID) {
-        guard isActive, sessionToken == token, needsLocalNeuralTranslation,
-              customTranslationServerURL.isEmpty,
-              TranslateLiveTranslationBackend.isLocalQwenReady else { return }
-        needsEnglishPivotTranslation = false
-        isUsingEnglishPivot = false
-        isUsingLocalQwen = true
-        consecutiveQwenFailures = 0
-        whisper.liveDualDecodeEnglish = false
-        preparingSystemTranslation = false
-        isSystemTranslationReady = true
-        incoming.removeAll()
-        waitingTranslations = 0
-        translationSetupMessage = "Qwen3 local actif : \(TranslateLiveLanguages.label(for: sourceLanguage)) → \(TranslateLiveLanguages.label(for: targetLanguage))."
-        errorMessage = nil
-        updateStatus()
-    }
-
-    private func requestEnglishPivot(token: UUID) {
-        guard isActive, sessionToken == token,
-              shouldAttemptSystemTranslation,
-              !isUsingLocalQwen,
-              customTranslationServerURL.isEmpty else { return }
-        nativeTranslationUnavailable = true
-        nativeTranslator = nil
-        isSystemTranslationReady = false
-        incoming.removeAll()
-        waitingTranslations = 0
-        preparingSystemTranslation = false
-        needsEnglishPivotTranslation = true
-        translationSetupMessage = "Démarrage de Whisper hébreu → anglais et du traducteur neuronal anglais → français (aucun pack hébreu Apple nécessaire)…"
-        errorMessage = nil
-        activateEnglishPivotIfReady(token: token)
-    }
-
-    private func activateEnglishPivotIfReady(token: UUID) {
-        guard isActive, sessionToken == token, needsEnglishPivotTranslation,
-              nativeEnglishToFrenchTranslator != nil else { return }
-        whisper.liveDualDecodeEnglish = true
-        isUsingEnglishPivot = true
-        isSystemTranslationReady = true
-        preparingSystemTranslation = false
-        translationSetupMessage = "Moteur réel actif : Whisper hébreu → anglais, puis Traduire anglais → français hors ligne."
-        errorMessage = nil
-        updateStatus()
-    }
-
-    // MARK: - Native iOS Translation (installed language packs; no server)
-
-    #if canImport(Translation)
-    @available(iOS 18.0, *)
-    public func useSystemTranslation(_ session: TranslationSession) async {
-        let token = sessionToken
-        guard isActive, shouldAttemptSystemTranslation else { return }
-
-        preparingSystemTranslation = true
-        translationSetupMessage = "Vérification des langues hébreu et français…"
-        updateStatus()
-        do {
-            let source = Locale.Language(identifier: "he")
-            let target = Locale.Language(identifier: "fr")
-            let availability = LanguageAvailability()
-            let available = await availability.status(from: source, to: target)
-            guard isActive, sessionToken == token, !Task.isCancelled else { return }
-            switch available {
-            case .unsupported:
-                // Native Hebrew→French is absent on this particular iOS.
-                // Never ask the user to repeatedly install an unsupported
-                // language pack. Try offline Whisper→English→French instead.
-                preparingSystemTranslation = false
-                requestEnglishPivot(token: token)
-                updateStatus()
-                return
-            case .supported:
-                translationSetupMessage = "Téléchargement du pack iOS requis une seule fois : accepte la demande d'iOS."
-            case .installed:
-                translationSetupMessage = "Pack de traduction déjà installé sur l'iPhone."
-            @unknown default:
-                translationSetupMessage = "Vérification du pack de traduction iOS…"
-            }
-
-            // This may prompt for a one-time download. An offline iPhone
-            // cannot install Apple's language assets for the first time.
-            try await session.prepareTranslation()
-            guard isActive, sessionToken == token, !Task.isCancelled else { return }
-            // prepareTranslation() can return while language assets are
-            // still downloading, so do not report "ready" prematurely.
-            var installed = false
-            for _ in 0..<20 {
-                let state = await availability.status(from: source, to: target)
-                guard isActive, sessionToken == token, !Task.isCancelled else { return }
-                if state == .installed {
-                    installed = true
-                    break
-                }
-                translationSetupMessage = "Téléchargement du pack hébreu/français en cours…"
-                try await Task.sleep(nanoseconds: 1_500_000_000)
-            }
-            guard installed else {
-                throw NSError(domain: "SarahTranslateLive", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Le pack hébreu/français n'est pas encore installé. Vérifie la connexion, puis relance."])
-            }
-            guard isActive, sessionToken == token, !Task.isCancelled else { return }
-
-            nativeTranslator = { text in
-                let result = try await session.translate(text)
-                return result.targetText
-            }
-            nativeTranslationUnavailable = false
-            preparingSystemTranslation = false
-            isSystemTranslationReady = true
-            translationSetupMessage = "Traduction hébreu → français installée, utilisable hors connexion."
-            errorMessage = nil
-            translateNext(token: token)
-            updateStatus()
-
-            // TranslationSession supplied by translationTask is valid only
-            // while the task/view is alive. Never retain it after this exits.
-            while !Task.isCancelled && isActive && sessionToken == token {
-                do {
-                    try await Task.sleep(nanoseconds: 500_000_000)
-                } catch { break }
-            }
-        } catch {
-            guard isActive, sessionToken == token else { return }
-            nativeTranslationUnavailable = true
-            preparingSystemTranslation = false
-            isSystemTranslationReady = false
-            translationSetupMessage = "Traduction iOS directe indisponible : \(error.localizedDescription)"
-            requestEnglishPivot(token: token)
-            updateStatus()
-        }
-        guard sessionToken == token else { return }
-        nativeTranslator = nil
-        isSystemTranslationReady = false
-        preparingSystemTranslation = false
-    }
-    /// English→French is a widely supported offline Apple Translation pair.
-    /// This view-hosted session is activated only if native Hebrew→French is
-    /// rejected. Whisper provides the English intermediate locally.
-    @available(iOS 18.0, *)
-    public func useEnglishPivotTranslation(_ session: TranslationSession) async {
-        let token = sessionToken
-        guard isActive, needsEnglishPivotTranslation else { return }
-        translationSetupMessage = "Vérification du pack anglais → français sur l'iPhone…"
-        do {
-            let source = Locale.Language(identifier: "en")
-            let target = Locale.Language(identifier: "fr")
-            let availability = LanguageAvailability()
-            let state = await availability.status(from: source, to: target)
-            guard isActive, sessionToken == token, !Task.isCancelled else { return }
-            switch state {
-            case .unsupported:
-                translationSetupMessage = "Même la paire anglais → français est indisponible dans le framework iOS."
-                errorMessage = translationSetupMessage + " Un autre modèle de traduction hors ligne est nécessaire."
-                return
-            case .supported:
-                translationSetupMessage = "Installe une seule fois les langues anglais → français demandées par iOS."
-            case .installed:
-                translationSetupMessage = "Pack anglais → français déjà installé."
-            @unknown default:
-                translationSetupMessage = "Vérification des langues anglaise et française…"
-            }
-            try await session.prepareTranslation()
-            guard isActive, sessionToken == token, !Task.isCancelled else { return }
-            var installed = false
-            for _ in 0..<20 {
-                let current = await availability.status(from: source, to: target)
-                guard isActive, sessionToken == token, !Task.isCancelled else { return }
-                if current == .installed {
-                    installed = true
-                    break
-                }
-                translationSetupMessage = "Téléchargement initial du pack anglais → français…"
-                try await Task.sleep(nanoseconds: 1_500_000_000)
-            }
-            guard installed else {
-                throw NSError(domain: "SarahTranslateLive", code: 4,
-                    userInfo: [NSLocalizedDescriptionKey: "Pack anglais → français non installé. Une connexion initiale est nécessaire."])
-            }
-            nativeEnglishToFrenchTranslator = { text in
-                let result = try await session.translate(text)
-                return result.targetText
-            }
-            activateEnglishPivotIfReady(token: token)
-            while !Task.isCancelled && isActive && sessionToken == token,
-                  needsEnglishPivotTranslation {
-                do {
-                    try await Task.sleep(nanoseconds: 500_000_000)
-                } catch { break }
-            }
-        } catch {
-            guard isActive, sessionToken == token else { return }
-            translationSetupMessage = "Relais anglais → français : \(error.localizedDescription)"
-            errorMessage = translationSetupMessage
-        }
-        guard sessionToken == token else { return }
-        nativeEnglishToFrenchTranslator = nil
-        isSystemTranslationReady = false
-        isUsingEnglishPivot = false
-        whisper.liveDualDecodeEnglish = false
-    }
-    #endif
-
-    private func translateNext(token: UUID) {
-        guard isActive, sessionToken == token, !translationBusy, !incoming.isEmpty else { return }
-
-        if shouldAttemptSystemTranslation && customTranslationServerURL.isEmpty
-            && !isUsingLocalQwen {
-            if needsEnglishPivotTranslation && !isUsingEnglishPivot {
-                // Wait for the English→French pack rather than sending Hebrew
-                // to a demonstrably unsupported local translation backend.
-                updateStatus()
-                return
-            }
-            if !needsEnglishPivotTranslation && nativeTranslator == nil
-                && !nativeTranslationUnavailable {
-                if #available(iOS 18.0, *) {
-                    preparingSystemTranslation = true
-                    updateStatus()
-                    return
-                }
-            }
-        }
-
-        translationBusy = true
-        isTranslating = true
-        let fragment = incoming.removeFirst()
-        waitingTranslations = incoming.count
-        // If Qwen took too long for the previous sentence, skip a queued
-        // fragment that's already far behind live broadcast time.
-        if Date().timeIntervalSince(fragment.capturedAt) > 9.0 && !incoming.isEmpty {
-            translationBusy = false
-            isTranslating = false
-            errorMessage = "Le direct a avancé : extrait trop ancien ignoré."
-            translateNext(token: token)
-            return
-        }
-
-        let native: ((String) async throws -> String)?
-        if fragment.fromEnglishPivot {
-            native = nativeEnglishToFrenchTranslator
-        } else if shouldAttemptSystemTranslation {
-            native = nativeTranslator
-        } else {
-            native = nil
-        }
-
-        if isUsingLocalQwen && !fragment.fromEnglishPivot {
-            TranslateLiveTranslationBackend.translateWithLocalQwen(
-                text: fragment.input,
-                from: TranslateLiveLanguages.engineCode(for: sourceLanguage),
-                to: TranslateLiveLanguages.engineCode(for: targetLanguage)
-            ) { [weak self] outcome in
-                DispatchQueue.main.async {
-                    self?.finishTranslation(outcome, original: fragment.source, token: token,
-                                            capturedAt: fragment.capturedAt)
-                }
-            }
-            updateStatus()
-            return
-        }
-
-        if let native {
-            Task { [weak self] in
                 guard let self, self.isActive, self.sessionToken == token else { return }
-                do {
-                    let result = try await native(fragment.input)
-                    self.finishTranslation(.translated(result), original: fragment.source, token: token,
-                                           capturedAt: fragment.capturedAt)
-                } catch {
-                    guard self.isActive, self.sessionToken == token else { return }
-                    if fragment.fromEnglishPivot {
-                        self.finishTranslation(
-                            .unavailable("Traduction anglais → français interrompue : \(error.localizedDescription)"),
-                            original: fragment.source, token: token,
-                            capturedAt: fragment.capturedAt
-                        )
-                    } else if self.shouldAttemptSystemTranslation
-                                && self.customTranslationServerURL.isEmpty {
-                        // Switching engines is recoverable, not a user-facing
-                        // translation failure. Keep the status focused on the
-                        // upcoming Whisper→English→French attempt.
-                        self.translationBusy = false
-                        self.isTranslating = false
-                        self.requestEnglishPivot(token: token)
-                        self.updateStatus()
-                    } else {
-                        self.finishTranslation(
-                            .unavailable("Traduction locale impossible : \(error.localizedDescription)"),
-                            original: fragment.source, token: token,
-                            capturedAt: fragment.capturedAt
-                        )
-                    }
-                }
-            }
-            return
-        }
-
-        TranslateLiveTranslationBackend.translate(
-            text: fragment.input,
-            from: fragment.fromEnglishPivot ? "en" : TranslateLiveLanguages.engineCode(for: sourceLanguage),
-            to: TranslateLiveLanguages.engineCode(for: targetLanguage),
-            serverURL: customTranslationServerURL
-        ) { [weak self] outcome in
-            DispatchQueue.main.async {
-                self?.finishTranslation(outcome, original: fragment.source, token: token,
-                                        capturedAt: fragment.capturedAt)
+                self.scheduleMicrophoneRecovery(token: token)
             }
         }
-        updateStatus()
-    }
-
-    private func finishTranslation(
-        _ outcome: TranslateLiveTranslationBackend.Outcome,
-        original: String,
-        token: UUID,
-        capturedAt: Date
-    ) {
-        guard isActive, sessionToken == token else { return }
-        translationBusy = false
-        isTranslating = false
-        // A completed translation cannot be allowed to interrupt a more
-        // recent TV bulletin after a long CPU stall. Continue listening and
-        // prefer the freshest waiting phrase, rather than replaying old news.
-        if Date().timeIntervalSince(capturedAt) > 13.0 && !incoming.isEmpty {
-            errorMessage = "Interprétation dépassée par le direct : paroles récentes prioritaires."
-            translateNext(token: token)
-            updateStatus()
-            return
-        }
-        switch outcome {
-        case .translated(let output):
-            consecutiveQwenFailures = 0
-            appendTranslated(text: output, original: original, token: token)
-        case .unavailable(let reason):
-            errorMessage = reason
-            if isUsingLocalQwen {
-                consecutiveQwenFailures += 1
-                // Runtime memory errors trigger an immediate recovery. Two
-                // unusable neural outputs also trigger a real fallback instead
-                // of leaving television captions permanently untranslated.
-                let hardFailure = reason.hasPrefix("Qwen3 local :")
-                if (hardFailure || consecutiveQwenFailures >= 2)
-                    && shouldAttemptSystemTranslation
-                    && customTranslationServerURL.isEmpty {
-                    isUsingLocalQwen = false
-                    isSystemTranslationReady = false
-                    translationSetupMessage = "Qwen3 ne parvient pas à traduire ce flux. Préparation du relais Whisper → anglais → français…"
-                    requestEnglishPivot(token: token)
-                }
-            }
-        }
-        translateNext(token: token)
-        updateStatus()
-    }
-
-    private func appendTranslated(text: String, original: String, token: UUID) {
-        guard isActive, sessionToken == token else { return }
-        let result = SarahResponseCleaner.clean(text)
-        // A punctuation-only result such as ":" is not a translation.
-        // Never display or pronounce it as a TV presenter's words.
-        guard !result.isEmpty,
-              result.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }),
-              !TranslateLiveContextBuffer.isUnreliableTranscript(result) else {
-            errorMessage = "Traduction incertaine ignorée."
-            return
-        }
-        // A real model can still hallucinate a repeated stock sentence.
-        // Do not print/speak it as if it were the TV presenter's words.
-        let phrases = result.lowercased()
-            .split(whereSeparator: { ".!?;".contains($0) })
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) }
-            .filter { !$0.isEmpty }
-        if phrases.count >= 2 && Set(phrases).count == 1 {
-            errorMessage = "Réponse française répétitive ignorée : traduction insuffisamment fiable."
-            return
-        }
-        errorMessage = nil
-        lastTranslation = result
-        history.insert(Phrase(source: original, translation: result), at: 0)
-        if history.count > 40 { history.removeLast(history.count - 40) }
-
-        guard TranslateLiveLanguages.spokenOutputCodes.contains(
-            TranslateLiveLanguages.engineCode(for: targetLanguage)
-        ) else {
-            updateStatus()
-            return
-        }
-
-        // The French voice must also stay near the TV's current words.
-        if !outgoing.isEmpty {
-            outgoing.removeAll(keepingCapacity: true)
-            errorMessage = "La voix rattrape le direct : sous-titres récents prioritaires."
-        }
-        outgoing.append(Segment(source: original, translation: result))
-        playNextSpeech(token: token)
-    }
-
-    private func playNextSpeech(token: UUID) {
-        guard isActive, sessionToken == token, !isSpeakingTranslation else { return }
-        guard !outgoing.isEmpty else {
-            updateStatus()
-            return
-        }
-        let part = outgoing.removeFirst()
-        isSpeakingTranslation = true
-        updateStatus()
-        // IMPORTANT: DO NOT STOP THE MICROPHONE. Headphones separate playback
-        // acoustically; AVAudioSession.voiceChat supplies system echo control.
-        neural.speak(
-            text: part.translation, for: .yohan,
-            language: TranslateLiveLanguages.engineCode(for: targetLanguage),
-            qualitySteps: 5,
-            dedicatedInterpreter: true
-        )
     }
 
     private func scheduleMicrophoneRecovery(token: UUID) {
@@ -960,59 +590,55 @@ public final class YoannTranslateLiveService: ObservableObject {
             || types.contains(.bluetoothA2DP)
             || types.contains(.bluetoothLE)
 
-        if types.contains(.bluetoothA2DP) {
-            audioOutputDescription = "🎧 Sortie : écouteurs Bluetooth (stéréo)"
-        } else if types.contains(.bluetoothHFP) || types.contains(.bluetoothLE) {
-            audioOutputDescription = "🎧 Sortie : écouteurs Bluetooth (appel)"
+        if types.contains(.bluetoothA2DP) || types.contains(.bluetoothHFP)
+            || types.contains(.bluetoothLE) {
+            audioOutputDescription = "Sortie : écouteurs Bluetooth"
         } else if types.contains(.headphones) {
-            audioOutputDescription = "🎧 Sortie : écouteurs filaires"
-        } else if types.contains(.builtInSpeaker) {
-            audioOutputDescription = "🔊 Sortie : haut-parleur iPhone"
-        } else if types.contains(.builtInReceiver) {
-            audioOutputDescription = "📱 Sortie : écouteur interne iPhone"
+            audioOutputDescription = "Sortie : écouteurs filaires"
         } else {
-            audioOutputDescription = "Sortie audio : route inconnue"
+            audioOutputDescription = "Sortie : haut-parleur iPhone"
         }
 
         let inputs = route.inputs.map(\.portType)
         if inputs.contains(.builtInMic) {
-            audioInputDescription = "🎙️ Micro : iPhone (vers la télé)"
+            audioInputDescription = "Micro de l'iPhone"
         } else if inputs.contains(.bluetoothHFP) {
-            audioInputDescription = "🎙️ Micro : écouteurs Bluetooth"
+            audioInputDescription = "Micro des écouteurs Bluetooth"
         } else if inputs.contains(.headsetMic) {
-            audioInputDescription = "🎙️ Micro : casque filaire"
+            audioInputDescription = "Micro du casque filaire"
         } else {
-            audioInputDescription = "Micro : entrée inconnue"
+            audioInputDescription = "Micro inconnu"
         }
 
-        if outputMode == .headphones && !headphoneConnected {
-            audioRouteWarning = "Aucun écouteur détecté. Connecte tes écouteurs pour éviter que Yoann ne réécoute sa propre voix."
-        } else if outputMode == .headphones && !inputs.contains(.builtInMic) {
-            audioRouteWarning = "iOS utilise le micro du casque. Approche ce micro de la télévision, ou essaie un casque filaire."
-        } else if outputMode == .speaker {
-            audioRouteWarning = "Mode haut-parleur expérimental : l'annulation d'écho iOS ne garantit pas l'absence de retour audio."
-        } else {
-            audioRouteWarning = nil
+        switch outputMode {
+        case .subtitles:
+            audioRouteWarning = inputs.contains(.builtInMic) || inputs.isEmpty
+                ? nil
+                : "iOS utilise le micro des écouteurs : déconnecte-les pour capter la télé."
+        case .headphones:
+            audioRouteWarning = headphoneConnected
+                ? nil
+                : "Aucun écouteur détecté : la voix risque d'être réentendue par le micro."
+        case .speaker:
+            audioRouteWarning = "Voix sur le haut-parleur : le micro peut réentendre la traduction."
         }
         updateStatus()
     }
 
     private func updateStatus() {
         guard isActive else { return }
-        if !isListening {
-            status = whisper.isModelLoading ? "Whisper se charge…" : "Ouverture du microphone…"
+        if engine == .none {
+            status = errorMessage == nil ? "Choix du moteur de traduction…" : "Traduction indisponible"
+        } else if !isListening {
+            status = whisper.isModelLoading ? "Chargement de Whisper…" : "Ouverture du micro…"
+        } else if !isEngineReady {
+            status = "Préparation de la traduction…"
         } else if isPlayingAudio {
-            status = "🔊 Voix française en lecture, le micro continue d'écouter…"
-        } else if isPreparingSpeech {
-            status = "⌛ Préparation de la voix neuronale…"
-        } else if needsEnglishPivotTranslation && !isUsingEnglishPivot {
-            status = "⌛ Chargement du traducteur anglais → français…"
-        } else if preparingSystemTranslation {
-            status = "⌛ Préparation des modèles de traduction iOS…"
-        } else if translationBusy {
-            status = "🎙️ Écoute continue, traduction en cours…"
+            status = "Lecture de la traduction…"
+        } else if isTranslating {
+            status = "Traduction…"
         } else {
-            status = "🎙️ Interprétation en direct : écoute continue"
+            status = "J'écoute"
         }
     }
 }

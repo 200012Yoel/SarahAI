@@ -103,6 +103,13 @@ jobs:
             'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin?download=true' \
             -o "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
           test -s "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
+          # Translate Live (TV in Hebrew or English): Base is far too weak
+          # for Hebrew. Medium (quantized q5_0, ~540 MB) understands Hebrew
+          # and can translate it to English for Apple's EN->FR model.
+          curl -L --fail --retry 4 --retry-delay 8 \
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin?download=true' \
+            -o "$RUNNER_TEMP/WhisperModels/ggml-medium-q5_0.bin"
+          test "$(stat -f%z "$RUNNER_TEMP/WhisperModels/ggml-medium-q5_0.bin")" -gt 400000000
           curl -L --fail --retry 3 \
             'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
             -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
@@ -227,6 +234,8 @@ jobs:
           cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin" "$APP_PATH/WhisperModels/"
           test -s "$APP_PATH/WhisperModels/ggml-tiny.bin"
+          cp "$RUNNER_TEMP/WhisperModels/ggml-medium-q5_0.bin" "$APP_PATH/WhisperModels/"
+          test -s "$APP_PATH/WhisperModels/ggml-medium-q5_0.bin"
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
@@ -239,8 +248,7 @@ jobs:
           cp "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
           test -s "$APP_PATH/NeuralVoices/Supertonic3/voice.bin"
           test -s "$APP_PATH/NeuralVoices/Supertonic3/vocoder.int8.onnx"
-          # Always install a REAL on-device he↔fr text model inside the IPA,
-          # so Translate Live works offline immediately after sideloading.
+          # Qwen3 0.6B powers Sarah's offline chat (no longer Translate Live).
           mkdir -p "$APP_PATH/TranslationModels"
           cp "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf" "$APP_PATH/TranslationModels/"
           cp "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt" "$APP_PATH/TranslationModels/"

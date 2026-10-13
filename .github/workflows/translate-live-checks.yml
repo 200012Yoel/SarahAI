@@ -1,0 +1,52 @@
+name: Translate Live Checks
+
+on:
+  pull_request:
+    paths:
+      - 'SarahIA/**'
+      - 'tests/**'
+      - '.github/workflows/translate-live-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift syntax of the live translation files
+        run: |
+          set -euo pipefail
+          for swift in \
+            SarahIA/SarahIA/Services/YoannTranslateLiveService.swift \
+            SarahIA/SarahIA/Views/YoannTranslateLiveView.swift \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
+            SarahIA/SarahIA/Services/TranslateLiveContextBuffer.swift \
+            SarahIA/SarahIA/Services/WhisperService.swift \
+            SarahIA/SarahIA/Services/AudioSessionManager.swift \
+            SarahIA/SarahIA/ContentView.swift \
+            SarahIA/SarahIA/ViewModels/ChatViewModel.swift; do
+            swiftc -frontend -parse "$swift"
+          done
+
+      - name: Language and command tests
+        run: |
+          set -euo pipefail
+          swiftc -O \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift \
+            tests/TranslateLiveLanguageTests.swift \
+            -o /tmp/translate_live_language_tests
+          /tmp/translate_live_language_tests
+
+      - name: Noise and hallucination filter tests
+        run: |
+          set -euo pipefail
+          swiftc -O \
+            SarahIA/SarahIA/Services/TranslateLiveLanguages.swift \
+            SarahIA/SarahIA/Services/TranslateLiveContextBuffer.swift \
+            tests/TranslateLiveContextTests.swift \
+            -o /tmp/translate_live_context_tests
+          /tmp/translate_live_context_tests

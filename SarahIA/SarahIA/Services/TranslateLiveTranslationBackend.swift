@@ -3,117 +3,16 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Translation remains separate from Whisper ASR and neural TTS.
-/// Production does NOT silently use a third-party free public API.
-/// An explicitly configured user-owned LibreTranslate/Argos endpoint is used
-/// for long sentences and non-English targets (AGPL-3.0 server obligations).
+/// Optional user-owned translation server (LibreTranslate-compatible API).
+/// Translate Live normally uses Apple's on-device Translation framework;
+/// this backend is only used when the user enters a server in the settings.
+/// No public third-party API is ever called silently.
 @available(iOS 16.2, *)
 public enum TranslateLiveTranslationBackend {
     public enum Outcome {
         case translated(String)
         case unavailable(String)
     }
-
-    // Production interpreter: NO built-in canned sentences or word
-    // substitution. Every translated caption must come from a real
-    // translation model, never a predetermined answer.
-
-    /// Qwen3 GGUF is Apache-2.0 and the app already links llama.cpp.
-    /// The IPA bundles the verified Qwen3 0.6B GGUF for immediate offline
-    /// Hebrew ↔ French translation; an existing downloaded Qwen may also be used.
-    #if os(iOS)
-    private static var bundledQwenModel: URL? {
-        Bundle.main.url(forResource: "Qwen3-0.6B-Q8_0", withExtension: "gguf",
-                        subdirectory: "TranslationModels")
-    }
-
-    private static var translationModelURL: URL? {
-        if let bundled = bundledQwenModel { return bundled }
-        guard ModelSelectionEngine.shared.isLocalGGUFAllowed(),
-              BackgroundModelDownloader.isModelDownloaded else { return nil }
-        return BackgroundModelDownloader.localModelURL
-    }
-
-    public static var isLocalQwenReady: Bool {
-        QwenLocalCodeRuntime.shared.isRuntimeLinked
-            && translationModelURL != nil
-    }
-
-    /// Translate *directly* between Hebrew and French with the on-device
-    /// Qwen model, bypassing Whisper's inaccurate English bridge.
-    /// This function never substitutes a phrasebook translation.
-    public static func translateWithLocalQwen(
-        text: String, from source: String, to target: String,
-        completion: @escaping (Outcome) -> Void
-    ) {
-        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isLocalQwenReady,
-              let modelURL = translationModelURL else {
-            completion(.unavailable("Le modèle Qwen3 local n'est pas encore téléchargé sur l'iPhone."))
-            return
-        }
-        guard ["he", "fr", "en"].contains(source),
-              ["he", "fr", "en"].contains(target),
-              source != target else {
-            completion(.unavailable("Cette paire de langues n'est pas prise en charge par le moteur local."))
-            return
-        }
-        guard !clean.isEmpty else {
-            completion(.unavailable("Aucun passage à traduire."))
-            return
-        }
-        let labels = ["he": "hébreu israélien", "fr": "français", "en": "anglais"]
-        let fromLabel = labels[source] ?? source
-        let toLabel = labels[target] ?? target
-        let system = """
-        /no_think
-        Tu es un moteur neuronal de traduction simultanée de \(fromLabel) vers \(toLabel).
-        Traduis fidèlement les paroles entendues, y compris les noms propres.
-        Retourne UNIQUEMENT leur traduction, sans présentation, excuses, raisonnement ni guillemets.
-        Si une expression est difficile, conserve son nom propre, mais n'invente aucun contexte.
-        """
-        QwenLocalCodeRuntime.shared.generate(
-            modelURL: modelURL, system: system,
-            user: "/no_think\n" + clean,
-            maxTokens: 88, fastTranslation: true
-        ) { result in
-            switch result {
-            case .failure(let error):
-                completion(.unavailable("Qwen3 local : " + error.localizedDescription))
-            case .success(let raw):
-                var output = SarahResponseCleaner.clean(raw)
-                output = output
-                    .replacingOccurrences(of: "<|im_end|>", with: "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if output.hasPrefix("Traduction :") {
-                    output = String(output.dropFirst("Traduction :".count))
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                // Reject empty, echo, irrelevant Latin text masquerading as
-                // Hebrew, and repeated model hallucinations.
-                guard !output.isEmpty, normalized(output) != normalized(clean),
-                      !TranslateLiveContextBuffer.isUnreliableTranscript(output),
-                      (target != "he" || TranslateLiveContextBuffer.isMostlyHebrew(output)),
-                      (target == "he" || output.range(
-                          of: "[A-Za-zÀ-ÿ]", options: .regularExpression
-                      ) != nil) else {
-                    completion(.unavailable("Qwen3 n'a pas produit une traduction fiable de cet extrait."))
-                    return
-                }
-                completion(.translated(output))
-            }
-        }
-    }
-
-    #else
-    public static var isLocalQwenReady: Bool { false }
-    public static func translateWithLocalQwen(
-        text: String, from source: String, to target: String,
-        completion: @escaping (Outcome) -> Void
-    ) {
-        completion(.unavailable("Le moteur Qwen3 requiert un appareil iOS et llama.cpp."))
-    }
-    #endif
 
     private static func normalized(_ text: String) -> String {
         text.lowercased().trimmingCharacters(
@@ -136,8 +35,7 @@ public enum TranslateLiveTranslationBackend {
         }
         guard let url = validatedURL(serverURL)?.appendingPathComponent("translate") else {
             completion(.unavailable(
-                "Aucun véritable moteur de traduction n'est prêt pour cette langue. "
-                + "Configure un serveur neuronal privé dans ⚙️ ou utilise le relais Whisper anglais → français."
+                "Adresse du serveur de traduction invalide. Vérifie ⚙️."
             ))
             return
         }

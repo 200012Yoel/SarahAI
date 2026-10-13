@@ -33,7 +33,15 @@ public struct TranslateLiveContextBuffer {
             "rires", "laughter", "bruit", "noise", "silence",
             "inaudible", "instrumental", "sous-titres", "subtitles"
         ]
-        return labels.contains(caption) || caption.isEmpty
+        if labels.contains(caption) || caption.isEmpty { return true }
+        // Whisper was trained on subtitled videos: on music or silence it
+        // "hears" the credits that close those videos.
+        let artifacts = [
+            "thanks for watching", "thank you for watching", "subtitles by",
+            "amara.org", "please subscribe", "sous-titrage", "sous-titres realises",
+            "merci d'avoir regarde", "abonnez-vous", "תודה שצפיתם", "כתוביות"
+        ]
+        return artifacts.contains(where: caption.contains)
     }
 
     /// A short TV segment containing four or more exact repetitions of a

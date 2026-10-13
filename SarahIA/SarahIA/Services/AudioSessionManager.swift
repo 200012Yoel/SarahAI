@@ -19,8 +19,11 @@ public final class AudioSessionManager {
     private let stateLock = NSLock()
     private var continuousVoiceSessionActive = false
     private var interpreterPrefersPhoneMicrophone = false
-    /// Earphones first for TV interpretation. Speaker is an explicit experimental mode.
+    /// Subtitles is the default for TV interpretation: the phone only listens,
+    /// so no echo can occur and the microphone can run without voice processing.
+    /// Headphones/speaker additionally read the translation aloud.
     public enum InterpreterOutputMode: String {
+        case subtitles
         case headphones
         case speaker
     }
@@ -36,6 +39,15 @@ public final class AudioSessionManager {
         stateLock.lock()
         defer { stateLock.unlock() }
         return continuousVoiceSessionActive
+    }
+
+    /// Far-field capture (phone placed in front of a TV): the voice-chat
+    /// processing chain (AGC, noise suppression, echo cancellation) is tuned
+    /// for a talker near the phone and strongly attenuates a distant TV.
+    public var isRawInterpreterCapture: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return interpreterPrefersPhoneMicrophone && interpreterOutputMode == .subtitles
     }
 
     public var isInterpreterSessionActive: Bool {
@@ -128,16 +140,24 @@ public final class AudioSessionManager {
             // microphone can remain the input. Ordinary Sarah keeps HFP.
             // The experimental phone speaker mode does not use Bluetooth.
             let audioOptions: AVAudioSession.CategoryOptions
+            var audioMode: AVAudioSession.Mode = .voiceChat
             if interpreterMode {
-                audioOptions = currentInterpreterOutputMode == .headphones
-                    ? [.defaultToSpeaker, .allowBluetoothA2DP]
-                    : [.defaultToSpeaker]
+                switch currentInterpreterOutputMode {
+                case .subtitles:
+                    // Nothing is played back: capture the room as-is.
+                    audioOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
+                    audioMode = .measurement
+                case .headphones:
+                    audioOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
+                case .speaker:
+                    audioOptions = [.defaultToSpeaker]
+                }
             } else {
                 audioOptions = [.defaultToSpeaker, .allowBluetooth]
             }
             try session.setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: audioMode,
                 options: audioOptions
             )
             try session.setPreferredIOBufferDuration(0.02)
