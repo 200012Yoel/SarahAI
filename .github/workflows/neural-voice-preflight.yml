@@ -70,6 +70,15 @@ jobs:
           ! sed -n '/private func closeVoiceSurface()/,/^    }/p' SarahIA/SarahIA/Views/VoiceOrbModalView.swift | grep -q 'stopVoiceConversation()'
           ! grep -REn 'SFSpeechRecognizer[?(]|SFSpeechRecognizerDelegate|AVSpeechSynthesizer[?(]|AVSpeechSynthesizerDelegate' SarahIA/SarahIA --include='*.swift'
           test "$(grep -c 'case \.' SarahIA/SarahIA/Services/NeuralVoiceService.swift)" -ge 6
+          # Production release must not contain synthetic French or Hebrew
+          # demonstration utterances masquerading as a live result.
+          ! grep -q 'testFrenchSpeaker' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'testOfflineTranslation' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          ! grep -q 'Ceci est un test en arrière-plan réussi' SarahIA/SarahIA/Services/AIService.swift
+          ! grep -q '\[DEBUG\]' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'if !localEnglishTranslation' SarahIA/SarahIA/Services/YoannTranslateLiveService.swift
+          grep -q 'livePendingChunks.count > 2' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'SarahResponseCleaner.clean' SarahIA/SarahIA/Services/TranslateLiveTranslationBackend.swift
           echo 'Static voice migration checks passed'
       - name: Swift syntax parsing
         run: |
