@@ -816,10 +816,19 @@ public final class WhisperService: ObservableObject {
                     TranslateLiveContextBuffer.isMostlyHebrew(text)) {
                 var englishParams = params
                 englishParams.translate = true
+                // Without an English prompt, Whisper often "translates"
+                // short Hebrew greetings by spelling them in Latin letters
+                // ("Shalom, Manishem…"). A neutral English style prompt keeps
+                // the output in real English words. It describes the task,
+                // so it is never mistaken for words heard on the microphone.
+                let englishStylePrompt = "The following is a natural English translation of everyday Hebrew speech."
                 let englishResult: Int32 = inferenceLanguage.withCString { language in
                     englishParams.language = language
-                    return inferenceAudio.withUnsafeBufferPointer { pointer in
-                        whisper_full(context, englishParams, pointer.baseAddress, Int32(inferenceAudio.count))
+                    return englishStylePrompt.withCString { prompt in
+                        englishParams.initial_prompt = prompt
+                        return inferenceAudio.withUnsafeBufferPointer { pointer in
+                            whisper_full(context, englishParams, pointer.baseAddress, Int32(inferenceAudio.count))
+                        }
                     }
                 }
                 if englishResult == 0 {
@@ -836,7 +845,10 @@ public final class WhisperService: ObservableObject {
                     }
                     let candidate = englishPieces.joined(separator: " ")
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
+                    let echoedPrompt = candidate.lowercased()
+                        .contains("natural english translation of everyday hebrew")
+                    if !echoedPrompt,
+                       !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(
                             candidate, hebrewSource: text
                         ),
                        candidate.range(of: "[A-Za-z]", options: .regularExpression) != nil {
@@ -859,12 +871,12 @@ public final class WhisperService: ObservableObject {
                 }
                 self.currentText = text
                 if deliverToLive {
-                    if let englishPivot, dualDecodeEnglish {
-                        self.onLiveEnglishPivotChunk?(text, englishPivot, endsAtPause)
-                    } else if !dualDecodeEnglish, !text.isEmpty {
+                    if dualDecodeEnglish, !text.isEmpty {
+                        // Always deliver the original words (Hebrew script) so
+                        // they can be shown; the English relay may be empty.
+                        self.onLiveEnglishPivotChunk?(text, englishPivot ?? "", endsAtPause)
+                    } else if !text.isEmpty {
                         self.onLiveInterpretationChunk?(text, endsAtPause)
-                    } else if dualDecodeEnglish, !text.isEmpty {
-                        self.onLiveInterpretationError?("Whisper n'a pas produit d'anglais fiable pour cet extrait. Nouvelle écoute en cours.")
                     }
                 } else if final {
                     // An empty transcription is still the end of an utterance.

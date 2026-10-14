@@ -306,7 +306,14 @@ public final class YoannTranslateLiveService: ObservableObject {
             break
         }
 
-        whisper.translateSpeechToEnglish = whisperTranslates
+        // Relay mode: Whisper decodes the SAME audio twice — once in the
+        // source language (Hebrew script, shown in the lower pane) and once
+        // in English (fed to Apple Translation for the French upper pane).
+        // Before, Whisper only produced English, so the lower pane showed
+        // Latin "Shalom, Manishem…" instead of the Hebrew that was spoken.
+        let relay = engine == .whisperEnglishThenApple
+        whisper.translateSpeechToEnglish = relay ? false : whisperTranslates
+        whisper.liveDualDecodeEnglish = relay
         whisper.preferredLanguageCode = sourceLanguage == "auto"
             ? nil : TranslateLiveLanguages.engineCode(for: sourceLanguage)
 
@@ -314,7 +321,14 @@ public final class YoannTranslateLiveService: ObservableObject {
             guard let self, self.isActive, self.sessionToken == token else { return }
             self.receive(chunk: chunk, token: token)
         }
-        whisper.onLiveEnglishPivotChunk = nil
+        if relay {
+            whisper.onLiveEnglishPivotChunk = { [weak self] heard, english, _ in
+                guard let self, self.isActive, self.sessionToken == token else { return }
+                self.receiveRelay(heard: heard, english: english, token: token)
+            }
+        } else {
+            whisper.onLiveEnglishPivotChunk = nil
+        }
         whisper.onLiveInterpretationError = { [weak self] message in
             guard let self, self.isActive, self.sessionToken == token else { return }
             // Noise/music rejections and catch-up notices are normal on TV.
@@ -367,6 +381,12 @@ public final class YoannTranslateLiveService: ObservableObject {
         appleTranslator = { text in
             try await session.translate(text).targetText
         }
+        // The "Préparation de Traduire…" line used to stay on screen forever.
+        let sourceLabel = TranslateLiveLanguages.label(for: sourceLanguage)
+        let targetLabel = TranslateLiveLanguages.label(for: targetLanguage)
+        engineDescription = engine == .whisperEnglishThenApple
+            ? "Prêt : \(sourceLabel.lowercased()) écrit en bas, \(targetLabel.lowercased()) en haut. Tout reste sur l'iPhone."
+            : "Prêt : traduction \(sourceLabel.lowercased()) → \(targetLabel.lowercased()) sur l'iPhone."
         isEngineReady = true
         errorMessage = nil
         updateStatus()
@@ -429,6 +449,57 @@ public final class YoannTranslateLiveService: ObservableObject {
         case .none:
             break
         }
+        updateStatus()
+    }
+
+    /// Relay mode: `heard` is Whisper's transcription in the source language
+    /// (Hebrew script), `english` its English translation of the same audio.
+    private func receiveRelay(heard: String, english: String, token: UUID) {
+        guard isActive, sessionToken == token else { return }
+        let original = heard.trimmingCharacters(in: .whitespacesAndNewlines)
+        let relay = english.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !original.isEmpty else { return }
+        if TranslateLiveContextBuffer.isUnreliableTranscript(original) {
+            hint = "Musique ou bruit ignoré."
+            return
+        }
+        let sourceIsHebrew = TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he"
+        if sourceIsHebrew && !TranslateLiveContextBuffer.isMostlyHebrew(original) {
+            hint = "Passage non reconnu comme de l'hébreu, ignoré."
+            return
+        }
+        if original == lastChunk && Date().timeIntervalSince(lastChunkAt) < 8 {
+            return
+        }
+        lastChunk = original
+        lastChunkAt = Date()
+        errorMessage = nil
+        hint = nil
+        // Lower pane: the words exactly as spoken, in Hebrew letters.
+        lastSource = original
+
+        // Everyday expressions: Whisper's English for them is unreliable
+        // (it spells them phonetically), so use a verified phrasebook.
+        if sourceIsHebrew, TranslateLiveLanguages.engineCode(for: targetLanguage) == "fr",
+           let french = HebrewFrenchPhrasebook.translate(original) {
+            appendTranslated(french, source: original)
+            updateStatus()
+            return
+        }
+
+        let cleanedRelay = HebrewFrenchPhrasebook.fixTransliteratedEnglish(relay)
+        guard !cleanedRelay.isEmpty,
+              !TranslateLiveContextBuffer.isSuspiciousEnglishPivot(cleanedRelay, hebrewSource: original) else {
+            hint = "Phrase pas assez claire pour être traduite, j'écoute la suite."
+            updateStatus()
+            return
+        }
+        pending.append(Pending(source: original, input: cleanedRelay))
+        if pending.count > 3 {
+            pending.removeFirst(pending.count - 3)
+            hint = "Rattrapage du direct : phrases les plus récentes en priorité."
+        }
+        translateNext()
         updateStatus()
     }
 
@@ -659,5 +730,180 @@ public final class YoannTranslateLiveService: ObservableObject {
         } else {
             status = "J'écoute"
         }
+    }
+}
+
+// MARK: - Everyday Hebrew → French phrasebook
+
+/// Verified translations for everyday spoken Hebrew. Whisper's English relay
+/// tends to spell these phonetically ("Shalom, Manishem, Kol Mesehdeh"),
+/// which Apple then leaves untranslated. When EVERY part of a heard sentence
+/// is a known expression, the French comes from this table instead.
+enum HebrewFrenchPhrasebook {
+    private struct Entry {
+        let french: String
+        let question: Bool
+    }
+
+    private static let table: [String: Entry] = {
+        let raw: [(String, String, Bool)] = [
+            ("שלום", "bonjour", false),
+            ("שלום לכולם", "bonjour à tous", false),
+            ("היי", "salut", false),
+            ("אהלן", "salut", false),
+            ("בוקר טוב", "bonjour", false),
+            ("צהריים טובים", "bon après-midi", false),
+            ("ערב טוב", "bonsoir", false),
+            ("לילה טוב", "bonne nuit", false),
+            ("מה נשמע", "comment ça va", true),
+            ("מה שלומך", "comment vas-tu", true),
+            ("מה שלומכם", "comment allez-vous", true),
+            ("מה קורה", "quoi de neuf", true),
+            ("מה המצב", "ça va", true),
+            ("מה איתך", "et toi, ça va", true),
+            ("הכל בסדר", "tout va bien", false),
+            ("הכול בסדר", "tout va bien", false),
+            ("כל בסדר", "tout va bien", false),
+            ("בסדר", "d'accord", false),
+            ("הכל טוב", "tout va bien", false),
+            ("הכול טוב", "tout va bien", false),
+            ("אני בסדר", "je vais bien", false),
+            ("טוב", "bien", false),
+            ("תודה", "merci", false),
+            ("תודה רבה", "merci beaucoup", false),
+            ("בבקשה", "s'il te plaît", false),
+            ("סליחה", "pardon", false),
+            ("כן", "oui", false),
+            ("לא", "non", false),
+            ("להתראות", "au revoir", false),
+            ("ביי", "au revoir", false),
+            ("נעים מאוד", "enchanté", false),
+            ("ברוך הבא", "bienvenue", false),
+            ("ברוכים הבאים", "bienvenue", false),
+            ("מזל טוב", "félicitations", false),
+            ("בהצלחה", "bonne chance", false),
+            ("שבת שלום", "chabbat chalom", false),
+            ("חג שמח", "joyeuses fêtes", false),
+            ("ברוך השם", "Dieu merci", false),
+            ("תודה לאל", "Dieu merci", false),
+            ("בתיאבון", "bon appétit", false),
+            ("לחיים", "santé", false),
+            ("אין בעיה", "pas de problème", false),
+            ("יאללה", "allez", false),
+            ("סבבה", "ça marche", false),
+            ("אחלה", "super", false),
+            ("אמא", "maman", false),
+            ("אבא", "papa", false),
+            ("אני אוהב אותך", "je t'aime", false),
+            ("אני אוהבת אותך", "je t'aime", false),
+            ("איפה אתה", "où es-tu", true),
+            ("איפה את", "où es-tu", true),
+            ("מה אתה עושה", "qu'est-ce que tu fais", true),
+            ("מה את עושה", "qu'est-ce que tu fais", true),
+        ]
+        var map: [String: Entry] = [:]
+        for (hebrew, french, question) in raw {
+            map[normalize(hebrew)] = Entry(french: french, question: question)
+        }
+        return map
+    }()
+
+    private static let maxWords = 4
+
+    /// Removes vowel points/cantillation and punctuation, collapses spaces.
+    static func normalize(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            let v = scalar.value
+            if (0x0591...0x05C7).contains(v) && !(0x05D0...0x05EA).contains(v) {
+                continue // niqqud, cantillation, maqaf, geresh…
+            }
+            scalars.append(scalar)
+        }
+        return String(scalars)
+            .components(separatedBy: CharacterSet.letters.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    /// French translation if the whole Hebrew sentence is made of known
+    /// expressions, otherwise nil (the normal translator is used).
+    static func translate(_ hebrew: String) -> String? {
+        let words = normalize(hebrew).split(separator: " ").map(String.init)
+        guard !words.isEmpty, words.count <= 16 else { return nil }
+        var parts: [Entry] = []
+        var index = 0
+        while index < words.count {
+            var matched = false
+            for length in stride(from: min(maxWords, words.count - index), through: 1, by: -1) {
+                let key = words[index..<(index + length)].joined(separator: " ")
+                if let entry = table[key] {
+                    parts.append(entry)
+                    index += length
+                    matched = true
+                    break
+                }
+            }
+            if !matched { return nil }
+        }
+        return compose(parts)
+    }
+
+    private static func compose(_ parts: [Entry]) -> String {
+        var output = ""
+        var startOfSentence = true
+        for (i, part) in parts.enumerated() {
+            var piece = part.french
+            if startOfSentence, let first = piece.first {
+                piece = first.uppercased() + piece.dropFirst()
+            }
+            output += piece
+            let isLast = i == parts.count - 1
+            if part.question {
+                output += " ?"
+                startOfSentence = true
+            } else if isLast {
+                output += "."
+                startOfSentence = true
+            } else {
+                output += ","
+                startOfSentence = false
+            }
+            if !isLast { output += " " }
+        }
+        return output
+    }
+
+    /// Replaces common phonetic spellings that Whisper sometimes leaves in
+    /// its English relay, so Apple Translation receives real English.
+    static func fixTransliteratedEnglish(_ english: String) -> String {
+        let replacements: [(String, String)] = [
+            ("\\bshabb?at shalom\\b", "have a good Sabbath"),
+            ("\\bma nishm[ae]\\w*\\b", "how are you"),
+            ("\\bmanish\\w*\\b", "how are you"),
+            ("\\bma kore\\b", "what's up"),
+            ("\\b(ha)?kol b[ae]s[ae]der\\b", "everything is fine"),
+            ("\\bkol m[ae]s[ae]h?d[ae]h?\\b", "everything is fine"),
+            ("\\bb[ae]s[ae]der\\b", "okay"),
+            ("\\btoda raba\\b", "thank you very much"),
+            ("\\btodah? rabbah?\\b", "thank you very much"),
+            ("\\btodah?\\b", "thank you"),
+            ("\\bshalom\\b", "hello"),
+            ("\\bb[ae]vakash?a\\b", "please"),
+            ("\\bslich?a\\b", "sorry"),
+            ("\\blehitraot\\b", "goodbye"),
+            ("\\bmazal tov\\b", "congratulations"),
+            ("\\bbaruch hashem\\b", "thank God"),
+            ("\\byalla\\b", "come on"),
+            ("\\bsababa\\b", "great"),
+            ("\\bachla\\b", "great"),
+        ]
+        var text = english
+        for (pattern, value) in replacements {
+            text = text.replacingOccurrences(
+                of: pattern, with: value,
+                options: [.regularExpression, .caseInsensitive])
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
