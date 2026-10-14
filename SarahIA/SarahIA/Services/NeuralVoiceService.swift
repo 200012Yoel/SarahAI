@@ -156,7 +156,12 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                     throw NSError(domain: "SarahNeuralTTS", code: 5,
                                   userInfo: [NSLocalizedDescriptionKey: "Le modèle vocal a généré du silence."])
                 }
-                let wav = Self.waveData(samples: result.samples, sampleRate: Int(result.sampleRate))
+                // Amplify audio 3x for accessibility (hearing impaired users)
+                let amplifiedSamples = result.samples.map { sample in
+                    let amplified = sample * 3.0
+                    return Float(max(-1.0, min(1.0, amplified)))
+                }
+                let wav = Self.waveData(samples: amplifiedSamples, sampleRate: Int(result.sampleRate))
                 DispatchQueue.main.async {
                     guard self.generation == token else { return }
                     do {

@@ -51,6 +51,28 @@ public struct YoannTranslateLiveView: View {
             VStack(spacing: 0) {
                 translatedHalf(paneHeight: geometry.size.height / 2)
                     .frame(height: geometry.size.height / 2)
+
+                // Central divider with language swap button
+                HStack(spacing: 0) {
+                    Divider()
+                    Button {
+                        let previous = sourceLanguage
+                        sourceLanguage = targetLanguage
+                        targetLanguage = previous
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                    }
+                    .accessibilityLabel("Inverser les langues : hébreu et français")
+                    .accessibilityIdentifier("translateLiveSwapLanguagesCenter")
+                    Divider()
+                }
+                .frame(height: 1)
+                .background(Color.white.opacity(0.30))
+
                 heardHalf(paneHeight: geometry.size.height / 2)
                     .frame(height: geometry.size.height / 2)
             }
@@ -112,19 +134,6 @@ public struct YoannTranslateLiveView: View {
                 ) { pickerMode = .target }
 
                 Spacer(minLength: 4)
-
-                Button {
-                    // Swap the actual input/output models, not only the labels.
-                    let previous = sourceLanguage
-                    sourceLanguage = targetLanguage
-                    targetLanguage = previous
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 21, weight: .medium))
-                        .foregroundColor(.white)
-                }
-                .accessibilityLabel("Inverser les langues : hébreu et français")
-                .accessibilityIdentifier("translateLiveSwapLanguages")
 
                 if !canSpeakTarget {
                     Image(systemName: "speaker.slash.fill")
