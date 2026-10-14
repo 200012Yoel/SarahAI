@@ -1,0 +1,44 @@
+name: Publish built IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'ID of the successful iOS build run whose SarahIA-IPA artifact to publish'
+        required: true
+        type: string
+      tag:
+        description: 'Release tag (the IPA is at releases/download/<tag>/SarahIA.ipa)'
+        required: true
+        type: string
+        default: 'sarah-ia-latest-fix'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: SarahIA-IPA
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+
+      - run: ls -lh dist/SarahIA.ipa
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: 'Sarah IA · dernière version corrigée'
+          body: 'IPA du build #${{ inputs.run_id }}. Téléchargement direct : SarahIA.ipa ci-dessous.'
+          files: dist/SarahIA.ipa
+          overwrite_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
