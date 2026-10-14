@@ -108,10 +108,12 @@ public final class WhisperService: ObservableObject {
     private let maximumUtteranceSeconds: Double = 7.5
     // TV speech: Whisper needs whole clauses. Short 1–3 s windows cut
     // words in half and made it hallucinate. Flush on a real pause after
-    // at least 2.5 s, or force a cut at 7 s of continuous speech.
-    private let liveSilenceThreshold: TimeInterval = 0.38
+    // natural pauses (breathing), or force a cut at 7 s of continuous speech.
+    // Increased from 0.38s to allow natural pauses between words without cutting
+    private let liveSilenceThreshold: TimeInterval = 0.8
     private let liveMaxChunkSeconds: Double = 7.0
-    private let liveMinChunkSeconds: Double = 2.5
+    // Reduced from 2.5s to 1.0s for real-time fluency like ChatGPT
+    private let liveMinChunkSeconds: Double = 1.0
     private let activityDBThreshold: Float = -48
     /// Adaptive noise floor for Translate Live: a TV always produces some
     /// sound (music, ambience), so a fixed -48 dB threshold never sees a pause.
@@ -474,12 +476,13 @@ public final class WhisperService: ObservableObject {
             if self.isLiveInterpreting {
                 // Follow the TV's background level: drop quickly to quiet
                 // passages, rise slowly so speech itself is not absorbed.
+                // Increased from +7dB to +10dB to better reject background chatter
                 if db < self.liveNoiseFloorDB {
                     self.liveNoiseFloorDB = db
                 } else {
                     self.liveNoiseFloorDB += 0.01 * (db - self.liveNoiseFloorDB)
                 }
-                effectiveThreshold = max(-55, self.liveNoiseFloorDB + 7)
+                effectiveThreshold = max(-55, self.liveNoiseFloorDB + 10)
             }
             let minimumChunks = speakerMonitor ? 6 : 2
             if db >= effectiveThreshold {
@@ -489,8 +492,9 @@ public final class WhisperService: ObservableObject {
                 // Retry while speech is sustained: a start-up grace window
                 // may ignore the first event, which must NOT permanently
                 // disable barge-in until the user pauses and starts over.
+                // Reduced from 0.24s to 0.12s for faster, snappier response
                 if self.consecutiveVoiceChunks >= minimumChunks,
-                   now.timeIntervalSince(self.lastBargeInNotification) > 0.24 {
+                   now.timeIntervalSince(self.lastBargeInNotification) > 0.12 {
                     self.lastBargeInNotification = now
                     DispatchQueue.main.async { [weak self] in
                         self?.onVoiceActivity?()
