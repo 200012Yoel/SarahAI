@@ -371,10 +371,22 @@ public struct MusicTrackCardView: View {
         )
         .onAppear {
             self.isPlaying = OpenSourceMusicEngine.shared.isPlaying
-            setupNotificationObservers()
+            if isPlaying { startWaveAnimation() }
+        }
+        // onReceive unsubscribes with the view. The old addObserver calls ran
+        // on every appearance and were never removed, so scrolled-away cards
+        // kept restarting animation timers in the background.
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicPlaybackStarted"))) { _ in
+            isPlaying = true
+            startWaveAnimation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahMusicPlaybackStopped"))) { _ in
+            isPlaying = false
+            timer?.invalidate()
         }
         .onDisappear {
             timer?.invalidate()
+            timer = nil
         }
     }
     
@@ -398,17 +410,6 @@ public struct MusicTrackCardView: View {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { _ in
             animPhase = (animPhase + 1).truncatingRemainder(dividingBy: 10)
-        }
-    }
-    
-    private func setupNotificationObservers() {
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStarted"), object: nil, queue: .main) { _ in
-            self.isPlaying = true
-            self.startWaveAnimation()
-        }
-        NotificationCenter.default.addObserver(forName: NSNotification.Name("SarahMusicPlaybackStopped"), object: nil, queue: .main) { _ in
-            self.isPlaying = false
-            self.timer?.invalidate()
         }
     }
 }
