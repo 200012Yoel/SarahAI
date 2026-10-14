@@ -502,9 +502,21 @@ public final class YoannTranslateLiveService: ObservableObject {
         if history.count > 80 { history.removeLast(history.count - 80) }
 
         guard speaksAloud else { return }
-        // Keep the voice close to the live picture: only the newest phrase waits.
-        speechQueue = [result]
-        speakNext(token: sessionToken)
+        // Queue the translation: let Yohan finish current phrase before starting next.
+        // Prevents interruption when speech synthesis is still playing.
+        if !isSpeaking {
+            speechQueue = [result]
+        } else {
+            // Yohan is still speaking: queue the new result to play after current
+            speechQueue.append(result)
+            // Keep only 2 phrases in queue: current + next (discard older)
+            if speechQueue.count > 2 {
+                speechQueue.removeFirst(speechQueue.count - 2)
+            }
+        }
+        if !isSpeaking {
+            speakNext(token: sessionToken)
+        }
     }
 
     // MARK: - Optional spoken output (headphones / speaker modes)
