@@ -18,7 +18,7 @@ on:
         default: 'sarah-ia-latest-fix'
 
 env:
-  RUN_ID: ${{ inputs.run_id || '38628683891' }}
+  RUN_ID: ${{ inputs.run_id || '38648246865' }}
   TAG: ${{ inputs.tag || 'sarah-ia-latest-fix' }}
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: 'Sarah IA · dernière version corrigée'
-          body: 'IPA du run ${{ env.RUN_ID }} (build #964). Téléchargement direct : SarahIA.ipa ci-dessous.'
+          body: 'IPA du run ${{ env.RUN_ID }} (Translate Live hébreu → français MADLAD). Téléchargement direct : SarahIA.ipa ci-dessous.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
