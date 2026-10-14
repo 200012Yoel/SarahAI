@@ -1,14 +1,17 @@
 {
   "name": "Sarah IA",
+  "identifier": "com.200012yoel.sarahia.source",
+  "sourceURL": "https://raw.githubusercontent.com/200012Yoel/SarahAI/claude/github-pro-connection-io7of3/sidestore.json",
   "apps": [
     {
       "name": "Sarah IA · Translate Live",
       "bundleIdentifier": "com.200012yoel.SarahIA",
-      "version": "1.0",
-      "subtitle": "Live speech translation without headphones",
-      "downloadURL": "https://www.dropbox.com/scl/fi/0000000000000000/SarahIA.ipa?rlkey=0000000000000000&dl=1",
+      "version": "1.0.0",
+      "versionDescription": "Build #950",
+      "localizedDescription": "Live speech translation from Hebrew and English to French. Whisper Medium transcription with Apple Translation framework. Works without headphones in subtitles-only mode for TV viewing.",
+      "downloadURL": "https://github.com/200012Yoel/SarahAI/releases/download/sarah-ia-translate-live/SarahIA.ipa",
       "developerName": "Yoel",
-      "iconURL": "",
+      "subtitle": "Live speech translation without headphones",
       "tintColor": "007AFF"
     }
   ]
