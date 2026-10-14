@@ -42,6 +42,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         case whisperToEnglish
         /// User-owned LibreTranslate-compatible server set in the settings.
         case server
+        /// Whisper transcribes the source once, Google's open-source
+        /// MADLAD-400 translates it directly on the iPhone (no English relay).
+        case madlad
     }
 
     /// Language pair handed to the SwiftUI `translationTask` host.
@@ -118,6 +121,9 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var routeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var micLevelSubscription: AnyCancellable?
+    private var madladProgressSubscription: AnyCancellable?
+    private var madladInstalledObserver: NSObjectProtocol?
+    private let madlad = MadladTranslator.shared
 
     public init() {}
 
@@ -160,6 +166,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         sessionToken = UUID()
         isActive = true
         let token = sessionToken
+        // Translate Live must stay on while the TV is playing: auto-lock
+        // used to turn the screen off and end the interpretation.
+        UIApplication.shared.isIdleTimerDisabled = true
 
         // The interpreter owns the microphone; regular chat voice must stop.
         WhisperSpeechRecognizer.shared.stopListening()
@@ -190,6 +199,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         sessionToken = UUID()
         guard isActive else { return }
         isActive = false
+        UIApplication.shared.isIdleTimerDisabled = false
         isListening = false
         isTranslating = false
         isPlayingAudio = false
@@ -202,6 +212,13 @@ public final class YoannTranslateLiveService: ObservableObject {
         isEngineReady = false
         micLevelSubscription?.cancel()
         micLevelSubscription = nil
+        madladProgressSubscription?.cancel()
+        madladProgressSubscription = nil
+        if let madladInstalledObserver {
+            NotificationCenter.default.removeObserver(madladInstalledObserver)
+            self.madladInstalledObserver = nil
+        }
+        madlad.unload()
         microphoneLevel = 0
 
         if let routeObserver {
@@ -254,6 +271,17 @@ public final class YoannTranslateLiveService: ObservableObject {
             activate(.whisperToEnglish, pair: nil, whisperTranslates: true, token: token)
             return
         }
+        // Hebrew has no Apple Translation pack: the open-source MADLAD-400
+        // model translates it directly once downloaded (Wi-Fi, one time).
+        let needsMadlad = source == "he" || target == "he" || source == "auto"
+        if needsMadlad && madlad.isRuntimeLinked {
+            if madlad.isInstalled {
+                madlad.warmUp()
+                activate(.madlad, pair: nil, whisperTranslates: false, token: token)
+                return
+            }
+            watchMadladDownload(token: token)
+        }
 
         #if canImport(Translation)
         if #available(iOS 18.0, *) {
@@ -302,6 +330,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         case .server:
             engineDescription = "Whisper sur l'iPhone, traduction par ton serveur personnel."
             isEngineReady = true
+        case .madlad:
+            engineDescription = "Traducteur MADLAD-400 (open source) : \(sourceLabel.lowercased()) → \(targetLabel.lowercased()) direct, sur l'iPhone."
+            isEngineReady = true
         case .none:
             break
         }
@@ -332,6 +363,11 @@ public final class YoannTranslateLiveService: ObservableObject {
         whisper.onLiveInterpretationError = { [weak self] message in
             guard let self, self.isActive, self.sessionToken == token else { return }
             // Noise/music rejections and catch-up notices are normal on TV.
+            if message.hasPrefix("Whisper n'a pas pu transcrire") {
+                // One failed window must not look like the mode broke.
+                self.hint = "Extrait mal capté, j'écoute la suite."
+                return
+            }
             if message.hasPrefix("Whisper : aucune parole fiable")
                 || message.hasPrefix("Le direct est plus rapide") {
                 self.hint = message.hasPrefix("Le direct")
@@ -417,7 +453,7 @@ public final class YoannTranslateLiveService: ObservableObject {
             return
         }
         // Whisper locked to Hebrew can still print Latin words on music.
-        if engine == .appleDirect || engine == .server,
+        if engine == .appleDirect || engine == .server || engine == .madlad,
            TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he",
            !TranslateLiveContextBuffer.isMostlyHebrew(text) {
             hint = "Passage non reconnu comme de l'hébreu, ignoré."
@@ -437,7 +473,15 @@ public final class YoannTranslateLiveService: ObservableObject {
         case .whisperToEnglish:
             lastSource = ""
             appendTranslated(text, source: "")
-        case .appleDirect, .whisperEnglishThenApple, .server:
+        case .madlad where TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he"
+                && TranslateLiveLanguages.engineCode(for: targetLanguage) == "fr":
+            lastSource = text
+            if let french = HebrewFrenchPhrasebook.translate(text) {
+                appendTranslated(french, source: text)
+                break
+            }
+            enqueue(text)
+        case .appleDirect, .whisperEnglishThenApple, .server, .madlad:
             lastSource = text
             pending.append(Pending(source: text, input: text))
             // A live broadcast never waits: keep only the freshest phrases.
@@ -539,8 +583,63 @@ public final class YoannTranslateLiveService: ObservableObject {
                     self?.finish(outcome, item: item, token: token)
                 }
             }
+        case .madlad:
+            let item = pending.removeFirst()
+            isTranslating = true
+            updateStatus()
+            madlad.translate(item.input,
+                             to: TranslateLiveLanguages.engineCode(for: targetLanguage)) { [weak self] result in
+                Task { @MainActor in
+                    switch result {
+                    case .success(let text):
+                        self?.finish(.translated(text), item: item, token: token)
+                    case .failure(let error):
+                        self?.finish(.unavailable(error.localizedDescription), item: item, token: token)
+                    }
+                }
+            }
         case .whisperToEnglish, .none:
             pending.removeAll()
+        }
+    }
+
+    private func enqueue(_ text: String) {
+        pending.append(Pending(source: text, input: text))
+        // A live broadcast never waits: keep only the freshest phrases.
+        if pending.count > 3 {
+            pending.removeFirst(pending.count - 3)
+            hint = "Rattrapage du direct : phrases les plus récentes en priorité."
+        }
+        translateNext()
+    }
+
+    /// While the open-source translator downloads (Wi-Fi), the relay engine
+    /// keeps working; as soon as it is installed the session switches to it.
+    private func watchMadladDownload(token: UUID) {
+        madlad.startDownloadIfNeeded()
+        madladProgressSubscription = madlad.$downloadProgress
+            .combineLatest(madlad.$isDownloading, madlad.$lastDownloadError)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] progress, downloading, error in
+                guard let self, self.isActive, self.sessionToken == token,
+                      self.engine != .madlad else { return }
+                if downloading {
+                    self.hint = "Téléchargement du traducteur hébreu (Wi-Fi) : \(Int(progress * 100)) %"
+                } else if let error {
+                    self.hint = "Traducteur hébreu : " + error
+                }
+            }
+        madladInstalledObserver = NotificationCenter.default.addObserver(
+            forName: MadladTranslator.installedNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.isActive, self.sessionToken == token,
+                      self.engine != .madlad else { return }
+                self.pending.removeAll()
+                self.hint = nil
+                self.madlad.warmUp()
+                self.activate(.madlad, pair: nil, whisperTranslates: false, token: token)
+            }
         }
     }
 

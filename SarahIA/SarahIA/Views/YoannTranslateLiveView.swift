@@ -262,7 +262,7 @@ public struct YoannTranslateLiveView: View {
                     Circle()
                         .fill(live.isActive ? Color.green : Color.orange)
                         .frame(width: 7, height: 7)
-                    Text(live.status)
+                    Text(live.hint.map { live.status + " · " + $0 } ?? live.status)
                         .foregroundColor(.white.opacity(0.77))
                 }
                 Spacer(minLength: 0)

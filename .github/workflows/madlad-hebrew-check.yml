@@ -37,7 +37,10 @@ jobs:
             start=$(python3 -c 'import time; print(time.time())')
             out=$(./llama/build/bin/llama-simple -m madlad.gguf -n 64 "<2fr> $line" 2>/dev/null)
             end=$(python3 -c 'import time; print(time.time())')
-            printf 'HE: %s\nFR: %s\nTIME: %.2fs\n\n' "$line" "$out" "$(python3 -c "print($end-$start)")"
+            secs=$(python3 -c "print(round($end-$start,2))")
+            printf 'HE: %s\nFR: %s\nTIME: %ss\n\n' "$line" "$out" "$secs"
+            # Annotations are readable through the GitHub API.
+            echo "::notice title=MADLAD ${secs}s::$(echo "$out" | tr '\n' ' ')"
           done <<'EOF'
           שלום, מה נשמע? הכל בסדר.
           אמא, תסתכלי מה כתוב.

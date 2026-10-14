@@ -752,6 +752,13 @@ public final class WhisperService: ObservableObject {
                 params.suppress_blank = true
                 params.suppress_nst = true
                 params.no_speech_thold = 0.45
+                // Whisper's encoder always processed a full 30 s window
+                // (1500 frames) even for a 4 s TV phrase: most of the decode
+                // time was spent on silence padding, so fast speakers ran
+                // ahead of the iPhone. Encode only the audio actually heard
+                // plus a safety margin (whisper.cpp "audio_ctx").
+                let seconds = Double(inferenceAudio.count) / self.targetSampleRate
+                params.audio_ctx = Int32(min(1500, Int(seconds * 50) + 128))
             }
 
             let result: Int32 = inferenceLanguage.withCString { language in
