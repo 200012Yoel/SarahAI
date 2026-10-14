@@ -1,0 +1,48 @@
+name: MADLAD Hebrew to French check
+
+# Verifies the open-source Google MADLAD-400 3B MT model (Apache-2.0) with
+# the same llama.cpp version as the iPhone build: real Hebrew -> French
+# output and timing on an Apple Silicon runner.
+on:
+  push:
+    branches: [claude/sarah-deep-fix]
+    paths: ['.github/workflows/madlad-hebrew-check.yml']
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - name: Build llama.cpp v0.4.1 (Metal)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v0.4.1 https://github.com/ggml-org/llama.cpp.git llama
+          cmake -S llama -B llama/build -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF
+          cmake --build llama/build --target llama-simple -j 4
+
+      - name: Download MADLAD-400 3B MT (Q4_K_M GGUF)
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-delay 8 \
+            'https://huggingface.co/mtsdurica/madlad400-3b-mt-Q4_K_M-GGUF/resolve/main/madlad400-3b-mt-q4_k_m.gguf' \
+            -o madlad.gguf
+          ls -lh madlad.gguf
+
+      - name: Translate Hebrew samples to French
+        run: |
+          set -uo pipefail
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            start=$(python3 -c 'import time; print(time.time())')
+            out=$(./llama/build/bin/llama-simple -m madlad.gguf -n 64 "<2fr> $line" 2>/dev/null)
+            end=$(python3 -c 'import time; print(time.time())')
+            printf 'HE: %s\nFR: %s\nTIME: %.2fs\n\n' "$line" "$out" "$(python3 -c "print($end-$start)")"
+          done <<'EOF'
+          שלום, מה נשמע? הכל בסדר.
+          אמא, תסתכלי מה כתוב.
+          איראן, אתה בוגד, אתה בוגד.
+          ראש הממשלה הודיע הערב על הסכם חדש עם ארצות הברית.
+          המשטרה ביקשה מהציבור להישאר בבתים עד להודעה חדשה.
+          מחר צפוי מזג אוויר חם עם רוחות חזקות באזור המרכז.
+          EOF
