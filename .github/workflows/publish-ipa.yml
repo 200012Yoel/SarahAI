@@ -1,6 +1,10 @@
 name: Publish built IPA
 
 on:
+  # Pushing this file publishes the build named in RUN_ID below.
+  push:
+    branches: [claude/sarah-deep-fix]
+    paths: ['.github/workflows/publish-ipa.yml']
   workflow_dispatch:
     inputs:
       run_id:
@@ -13,6 +17,10 @@ on:
         type: string
         default: 'sarah-ia-latest-fix'
 
+env:
+  RUN_ID: ${{ inputs.run_id || '38628683891' }}
+  TAG: ${{ inputs.tag || 'sarah-ia-latest-fix' }}
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -24,7 +32,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: SarahIA-IPA
-          run-id: ${{ inputs.run_id }}
+          run-id: ${{ env.RUN_ID }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: dist
 
@@ -32,10 +40,10 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag }}
+          tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: 'Sarah IA · dernière version corrigée'
-          body: 'IPA du build #${{ inputs.run_id }}. Téléchargement direct : SarahIA.ipa ci-dessous.'
+          body: 'IPA du run ${{ env.RUN_ID }} (build #964). Téléchargement direct : SarahIA.ipa ci-dessous.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
