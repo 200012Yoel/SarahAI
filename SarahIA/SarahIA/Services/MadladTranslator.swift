@@ -198,8 +198,8 @@ public final class MadladTranslator: NSObject, ObservableObject, URLSessionDownl
             llama_backend_init()
             backendReady = true
         }
-        var params = llama_model_default_params()
-        params.use_mmap = true // weights stay file-backed, not app memory
+        // Default load mode memory-maps the weights (file-backed pages).
+        let params = llama_model_default_params()
         guard let loaded = llama_model_load_from_file(Self.modelURL.path, params) else {
             throw NSError(domain: "SarahMadlad", code: 4, userInfo: [
                 NSLocalizedDescriptionKey: "Impossible de charger le traducteur MADLAD-400."])
