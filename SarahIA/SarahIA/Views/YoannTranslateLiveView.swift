@@ -25,6 +25,7 @@ public struct YoannTranslateLiveView: View {
     @State private var targetLanguage: String
     @State private var pickerMode: PickerMode?
     @State private var showsDetails = false
+    @State private var isSwappingLanguages = false
 
     private let darkNavy = Color(red: 0.025, green: 0.048, blue: 0.12)
     private let matteBlue = Color(red: 0.105, green: 0.23, blue: 0.43)
@@ -51,30 +52,25 @@ public struct YoannTranslateLiveView: View {
             VStack(spacing: 0) {
                 translatedHalf(paneHeight: geometry.size.height / 2)
                     .frame(height: geometry.size.height / 2)
-
-                // Central divider with language swap button
-                HStack(spacing: 0) {
-                    Divider()
-                    Button {
-                        let previous = sourceLanguage
-                        sourceLanguage = targetLanguage
-                        targetLanguage = previous
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                    }
-                    .accessibilityLabel("Inverser les langues : hébreu et français")
-                    .accessibilityIdentifier("translateLiveSwapLanguagesCenter")
-                    Divider()
-                }
-                .frame(height: 1)
-                .background(Color.white.opacity(0.30))
-
                 heardHalf(paneHeight: geometry.size.height / 2)
                     .frame(height: geometry.size.height / 2)
+            }
+            // The swap button floats on the divider. It used to live inside a
+            // 1-point-high bar that pushed the layout past the screen and let
+            // the lower pane cover half of the button.
+            .overlay(alignment: .center) {
+                Button(action: swapLanguages) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(matteBlue))
+                        .overlay(Circle().stroke(Color.white.opacity(0.35), lineWidth: 1))
+                }
+                .disabled(!canSwapLanguages)
+                .opacity(canSwapLanguages ? 1 : 0.4)
+                .accessibilityLabel("Inverser les langues")
+                .accessibilityIdentifier("translateLiveSwapLanguagesCenter")
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
@@ -454,7 +450,27 @@ public struct YoannTranslateLiveView: View {
         .preferredColorScheme(.dark)
     }
 
+    /// "Détection automatique" is a source only: it can never become a target.
+    private var canSwapLanguages: Bool {
+        TranslateLiveLanguages.isSelectableTarget(sourceLanguage)
+            && TranslateLiveLanguages.isRecognized(targetLanguage)
+    }
+
+    private func swapLanguages() {
+        guard canSwapLanguages else { return }
+        let previous = sourceLanguage
+        // Both onChange handlers fire for one swap; restart only once.
+        isSwappingLanguages = true
+        sourceLanguage = targetLanguage
+        targetLanguage = previous
+        DispatchQueue.main.async {
+            isSwappingLanguages = false
+            restartIfActive()
+        }
+    }
+
     private func restartIfActive() {
+        guard !isSwappingLanguages else { return }
         guard live.isActive else { return }
         live.start(from: sourceLanguage, to: targetLanguage, serverURL: translationServerURL,
                    outputMode: preferredOutput)

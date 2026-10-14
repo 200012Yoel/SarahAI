@@ -577,13 +577,18 @@ public final class WhisperService: ObservableObject {
               !liveInferenceBusy, !livePendingChunks.isEmpty else { return }
         liveInferenceBusy = true
         let next = livePendingChunks.removeFirst()
+        // The busy flag belongs to the live stream, not to one microphone
+        // capture: a route change or interruption restarts capture with a
+        // new generation while a decode is still running. Releasing it only
+        // on a matching generation left Translate Live deaf forever.
+        let streamToken = liveStreamToken
         transcribe(
             next.audio, final: true, deliverToLive: true,
             endsAtPause: next.endsAtPause
         ) { [weak self] _ in
-            guard let self, self.isLiveInterpreting, self.generation == generation else { return }
+            guard let self, self.isLiveInterpreting, self.liveStreamToken == streamToken else { return }
             self.liveInferenceBusy = false
-            self.drainLiveChunks(generation: generation)
+            self.drainLiveChunks(generation: self.generation)
         }
     }
 

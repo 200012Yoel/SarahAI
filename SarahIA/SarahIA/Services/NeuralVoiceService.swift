@@ -156,10 +156,13 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
                     throw NSError(domain: "SarahNeuralTTS", code: 5,
                                   userInfo: [NSLocalizedDescriptionKey: "Le modèle vocal a généré du silence."])
                 }
-                // Amplify audio 3x for accessibility (hearing impaired users)
+                // Louder voice for hearing-impaired users, up to 3x, but the
+                // gain is capped by the loudest sample: a fixed 3x gain hard-
+                // clipped every peak and made the voice crackle.
+                let peak = result.samples.reduce(Float(0)) { max($0, abs($1)) }
+                let gain = min(Float(3.0), Float(0.97) / max(peak, Float(0.0001)))
                 let amplifiedSamples = result.samples.map { sample in
-                    let amplified = sample * 3.0
-                    return Float(max(-1.0, min(1.0, amplified)))
+                    max(-1.0, min(1.0, sample * gain))
                 }
                 let wav = Self.waveData(samples: amplifiedSamples, sampleRate: Int(result.sampleRate))
                 DispatchQueue.main.async {

@@ -411,7 +411,10 @@ public final class ChatViewModel: ObservableObject {
         var state = storageService.loadState()
         state.conversations = self.conversations
         state.currentConversationId = self.currentConversationId
-        state.learnedMemories = self.learnedMemories
+        // AIService and the Memory Vault write learned memories straight to
+        // storage. Writing this launch-time copy back erased every "Apprends…"
+        // (and the user's name) on the very next message: storage wins.
+        self.learnedMemories = state.learnedMemories
         storageService.saveState(state)
     }
     
@@ -1076,6 +1079,25 @@ public final class ChatViewModel: ObservableObject {
         // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
         let currentSelectedAgent = activeAgent
         let responseConversationID = currentConversationId
+
+        // Safety net: if the local model never answers (busy with another
+        // generation, stuck decode), don't leave Sarah "thinking" forever with
+        // the voice microphone blocked. A late answer is then ignored.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
+            guard let self, self.messageGenerationID == generationID, self.isTyping else { return }
+            self.messageGenerationID = UUID()
+            self.isTyping = false
+            self.appendMessage(Message(
+                content: "Le modèle local n'a pas répondu à temps. Réessaie, s'il te plaît.",
+                isFromUser: false
+            ))
+            if self.isContinuousConversationActive {
+                self.rearmMicrophoneAfterSilence()
+            } else {
+                self.voiceStatus = .idle
+            }
+        }
+
         multiAgentCoordinator.routeAndProcess(
             query: text, currentAgent: currentSelectedAgent,
             preferFastVoice: isContinuousConversationActive
@@ -1321,6 +1343,7 @@ public final class ChatViewModel: ObservableObject {
 extension ChatViewModel {
     public func clearAllLearnedMemories() {
         storageService.clearAllMemories()
+        learnedMemories = storageService.loadState().learnedMemories
     }
     
     public func speakLearnedResponse(text: String) {
@@ -1329,9 +1352,11 @@ extension ChatViewModel {
     
     public func deleteLearnedMemory(trigger: String) {
         storageService.deleteMemory(forTrigger: trigger)
+        learnedMemories = storageService.loadState().learnedMemories
     }
     
     public func addLearnedMemory(trigger: String, response: String) {
         storageService.saveMemory(trigger: trigger, response: response)
+        learnedMemories = storageService.loadState().learnedMemories
     }
 }
