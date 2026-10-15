@@ -1,0 +1,49 @@
+name: Build Hebrew-French dictionary
+
+# Builds the open Hebrew -> French dictionary used by Translate Live from
+# Tatoeba (CC BY 2.0 FR) and Wiktionary (CC BY-SA 4.0, kaikki.org extracts)
+# and commits it into the app resources.
+on:
+  push:
+    branches: [claude/sarah-deep-fix]
+    paths: ['.github/workflows/build-he-fr-dictionary.yml', '.github/scripts/build_he_fr_dictionary.py']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download sources
+        run: |
+          set -euo pipefail
+          mkdir -p src
+          curl -L --fail --retry 4 -o src/heb.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/heb/heb_sentences.tsv.bz2
+          curl -L --fail --retry 4 -o src/fra.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/fra/fra_sentences.tsv.bz2
+          curl -L --fail --retry 4 -o src/links.tar.bz2 https://downloads.tatoeba.org/exports/links.tar.bz2
+          curl -L --fail --retry 4 -o src/fr.jsonl.gz https://kaikki.org/dictionary/downloads/fr/fr-extract.jsonl.gz
+          curl -L --fail --retry 4 -o src/en.jsonl.gz https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz
+          ls -lh src
+      - name: Build dictionary
+        run: |
+          set -euo pipefail
+          mkdir -p SarahIA/SarahIA/Resources
+          python3 .github/scripts/build_he_fr_dictionary.py \
+            tatoeba_heb=src/heb.tsv.bz2 tatoeba_fra=src/fra.tsv.bz2 tatoeba_links=src/links.tar.bz2 \
+            frwikt=src/fr.jsonl.gz enwikt=src/en.jsonl.gz \
+            out=SarahIA/SarahIA/Resources/he_fr_dictionary.tsv | tee build.log
+          echo "::notice title=Dictionary::$(grep -E '^(TOTAL|SOURCES)=' build.log | tr '\n' ' ')"
+          ls -lh SarahIA/SarahIA/Resources/he_fr_dictionary.tsv
+      - name: Commit dictionary
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add SarahIA/SarahIA/Resources/he_fr_dictionary.tsv
+          git commit -m "data: open Hebrew-French dictionary (Tatoeba CC BY 2.0 FR, Wiktionary CC BY-SA 4.0)" || exit 0
+          git pull --rebase origin claude/sarah-deep-fix
+          git push origin HEAD:claude/sarah-deep-fix
