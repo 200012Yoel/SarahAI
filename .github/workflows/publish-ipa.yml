@@ -43,7 +43,7 @@ jobs:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: 'Sarah IA · dernière version corrigée'
-          body: 'IPA du run ${{ env.RUN_ID }} (hébreu en direct + file d'attente des traductions). Téléchargement direct : SarahIA.ipa ci-dessous.'
+          body: 'IPA du run ${{ env.RUN_ID }} (hébreu en direct + file d’attente des traductions). Téléchargement direct : SarahIA.ipa ci-dessous.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
