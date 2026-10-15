@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import MapKit
 
 /// Bulle de message native avec actions compactes façon ChatGPT.
 @available(iOS 14.0, *)
@@ -153,6 +154,11 @@ public struct ChatBubbleView: View {
                             )
                             .shadow(color: isSpeaking ? Color.sarahCyan.opacity(0.2) : Color.clear, radius: 8)
                     }
+                }
+
+                if let place = message.placeCard {
+                    SarahPlaceCardView(place: place)
+                        .frame(maxWidth: 290)
                 }
 
                 if let youtube = message.detectedYouTubeCard {
@@ -584,5 +590,150 @@ struct ChatBubbleView_Previews: PreviewProvider {
         .padding()
         .background(Color.black)
         .preferredColorScheme(.dark)
+    }
+}
+
+
+// MARK: - Carte native de lieu, compacte + plein écran (MapKit iOS 14+)
+@available(iOS 14.0, *)
+public struct SarahPlaceCardView: View {
+    public let place: SarahPlaceCardPayload
+    @State private var showExpandedMap = false
+
+    public init(place: SarahPlaceCardPayload) {
+        self.place = place
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(action: { showExpandedMap = true }) {
+                ZStack(alignment: .bottomTrailing) {
+                    SarahPlaceMapRepresentable(place: place)
+                        .frame(height: 175)
+                        .allowsHitTesting(false)
+                    Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .padding(7)
+                        .background(Color.black.opacity(0.76))
+                        .cornerRadius(9)
+                        .padding(8)
+                }
+                .cornerRadius(13)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Agrandir la carte de \(place.name)")
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(place.name)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                if !place.address.isEmpty {
+                    Text(place.address)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            navigationButtons
+        }
+        .padding(10)
+        .foregroundColor(.white)
+        .background(Color(red: 0.13, green: 0.14, blue: 0.17))
+        .cornerRadius(16)
+        .fullScreenCover(isPresented: $showExpandedMap) {
+            NavigationView {
+                VStack(alignment: .leading, spacing: 12) {
+                    SarahPlaceMapRepresentable(place: place)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .cornerRadius(12)
+                    Text(place.name)
+                        .font(.headline)
+                    if !place.address.isEmpty {
+                        Text(place.address)
+                            .font(.subheadline)
+                    }
+                    navigationButtons
+                }
+                .padding()
+                .navigationBarTitle("Carte du lieu", displayMode: .inline)
+                .navigationBarItems(trailing: Button("Fermer") { showExpandedMap = false })
+            }
+        }
+    }
+
+    private var navigationButtons: some View {
+        HStack(spacing: 6) {
+            navigationButton("Plans", symbol: "map.fill") { openAppleMaps() }
+            navigationButton("Google Maps", symbol: "arrow.triangle.turn.up.right.diamond.fill") {
+                openWebNavigation("https://www.google.com/maps/dir/?api=1&destination=\(place.latitude),\(place.longitude)")
+            }
+            navigationButton("Waze", symbol: "car.fill") {
+                openWebNavigation("https://waze.com/ul?ll=\(place.latitude)%2C\(place.longitude)&navigate=yes")
+            }
+        }
+    }
+
+    private func navigationButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: symbol).font(.system(size: 16))
+                Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 47)
+            .background(Color(red: 0.15, green: 0.42, blue: 0.85))
+            .cornerRadius(10)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("Itinéraire avec \(title)")
+    }
+
+    private func openAppleMaps() {
+        let coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = place.name
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+
+    private func openWebNavigation(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    }
+}
+
+@available(iOS 14.0, *)
+private struct SarahPlaceMapRepresentable: UIViewRepresentable {
+    let place: SarahPlaceCardPayload
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView(frame: .zero)
+        map.isRotateEnabled = false
+        map.isPitchEnabled = false
+        updateAnnotation(in: map)
+        return map
+    }
+
+    func updateUIView(_ uiView: MKMapView, context: Context) {
+        let existing = uiView.annotations.compactMap { $0 as? MKPointAnnotation }.first
+        if existing?.coordinate.latitude == place.latitude &&
+            existing?.coordinate.longitude == place.longitude { return }
+        updateAnnotation(in: uiView)
+    }
+
+    private func updateAnnotation(in map: MKMapView) {
+        map.removeAnnotations(map.annotations)
+        let coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+        let pin = MKPointAnnotation()
+        pin.coordinate = coordinate
+        pin.title = place.name
+        pin.subtitle = place.address
+        map.addAnnotation(pin)
+        map.setRegion(
+            MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+            ),
+            animated: false
+        )
     }
 }
