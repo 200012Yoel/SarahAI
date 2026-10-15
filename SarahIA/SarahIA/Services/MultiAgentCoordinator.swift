@@ -87,7 +87,7 @@ public final class MultiAgentCoordinator {
             SarahPlaceSearchService.shared.search(placeQuery) { result in
                 switch result {
                 case .success(let place):
-                    let reply = "📍 **\(place.name)**\n\(place.address)\n\nAppuie sur la carte pour l'agrandir ou choisis un itinéraire."
+                    let reply = "📍 Voici le lieu que j’ai trouvé. Appuie sur la vignette pour agrandir la carte ou choisis un itinéraire."
                     completion(AgentResponse(
                         agent: .sarah,
                         text: reply,
