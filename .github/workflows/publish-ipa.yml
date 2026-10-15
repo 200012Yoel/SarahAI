@@ -18,7 +18,7 @@ on:
         default: 'sarah-ia-latest-fix'
 
 env:
-  RUN_ID: ${{ inputs.run_id || '38729624776' }}
+  RUN_ID: ${{ inputs.run_id || '38734354068' }}
   TAG: ${{ inputs.tag || 'sarah-ia-latest-fix' }}
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: 'Sarah IA · dernière version corrigée'
-          body: 'IPA du run ${{ env.RUN_ID }} (dictionnaire hébreu-français 100 000 entrées). Téléchargement direct : SarahIA.ipa ci-dessous.'
+          body: 'IPA du run ${{ env.RUN_ID }} (hébreu en direct + file d'attente des traductions). Téléchargement direct : SarahIA.ipa ci-dessous.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
