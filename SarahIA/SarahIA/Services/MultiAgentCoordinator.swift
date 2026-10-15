@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AVFoundation
+import MapKit
 
 /// Coordinateur Central Multi-Agents (Sarah, Tom, Raphaël, Yohan).
 /// Analyse les requêtes utilisateur pour identifier l'agent expert approprié,
@@ -16,6 +17,7 @@ public final class MultiAgentCoordinator {
         public let spokenText: String
         public let openStudio: Bool
         public let generatedCode: String?
+        public let placeCard: SarahPlaceCardPayload?
         public let handoffSarahTransition: String?
         public let handoffAgentGreeting: String?
         public let handoffSourceAgent: AgentType?
@@ -26,6 +28,7 @@ public final class MultiAgentCoordinator {
             spokenText: String,
             openStudio: Bool = false,
             generatedCode: String? = nil,
+            placeCard: SarahPlaceCardPayload? = nil,
             handoffSarahTransition: String? = nil,
             handoffAgentGreeting: String? = nil,
             handoffSourceAgent: AgentType? = nil
@@ -35,6 +38,7 @@ public final class MultiAgentCoordinator {
             self.spokenText = spokenText
             self.openStudio = openStudio
             self.generatedCode = generatedCode
+            self.placeCard = placeCard
             self.handoffSarahTransition = handoffSarahTransition
             self.handoffAgentGreeting = handoffAgentGreeting
             self.handoffSourceAgent = handoffSourceAgent
@@ -77,6 +81,30 @@ public final class MultiAgentCoordinator {
             return
         }
         
+        // Les demandes géographiques passent par MapKit AVANT le moteur texte.
+        // Sinon un petit modèle peut répéter la question sans ouvrir de carte.
+        if let placeQuery = SarahPlaceSearchService.shared.extractPlaceQuery(from: trimmed) {
+            SarahPlaceSearchService.shared.search(placeQuery) { result in
+                switch result {
+                case .success(let place):
+                    let reply = "📍 **\(place.name)**\n\(place.address)\n\nAppuie sur la carte pour l'agrandir ou choisis un itinéraire."
+                    completion(AgentResponse(
+                        agent: .sarah,
+                        text: reply,
+                        spokenText: "J'ai trouvé \(place.name). La carte et les itinéraires sont disponibles.",
+                        placeCard: place
+                    ))
+                case .failure:
+                    completion(AgentResponse(
+                        agent: .sarah,
+                        text: "Je ne peux pas afficher de résultat cartographique pour « \(placeQuery) » actuellement. Vérifie la connexion Internet ou précise le lieu, puis réessaie.",
+                        spokenText: "La recherche de lieu a échoué. Vérifie ta connexion Internet ou précise le nom du lieu."
+                    ))
+                }
+            }
+            return
+        }
+
         // 3. Exécution selon l'agent
         switch resolvedAgent {
         case .yohan:
@@ -1203,6 +1231,101 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
             return "Sarah Neural Core Pro v4 (Apple Neural Engine 4GB)"
         } else {
             return "Sarah Core Nano v4 (Apple Silicon 2GB)"
+        }
+    }
+}
+
+
+// MARK: - Recherche cartographique réelle (MapKit, sans coordonnées inventées)
+/// Un résultat n'est envoyé au chat que si MapKit a réellement trouvé un lieu.
+public final class SarahPlaceSearchService {
+    public static let shared = SarahPlaceSearchService()
+    private init() {}
+
+    /// Reconnaît les commandes de lieu tout en évitant d'envoyer toute recherche
+    /// générale (« je cherche une application ») vers Apple Plans.
+    public func extractPlaceQuery(from rawText: String) -> String? {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = text.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "-", with: " ")
+        let prefixes: [(String, Bool)] = [
+            ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
+            ("affiche la carte de ", true), ("affiche sur la carte ", true),
+            ("je voudrais voir sur la carte ", true),
+            ("ou se trouve ", true), ("ou est situe ", true), ("ou est ", true),
+            ("quelle est l'adresse de ", true), ("quelle est l'adresse du ", true),
+            ("adresse de ", true), ("l'adresse de ", true),
+            ("itineraire vers ", true), ("itineraire pour ", true),
+            ("emmene moi a ", true), ("conduis moi a ", true),
+            ("localise ", true), ("situe moi ", true),
+            ("je cherche ", false), ("je recherche ", false),
+            ("cherche moi ", false), ("cherche ", false),
+            ("trouve moi ", false), ("trouve ", false),
+            ("montre moi ", false)
+        ]
+        guard let (prefix, explicitLocation) = prefixes.first(where: { normalized.hasPrefix($0.0) }) else {
+            return nil
+        }
+
+        // Les transformations ci-dessus ne modifient pas le nombre de caractères.
+        var candidate = String(text.dropFirst(prefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trailing = [" sur la carte", " dans plans", " sur plans", " sur google maps"]
+        for suffix in trailing {
+            let folded = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
+            if folded.hasSuffix(suffix) {
+                candidate = String(candidate.dropLast(suffix.count))
+            }
+        }
+        for article in ["de la ", "de l'", "du ", "des ", "les ", "la ", "le ", "l'", "une ", "un ", "au ", "aux ", "a "] {
+            let folded = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
+            if folded.hasPrefix(article) {
+                candidate = String(candidate.dropFirst(article.count))
+                break
+            }
+        }
+        candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".,!?;:")))
+        guard candidate.count >= 3 else { return nil }
+        if explicitLocation { return candidate }
+
+        let subject = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
+        let placeWords = [
+            "tour eiffel", "tour ", "gare", "station", "mairie", "rue ", "avenue ",
+            "boulevard ", "place ", "musee", "monument", "aeroport", "parc ",
+            "jardin ", "restaurant", "cafe ", "boulangerie", "pharmacie",
+            "hopital", "hotel", "ecole", "bibliotheque", "plage", "chateau",
+            "adresse", "metro", "synagogue", "mosquee", "eglise", "zoo ",
+            "pont ", "quartier", "cinema", "supermarche", "boutique"
+        ]
+        guard placeWords.contains(where: { subject.contains($0) }) else { return nil }
+        return candidate
+    }
+
+    public func search(_ rawQuery: String, completion: @escaping (Result<SarahPlaceCardPayload, Error>) -> Void) {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = rawQuery
+        request.resultTypes = [.pointOfInterest, .address]
+        let search = MKLocalSearch(request: request)
+        search.start { response, error in
+            if let item = response?.mapItems.first(where: { CLLocationCoordinate2DIsValid($0.placemark.coordinate) }) {
+                let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let address = item.placemark.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let place = SarahPlaceCardPayload(
+                    name: (name?.isEmpty == false ? name! : rawQuery),
+                    address: address ?? "",
+                    latitude: item.placemark.coordinate.latitude,
+                    longitude: item.placemark.coordinate.longitude
+                )
+                DispatchQueue.main.async { completion(.success(place)) }
+            } else {
+                let failure = error ?? NSError(
+                    domain: "SarahPlaceSearch", code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "Aucun lieu trouvé par Apple Plans."]
+                )
+                DispatchQueue.main.async { completion(.failure(failure)) }
+            }
         }
     }
 }
