@@ -81,8 +81,6 @@
 		A1B2C3D40001000100000087 /* AIProgressiveScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */; };
 		A1B2C3D40001000100000088 /* HardwareDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000088 /* HardwareDetector.swift */; };
 		A1B2C3D4000100010000008A /* AdvancedVisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008A /* AdvancedVisionEngine.swift */; };
-		A1B2C3D4000100010000008B /* OpenSourceMusicEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008B /* OpenSourceMusicEngine.swift */; };
-		A1B2C3D4000100010000008C /* OpenSourceImageGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008C /* OpenSourceImageGenerationService.swift */; };
 		A1B2C3D4000100010000008D /* MultimodalMediaCardViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */; };
 		A1B2C3D40001000100000090 /* VoiceCallModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000090 /* VoiceCallModels.swift */; };
 		A1B2C3D40001000100000091 /* VoiceCallContactManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */; };
@@ -90,19 +88,15 @@
 		A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */; };
 		A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */; };
 		A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */; };
-		A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */; };
 		A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009B /* SarahDesignSystem.swift */; };
 		A1B2C3D4000100010000009C /* SarahActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */; };
 		A1B2C3D4000100010000009D /* VirtualPhoneManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */; };
 		A1B2C3D4000100010000009E /* VirtualPhoneViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009E /* VirtualPhoneViewController.swift */; };
 		A1B2C3D4000100010000009F /* DevCodeInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000200010000009F /* DevCodeInjector.swift */; };
 		A1B2C3D400010001000000A0 /* SessionTimeoutManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */; };
-		A1B2C3D400010001000000A1 /* RealtimeAudioWaveformExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */; };
 		A1B2C3D400010001000000A2 /* BackgroundModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */; };
 		A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */; };
-		A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */; };
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
-		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
 		A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */; };
 		A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000004 /* sherpa-onnx */; };
@@ -191,8 +185,6 @@
 		A1B2C3D40002000100000087 /* AIProgressiveScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProgressiveScheduler.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000088 /* HardwareDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008A /* AdvancedVisionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedVisionEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000008B /* OpenSourceMusicEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceMusicEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D4000200010000008C /* OpenSourceImageGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceImageGenerationService.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000008D /* MultimodalMediaCardViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultimodalMediaCardViews.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000090 /* VoiceCallModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallModels.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallContactManager.swift; sourceTree = "<group>"; };
@@ -200,18 +192,14 @@
 		A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCVoiceCallManager.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000094 /* VoiceCallScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallScreenView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000095 /* LegacyVoiceCallViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyVoiceCallViewController.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineTranslationAssetLoader.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009B /* SarahDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahDesignSystem.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahActionCoordinator.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualPhoneManager.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009E /* VirtualPhoneViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualPhoneViewController.swift; sourceTree = "<group>"; };
 		A1B2C3D4000200010000009F /* DevCodeInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevCodeInjector.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTimeoutManager.swift; sourceTree = "<group>"; };
-		A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeAudioWaveformExtractor.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundModelDownloader.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
-		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
-		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralVoiceService.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveService.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveView.swift; sourceTree = "<group>"; };
@@ -294,8 +282,6 @@
 				A1B2C3D40002000100000017 /* HapticService.swift */,
 				A1B2C3D4000200010000001E /* LocalNeuralIntelligenceEngine.swift */,
 				A1B2C3D4000200010000008A /* AdvancedVisionEngine.swift */,
-				A1B2C3D4000200010000008B /* OpenSourceMusicEngine.swift */,
-				A1B2C3D4000200010000008C /* OpenSourceImageGenerationService.swift */,
 				A1B2C3D4000200010000001F /* TranslationEngine.swift */,
 				A1B2C3D40002000100000020 /* ModelDownloader.swift */,
 				A1B2C3D40002000100000021 /* NetworkMonitor.swift */,
@@ -332,16 +318,12 @@
 				A1B2C3D40002000100000091 /* VoiceCallContactManager.swift */,
 				A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */,
 				A1B2C3D40002000100000093 /* WebRTCVoiceCallManager.swift */,
-				A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */,
 				A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */,
 				A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */,
 				A1B2C3D4000200010000009F /* DevCodeInjector.swift */,
 				A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */,
-				A1B2C3D400020001000000A1 /* RealtimeAudioWaveformExtractor.swift */,
 				A1B2C3D400020001000000A2 /* BackgroundModelDownloader.swift */,
 				A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */,
-				A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */,
-				A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -491,8 +473,6 @@
 				A1B2C3D40001000100000019 /* SettingsView.swift in Sources */,
 				A1B2C3D4000100010000001E /* LocalNeuralIntelligenceEngine.swift in Sources */,
 				A1B2C3D4000100010000008A /* AdvancedVisionEngine.swift in Sources */,
-				A1B2C3D4000100010000008B /* OpenSourceMusicEngine.swift in Sources */,
-				A1B2C3D4000100010000008C /* OpenSourceImageGenerationService.swift in Sources */,
 				A1B2C3D4000100010000001F /* TranslationEngine.swift in Sources */,
 				A1B2C3D40001000100000020 /* ModelDownloader.swift in Sources */,
 				A1B2C3D40001000100000021 /* NetworkMonitor.swift in Sources */,
@@ -562,18 +542,14 @@
 				A1B2C3D40001000100000093 /* WebRTCVoiceCallManager.swift in Sources */,
 				A1B2C3D40001000100000094 /* VoiceCallScreenView.swift in Sources */,
 				A1B2C3D40001000100000095 /* LegacyVoiceCallViewController.swift in Sources */,
-				A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */,
 				A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */,
 				A1B2C3D4000100010000009C /* SarahActionCoordinator.swift in Sources */,
 				A1B2C3D4000100010000009D /* VirtualPhoneManager.swift in Sources */,
 				A1B2C3D4000100010000009E /* VirtualPhoneViewController.swift in Sources */,
 				A1B2C3D4000100010000009F /* DevCodeInjector.swift in Sources */,
 				A1B2C3D400010001000000A0 /* SessionTimeoutManager.swift in Sources */,
-				A1B2C3D400010001000000A1 /* RealtimeAudioWaveformExtractor.swift in Sources */,
 				A1B2C3D400010001000000A2 /* BackgroundModelDownloader.swift in Sources */,
 				A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */,
-				A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */,
-				A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

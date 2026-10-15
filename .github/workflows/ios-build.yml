@@ -89,7 +89,7 @@ jobs:
           test -d build-apple/whisper.xcframework
           find build-apple/whisper.xcframework -maxdepth 3 -type d -name 'whisper.framework' -print
 
-      - name: Download multilingual OpenAI Whisper base and fast tiny models
+      - name: Download multilingual OpenAI Whisper base and medium models
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/WhisperModels"
@@ -97,12 +97,6 @@ jobs:
             'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
             -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
           test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
-          # A second, faster offline model is used by real-time Sarah chat.
-          # The more accurate Base model remains dedicated to Hebrew TV mode.
-          curl -L --fail --retry 3 \
-            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin?download=true' \
-            -o "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
-          test -s "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
           # Translate Live (TV in Hebrew or English): Base is far too weak
           # for Hebrew. Medium (quantized q5_0, ~540 MB) understands Hebrew
           # and can translate it to English for Apple's EN->FR model.
@@ -232,8 +226,6 @@ jobs:
           test -n "$APP_PATH"
           mkdir -p "$APP_PATH/WhisperModels"
           cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
-          cp "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin" "$APP_PATH/WhisperModels/"
-          test -s "$APP_PATH/WhisperModels/ggml-tiny.bin"
           cp "$RUNNER_TEMP/WhisperModels/ggml-medium-q5_0.bin" "$APP_PATH/WhisperModels/"
           test -s "$APP_PATH/WhisperModels/ggml-medium-q5_0.bin"
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"

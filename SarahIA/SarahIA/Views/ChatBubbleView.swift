@@ -162,16 +162,6 @@ public struct ChatBubbleView: View {
                         .frame(maxWidth: 290)
                 }
 
-                if let imageURL = message.detectedImageURL {
-                    GeneratedImageCardView(imageURLString: imageURL, promptDescription: message.imageGenerationPrompt ?? message.content)
-                        .frame(maxWidth: 290)
-                }
-
-                if let musicStyle = message.detectedMusicStyle {
-                    MusicTrackCardView(styleName: musicStyle)
-                        .frame(maxWidth: 280)
-                }
-
                 if message.isVisionReport {
                     VisionReportCardView(messageContent: message.content)
                         .frame(maxWidth: 280)

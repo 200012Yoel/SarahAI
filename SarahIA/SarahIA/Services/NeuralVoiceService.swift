@@ -65,6 +65,15 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
     }
 
     public func stop() {
+        // If something outside Translate Live (chat voice reset, another
+        // agent) cuts the interpreter's voice, Translate Live must still be
+        // told the phrase ended; otherwise it waits forever and goes mute.
+        let interruptedInterpreter = isInterpreterPlayback
+        stopPlayback()
+        if interruptedInterpreter { onPlaybackFinished?() }
+    }
+
+    private func stopPlayback() {
         // Invalidate the result of any synthesis that is still in flight.
         generation = UUID()
         player?.stop()
@@ -81,7 +90,7 @@ public final class NeuralVoiceService: NSObject, AVAudioPlayerDelegate {
         dedicatedInterpreter: Bool = false
     ) {
         assert(Thread.isMainThread)
-        stop()
+        stopPlayback()
         isInterpreterPlayback = dedicatedInterpreter
         let token = generation
         let sanitized = text.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -36,6 +36,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         )
 
         UNUserNotificationCenter.current().delegate = self
+        RemovedMediaModelsCleanup.runOnce()
 
         DispatchQueue.main.async {
             NotificationService.shared.clearBadge()

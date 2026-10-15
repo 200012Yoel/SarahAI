@@ -116,6 +116,11 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var pending: [Pending] = []
     private var speechQueue: [String] = []
     private var isSpeaking = false
+    private var speechID = UUID()
+    /// What the phone said recently, to refuse hearing it back (anti-loop).
+    private var recentlySpoken: [(words: Set<String>, at: Date)] = []
+    private var lastShownTranslation = ""
+    private var lastShownAt = Date.distantPast
     private var lastChunk = ""
     private var lastChunkAt = Date.distantPast
     private var routeObserver: NSObjectProtocol?
@@ -186,9 +191,21 @@ public final class YoannTranslateLiveService: ObservableObject {
             }
 
         installObservers(token: token)
+        recentlySpoken.removeAll()
+        lastShownTranslation = ""
+        whisper.liveEchoActiveUntil = .distantPast
+        whisper.liveEchoLanguage = nil
+        whisper.onLiveEchoDropped = nil
         if speaksAloud {
             installVoiceCallbacks(token: token)
             neural.prepareForVoiceConversation()
+            // Anti-loop: while the phone speaks, audio in the target
+            // language is recognised as its own voice and dropped.
+            whisper.liveEchoLanguage = TranslateLiveLanguages.engineCode(for: target)
+            whisper.onLiveEchoDropped = { [weak self] _ in
+                guard let self, self.isActive, self.sessionToken == token else { return }
+                self.hint = "Ma propre voix ignorée (anti-boucle)."
+            }
         }
         updateAudioRoute()
         status = "Choix du moteur de traduction…"
@@ -206,6 +223,10 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSpeaking = false
         pending.removeAll()
         speechQueue.removeAll()
+        recentlySpoken.removeAll()
+        whisper.liveEchoLanguage = nil
+        whisper.onLiveEchoDropped = nil
+        whisper.liveEchoActiveUntil = .distantPast
         appleTranslator = nil
         applePair = nil
         engine = .none
@@ -667,6 +688,19 @@ public final class YoannTranslateLiveService: ObservableObject {
               !TranslateLiveContextBuffer.isUnreliableTranscript(result) else {
             return
         }
+        // Anti-repeat: the same sentence twice in a row is not new speech.
+        let normalized = result.lowercased()
+        if normalized == lastShownTranslation && Date().timeIntervalSince(lastShownAt) < 15 {
+            return
+        }
+        // Anti-loop: a "translation" that mostly matches what the phone just
+        // said is its own voice heard by the microphone.
+        if speaksAloud && isEchoOfRecentSpeech(result) {
+            hint = "Ma propre voix ignorée (anti-boucle)."
+            return
+        }
+        lastShownTranslation = normalized
+        lastShownAt = Date()
         lastTranslation = result
         history.insert(Phrase(source: source, translation: result), at: 0)
         if history.count > 80 { history.removeLast(history.count - 80) }
@@ -691,6 +725,24 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     // MARK: - Optional spoken output (headphones / speaker modes)
 
+    private static func words(_ text: String) -> Set<String> {
+        Set(text.lowercased()
+            .components(separatedBy: CharacterSet.letters.inverted)
+            .filter { $0.count > 1 })
+    }
+
+    private func isEchoOfRecentSpeech(_ text: String) -> Bool {
+        let now = Date()
+        recentlySpoken.removeAll { now.timeIntervalSince($0.at) > 20 }
+        let candidate = Self.words(text)
+        guard candidate.count >= 2 else { return false }
+        for spoken in recentlySpoken {
+            let shared = candidate.intersection(spoken.words).count
+            if Double(shared) / Double(candidate.count) >= 0.6 { return true }
+        }
+        return false
+    }
+
     private func installVoiceCallbacks(token: UUID) {
         previousPlaybackFinished = neural.onPlaybackFinished
         previousPlaybackStarted = neural.onPlaybackStarted
@@ -703,12 +755,15 @@ public final class YoannTranslateLiveService: ObservableObject {
         neural.onPlaybackStarted = { [weak self] in
             guard let self, self.isActive, self.sessionToken == token else { return }
             self.isPlayingAudio = true
+            self.whisper.liveEchoActiveUntil = .distantFuture
             self.updateStatus()
         }
         neural.onPlaybackFinished = { [weak self] in
             guard let self, self.sessionToken == token else { return }
             self.isSpeaking = false
             self.isPlayingAudio = false
+            // Room reverberation: keep guarding briefly after the voice ends.
+            self.whisper.liveEchoActiveUntil = Date().addingTimeInterval(1.2)
             self.speakNext(token: token)
         }
         neural.onPlaybackError = { [weak self] message in
@@ -724,6 +779,22 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         let phrase = speechQueue.removeFirst()
         isSpeaking = true
+        recentlySpoken.append((Self.words(phrase), Date()))
+        if recentlySpoken.count > 6 { recentlySpoken.removeFirst(recentlySpoken.count - 6) }
+        // Safety net: if iOS never reports the end of this phrase, do not
+        // stay mute forever — resume with the next translation.
+        let id = UUID()
+        speechID = id
+        let maxSeconds = 10 + Double(phrase.count) * 0.12
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(maxSeconds * 1_000_000_000))
+            guard let self, self.isActive, self.sessionToken == token,
+                  self.speechID == id, self.isSpeaking else { return }
+            self.isSpeaking = false
+            self.isPlayingAudio = false
+            self.whisper.liveEchoActiveUntil = Date().addingTimeInterval(1.2)
+            self.speakNext(token: token)
+        }
         neural.speak(
             text: phrase, for: .yohan,
             language: TranslateLiveLanguages.engineCode(for: targetLanguage),

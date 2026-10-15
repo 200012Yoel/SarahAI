@@ -597,6 +597,8 @@ public final class ChatViewModel: ObservableObject {
         
         WhisperSpeechRecognizer.shared.onVoiceActivity = { [weak self] in
             guard let self = self,
+                  // Never cut Translate Live's interpreter voice.
+                  !AudioSessionManager.shared.isInterpreterSessionActive,
                   self.isContinuousConversationActive,
                   !self.isVoiceMicrophoneMuted,
                   self.isBargeInMonitorActive,

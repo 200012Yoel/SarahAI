@@ -587,65 +587,14 @@ public final class MultiAgentCoordinator {
             .replacingOccurrences(of: "donne moi ethel", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Image generation was removed from the app (lighter install):
+        // Ethel answers with the regular local assistant.
         let source = clean.isEmpty ? text : clean
-        let imageService = OpenSourceImageGenerationService.shared
-        let intent = imageService.isImageGenerationIntent(source)
-        let normalized = normalize(source)
-
-        var prompt = intent.cleanedPrompt
-        if !intent.isIntent {
-            let generationWords = ["genere", "génère", "cree", "crée", "dessine", "fabrique"]
-            if generationWords.contains(where: { normalized.contains($0.folding(options: .diacriticInsensitive, locale: .current)) }) {
-                prompt = source
-                for word in generationWords {
-                    prompt = prompt.replacingOccurrences(of: word, with: "", options: [.caseInsensitive, .diacriticInsensitive])
-                }
-                prompt = prompt.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":,-")))
-            }
-        }
-
-        guard intent.isIntent || !prompt.isEmpty else {
-            AIService.shared.processQuery(source) { response in
-                completion(AgentResponse(
-                    agent: .ethel,
-                    text: response,
-                    spokenText: response
-                ))
-            }
-            return
-        }
-
-        let finalPrompt = prompt.isEmpty ? source : prompt
-        let profile = SarahGenerativeModelCatalog.imageProfile()
-
-        imageService.generateImage(prompt: finalPrompt) { result in
-            if result.isSuccess {
-                completion(AgentResponse(
-                    agent: .ethel,
-                    text: "✨ **Ethel [Studio Créatif]**\n\n🎨 Image réellement générée pour : « **\(finalPrompt)** »\nModèle : **\(result.modelName)**.",
-                    spokenText: "C'est fait. L'image a réellement été générée et je l'affiche dans la discussion."
-                ))
-                return
-            }
-
-            let detail = result.errorMessage ?? "ressources locales indisponibles"
-            if detail.localizedCaseInsensitiveContains("pas installé") ||
-               detail.localizedCaseInsensitiveContains("not installed") {
-                if #available(iOS 13.0, *) {
-                    GenerativeModelDownloader.shared.startImageModelDownload()
-                }
-                completion(AgentResponse(
-                    agent: .ethel,
-                    text: "✨ **Ethel [Studio Créatif]**\n\nLe vrai modèle **\(profile.displayName)** n'est pas encore installé. Je lance sa préparation locale. Une fois l'installation terminée, relance la même demande.\n\nAucune fausse image n'a été créée.",
-                    spokenText: "Le vrai modèle image doit d'abord être installé. Je lance sa préparation locale."
-                ))
-                return
-            }
-
+        AIService.shared.processQuery(source) { response in
             completion(AgentResponse(
                 agent: .ethel,
-                text: "✨ **Ethel [Studio Créatif]**\n\nLa génération réelle a échoué : \(detail)\n\nAucune image fictive n'a été annoncée comme terminée.",
-                spokenText: "La génération réelle a échoué. Je n'annonce plus une image tant qu'elle n'existe pas."
+                text: response,
+                spokenText: response
             ))
         }
     }
@@ -1006,25 +955,6 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
             return
         }
         
-        // 4. Génération vidéo locale : prioritaire sur le flux de publication.
-        let localVideoIntent = SarahLocalVideoGenEngine.shared.detectVideoIntent(trimmed)
-        if localVideoIntent.isIntent {
-            let profile = SarahLocalVideoGenEngine.shared.profile
-            let responseText = """
-            🎬 **Sarah & Nathan [Création vidéo]**
-
-            Modèle sélectionné : **\(profile.displayName)** · \(profile.licenseName).
-
-            \(SarahLocalVideoGenEngine.shared.availabilityMessage())
-            """
-            completion(AgentResponse(
-                agent: .nathan,
-                text: responseText,
-                spokenText: SarahLocalVideoGenEngine.shared.availabilityMessage()
-            ))
-            return
-        }
-
         // 5. Flux de publication d'une vidéo existante.
         if lower.contains("poster") || lower.contains("publier") || lower.contains("mettre en ligne") || lower.contains("partager ma vidéo") || lower.contains("partager ma video") {
             nathanStep = .waitingForDestination
@@ -1066,100 +996,13 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
             return
         }
         
-        // 9. Génération musicale locale via Core AI sur iOS 27
-        if #available(iOS 27.0, *) {
-            let musicCheck = SarahLocalMusicGenEngine.shared.detectIntent(trimmed)
-            if musicCheck.isIntent {
-                if musicCheck.wantsLyrics {
-                    let profile = SarahGenerativeModelCatalog.vocalSongProfile()
-                    let responseText = """
-                    🎤 **Sarah & Nathan [Chanson avec paroles]**
-
-                    Cible : **\(profile.displayName)** · \(profile.licenseName)
-
-                    \(SarahLocalMusicGenEngine.shared.vocalSongAvailabilityMessage())
-                    """
-                    completion(AgentResponse(
-                        agent: .nathan,
-                        text: responseText,
-                        spokenText: "Le moteur de chanson chantée est encore expérimental sur iPhone."
-                    ))
-                    return
-                }
-
-                let profile = SarahGenerativeModelCatalog.musicProfile()
-
-                guard SarahLocalMusicGenEngine.shared.isInstrumentalModelInstalled else {
-                    let responseText = """
-                    🎵 **Sarah & Nathan [Musique locale]**
-
-                    **\(profile.displayName)** doit d'abord être téléchargé dans Réglages → Création locale.
-                    Après installation, la génération s'exécute entièrement sur l'iPhone.
-                    """
-                    completion(AgentResponse(
-                        agent: .nathan,
-                        text: responseText,
-                        spokenText: "Le modèle musical local doit d'abord être installé."
-                    ))
-                    return
-                }
-
-                SarahLocalMusicGenEngine.shared.generateInstrumental(
-                    prompt: musicCheck.prompt
-                ) { _ in }
-
-                let responseText = """
-                🎵 **Sarah & Nathan [Musique locale]**
-
-                Génération lancée avec **\(profile.displayName)**.
-                L'inférence s'exécute localement sur l'iPhone.
-                """
-                completion(AgentResponse(
-                    agent: .nathan,
-                    text: responseText,
-                    spokenText: "Je lance la génération musicale locale."
-                ))
-                return
-            }
-        }
-        
-        // 9.5 Génération d'images : même routeur local que Sarah.
-        if lower.contains("génère une image") || lower.contains("génère une photo") || lower.contains("dessine") || lower.contains("crée une image") || lower.contains("crée une photo") || lower.contains("fais une image") || lower.contains("fais une photo") || lower.contains("genere une image") || lower.contains("genere une photo") {
-            let imageCheck = OpenSourceImageGenerationService.shared.isImageGenerationIntent(trimmed)
-            if imageCheck.isIntent {
-                let prompt = imageCheck.cleanedPrompt
-                let profile = SarahGenerativeModelCatalog.imageProfile()
-                OpenSourceImageGenerationService.shared.generateImage(prompt: prompt) { _ in }
-
-                let responseText = """
-                🎨 **Sarah & Nathan [Création visuelle]**
-
-                Création lancée pour : « **\(prompt)** »
-                Profil : **\(profile.displayName)** · \(profile.licenseName).
-                """
-                completion(AgentResponse(
-                    agent: .nathan,
-                    text: responseText,
-                    spokenText: "Je lance la création de votre image avec le modèle adapté à cet iPhone."
-                ))
-                return
-            }
-        }
-        
         // 10. Modèles IA & architecture Sarah Engine
         if lower.contains("modèle") || lower.contains("modele") || lower.contains("local") || lower.contains("architecture") || lower.contains("moteur ia") {
-            let image = SarahGenerativeModelCatalog.imageProfile()
-            let video = SarahGenerativeModelCatalog.videoProfile()
-            let music = SarahGenerativeModelCatalog.musicProfile()
-            let vocals = SarahGenerativeModelCatalog.vocalSongProfile()
             let responseText = """
             🤖 **Sarah Engine [Architecture locale d'abord]**
 
             • 🧠 **Texte** : modèle local choisi selon la RAM.
-            • 🎨 **Image** : **\(image.displayName)**.
-            • 🎬 **Vidéo** : **\(video.displayName)**.
-            • 🎵 **Musique** : **\(music.displayName)**.
-            • 🎤 **Chanson chantée** : **\(vocals.displayName)**.
+            • 🗣️ **Traduction** : MADLAD-400 (open source) hébreu ↔ français.
             • 👁️ **Vision** : frameworks Apple Vision/Core ML.
             • 🔒 **Réseau** : jamais présenté comme local ; le fallback génératif distant est optionnel.
             """
@@ -1177,7 +1020,6 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
 
         Salut ! Je suis **Nathan**, ton agent dédié aux réseaux sociaux et à l'IA :
         • 📸 **Instagram / TikTok / YouTube / X** : Partage multi-plateformes
-        • 🎵 **Création Musicale Polyphonique** : Synthèse locale
         • 🧠 **Veille IA** : Meilleurs modèles embarqués et on-device
 
         *Dis-moi : « Nathan, quels sont mes réseaux sociaux ? » ou donne-moi ton ordre !*

@@ -40,7 +40,19 @@ public final class WhisperService: ObservableObject {
     private struct LiveChunk {
         let audio: [Float]
         let endsAtPause: Bool
+        /// Captured while (or just after) the phone itself was speaking.
+        let echoRisk: Bool
     }
+
+    /// Translate Live anti-loop guard. While the phone plays its translated
+    /// voice (and for a short tail after), captured audio may contain that
+    /// voice. Such chunks are decoded with language detection, and dropped
+    /// when the detected language is `liveEchoLanguage` (e.g. "fr"), so the
+    /// phone never re-translates what it just said.
+    public var liveEchoLanguage: String?
+    public var liveEchoActiveUntil = Date.distantPast
+    /// Called with the text of a chunk dropped as the phone's own voice.
+    public var onLiveEchoDropped: ((String) -> Void)?
     private var livePendingChunks: [LiveChunk] = []
     private var liveInferenceBusy = false
     private var liveStreamToken = UUID()
@@ -497,6 +509,10 @@ public final class WhisperService: ObservableObject {
                    now.timeIntervalSince(self.lastBargeInNotification) > 0.12 {
                     self.lastBargeInNotification = now
                     DispatchQueue.main.async { [weak self] in
+                        // Translate Live keeps listening WHILE it speaks: the
+                        // chat "stop talking when interrupted" reflex would
+                        // cut the interpreter's French voice mid-sentence.
+                        guard self?.isLiveInterpreting == false else { return }
                         self?.onVoiceActivity?()
                     }
                 }
@@ -524,12 +540,17 @@ public final class WhisperService: ObservableObject {
                     && (briefPause || duration >= self.liveMaxChunkSeconds)
                 if shouldEmit {
                     let liveChunk = self.samples
+                    let chunkStart = now.addingTimeInterval(-duration)
                     self.samples.removeAll(keepingCapacity: true)
                     self.hasDetectedSpeech = false
                     self.consecutiveVoiceChunks = 0
                     DispatchQueue.main.async { [weak self] in
-                        self?.enqueueLiveChunk(
-                            liveChunk, endsAtPause: briefPause, generation: generation
+                        guard let self else { return }
+                        let echoRisk = self.liveEchoLanguage != nil
+                            && chunkStart < self.liveEchoActiveUntil
+                        self.enqueueLiveChunk(
+                            liveChunk, endsAtPause: briefPause, echoRisk: echoRisk,
+                            generation: generation
                         )
                     }
                 } else if !self.hasDetectedSpeech && duration > 0.8 {
@@ -558,13 +579,13 @@ public final class WhisperService: ObservableObject {
     /// Bounded inference queue: continuous recording never accumulates hours
     /// of audio when the iPhone CPU cannot keep up with real-time speech.
     private func enqueueLiveChunk(
-        _ audio: [Float], endsAtPause: Bool, generation: UUID
+        _ audio: [Float], endsAtPause: Bool, echoRisk: Bool, generation: UUID
     ) {
         guard isLiveInterpreting, self.generation == generation else { return }
         // Keep at most two recent audio windows waiting while the current
         // decode runs. Dropping every queued window loses entire TV phrases
         // during ordinary CPU spikes. A strict bound prevents runaway lag.
-        livePendingChunks.append(LiveChunk(audio: audio, endsAtPause: endsAtPause))
+        livePendingChunks.append(LiveChunk(audio: audio, endsAtPause: endsAtPause, echoRisk: echoRisk))
         if livePendingChunks.count > 2 {
             livePendingChunks.removeFirst(livePendingChunks.count - 2)
             onLiveInterpretationError?("Le direct est plus rapide que le décodage audio. Certains passages ont été ignorés.")
@@ -584,7 +605,7 @@ public final class WhisperService: ObservableObject {
         let streamToken = liveStreamToken
         transcribe(
             next.audio, final: true, deliverToLive: true,
-            endsAtPause: next.endsAtPause
+            endsAtPause: next.endsAtPause, echoRisk: next.echoRisk
         ) { [weak self] _ in
             guard let self, self.isLiveInterpreting, self.liveStreamToken == streamToken else { return }
             self.liveInferenceBusy = false
@@ -681,6 +702,7 @@ public final class WhisperService: ObservableObject {
         _ audio: [Float], final: Bool,
         deliverToLive: Bool = false,
         endsAtPause: Bool = true,
+        echoRisk: Bool = false,
         completion: ((String?) -> Void)?
     ) {
         guard !audio.isEmpty else {
@@ -710,9 +732,14 @@ public final class WhisperService: ObservableObject {
         // automatic language detection is unreliable on tiny fragments
         // ("allô", "bonjour") even when the model itself is multilingual.
         // Translate Live must keep its explicit Hebrew source language.
-        let inferenceLanguage = deliverToLive
-            ? (preferredLanguageCode ?? "auto")
-            : (preferredLanguageCode ?? "fr")
+        // Echo guard: a chunk heard while the phone was speaking is decoded
+        // with language detection, so the phone's own French can be spotted.
+        let echoLanguage = (deliverToLive && echoRisk) ? liveEchoLanguage : nil
+        let inferenceLanguage = echoLanguage != nil
+            ? "auto"
+            : deliverToLive
+                ? (preferredLanguageCode ?? "auto")
+                : (preferredLanguageCode ?? "fr")
         // Reinjecting the last Whisper hypothesis into the next 2-second
         // TV chunk caused feedback hallucinations ("תודה רבה" dozens of
         // times). Preserve context at the interpreter level instead; live
@@ -811,7 +838,16 @@ public final class WhisperService: ObservableObject {
                     }
                 }
             }
-            let text = pieces.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = pieces.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // The phone heard its own translated voice: never loop it back.
+            var droppedEcho: String? = nil
+            if let echoLanguage, !text.isEmpty,
+               let detected = whisper_lang_str(whisper_full_lang_id(context)),
+               String(cString: detected) == echoLanguage {
+                droppedEcho = text
+                text = ""
+            }
 
             // A second decode is only enabled for the Hebrew→English→French
             // fallback. Never replace the actual Hebrew source caption with
@@ -873,7 +909,9 @@ public final class WhisperService: ObservableObject {
                 }
                 // Clear stale subtitles if a segment was decoded but every
                 // hypothesis was rejected as non-speech. Never feed it to Qwen.
-                if deliverToLive && count > 0 && text.isEmpty {
+                if let droppedEcho {
+                    self.onLiveEchoDropped?(droppedEcho)
+                } else if deliverToLive && count > 0 && text.isEmpty {
                     self.onLiveInterpretationError?("Whisper : aucune parole fiable dans cet extrait.")
                 }
                 self.currentText = text
