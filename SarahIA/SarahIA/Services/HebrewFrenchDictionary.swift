@@ -118,6 +118,10 @@ public final class HebrewFrenchDictionary {
                     }
                 }
             }
+            // A one-word human sentence ("שלום" → "Bonjour.") is reliable.
+            if !matched, let french = sentences[tokens[index]] {
+                parts.append(french); index += 1; matched = true
+            }
             if !matched, let french = words[tokens[index]] {
                 parts.append(french); index += 1; usedSingleWords += 1; matched = true
             }
