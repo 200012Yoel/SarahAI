@@ -21,6 +21,21 @@ public struct SarahYouTubeCardPayload: Equatable {
     }
 }
 
+/// Un lieu réel résolu par MapKit et conservé avec le message.
+public struct SarahPlaceCardPayload: Codable, Equatable {
+    public let name: String
+    public let address: String
+    public let latitude: Double
+    public let longitude: Double
+
+    public init(name: String, address: String, latitude: Double, longitude: Double) {
+        self.name = name
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
+    }
+}
+
 /// Représente un message dans la conversation entre l'utilisateur et Sarah AI.
 public struct Message: Identifiable, Equatable, Codable {
     public let id: UUID
@@ -30,6 +45,7 @@ public struct Message: Identifiable, Equatable, Codable {
     public var audioDuration: TimeInterval?
     public var imageData: Data?
     public var alertEvent: AlertEvent?
+    public var placeCard: SarahPlaceCardPayload?
     public var generatedImageURL: String?
     public var generatedMusicStyle: String?
     public var isGeneratingImage: Bool?
@@ -47,6 +63,7 @@ public struct Message: Identifiable, Equatable, Codable {
         audioDuration: TimeInterval? = nil,
         imageData: Data? = nil,
         alertEvent: AlertEvent? = nil,
+        placeCard: SarahPlaceCardPayload? = nil,
         generatedImageURL: String? = nil,
         generatedMusicStyle: String? = nil,
         isGeneratingImage: Bool? = nil,
@@ -60,6 +77,7 @@ public struct Message: Identifiable, Equatable, Codable {
         self.audioDuration = audioDuration
         self.imageData = imageData
         self.alertEvent = alertEvent
+        self.placeCard = placeCard
         self.generatedImageURL = generatedImageURL
         self.generatedMusicStyle = generatedMusicStyle
         self.isGeneratingImage = isGeneratingImage
