@@ -48,6 +48,14 @@ stats = {}
 
 
 def add(hebrew: str, french: str, source: str, sentence: bool = False):
+    # Wiktionary often lists spelling variants together: "מזרן / מזרון".
+    if not sentence and re.search(r"[/,;]", hebrew):
+        for variant in re.split(r"[/,;]", hebrew):
+            if variant.strip():
+                add(variant, french, source)
+        return
+    if not sentence:
+        french = re.split(r"[.;]", french)[0]  # "huit. S'écrit avant le nom"
     k = key(hebrew)
     fr = clean_fr(french) if not sentence else " ".join(french.split())
     if not k or not is_hebrew(k) or not good_fr(fr) and not sentence:
@@ -89,7 +97,7 @@ def all_translations(entry):
     return out
 
 
-def load_tatoeba(heb_path, fra_path, links_path):
+def load_tatoeba(heb_path, fra_path, links_path, eng_path=None):
     def sentences(path):
         result = {}
         with bz2.open(path, "rt", encoding="utf-8") as fh:
@@ -101,7 +109,13 @@ def load_tatoeba(heb_path, fra_path, links_path):
 
     heb = sentences(heb_path)
     fra = sentences(fra_path)
+    eng_ids = set()
+    if eng_path:
+        with bz2.open(eng_path, "rt", encoding="utf-8") as fh:
+            for line in fh:
+                eng_ids.add(line.split("\t", 1)[0])
     pairs = 0
+    he_to_en, en_to_fr = {}, {}
     with tarfile.open(links_path, "r:bz2") as tar:
         for member in tar:
             if not member.isfile():
@@ -109,10 +123,27 @@ def load_tatoeba(heb_path, fra_path, links_path):
             fh = io.TextIOWrapper(tar.extractfile(member), encoding="utf-8")
             for line in fh:
                 parts = line.split()
-                if len(parts) >= 2 and parts[0] in heb and parts[1] in fra:
-                    add(heb[parts[0]], fra[parts[1]], "tatoeba", sentence=True)
+                if len(parts) < 2:
+                    continue
+                a, b = parts[0], parts[1]
+                if a in heb and b in fra:
+                    add(heb[a], fra[b], "tatoeba", sentence=True)
                     pairs += 1
-    print(f"tatoeba: {len(heb)} heb, {len(fra)} fra, {pairs} linked pairs", flush=True)
+                elif a in heb and b in eng_ids:
+                    he_to_en.setdefault(a, []).append(b)
+                elif a in eng_ids and b in fra:
+                    en_to_fr.setdefault(a, b)
+    # Human translations chained through English (he -> en -> fr).
+    pivot = 0
+    for he_id, en_ids in he_to_en.items():
+        for en_id in en_ids:
+            fr_id = en_to_fr.get(en_id)
+            if fr_id:
+                before = len(entries["s"])
+                add(heb[he_id], fra[fr_id], "tatoeba_via_english", sentence=True)
+                pivot += len(entries["s"]) - before
+                break
+    print(f"tatoeba: {len(heb)} heb, {len(fra)} fra, {pairs} direct pairs, {pivot} via English", flush=True)
 
 
 def load_fr_wiktionary(path):
@@ -122,7 +153,7 @@ def load_fr_wiktionary(path):
             word = entry.get("word") or ""
             hebrew = [t for t in all_translations(entry) if tr_lang(t) == "he" and t.get("word")]
             # Prefer the main sense: translations listed first.
-            for t in hebrew[:2]:
+            for t in hebrew[:4]:
                 add(t["word"], word, "frwikt_translation")
         elif lang == "he":
             word = entry.get("word") or ""
@@ -156,7 +187,8 @@ def load_en_wiktionary_pivot(path):
 def main():
     args = dict(a.split("=", 1) for a in sys.argv[1:])
     if args.get("tatoeba_heb"):
-        load_tatoeba(args["tatoeba_heb"], args["tatoeba_fra"], args["tatoeba_links"])
+        load_tatoeba(args["tatoeba_heb"], args["tatoeba_fra"], args["tatoeba_links"],
+                     args.get("tatoeba_eng"))
     if args.get("frwikt"):
         load_fr_wiktionary(args["frwikt"])
         print(f"after fr wiktionary: {stats}", flush=True)

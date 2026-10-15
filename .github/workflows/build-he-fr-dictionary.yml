@@ -24,6 +24,7 @@ jobs:
           mkdir -p src
           curl -L --fail --retry 4 -o src/heb.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/heb/heb_sentences.tsv.bz2
           curl -L --fail --retry 4 -o src/fra.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/fra/fra_sentences.tsv.bz2
+          curl -L --fail --retry 4 -o src/eng.tsv.bz2 https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2
           curl -L --fail --retry 4 -o src/links.tar.bz2 https://downloads.tatoeba.org/exports/links.tar.bz2
           curl -L --fail --retry 4 -o src/fr.jsonl.gz https://kaikki.org/dictionary/downloads/fr/fr-extract.jsonl.gz
           curl -L --fail --retry 4 -o src/en.jsonl.gz https://kaikki.org/dictionary/raw-wiktextract-data.jsonl.gz
@@ -33,7 +34,7 @@ jobs:
           set -euo pipefail
           mkdir -p SarahIA/SarahIA/Resources
           python3 .github/scripts/build_he_fr_dictionary.py \
-            tatoeba_heb=src/heb.tsv.bz2 tatoeba_fra=src/fra.tsv.bz2 tatoeba_links=src/links.tar.bz2 \
+            tatoeba_heb=src/heb.tsv.bz2 tatoeba_fra=src/fra.tsv.bz2 tatoeba_eng=src/eng.tsv.bz2 tatoeba_links=src/links.tar.bz2 \
             frwikt=src/fr.jsonl.gz enwikt=src/en.jsonl.gz \
             out=SarahIA/SarahIA/Resources/he_fr_dictionary.tsv | tee build.log
           echo "::notice title=Dictionary::$(grep -E '^(TOTAL|SOURCES)=' build.log | tr '\n' ' ')"
