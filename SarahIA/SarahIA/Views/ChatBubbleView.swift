@@ -158,7 +158,7 @@ public struct ChatBubbleView: View {
 
                 if let place = message.placeCard {
                     SarahPlaceCardView(place: place)
-                        .frame(maxWidth: 290)
+                        .frame(maxWidth: 280)
                 }
 
                 if let youtube = message.detectedYouTubeCard {
@@ -605,41 +605,53 @@ public struct SarahPlaceCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button(action: { showExpandedMap = true }) {
-                ZStack(alignment: .bottomTrailing) {
-                    SarahPlaceMapRepresentable(place: place)
-                        .frame(height: 175)
-                        .allowsHitTesting(false)
-                    Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(7)
-                        .background(Color.black.opacity(0.76))
-                        .cornerRadius(9)
-                        .padding(8)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                Button(action: { showExpandedMap = true }) {
+                    ZStack(alignment: .bottomTrailing) {
+                        SarahPlaceMapRepresentable(place: place)
+                            .frame(width: 105, height: 105)
+                            .allowsHitTesting(false)
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(6)
+                            .foregroundColor(.white)
+                            .background(Color.black.opacity(0.76))
+                            .cornerRadius(7)
+                            .padding(5)
+                    }
+                    .frame(width: 105, height: 105)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .cornerRadius(13)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Agrandir la carte de \(place.name)")
+                .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("Agrandir la carte de \\(place.name)")
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(place.name)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                if !place.address.isEmpty {
-                    Text(place.address)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.72))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(place.name)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
                         .fixedSize(horizontal: false, vertical: true)
+                    if !place.address.isEmpty {
+                        Text(place.address)
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.72))
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Button(action: { showExpandedMap = true }) {
+                        Label("Voir la carte", systemImage: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             navigationButtons
         }
-        .padding(10)
+        .padding(9)
         .foregroundColor(.white)
         .background(Color(red: 0.13, green: 0.14, blue: 0.17))
-        .cornerRadius(16)
+        .cornerRadius(14)
         .fullScreenCover(isPresented: $showExpandedMap) {
             NavigationView {
                 VStack(alignment: .leading, spacing: 12) {
