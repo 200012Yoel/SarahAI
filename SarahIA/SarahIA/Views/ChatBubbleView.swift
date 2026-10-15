@@ -624,7 +624,7 @@ public struct SarahPlaceCardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel("Agrandir la carte de \\(place.name)")
+                .accessibilityLabel("Agrandir la carte de \(place.name)")
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(place.name)
@@ -692,7 +692,7 @@ public struct SarahPlaceCardView: View {
                 Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 47)
+            .frame(height: 38)
             .background(Color(red: 0.15, green: 0.42, blue: 0.85))
             .cornerRadius(10)
         }
