@@ -682,7 +682,7 @@ public final class ChatViewModel: ObservableObject {
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
-                let aiMessage = Message(content: responseContent, isFromUser: false)
+                let aiMessage = Message(content: responseContent, isFromUser: false, placeCard: response.placeCard)
                 self.appendMessage(aiMessage)
                 self.isTyping = false
                 self.voiceStatus = self.isContinuousConversationActive ? .processing : .idle
