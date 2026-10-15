@@ -53,6 +53,14 @@ public final class WhisperService: ObservableObject {
     public var liveEchoActiveUntil = Date.distantPast
     /// Called with the text of a chunk dropped as the phone's own voice.
     public var onLiveEchoDropped: ((String) -> Void)?
+
+    /// Translate Live: words recognised so far in the sentence that is still
+    /// being spoken (re-decoded about every second, like live subtitles).
+    /// Replaced by the final chunk text when the sentence ends.
+    public var onLivePartial: ((String) -> Void)?
+    private var livePartialBusy = false
+    private var lastLivePartialAt = Date.distantPast
+    private var liveUtteranceID = 0
     private var livePendingChunks: [LiveChunk] = []
     private var liveInferenceBusy = false
     private var liveStreamToken = UUID()
@@ -199,6 +207,7 @@ public final class WhisperService: ObservableObject {
         onLiveInterpretationChunk = nil
         onLiveEnglishPivotChunk = nil
         liveDualDecodeEnglish = false
+        onLivePartial = nil
         onLiveInterpretationError = nil
         onLiveMicrophoneChanged?(false)
         onLiveMicrophoneChanged = nil
@@ -538,9 +547,19 @@ public final class WhisperService: ObservableObject {
                 let shouldEmit = self.hasDetectedSpeech
                     && duration >= self.liveMinChunkSeconds
                     && (briefPause || duration >= self.liveMaxChunkSeconds)
+                if !shouldEmit && self.hasDetectedSpeech && duration >= 1.0
+                    && now.timeIntervalSince(self.lastLivePartialAt) >= 0.9 {
+                    self.lastLivePartialAt = now
+                    let snapshot = self.samples
+                    DispatchQueue.main.async { [weak self] in
+                        self?.requestLivePartial(snapshot, generation: generation)
+                    }
+                }
                 if shouldEmit {
                     let liveChunk = self.samples
                     let chunkStart = now.addingTimeInterval(-duration)
+                    self.lastLivePartialAt = now
+                    DispatchQueue.main.async { [weak self] in self?.liveUtteranceID += 1 }
                     self.samples.removeAll(keepingCapacity: true)
                     self.hasDetectedSpeech = false
                     self.consecutiveVoiceChunks = 0
@@ -572,6 +591,57 @@ public final class WhisperService: ObservableObject {
                 DispatchQueue.main.async {
                     self.finishAfterSilence(samples: finalSamples, generation: generation)
                 }
+            }
+        }
+    }
+
+    /// Quick re-decode of the sentence in progress, only when the decoder is
+    /// idle: finished sentences always have priority over live preview.
+    private func requestLivePartial(_ audio: [Float], generation: UUID) {
+        guard isLiveInterpreting, self.generation == generation, onLivePartial != nil,
+              !livePartialBusy, !liveInferenceBusy, livePendingChunks.isEmpty,
+              let context else { return }
+        livePartialBusy = true
+        let utterance = liveUtteranceID
+        let language = preferredLanguageCode ?? "auto"
+        let sampleRate = targetSampleRate
+        inferenceQueue.async { [weak self] in
+            var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
+            params.print_realtime = false
+            params.print_progress = false
+            params.print_timestamps = false
+            params.print_special = false
+            params.translate = false
+            params.no_context = true
+            params.single_segment = true
+            params.max_tokens = 64
+            params.suppress_blank = true
+            params.suppress_nst = true
+            params.temperature_inc = -1
+            params.n_threads = Int32(max(1, min(8, ProcessInfo.processInfo.activeProcessorCount - 2)))
+            params.audio_ctx = Int32(min(1500, Int(Double(audio.count) / sampleRate * 50) + 64))
+            let status: Int32 = language.withCString { lang in
+                params.language = lang
+                return audio.withUnsafeBufferPointer {
+                    whisper_full(context, params, $0.baseAddress, Int32(audio.count))
+                }
+            }
+            var text = ""
+            if status == 0 {
+                for index in 0..<whisper_full_n_segments(context) {
+                    if let c = whisper_full_get_segment_text(context, index) {
+                        text += String(cString: c)
+                    }
+                }
+            }
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.livePartialBusy = false
+                guard self.isLiveInterpreting, self.generation == generation,
+                      self.liveUtteranceID == utterance, !text.isEmpty,
+                      !TranslateLiveContextBuffer.isUnreliableTranscript(text) else { return }
+                self.onLivePartial?(text)
             }
         }
     }

@@ -178,30 +178,51 @@ public struct YoannTranslateLiveView: View {
             }
 
             ScrollView {
-                // Like live subtitles: the previous sentence stays visible,
-                // dimmed, above the newest one.
-                if live.history.count > 1 {
-                    Text(live.history[1].translation)
-                        .font(.system(size: max(15, min(20, paneHeight * 0.09)), weight: .medium))
-                        .foregroundColor(.white.opacity(0.45))
+                VStack(spacing: 10) {
+                    // Current sentence: replaced as soon as the next is ready.
+                    Text(live.lastTranslation.isEmpty
+                        ? "La traduction en \(TranslateLiveLanguages.label(for: targetLanguage)) s'affichera ici."
+                        : live.lastTranslation)
+                        .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
+                        .foregroundColor(live.lastTranslation.isEmpty
+                            ? .white.opacity(0.62) : .white)
                         .multilineTextAlignment(isRTL(targetLanguage) ? .trailing : .center)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .environment(\.layoutDirection,
                             isRTL(targetLanguage) ? .rightToLeft : .leftToRight)
-                        .padding(.bottom, 2)
+                        .id(live.lastTranslation)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)))
+                        .accessibilityLabel("Traduction : " + live.lastTranslation)
+                        .accessibilityAddTraits(.updatesFrequently)
+
+                    // Waiting list, just under the current sentence.
+                    if !live.queue.isEmpty {
+                        VStack(spacing: 6) {
+                            ForEach(live.queue) { item in
+                                HStack(alignment: .top, spacing: 6) {
+                                    Image(systemName: item.isTranslated ? "text.bubble" : "hourglass")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(item.isTranslated ? .cyan : .white.opacity(0.45))
+                                    Text(item.text)
+                                        .font(.system(size: max(14, min(18, paneHeight * 0.08)), weight: .medium))
+                                        .foregroundColor(.white.opacity(item.isTranslated ? 0.7 : 0.45))
+                                        .lineLimit(2)
+                                        .environment(\.layoutDirection,
+                                            item.isTranslated ? .leftToRight : .rightToLeft)
+                                    Spacer(minLength: 0)
+                                }
+                                .transition(.opacity)
+                            }
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.07)))
+                        .accessibilityLabel("File d'attente : \(live.queue.count) phrases")
+                    }
                 }
-                Text(live.lastTranslation.isEmpty
-                    ? "La traduction en \(TranslateLiveLanguages.label(for: targetLanguage)) s'affichera ici."
-                    : live.lastTranslation)
-                    .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
-                    .foregroundColor(live.lastTranslation.isEmpty
-                        ? .white.opacity(0.62) : .white)
-                    .multilineTextAlignment(isRTL(targetLanguage) ? .trailing : .center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .environment(\.layoutDirection,
-                        isRTL(targetLanguage) ? .rightToLeft : .leftToRight)
-                    .accessibilityLabel("Traduction : " + live.lastTranslation)
-                    .accessibilityAddTraits(.updatesFrequently)
+                .animation(.easeInOut(duration: 0.3), value: live.lastTranslation)
+                .animation(.easeInOut(duration: 0.2), value: live.queue)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -313,12 +334,17 @@ public struct YoannTranslateLiveView: View {
 
             ScrollView {
                 VStack(spacing: 8) {
-                    Text(live.lastSource.isEmpty
+                    // Last finished sentence, dimmed once new words arrive.
+                    Text(live.lastSource.isEmpty && live.livePartialSource.isEmpty
                         ? "Les paroles en \(TranslateLiveLanguages.label(for: sourceLanguage)) s'afficheront ici."
                         : live.lastSource)
-                        .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
+                        .font(.system(size: live.livePartialSource.isEmpty
+                            ? max(22, min(34, paneHeight * 0.16))
+                            : max(15, min(20, paneHeight * 0.09)),
+                            weight: .semibold))
                         .foregroundColor(live.lastSource.isEmpty
-                            ? .white.opacity(0.58) : .white)
+                            ? .white.opacity(0.58)
+                            : .white.opacity(live.livePartialSource.isEmpty ? 1 : 0.45))
                         .multilineTextAlignment(isRTL(sourceLanguage) ? .trailing : .center)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .environment(\.layoutDirection,
@@ -326,10 +352,12 @@ public struct YoannTranslateLiveView: View {
                         .accessibilityLabel("Paroles entendues : " + live.lastSource)
                         .accessibilityAddTraits(.updatesFrequently)
 
-                    if !live.provisionalSource.isEmpty {
-                        Text(live.provisionalSource)
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.65))
+                    // Words of the sentence being spoken right now.
+                    if !live.livePartialSource.isEmpty {
+                        Text(live.livePartialSource)
+                            .font(.system(size: max(22, min(34, paneHeight * 0.16)), weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .center)
                             .multilineTextAlignment(isRTL(sourceLanguage) ? .trailing : .center)
                             .environment(\.layoutDirection,
                                 isRTL(sourceLanguage) ? .rightToLeft : .leftToRight)

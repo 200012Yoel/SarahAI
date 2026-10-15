@@ -55,6 +55,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     }
 
     private struct Pending {
+        let id = UUID()
         let source: String
         let input: String
         let capturedAt = Date()
@@ -72,6 +73,18 @@ public final class YoannTranslateLiveService: ObservableObject {
     /// Last recognized words (source language, or Whisper's English when relaying).
     @Published public private(set) var lastSource = ""
     @Published public private(set) var lastTranslation = ""
+    /// Hebrew words recognised so far in the sentence still being spoken.
+    @Published public private(set) var livePartialSource = ""
+
+    /// One line of the waiting list shown under the current caption.
+    public struct QueueItem: Identifiable, Equatable {
+        public let id: String
+        public let text: String
+        /// true = already translated (waiting to be shown/spoken),
+        /// false = heard, translation in progress.
+        public let isTranslated: Bool
+    }
+    @Published public private(set) var queue: [QueueItem] = []
     @Published public private(set) var history: [Phrase] = []
     @Published public private(set) var errorMessage: String?
     /// Non-blocking information (noise ignored, catching up with live…).
@@ -89,7 +102,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     // Names used by the Translate Live screen.
     public var translationSetupMessage: String { engineDescription }
     public var isSystemTranslationReady: Bool { isEngineReady }
-    public var waitingTranslations: Int { pending.count }
+    public var waitingTranslations: Int { queue.count }
     /// Whisper chunks are committed directly; there is no provisional text.
     public var provisionalSource: String { "" }
 
@@ -115,6 +128,7 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     private var pending: [Pending] = []
     private var speechQueue: [String] = []
+    private var translatingItem: Pending?
     private var isSpeaking = false
     private var speechID = UUID()
     /// What the phone said recently, to refuse hearing it back (anti-loop).
@@ -166,6 +180,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         history.removeAll()
         pending.removeAll()
         speechQueue.removeAll()
+        translatingItem = nil
+        queue = []
+        livePartialSource = ""
         isSpeaking = false
         isTranslating = false
         isPlayingAudio = false
@@ -232,6 +249,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         isSpeaking = false
         pending.removeAll()
         speechQueue.removeAll()
+        translatingItem = nil
+        queue = []
+        livePartialSource = ""
         recentlySpoken.removeAll()
         whisper.liveEchoLanguage = nil
         whisper.onLiveEchoDropped = nil
@@ -382,6 +402,13 @@ public final class YoannTranslateLiveService: ObservableObject {
             guard let self, self.isActive, self.sessionToken == token else { return }
             self.receiveStabilized(chunk: chunk, paused: paused, token: token)
         }
+        // Hebrew appears word by word while the person is still speaking.
+        whisper.onLivePartial = { [weak self] partial in
+            guard let self, self.isActive, self.sessionToken == token else { return }
+            let sourceIsHebrew = TranslateLiveLanguages.engineCode(for: self.sourceLanguage) == "he"
+            if sourceIsHebrew && !TranslateLiveContextBuffer.isMostlyHebrew(partial) { return }
+            self.livePartialSource = partial
+        }
         if relay {
             whisper.onLiveEnglishPivotChunk = { [weak self] heard, english, _ in
                 guard let self, self.isActive, self.sessionToken == token else { return }
@@ -526,6 +553,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         lastChunkAt = Date()
         errorMessage = nil
         hint = nil
+        livePartialSource = ""
 
         switch engine {
         case .whisperToEnglish:
@@ -576,6 +604,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         lastChunk = original
         lastChunkAt = Date()
+        livePartialSource = ""
         errorMessage = nil
         hint = nil
         // Lower pane: the words exactly as spoken, in Hebrew letters.
@@ -618,6 +647,7 @@ public final class YoannTranslateLiveService: ObservableObject {
                 return
             }
             let item = pending.removeFirst()
+            translatingItem = item
             isTranslating = true
             updateStatus()
             Task { [weak self] in
@@ -631,6 +661,7 @@ public final class YoannTranslateLiveService: ObservableObject {
             }
         case .server:
             let item = pending.removeFirst()
+            translatingItem = item
             isTranslating = true
             updateStatus()
             TranslateLiveTranslationBackend.translate(
@@ -645,6 +676,7 @@ public final class YoannTranslateLiveService: ObservableObject {
             }
         case .madlad:
             let item = pending.removeFirst()
+            translatingItem = item
             isTranslating = true
             updateStatus()
             madlad.translate(item.input,
@@ -708,6 +740,7 @@ public final class YoannTranslateLiveService: ObservableObject {
     ) {
         guard isActive, sessionToken == token else { return }
         isTranslating = false
+        translatingItem = nil
         switch outcome {
         case .translated(let output):
             appendTranslated(output, source: item.source)
@@ -740,26 +773,41 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         lastShownTranslation = normalized
         lastShownAt = Date()
-        lastTranslation = result
         history.insert(Phrase(source: source, translation: result), at: 0)
         if history.count > 80 { history.removeLast(history.count - 80) }
 
-        guard speaksAloud else { return }
-        // Queue the translation: let Yohan finish current phrase before starting next.
-        // Prevents interruption when speech synthesis is still playing.
-        if !isSpeaking {
-            speechQueue = [result]
-        } else {
-            // Yohan is still speaking: queue the new result to play after current
-            speechQueue.append(result)
-            // Keep only 2 phrases in queue: current + next (discard older)
-            if speechQueue.count > 2 {
-                speechQueue.removeFirst(speechQueue.count - 2)
-            }
+        guard speaksAloud else {
+            // Subtitles only: the finished sentence is replaced by the next.
+            lastTranslation = result
+            refreshQueue()
+            return
+        }
+        // With the voice, the caption on top is the sentence being spoken;
+        // the next translated sentences wait just underneath.
+        speechQueue.append(result)
+        if speechQueue.count > 3 {
+            speechQueue.removeFirst(speechQueue.count - 3)
+            hint = "Rattrapage du direct : phrases les plus récentes en priorité."
         }
         if !isSpeaking {
             speakNext(token: sessionToken)
+        } else {
+            refreshQueue()
         }
+    }
+
+    /// Waiting list under the caption: translated sentences not yet spoken,
+    /// then heard sentences still being translated (newest last).
+    private func refreshQueue() {
+        // Stable ids so SwiftUI animates moves instead of redrawing.
+        var items: [QueueItem] = speechQueue.enumerated().map {
+            QueueItem(id: "fr-\($0.offset)-\($0.element)", text: $0.element, isTranslated: true)
+        }
+        if let current = translatingItem {
+            items.append(QueueItem(id: current.id.uuidString, text: current.source, isTranslated: false))
+        }
+        items += pending.map { QueueItem(id: $0.id.uuidString, text: $0.source, isTranslated: false) }
+        if items != queue { queue = items }
     }
 
     // MARK: - Optional spoken output (headphones / speaker modes)
@@ -818,6 +866,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         }
         let phrase = speechQueue.removeFirst()
         isSpeaking = true
+        lastTranslation = phrase
         recentlySpoken.append((Self.words(phrase), Date()))
         if recentlySpoken.count > 6 { recentlySpoken.removeFirst(recentlySpoken.count - 6) }
         // Safety net: if iOS never reports the end of this phrase, do not
@@ -926,6 +975,7 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     private func updateStatus() {
         guard isActive else { return }
+        refreshQueue()
         if engine == .none {
             status = errorMessage == nil ? "Choix du moteur de traduction…" : "Traduction indisponible"
         } else if !isListening {
