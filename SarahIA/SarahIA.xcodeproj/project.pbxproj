@@ -34,9 +34,10 @@
 		A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */; };
 		A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000027 /* ClipboardCompanion.swift */; };
 		A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000028 /* WakeWordDetector.swift */; };
-		A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */; };
 		A1B2C3D40001000100000030 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000030 /* SidebarView.swift */; };
 		A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000031 /* ChatScreenView.swift */; };
+		A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */; };
+		A1B2C3D400010001000000C1 /* SarahNavigationOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000C1 /* SarahNavigationOptions.swift */; };
 		A1B2C3D40001000100000032 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000032 /* Conversation.swift */; };
 		A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */; };
 		A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000035 /* AudioSessionManager.swift */; };
@@ -103,6 +104,13 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
+		A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */; };
+		A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000004 /* sherpa-onnx */; };
+		A1B2C3D400010001000000B6 /* YoannTranslateLiveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */; };
+		A1B2C3D400010001000000B7 /* YoannTranslateLiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */; };
+		A1B2C3D400010001000000B8 /* TranslateLiveLanguages.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */; };
+		A1B2C3D400010001000000B9 /* TranslateLiveTranslationBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */; };
+		A1B2C3D400010001000000BA /* TranslateLiveContextBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000BA /* TranslateLiveContextBuffer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -135,9 +143,10 @@
 		A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalScriptSandbox.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000027 /* ClipboardCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCompanion.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000028 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
-		A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackTapGestureDetector.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000030 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000031 /* ChatScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreenView.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWorldMapCard.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000C1 /* SarahNavigationOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahNavigationOptions.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000032 /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechRecognizer.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000035 /* AudioSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionManager.swift; sourceTree = "<group>"; };
@@ -202,6 +211,12 @@
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeuralVoiceService.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveService.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YoannTranslateLiveView.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateLiveLanguages.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateLiveTranslationBackend.swift; sourceTree = "<group>"; };
+		A1B2C3D400020001000000BA /* TranslateLiveContextBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslateLiveContextBuffer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,6 +226,7 @@
 			files = (
 				A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */,
 				A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */,
+				A1B2C3D400010001000000B5 /* sherpa-onnx in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -258,6 +274,11 @@
 			children = (
 				A1B2C3D40002000100000074 /* MultiAgentCoordinator.swift */,
 				A1B2C3D40002000100000075 /* MultiAgentVoiceManager.swift */,
+				A1B2C3D400020001000000B4 /* NeuralVoiceService.swift */,
+				A1B2C3D400020001000000B6 /* YoannTranslateLiveService.swift */,
+				A1B2C3D400020001000000B8 /* TranslateLiveLanguages.swift */,
+				A1B2C3D400020001000000B9 /* TranslateLiveTranslationBackend.swift */,
+				A1B2C3D400020001000000BA /* TranslateLiveContextBuffer.swift */,
 				A1B2C3D40002000100000071 /* TomKnowledgeBase.swift */,
 				A1B2C3D40002000100000072 /* YohanLexiconEngine.swift */,
 				A1B2C3D40002000100000073 /* VAICodeEngine.swift */,
@@ -281,7 +302,6 @@
 				A1B2C3D40002000100000026 /* LocalScriptSandbox.swift */,
 				A1B2C3D40002000100000027 /* ClipboardCompanion.swift */,
 				A1B2C3D40002000100000028 /* WakeWordDetector.swift */,
-				A1B2C3D40002000100000029 /* BackTapGestureDetector.swift */,
 				A1B2C3D40002000100000034 /* AppleSpeechRecognizer.swift */,
 				A1B2C3D40002000100000035 /* AudioSessionManager.swift */,
 				A1B2C3D40002000100000036 /* SpeechManager.swift */,
@@ -328,6 +348,7 @@
 			children = (
 				A1B2C3D40002000100000076 /* MultiAgentOrbView.swift */,
 				A1B2C3D40002000100000077 /* VoiceOrbModalView.swift */,
+				A1B2C3D400020001000000B7 /* YoannTranslateLiveView.swift */,
 				A1B2C3D40002000100000078 /* VAICodingStudioView.swift */,
 				A1B2C3D40002000100000079 /* CommonStyles.swift */,
 				A1B2C3D40002000100000007 /* ChatBubbleView.swift */,
@@ -336,6 +357,8 @@
 				A1B2C3D40002000100000019 /* SettingsView.swift */,
 				A1B2C3D40002000100000030 /* SidebarView.swift */,
 				A1B2C3D40002000100000031 /* ChatScreenView.swift */,
+				A1B2C3D400020001000000C0 /* SarahWorldMapCard.swift */,
+				A1B2C3D400020001000000C1 /* SarahNavigationOptions.swift */,
 				A1B2C3D40002000100000037 /* MessageList.swift */,
 				A1B2C3D40002000100000038 /* MessageBar.swift */,
 				A1B2C3D40002000100000040 /* LegacyChatViewController.swift */,
@@ -386,6 +409,7 @@
 			packageProductDependencies = (
 				A1B2C3D4000B000100000001 /* ZIPFoundation */,
 				A1B2C3D4000B000100000003 /* StableDiffusion */,
+				A1B2C3D4000B000100000004 /* sherpa-onnx */,
 			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
@@ -419,6 +443,7 @@
 			packageReferences = (
 				A1B2C3D4000A000100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
+				A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */,
 			);
 			productRefGroup = A1B2C3D40004000100000007 /* Products */;
 			projectDirPath = "";
@@ -474,9 +499,10 @@
 				A1B2C3D40001000100000026 /* LocalScriptSandbox.swift in Sources */,
 				A1B2C3D40001000100000027 /* ClipboardCompanion.swift in Sources */,
 				A1B2C3D40001000100000028 /* WakeWordDetector.swift in Sources */,
-				A1B2C3D40001000100000029 /* BackTapGestureDetector.swift in Sources */,
 				A1B2C3D40001000100000030 /* SidebarView.swift in Sources */,
 				A1B2C3D40001000100000031 /* ChatScreenView.swift in Sources */,
+				A1B2C3D400010001000000C0 /* SarahWorldMapCard.swift in Sources */,
+				A1B2C3D400010001000000C1 /* SarahNavigationOptions.swift in Sources */,
 				A1B2C3D40001000100000032 /* Conversation.swift in Sources */,
 				A1B2C3D40001000100000034 /* AppleSpeechRecognizer.swift in Sources */,
 				A1B2C3D40001000100000035 /* AudioSessionManager.swift in Sources */,
@@ -506,6 +532,12 @@
 				A1B2C3D40001000100000073 /* VAICodeEngine.swift in Sources */,
 				A1B2C3D40001000100000074 /* MultiAgentCoordinator.swift in Sources */,
 				A1B2C3D40001000100000075 /* MultiAgentVoiceManager.swift in Sources */,
+				A1B2C3D400010001000000B4 /* NeuralVoiceService.swift in Sources */,
+				A1B2C3D400010001000000B6 /* YoannTranslateLiveService.swift in Sources */,
+				A1B2C3D400010001000000B8 /* TranslateLiveLanguages.swift in Sources */,
+				A1B2C3D400010001000000B9 /* TranslateLiveTranslationBackend.swift in Sources */,
+				A1B2C3D400010001000000BA /* TranslateLiveContextBuffer.swift in Sources */,
+				A1B2C3D400010001000000B7 /* YoannTranslateLiveView.swift in Sources */,
 				A1B2C3D40001000100000076 /* MultiAgentOrbView.swift in Sources */,
 				A1B2C3D40001000100000077 /* VoiceOrbModalView.swift in Sources */,
 				A1B2C3D40001000100000078 /* VAICodingStudioView.swift in Sources */,
@@ -560,6 +592,14 @@
 				version = 1.1.1;
 			};
 		};
+		A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/k2-fsa/sherpa-onnx.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.13.8;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -572,6 +612,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
 			productName = StableDiffusion;
+		};
+		A1B2C3D4000B000100000004 /* sherpa-onnx */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "sherpa-onnx" */;
+			productName = "sherpa-onnx";
 		};
 /* End XCSwiftPackageProductDependency section */
 

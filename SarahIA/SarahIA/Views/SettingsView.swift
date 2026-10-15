@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 /// Vue Réglages de Sarah AI Multi-Agents : moteurs locaux, voix et runtime de code agentique optionnel :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -85,6 +86,16 @@ public struct SettingsView: View {
                                 tint: .pink,
                                 title: "Sarah Engine",
                                 detail: "Activation et mode vocal"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: SarahVisionSettingsView(),
+                                icon: "camera.viewfinder",
+                                tint: .green,
+                                title: "Vision et caméra",
+                                detail: "Autorisations, analyse d’images et OCR"
                             )
 
                             settingsDivider
@@ -458,11 +469,11 @@ public struct SettingsView: View {
                     }
                     .listRowBackground(Color(red: 0.12, green: 0.12, blue: 0.16))
                     
-                    // 3. Écosystème des 6 Agents & Voix Siri Dédiées
+                    // 3. Écosystème des 6 Agents & Voix neuronales locales
                     Section(header: Text("Écosystème des 6 Agents Autonomes").foregroundColor(.white)) {
                         agentRow(
                             agent: .sarah,
-                            subtitle: "Voix système principale (Rose néon)",
+                            subtitle: "Supertonic 3 · F1 · locale",
                             testPhrase: "Bonjour ! Je suis Sarah, votre agent pilote."
                         )
                         
@@ -486,13 +497,13 @@ public struct SettingsView: View {
                         
                         agentRow(
                             agent: .yohan,
-                            subtitle: "Voix masculine bilingue FR ⇄ HE (Siri Canadien)",
+                            subtitle: "Supertonic 3 · M3 · français (hébreu vocal non installé)",
                             testPhrase: "Shalom ! C'est Yoann à votre service pour toutes vos traductions en hébreu."
                         )
                         
                         agentRow(
                             agent: .ethel,
-                            subtitle: "Voix féminine dédiée (Thème Bleu & Rouge)",
+                            subtitle: "Supertonic 3 · F2 · locale",
                             testPhrase: "Bonjour ! Je suis Ethel. Mon espace est prêt et attend vos prochaines instructions !"
                         )
                     }
@@ -952,11 +963,43 @@ private struct VoiceAndSpeechSettingsView: View {
                         .foregroundColor(viewModel.activeAgent.themeColor)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(settingsDisplayName(for: viewModel.activeAgent))
-                        Text("\(settingsDisplayName(for: viewModel.activeAgent)) · Voix système Apple")
+                        Text("\(settingsDisplayName(for: viewModel.activeAgent)) · Voix locale Supertonic 3")
                             .font(.caption2)
                             .foregroundColor(.secondary.opacity(0.72))
                     }
                 }
+            }
+
+            Section("Tester les six voix neuronales") {
+                ForEach(AgentType.allCases) { agent in
+                    Button {
+                        viewModel.previewAgentVoice(agent)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .foregroundColor(agent.themeColor)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(agent.displayName)
+                                    .fontWeight(.semibold)
+                                Text("Voix \(agent.neuralVoiceLabel) · Supertonic 3")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer(minLength: 6)
+                            Image(systemName: "play.circle")
+                        }
+                    }
+                    .accessibilityLabel("Tester réellement la voix de \(agent.displayName)")
+                }
+                if let error = viewModel.voicePlaybackError, !error.isEmpty {
+                    Label("Le moteur vocal a échoué : \(error)", systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Chaque bouton génère une voix différente avec le modèle local. La première lecture peut prendre quelques secondes.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
 
             Section("Parole") {
@@ -968,13 +1011,9 @@ private struct VoiceAndSpeechSettingsView: View {
                     step: 0.01
                 )
 
-                settingSlider(
-                    title: "Hauteur de la voix",
-                    value: String(format: "%.2f", speechPitch),
-                    binding: $speechPitch,
-                    range: 0.80...1.20,
-                    step: 0.01
-                )
+                Text("Le timbre est déterminé par la voix neuronale de l’agent, et non par un réglage artificiel de hauteur.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
             }
 
             Section("Microphone") {
@@ -1775,7 +1814,7 @@ private struct AboutSettingsView: View {
             }
 
             Section("Voix") {
-                Text("Sarah IA utilise les voix Apple disponibles sur cet iPhone. Pour bénéficier de la voix choisie, ouvrez Réglages iPhone > Siri > Voix, choisissez la variation voulue, puis laissez le téléchargement se terminer avant de revenir dans Sarah IA.")
+                Text("Sarah IA utilise Supertonic 3 en local, sans voix Siri. Six timbres sont attribués aux agents. Le modèle est embarqué dans l’IPA. La synthèse en hébreu n’est pas encore fournie. Licences : Supertonic 3 OpenRAIL-M, sherpa-onnx Apache-2.0.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
@@ -1920,5 +1959,47 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+
+@available(iOS 15.0, *)
+private struct SarahVisionSettingsView: View {
+    private var cameraStatus: String {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: return "Autorisé"
+        case .notDetermined: return "À demander au premier lancement"
+        case .restricted: return "Restreint par iOS"
+        case .denied: return "Refusé"
+        @unknown default: return "Inconnu"
+        }
+    }
+
+    var body: some View {
+        List {
+            Section("Caméra") {
+                LabeledContent("Autorisation", value: cameraStatus)
+                Label(UIImagePickerController.isSourceTypeAvailable(.camera)
+                      ? "Caméra détectée" : "Caméra indisponible",
+                      systemImage: "camera")
+                Button {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                } label: {
+                    Label("Ouvrir les autorisations de Sarah", systemImage: "gear")
+                }
+            }
+            Section("Analyse locale") {
+                Label("Reconnaissance d’objets avec Apple Vision", systemImage: "viewfinder")
+                Label("Lecture de texte OCR", systemImage: "text.viewfinder")
+                Label("Images choisies depuis Photos", systemImage: "photo.on.rectangle")
+                Text("L’analyse Vision fonctionne sur l’iPhone. Ce n’est pas un modèle multimodal capable de comprendre chaque détail d’une scène.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Vision et caméra")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

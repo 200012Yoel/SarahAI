@@ -39,33 +39,78 @@ public struct MessageList: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 12) {
-                    if messages.isEmpty {
-                        Spacer()
-                            .frame(height: 40)
-                    } else {
-                        ForEach(messages) { message in
+                    if messages.isEmpty && !isTyping {
+                        VStack(spacing: 18) {
+                            Image(systemName: "waveform.circle.fill")
+                                .font(.system(size: 52))
+                                .foregroundStyle(.pink, .white.opacity(0.14))
+                                .accessibilityHidden(true)
+                            VStack(spacing: 8) {
+                                Text("Bienvenue dans Sarah")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundColor(.white)
+                                Text("Écris une question ou lance une conversation vocale. Le microphone te demandera l'autorisation à la première utilisation.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.65))
+                                    .multilineTextAlignment(.center)
+                            }
+
+                            Button {
+                                onIntroduceSarah?()
+                            } label: {
+                                Label("Découvrir Sarah", systemImage: "sparkles")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.pink)
+
+                            Button {
+                                onSelectSuggestion?("Bonjour Sarah, que peux-tu faire pour moi ?")
+                            } label: {
+                                Label("Commencer une discussion", systemImage: "bubble.left.and.bubble.right")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                        }
+                        .frame(maxWidth: 340)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 18)
+                        .padding(.top, 110)
+                        .padding(.bottom, 35)
+                        .accessibilityElement(children: .contain)
+                    }
+
+                    ForEach(messages) { message in
+                        if !message.isFromUser,
+                           let mapQuery = SarahMapIntent.query(in: message.content) {
+                            if #available(iOS 15.0, *) {
+                                SarahWorldMapCard(query: mapQuery)
+                                    .id(message.id)
+                            } else {
+                                Text("La carte 3D nécessite iOS 15 ou plus.")
+                                    .foregroundColor(.white)
+                                    .id(message.id)
+                            }
+                        } else {
                             ChatBubbleView(
                                 message: message,
                                 isPlayingAudio: SpeechManager.shared.isSpeaking && SpeechManager.shared.currentSpokenText == message.content,
-                                onPlayTapped: {
-                                    onToggleSpeech?(message)
-                                },
-                                onRegenerate: {
-                                    onRegenerate?(message)
-                                },
+                                onPlayTapped: { onToggleSpeech?(message) },
+                                onRegenerate: { onRegenerate?(message) },
                                 onOpenStudio: onOpenStudio
                             )
                             .id(message.id)
                         }
+                    }
 
-                        if isTyping {
-                            HStack {
-                                TypingIndicatorView()
-                                    .padding(.leading, 8)
-                                Spacer()
-                            }
-                            .id("typing_indicator")
+                    if isTyping {
+                        HStack {
+                            TypingIndicatorView()
+                                .padding(.leading, 8)
+                            Spacer()
                         }
+                        .id("typing_indicator")
                     }
                 }
                 .padding(.horizontal, 16)

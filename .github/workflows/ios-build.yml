@@ -10,15 +10,11 @@ on:
         type: choice
         options: ['no', 'yes']
         default: 'no'
-  push:
-    branches: [main]
-    paths:
-      - 'SarahIA/**'
-      - '.github/workflows/ios-build.yml'
+  # Future IPA builds require explicit manual confirmation.
 
 jobs:
   build:
-    if: github.event_name == 'push' || inputs.confirm_release == 'yes'
+    if: inputs.confirm_release == 'yes'
     runs-on: xcode-27
     timeout-minutes: 60
     permissions:
@@ -34,7 +30,11 @@ jobs:
           grep -q '^import whisper' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'whisper_full' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'public func prepareModel()' SarahIA/SarahIA/Services/WhisperService.swift
-          grep -q 'consecutiveVoiceChunks >= 2' SarahIA/SarahIA/Services/WhisperService.swift
+          # Speaker-mode duplex now needs a longer sustained VAD threshold
+          # than headphones, rather than hardcoding two chunks everywhere.
+          grep -q 'let minimumChunks = speakerMonitor ? 6 : 2' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'voiceReplyPlayingOnSpeaker' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'keepOnlyRecentBargeInAudio' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'setVoiceProcessingEnabled(true)' SarahIA/SarahIA/Services/WhisperService.swift
           grep -q 'WhisperService.shared' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
           ! grep -q 'SFSpeechRecognizer' SarahIA/SarahIA/Services/AppleSpeechRecognizer.swift
@@ -89,7 +89,7 @@ jobs:
           test -d build-apple/whisper.xcframework
           find build-apple/whisper.xcframework -maxdepth 3 -type d -name 'whisper.framework' -print
 
-      - name: Download multilingual OpenAI Whisper base model
+      - name: Download multilingual OpenAI Whisper base and fast tiny models
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/WhisperModels"
@@ -97,6 +97,12 @@ jobs:
             'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
             -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
           test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
+          # A second, faster offline model is used by real-time Sarah chat.
+          # The more accurate Base model remains dedicated to Hebrew TV mode.
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin?download=true' \
+            -o "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
+          test -s "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin"
           curl -L --fail --retry 3 \
             'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
             -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
@@ -104,8 +110,51 @@ jobs:
           cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
           ls -lh "$RUNNER_TEMP/WhisperModels"
 
+      - name: Download official Apache-2.0 Qwen3 Hebrew-French offline model
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/TranslationModels"
+          # This verified file exists in the official Qwen GGUF repository.
+          # Old Q4_K_M URLs from a different repo returned 404.
+          curl -L --fail --retry 4 --retry-delay 8 \
+            'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf?download=true' \
+            -o "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf"
+          test "$(stat -f%z "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf")" -gt 500000000
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/LICENSE' \
+            -o "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt"
+          test -s "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt"
+
       - name: Xcode version
         run: xcodebuild -version
+
+      - name: Download locally bundled Supertonic 3 TTS
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/NeuralVoices"
+          curl -L --fail --retry 3 \
+            'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2' \
+            -o "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          echo "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427  $RUNNER_TEMP/NeuralVoices/model.tar.bz2" | shasum -a 256 -c -
+          tar -xjf "$RUNNER_TEMP/NeuralVoices/model.tar.bz2" -C "$RUNNER_TEMP/NeuralVoices"
+          rm "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          MODEL_ROOT=$(dirname "$(find "$RUNNER_TEMP/NeuralVoices" -name 'voice.bin' -type f -print -quit)")
+          test -f "$MODEL_ROOT/duration_predictor.int8.onnx"
+          test -f "$MODEL_ROOT/text_encoder.int8.onnx"
+          test -f "$MODEL_ROOT/vector_estimator.int8.onnx"
+          test -f "$MODEL_ROOT/vocoder.int8.onnx"
+          test -f "$MODEL_ROOT/tts.json"
+          test -f "$MODEL_ROOT/unicode_indexer.bin"
+          echo "NEURAL_MODEL_ROOT=$MODEL_ROOT" >> "$GITHUB_ENV"
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/Supertone/supertonic-3/resolve/main/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/Supertonic3-OpenRAIL-M-LICENSE.txt"
+          curl -L --fail --retry 3 \
+            'https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/sherpa-onnx-Apache-2.0.txt"
+          curl -L --fail --retry 3 \
+            'https://raw.githubusercontent.com/microsoft/onnxruntime/main/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt"
 
       - name: Configure build number
         run: |
@@ -133,7 +182,12 @@ jobs:
 
           cd "$PROJECT_DIR"
           set -o pipefail
-          xcodebuild \
+          # GitHub release-hosted ONNX Runtime XCFramework downloads can
+          # temporarily return HTTP 500/502/503 during SwiftPM resolution.
+          # Retry *only* such dependency/network failures, never Swift errors.
+          for attempt in 1 2 3; do
+            echo "iOS build attempt $attempt of 3"
+            if xcodebuild \
             -project "$PROJECT_NAME" \
             -scheme SarahIA \
             -configuration Release \
@@ -151,7 +205,17 @@ jobs:
             FRAMEWORK_SEARCH_PATHS="$WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
             OTHER_LDFLAGS='$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ] && grep -Eq 'Could not resolve package dependencies|badResponseStatusCode\\((500|502|503)\\)|HTTP (500|502|503)' "$GITHUB_WORKSPACE/xcodebuild.log"; then
+              echo "Transient Swift Package Manager download failure; retrying in $((attempt * 20)) seconds."
+              sleep $((attempt * 20))
+            else
+              echo "Non-retryable iOS compilation failure."
+              exit 1
+            fi
+          done
           grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
 
       - name: Bundle local AI frameworks, Whisper model and licenses
@@ -161,9 +225,28 @@ jobs:
           test -n "$APP_PATH"
           mkdir -p "$APP_PATH/WhisperModels"
           cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
+          cp "$RUNNER_TEMP/WhisperModels/ggml-tiny.bin" "$APP_PATH/WhisperModels/"
+          test -s "$APP_PATH/WhisperModels/ggml-tiny.bin"
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
+          mkdir -p "$APP_PATH/NeuralVoices/Supertonic3"
+          for filename in duration_predictor.int8.onnx text_encoder.int8.onnx vector_estimator.int8.onnx vocoder.int8.onnx tts.json unicode_indexer.bin voice.bin; do
+            cp "$NEURAL_MODEL_ROOT/$filename" "$APP_PATH/NeuralVoices/Supertonic3/"
+          done
+          cp "$RUNNER_TEMP/NeuralVoices/Supertonic3-OpenRAIL-M-LICENSE.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          cp "$RUNNER_TEMP/NeuralVoices/sherpa-onnx-Apache-2.0.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          cp "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          test -s "$APP_PATH/NeuralVoices/Supertonic3/voice.bin"
+          test -s "$APP_PATH/NeuralVoices/Supertonic3/vocoder.int8.onnx"
+          # Always install a REAL on-device he↔fr text model inside the IPA,
+          # so Translate Live works offline immediately after sideloading.
+          mkdir -p "$APP_PATH/TranslationModels"
+          cp "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf" "$APP_PATH/TranslationModels/"
+          cp "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt" "$APP_PATH/TranslationModels/"
+          test "$(stat -f%z "$APP_PATH/TranslationModels/Qwen3-0.6B-Q8_0.gguf")" -gt 500000000
+
+
 
           WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
           test -n "$WHISPER_FRAMEWORK"
@@ -228,5 +311,27 @@ jobs:
           overwrite_files: true
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish signed-for-sideloading Translate Live test IPA
+        if: github.ref == 'refs/heads/feature/neural-voices-whisper-only-20261011'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sarah-ia-translate-live-${{ github.sha }}
+          name: 'Sarah IA · Translate Live · test ${{ github.sha }}'
+          body: |
+            Build unique lie a ce commit ${{ github.sha }}. Les builds plus anciens
+            ne peuvent pas ecraser la nouvelle IPA.
+            Translate Live : micro iPhone continu, segments de 0,5 a 2,1 secondes,
+            voix Supertonic 3, sortie ecouteurs, transcription Whisper locale.
+            L'hebreu vers le francais au-dela de quelques expressions necessite
+            un modele neuronal (voir server/translate-live).
+            IPA auto-signee pour resignature Sideloadly/SideStore, pas App Store.
+            Usage commercial et fonctionnement sur iPhone pas encore certifies.
+          files: dist/SarahIA.ipa
+          overwrite_files: true
+          draft: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

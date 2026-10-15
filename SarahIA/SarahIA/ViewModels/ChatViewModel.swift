@@ -3,6 +3,7 @@ import SwiftUI
 import Combine
 import AVFoundation
 import UIKit
+import PDFKit
 
 /// Mode d'affichage actif de l'application Sarah AI
 public enum AppMode: String, Codable {
@@ -25,6 +26,22 @@ public enum VoiceInteractionStatus: Equatable {
 @MainActor
 public final class ChatViewModel: ObservableObject {
     
+    /// Repair dead hardware input after the system has had time to settle.
+    /// Don't interfere with Sarah's current spoken answer or revive a
+    /// microphone the user deliberately muted.
+    private func recoverVoiceInputAfterRouteChange() {
+        let token = voiceSessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
+            guard let self, self.voiceSessionGeneration == token,
+                  self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted,
+                  !self.voiceManager.isSpeaking,
+                  !self.isTyping,
+                  !WhisperService.shared.isMicrophoneEngineRunning else { return }
+            self.rearmMicrophoneAfterSilence(delay: 0.10)
+        }
+    }
+
     // MARK: - Published UI State
     @Published public var activeAgent: AgentType = .sarah
     @Published public var appMode: AppMode = .text
@@ -40,6 +57,8 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isSpeaking: Bool = false
     @Published public var currentSpeakingText: String? = nil
     @Published public var isMicRunning: Bool = false
+    @Published public var voicePlaybackError: String? = nil
+    @Published public var isPreparingVoiceReply = false
     @Published public var isContinuousConversationActive: Bool = false
     @Published public var isVoiceMicrophoneMuted: Bool = false
     
@@ -51,6 +70,9 @@ public final class ChatViewModel: ObservableObject {
     @Published public var isShowingVoiceOrbModal: Bool = false
     @Published public var isShowingVAICodingStudio: Bool = false
     @Published public var isShowingWebsiteBuilder: Bool = false
+    @Published public var isShowingTranslateLive: Bool = false
+    @Published public var translateLiveSource: String = "he"
+    @Published public var translateLiveTarget: String = "fr"
     @Published public var websiteVoiceCommand: String = ""
     @Published public var websiteVoiceCommandSequence: Int = 0
     @Published public var vaiCurrentCode: String? = nil
@@ -76,8 +98,59 @@ public final class ChatViewModel: ObservableObject {
     private var isVoicePipelinePrepared = false
     private var shouldResumeVoiceAfterSystemInterruption = false
     private var websiteGenerationID = UUID()
+    // A cancelled or superseded request must never publish a late reply.
+    private var messageGenerationID = UUID()
     private var isBargeInMonitorActive = false
+    private var voicePlaybackStartedAt = Date.distantPast
+    private var voiceSessionGeneration = UUID()
+
+    /// One rearm path for silence, failed/empty transcription and TTS end.
+    /// No late callback is allowed to reopen a microphone after Stop / Close.
+    private func rearmMicrophoneAfterSilence(delay: TimeInterval = 0.25) {
+        let generation = voiceSessionGeneration
+        guard isContinuousConversationActive, !isVoiceMicrophoneMuted else { return }
+        isMicRunning = false
+        voiceStatus = .starting
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.voiceSessionGeneration == generation,
+                  self.isContinuousConversationActive, !self.isVoiceMicrophoneMuted,
+                  !self.voiceManager.isSpeaking,
+                  !self.voiceManager.isPreparingSpeech, !self.isTyping else { return }
+            self.voiceStatus = .starting
+            WhisperSpeechRecognizer.shared.startListening(
+                autoFinalizeOnSilence: true,
+                preserveActiveSpeech: true
+            )
+            self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
+            if self.isMicRunning {
+                self.voiceStatus = .listening(level: self.micInputLevel)
+            } else if case .error(let reason) = WhisperSpeechRecognizer.shared.state {
+                self.voiceStatus = .error(reason)
+            }
+        }
+    }
     
+    /// Some iOS betas silently stop AVAudioEngine without an interruption
+    /// notification. This low-frequency watchdog repairs the hardware input
+    /// while preserving the existing Voice Orb UI and explicit Stop semantics.
+    private func watchVoiceMicrophone(generation: UUID) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self,
+                  self.voiceSessionGeneration == generation,
+                  self.isContinuousConversationActive else { return }
+            if !self.isVoiceMicrophoneMuted,
+               !self.voiceManager.isSpeaking,
+               !self.voiceManager.isPreparingSpeech,
+               !self.isTyping,
+               !WhisperService.shared.isTranscribing,
+               !WhisperService.shared.isModelLoading,
+               !WhisperService.shared.isMicrophoneEngineRunning {
+                self.rearmMicrophoneAfterSilence(delay: 0.12)
+            }
+            self.watchVoiceMicrophone(generation: generation)
+        }
+    }
+
     public init() {
         restorePersistedState()
         setupModeObserver()
@@ -86,7 +159,11 @@ public final class ChatViewModel: ObservableObject {
 
 
     public func appendVisionAnalysis(image: UIImage, result: LocalVisionEngine.VisionAnalysisResult) {
-        let imageData = image.jpegData(compressionQuality: 0.88)
+        // Limit persisted camera images to prevent memory pressure or a large
+        // conversation archive from repeatedly crashing older iPhones.
+        let imageData = LocalVisionEngine.prepareImageForAnalysis(
+            image, maxDimension: 1080, quality: 0.76
+        )?.data
         let textSuffix = result.detectedText.isEmpty ? "" : "\n\n📝 **Texte détecté** : \(result.detectedText)"
         appendMessage(
             Message(
@@ -103,17 +180,44 @@ public final class ChatViewModel: ObservableObject {
 
         let name = url.lastPathComponent.isEmpty ? "Fichier" : url.lastPathComponent
         do {
-            let data = try Data(contentsOf: url)
-            let previewData = data.prefix(24_000)
-            let preview = String(data: previewData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Read only a bounded preview from Files/iCloud. Never load
+            // large documents completely into the application's RAM.
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard size <= 20 * 1024 * 1024 else {
+                inputText = "Le fichier \(name) dépasse 20 Mo. Sélectionne une version plus petite."
+                return
+            }
+            let ext = url.pathExtension.lowercased()
+            let plainText = ["txt", "md", "csv", "json", "xml", "html", "log", "swift", "py", "js"]
+                .contains(ext)
+            let preview: String?
+            if plainText {
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                preview = String(data: handle.readData(ofLength: 24_000), encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if ext == "pdf" {
+                let pdf = PDFDocument(url: url)
+                let firstPages = (0..<min(3, pdf?.pageCount ?? 0))
+                    .compactMap { pdf?.page(at: $0)?.string }
+                    .joined(separator: "\n")
+                preview = String(firstPages.prefix(8_000))
+            } else {
+                preview = nil
+            }
             var content = "📎 **Fichier ajouté : \(name)**"
             if let preview, !preview.isEmpty {
                 content += "\n\n```\n\(String(preview.prefix(8_000)))\n```"
             }
+            if !plainText && ext != "pdf" {
+                content += "\n\nCe type de fichier n'a pas encore de lecteur de contenu intégré."
+            }
             appendMessage(Message(content: content, isFromUser: true))
             if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                inputText = "Analyse le fichier \(name)"
+                inputText = preview?.isEmpty == false
+                    ? "Analyse le contenu du fichier \(name) ci-dessus."
+                    : "J'ai sélectionné le fichier \(name)."
             }
         } catch {
             inputText = "Impossible d'ouvrir \(name) : \(error.localizedDescription)"
@@ -141,7 +245,7 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notif in
                 if let agent = notif.object as? AgentType {
-                    self?.activeAgent = agent
+                    self?.activeAgent = agent.currentAgent
                 }
             }
             .store(in: &cancellables)
@@ -170,12 +274,47 @@ public final class ChatViewModel: ObservableObject {
 
         setupVoicePipeline()
 
+        // iOS can interrupt AVAudioEngine for a phone call, Bluetooth route
+        // switch or Siri, leaving the Voice Orb on "Je t'écoute" while the
+        // audio input has actually stopped. Recover once after iOS resumes,
+        // using the existing session-generation guard so Stop stays final.
+        NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                guard let self else { return }
+                guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+                switch type {
+                case .began:
+                    self.shouldResumeVoiceAfterSystemInterruption =
+                        self.isContinuousConversationActive && !self.isVoiceMicrophoneMuted
+                case .ended:
+                    guard self.shouldResumeVoiceAfterSystemInterruption else { return }
+                    self.shouldResumeVoiceAfterSystemInterruption = false
+                    self.recoverVoiceInputAfterRouteChange()
+                @unknown default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.recoverVoiceInputAfterRouteChange()
+            }
+            .store(in: &cancellables)
+
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
                 self?.isMicRunning = listening
-                if listening {
-                    self?.voiceStatus = .listening(level: 0.5)
+                if listening, let self,
+                   self.isContinuousConversationActive,
+                   !self.voiceManager.isSpeaking,
+                   !self.isPreparingVoiceReply,
+                   !self.isTyping {
+                    self.voiceStatus = .listening(level: self.micInputLevel)
                 }
             }
             .store(in: &cancellables)
@@ -192,6 +331,17 @@ public final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self = self else { return }
+                // The microphone also listens during interruption monitoring.
+                // Its state must never overwrite a speaking agent's visible state.
+                if self.isContinuousConversationActive && self.voiceManager.isSpeaking {
+                    self.voiceStatus = .speaking
+                    return
+                }
+                if self.isContinuousConversationActive &&
+                   (self.isTyping || self.isPreparingVoiceReply) {
+                    self.voiceStatus = .processing
+                    return
+                }
                 switch WhisperSpeechRecognizer.shared.state {
                 case .idle:
                     if self.isTyping {
@@ -200,7 +350,7 @@ public final class ChatViewModel: ObservableObject {
                        !self.isVoiceMicrophoneMuted,
                        !self.voiceManager.isSpeaking,
                        !WhisperSpeechRecognizer.shared.isListening {
-                        self.voiceStatus = .idle
+                        self.voiceStatus = .starting
                     }
                 case .listening:
                     self.isMicRunning = true
@@ -285,6 +435,9 @@ public final class ChatViewModel: ObservableObject {
         if !silently { haptics.buttonTap() }
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
+        isTyping = false
         let newSessionId = UUID()
         currentConversationId = newSessionId
         messages = []
@@ -305,6 +458,9 @@ public final class ChatViewModel: ObservableObject {
         haptics.buttonTap()
         voiceManager.stop()
         AIProgressiveScheduler.shared.cancelAllTasks()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
+        isTyping = false
         currentConversationId = conv.id
         messages = conv.messages
         appMode = .text
@@ -441,13 +597,18 @@ public final class ChatViewModel: ObservableObject {
                   self.isContinuousConversationActive,
                   !self.isVoiceMicrophoneMuted,
                   self.isBargeInMonitorActive,
-                  self.voiceManager.isSpeaking else { return }
+                  self.voiceManager.isSpeaking,
+                  Date().timeIntervalSince(self.voicePlaybackStartedAt) > 0.28 else { return }
 
             // AVAudioSession .voiceChat fournit l'annulation d'écho. Dès qu'une
             // vraie voix traverse le VAD Whisper, Sarah s'arrête immédiatement,
             // mais Whisper continue d'enregistrer la nouvelle phrase utilisateur.
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             self.isBargeInMonitorActive = false
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = false
+            // The microphone heard Sarah before the interruption; keep only
+            // recent audio near the human voice, then stop the TTS at once.
+            WhisperService.shared.keepOnlyRecentBargeInAudio()
             self.voiceManager.stop()
             self.isSpeaking = false
             self.voiceStatus = .listening(level: self.micInputLevel)
@@ -456,8 +617,14 @@ public final class ChatViewModel: ObservableObject {
         WhisperSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
             guard let self = self else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard self.isContinuousConversationActive, !self.isVoiceMicrophoneMuted else {
+                // A voice recognition finishing after Close must not create a
+                // surprise chat message in an unrelated conversation.
+                return
+            }
             guard !cleaned.isEmpty else {
-                self.voiceStatus = .idle
+                self.liveTranscriptionText = ""
+                self.rearmMicrophoneAfterSilence()
                 return
             }
             self.liveTranscriptionText = ""
@@ -469,8 +636,24 @@ public final class ChatViewModel: ObservableObject {
             self.sendMessage(cleaned)
         }
         
+        voiceManager.onSpeechPreparationStarted = { [weak self] in
+            guard let self else { return }
+            self.isPreparingVoiceReply = true
+            self.voicePlaybackError = nil
+            self.currentSpeakingText = self.voiceManager.currentSpokenText
+            if self.isContinuousConversationActive { self.voiceStatus = .processing }
+        }
+
+        voiceManager.onSpeechError = { [weak self] message in
+            guard let self else { return }
+            self.isPreparingVoiceReply = false
+            self.voicePlaybackError = message
+        }
+
         voiceManager.onSpeechStarted = { [weak self] in
             guard let self = self else { return }
+            self.voicePlaybackError = nil
+            self.isPreparingVoiceReply = false
             self.isSpeaking = true
             self.currentSpeakingText = self.voiceManager.currentSpokenText
             self.voiceStatus = .speaking
@@ -483,6 +666,18 @@ public final class ChatViewModel: ObservableObject {
                 return
             }
 
+            self.voicePlaybackStartedAt = Date()
+            // Full-duplex turn taking: the input tap must stay alive even
+            // while playing from the built-in speaker. The previous headset-
+            // only condition made "interrupt Sarah" completely impossible
+            // without headphones. Voice processing applies iOS echo
+            // cancellation, and Whisper uses stricter sustained VAD for the
+            // phone speaker to reduce self-interruptions.
+            let outputTypes = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
+            let isolatedOutput = outputTypes.contains {
+                [.headphones, .bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains($0)
+            }
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = !isolatedOutput
             self.isBargeInMonitorActive = true
             AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
             if !WhisperSpeechRecognizer.shared.isListening {
@@ -497,11 +692,13 @@ public final class ChatViewModel: ObservableObject {
         voiceManager.onSpeechFinished = { [weak self] in
             guard let self = self else { return }
             self.isSpeaking = false
+            self.isPreparingVoiceReply = false
             self.currentSpeakingText = nil
             self.haptics.speechFinished()
 
             let finishedWithoutBargeIn = self.isBargeInMonitorActive
             self.isBargeInMonitorActive = false
+            WhisperService.shared.voiceReplyPlayingOnSpeaker = false
 
             guard self.isContinuousConversationActive,
                   !self.isVoiceMicrophoneMuted else {
@@ -514,32 +711,141 @@ public final class ChatViewModel: ObservableObject {
                 // pour surveiller une interruption afin qu'aucun résidu d'écho ne
                 // devienne un faux message, puis on repart sur une capture propre.
                 WhisperSpeechRecognizer.shared.stopListening()
-                self.isMicRunning = false
-                self.voiceStatus = .starting
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
-                    guard self.isContinuousConversationActive,
-                          !self.isVoiceMicrophoneMuted,
-                          !self.voiceManager.isSpeaking else { return }
-                    WhisperSpeechRecognizer.shared.startListening(
-                        autoFinalizeOnSilence: true,
-                        preserveActiveSpeech: true
-                    )
-                    self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
-                    self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
-                }
+                self.rearmMicrophoneAfterSilence(delay: 0.10)
+            } else if WhisperSpeechRecognizer.shared.isListening {
+                // Genuine barge-in: preserve the user's already active utterance.
+                self.isMicRunning = true
+                self.voiceStatus = .listening(level: self.micInputLevel)
             } else {
-                // Barge-in : Whisper est déjà en train d'enregistrer l'utilisateur.
-                self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
-                self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
+                // TTS generation may fail *before* onSpeechStarted. In that case
+                // there was never a barge-in tap to keep alive: rearm explicitly.
+                self.rearmMicrophoneAfterSilence(delay: 0.12)
             }
         }
     }
     
+    /// Read a contextual instruction without stopping the live microphone session.
+    public func speakWebsiteGuide(_ text: String) {
+        ensureVoicePipelinePrepared()
+        guard isContinuousConversationActive else { return }
+        activeAgent = .esther
+        voiceManager.speak(text: text, for: .esther)
+    }
+
+    /// Highlight builder cards as their own audio finishes rather than using timers.
+    public func speakWebsiteGuideSequence(
+        _ texts: [String],
+        onItemStart: @escaping (Int) -> Void,
+        completion: @escaping () -> Void
+    ) {
+        ensureVoicePipelinePrepared()
+        guard isContinuousConversationActive else {
+            completion()
+            return
+        }
+        activeAgent = .esther
+        voiceManager.speakSequence(
+            texts: texts,
+            for: .esther,
+            onItemStart: onItemStart,
+            completion: completion
+        )
+    }
+
+    /// Cancel narration only; keep the user's voice conversation alive.
+    public func cancelWebsiteGuideSpeech() {
+        guard isContinuousConversationActive else { return }
+        voiceManager.stop()
+        currentSpeakingText = nil
+        isSpeaking = false
+        if !isVoiceMicrophoneMuted && !WhisperSpeechRecognizer.shared.isListening {
+            WhisperSpeechRecognizer.shared.startListening(
+                autoFinalizeOnSilence: true,
+                preserveActiveSpeech: true
+            )
+        }
+    }
+
+    /// Select the voice agent immediately without waiting for an LLM reply.
+    public func selectVoiceAgent(_ agent: AgentType) {
+        let selected = agent.currentAgent
+        guard activeAgent != selected else { return }
+        messageGenerationID = UUID()
+        isTyping = false
+        isPreparingVoiceReply = false
+        voiceManager.stop()
+        activeAgent = selected
+        currentSpeakingText = nil
+        liveTranscriptionText = ""
+        if isContinuousConversationActive && !isVoiceMicrophoneMuted {
+            if WhisperSpeechRecognizer.shared.isListening {
+                voiceStatus = .listening(level: micInputLevel)
+            } else {
+                rearmMicrophoneAfterSilence(delay: 0.08)
+            }
+        } else {
+            voiceStatus = .idle
+        }
+    }
+
+    public func activateTranslateLive(from source: String = "he", to target: String = "fr") {
+        // A dedicated mode: dismiss all competing audio and present after any
+        // full-screen voice sheet has finished its dismissal animation.
+        let dismissingVoiceSheet = isShowingVoiceOrbModal
+        stopVoiceConversation()
+        WebRTCVoiceCallManager.shared.endCall(reason: "Translate Live")
+        activeAgent = .yohan
+        translateLiveSource = source
+        translateLiveTarget = target
+        isShowingVoiceOrbModal = false
+        isDrawerOpen = false
+        if dismissingVoiceSheet {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.isShowingTranslateLive = true
+            }
+        } else {
+            isShowingTranslateLive = true
+        }
+    }
+
+    public func retryVoiceMicrophone() {
+        ensureVoicePipelinePrepared()
+        guard AVAudioSession.sharedInstance().recordPermission != .denied else {
+            isMicRunning = false
+            voiceStatus = .error("Micro refusé par iOS. Ouvre Réglages → Sarah IA → Microphone.")
+            return
+        }
+
+        // Clear an error from an old attempt and start a fresh microphone
+        // generation. The view can retry without reinstalling the whole app.
+        voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
+        WhisperSpeechRecognizer.shared.stopListening()
+        WhisperService.shared.reset()
+        isContinuousConversationActive = true
+        isVoiceMicrophoneMuted = false
+        AudioSessionManager.shared.beginContinuousVoiceSession()
+        voiceStatus = .starting
+        WhisperSpeechRecognizer.shared.startListening(
+            autoFinalizeOnSilence: true,
+            preserveActiveSpeech: true
+        )
+        isMicRunning = WhisperSpeechRecognizer.shared.isListening
+        if isMicRunning { voiceStatus = .listening(level: micInputLevel) }
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
 
-        if isMicRunning || WhisperSpeechRecognizer.shared.isListening {
+        if case .error = voiceStatus {
+            retryVoiceMicrophone()
+            return
+        }
+
+        if isContinuousConversationActive && !isVoiceMicrophoneMuted {
+            // Also applies while Whisper is loading its model: a tap on the
+            // microphone MUST mute rather than submit another start request.
             isVoiceMicrophoneMuted = true
             WhisperSpeechRecognizer.shared.stopListening()
             isMicRunning = false
@@ -550,6 +856,8 @@ public final class ChatViewModel: ObservableObject {
 
         isVoiceMicrophoneMuted = false
         isContinuousConversationActive = true
+        voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
         AudioSessionManager.shared.beginContinuousVoiceSession()
         WhisperSpeechRecognizer.shared.startListening(
             autoFinalizeOnSilence: true,
@@ -565,11 +873,25 @@ public final class ChatViewModel: ObservableObject {
     /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+        voiceSessionGeneration = UUID()
+        watchVoiceMicrophone(generation: voiceSessionGeneration)
         voiceManager.stop()
         AudioSessionManager.shared.beginContinuousVoiceSession()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
+        WhisperService.shared.voiceReplyPlayingOnSpeaker = false
+        voicePlaybackError = nil
+
+        // Do not block first microphone activation with Supertonic startup.
+        // Preload on its background queue once the voice conversation is up.
+        let session = voiceSessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            guard let self,
+                  self.voiceSessionGeneration == session,
+                  self.isContinuousConversationActive else { return }
+            NeuralVoiceService.shared.prepareForVoiceConversation()
+        }
 
         guard !WhisperSpeechRecognizer.shared.isListening else {
             isMicRunning = true
@@ -589,9 +911,12 @@ public final class ChatViewModel: ObservableObject {
     /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        voiceSessionGeneration = UUID()
+        isPreparingVoiceReply = false
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
+        WhisperService.shared.voiceReplyPlayingOnSpeaker = false
 
         // Couper d'abord la synthèse, puis la capture micro. Dans l'ordre inverse,
         // la session AVAudioSession pouvait rester active si Sarah parlait encore.
@@ -605,9 +930,22 @@ public final class ChatViewModel: ObservableObject {
         isMicRunning = false
         micInputLevel = 0.0
         liveTranscriptionText = ""
+        voicePlaybackError = nil
         voiceStatus = .idle
     }
     
+    /// Test one of the six distinct bundled Supertonic voices without
+    /// starting microphone capture. Install the same voice callbacks as the
+    /// real conversation so any missing model/audio failure is visible.
+    public func previewAgentVoice(_ agent: AgentType) {
+        ensureVoicePipelinePrepared()
+        voicePlaybackError = nil
+        voiceManager.speak(
+            text: "Bonjour. Je suis \(agent.displayName). Écoute ma voix, différente des autres agents.",
+            for: agent
+        )
+    }
+
     public func speakMessage(_ text: String) {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
@@ -626,21 +964,94 @@ public final class ChatViewModel: ObservableObject {
     
     public func cancelCurrentGeneration() {
         haptics.buttonTap()
+        messageGenerationID = UUID()
+        websiteGenerationID = UUID()
         isTyping = false
+        isPreparingVoiceReply = false
         voiceStatus = .idle
         AIProgressiveScheduler.shared.cancelAllTasks()
+        voiceManager.stop()
     }
 
     // MARK: - Envoi de Message & Orchestration Multi-Agents
     
+    /// Recognize explicit short commands, never random agent names in TV audio.
+    private static func voiceAgentSwitchTarget(_ text: String) -> AgentType? {
+        let normalized = text.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "fr_FR")
+        ).lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "-", with: " ")
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: ".", with: " ")
+            .replacingOccurrences(of: "?", with: " ")
+            .replacingOccurrences(of: "!", with: " ")
+            .replacingOccurrences(of: ":", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        let words = normalized.split(whereSeparator: { $0.isWhitespace })
+        guard words.count <= 12 else { return nil }
+        let explicit = [
+            "passe moi", "passe a", "passe au", "passe avec",
+            "je veux parler", "je voudrais parler", "parler avec",
+            "parler a", "mets moi", "mets", "choisis",
+            "bascule", "active l'agent", "change pour",
+            "je veux yoann", "je veux sarah", "ouvre yoann",
+            "ouvre sarah"
+        ].contains(where: { normalized.contains($0) })
+        func named(_ variants: [String]) -> Bool {
+            variants.contains { words.contains(Substring($0)) }
+        }
+        if named(["yoann", "yohan", "yoan", "johan"]) &&
+            (explicit || words.count == 1) { return .yohan }
+        if named(["sarah", "sara"]) &&
+            (explicit || words.count == 1) { return .sarah }
+        if named(["ethel", "etel", "tom"]) &&
+            (explicit || words.count == 1) { return .ethel }
+        if named(["raphael", "esther", "ester"]) &&
+            (explicit || words.count == 1) { return .esther }
+        return nil
+    }
+
     public func sendMessage(_ explicitText: String? = nil) {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        
+
+        // "Active Translate Live hébreu-français" opens Yoann's dedicated
+        // microphone interpreter instead of treating the command as chat text.
+        if let pair = YoannTranslateLiveService.commandPair(text) {
+            inputText = ""
+            activateTranslateLive(from: pair.from, to: pair.to)
+            return
+        }
+        if isContinuousConversationActive,
+           let agent = Self.voiceAgentSwitchTarget(text) {
+            inputText = ""
+            selectVoiceAgent(agent)
+            return
+        }
+        let generationID = UUID()
+        messageGenerationID = generationID
+
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
         inputText = ""
+
+        // A genuine geocoded world-map card, with live OSM businesses, is
+        // part of the conversation, not a fabricated AI location answer.
+        if SarahMapIntent.wantsMap(text) {
+            appendMessage(Message(
+                content: SarahMapIntent.payload(text),
+                isFromUser: false,
+                agentID: AgentType.sarah.rawValue
+            ))
+            isTyping = false
+            if isContinuousConversationActive {
+                voiceManager.speak(text: "J'ouvre la carte du monde en trois dimensions. Je cherche le lieu demandé.", for: .sarah)
+            }
+            return
+        }
 
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
         // Le même parcours sert aussi à reprendre et améliorer la dernière maquette créée.
@@ -665,20 +1076,27 @@ public final class ChatViewModel: ObservableObject {
         // Routage intelligent vers l'un des 4 agents (Sarah, Tom, Raphaël, Yohan) avec préservation du contexte
         let currentSelectedAgent = activeAgent
         let responseConversationID = currentConversationId
-        multiAgentCoordinator.routeAndProcess(query: text, currentAgent: currentSelectedAgent) { [weak self] response in
+        multiAgentCoordinator.routeAndProcess(
+            query: text, currentAgent: currentSelectedAgent,
+            preferFastVoice: isContinuousConversationActive
+        ) { [weak self] response in
             guard let self = self else { return }
             
             DispatchQueue.main.async {
                 // Une réponse calculée pour une ancienne discussion ne doit jamais réapparaître
                 // dans un nouveau chat après un redémarrage, un archivage ou un changement de fil.
-                guard self.currentConversationId == responseConversationID else { return }
+                guard self.currentConversationId == responseConversationID,
+                      self.messageGenerationID == generationID else { return }
                 // Basculer l'agent actif selon la décision de routage / passation de main
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                     self.activeAgent = response.agent
                 }
                 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
-                var responseContent = rawText.decodingHTMLEntities()
+                let rawText = response.text
+                var responseContent = SarahResponseCleaner.clean(rawText.decodingHTMLEntities())
+                if responseContent.isEmpty {
+                    responseContent = "Je n'ai pas obtenu de réponse finale lisible. Réessaie, s'il te plaît."
+                }
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
@@ -709,9 +1127,10 @@ public final class ChatViewModel: ObservableObject {
                             targetAgent: response.agent
                         )
                     } else {
-                        let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText)
+                        let candidate = (response.spokenText.isEmpty ? responseContent : response.spokenText)
                             .decodingHTMLEntities()
-                        self.voiceManager.speak(text: spoken, for: response.agent)
+                        let spoken = SarahResponseCleaner.clean(candidate)
+                        self.voiceManager.speak(text: spoken.isEmpty ? responseContent : spoken, for: response.agent)
                     }
                 }
             }
@@ -882,7 +1301,7 @@ public final class ChatViewModel: ObservableObject {
     public func introduceSarah() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Tom (Histoire & Géopolitique), Raphaël (Développeur & Code) et Yohan (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
+        let introText = "Bonjour ! 👋 Je suis Sarah, votre agent pilote. À mes côtés se trouvent Ethel (Création & Design), Raphaël (Développeur & Code) et Yoann (Traducteur Français ⇄ Hébreu). Que pouvons-nous faire pour vous ?"
         let aiMessage = Message(content: introText, isFromUser: false)
         appendMessage(aiMessage)
         voiceManager.speak(text: introText, for: .sarah)

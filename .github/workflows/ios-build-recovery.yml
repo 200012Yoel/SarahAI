@@ -19,15 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore website voice bridge in canonical build tree
+      - name: Verify native website voice bridge after neural migration
         run: |
           set -euo pipefail
-          python3 .github/scripts/restore_website_voice_bridge.py
           grep -q 'public func speakWebsiteGuide(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func speakWebsiteGuideSequence(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func cancelWebsiteGuideSpeech()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
           grep -q 'public func speakSequence(' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
-          echo 'Website voice bridge restored'
+          grep -q 'NeuralVoiceService.shared' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
 
       - name: Verify Whisper barge-in and Qwen generation
         run: |
@@ -71,6 +70,34 @@ jobs:
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
           cp "$RUNNER_TEMP/whisper.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt"
           cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
+
+      - name: Download locally bundled Supertonic 3 TTS
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/NeuralVoices"
+          curl -L --fail --retry 3 \
+            'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2' \
+            -o "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          echo "82fa96f91c4ef8abaae3a14a3f4153facf88bed821d1f7331cec2700f432c427  $RUNNER_TEMP/NeuralVoices/model.tar.bz2" | shasum -a 256 -c -
+          tar -xjf "$RUNNER_TEMP/NeuralVoices/model.tar.bz2" -C "$RUNNER_TEMP/NeuralVoices"
+          rm "$RUNNER_TEMP/NeuralVoices/model.tar.bz2"
+          MODEL_ROOT=$(dirname "$(find "$RUNNER_TEMP/NeuralVoices" -name 'voice.bin' -type f -print -quit)")
+          test -f "$MODEL_ROOT/duration_predictor.int8.onnx"
+          test -f "$MODEL_ROOT/text_encoder.int8.onnx"
+          test -f "$MODEL_ROOT/vector_estimator.int8.onnx"
+          test -f "$MODEL_ROOT/vocoder.int8.onnx"
+          test -f "$MODEL_ROOT/tts.json"
+          test -f "$MODEL_ROOT/unicode_indexer.bin"
+          echo "NEURAL_MODEL_ROOT=$MODEL_ROOT" >> "$GITHUB_ENV"
+          curl -L --fail --retry 3 \
+            'https://huggingface.co/Supertone/supertonic-3/resolve/main/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/Supertonic3-OpenRAIL-M-LICENSE.txt"
+          curl -L --fail --retry 3 \
+            'https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/sherpa-onnx-Apache-2.0.txt"
+          curl -L --fail --retry 3 \
+            'https://raw.githubusercontent.com/microsoft/onnxruntime/main/LICENSE' \
+            -o "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt"
 
       - name: Configure build number
         run: |
@@ -125,6 +152,17 @@ jobs:
           cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
+          mkdir -p "$APP_PATH/NeuralVoices/Supertonic3"
+          for filename in duration_predictor.int8.onnx text_encoder.int8.onnx vector_estimator.int8.onnx vocoder.int8.onnx tts.json unicode_indexer.bin voice.bin; do
+            cp "$NEURAL_MODEL_ROOT/$filename" "$APP_PATH/NeuralVoices/Supertonic3/"
+          done
+          cp "$RUNNER_TEMP/NeuralVoices/Supertonic3-OpenRAIL-M-LICENSE.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          cp "$RUNNER_TEMP/NeuralVoices/sherpa-onnx-Apache-2.0.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          cp "$RUNNER_TEMP/NeuralVoices/onnxruntime-MIT.txt" "$APP_PATH/NeuralVoices/Supertonic3/"
+          test -s "$APP_PATH/NeuralVoices/Supertonic3/voice.bin"
+          test -s "$APP_PATH/NeuralVoices/Supertonic3/vocoder.int8.onnx"
+
+
 
           WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
           if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then

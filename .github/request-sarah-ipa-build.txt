@@ -1,0 +1,3 @@
+Sarah IA - compilation IPA demandée explicitement le 2026-10-13.
+Source : corrections caméra, fichiers, Translate Live, carte 3D, navigation et suppression du halo.
+Cette marque de version déclenche une seule compilation release de la branche ci-dessus.

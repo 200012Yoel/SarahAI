@@ -1,0 +1,18 @@
+services:
+  sarah-translate-live:
+    build: .
+    container_name: sarah-translate-live
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      SARAH_MT_MODEL_HE_FR: Helsinki-NLP/opus-tatoeba-he-fr
+      SARAH_MT_MODEL_FR_HE: Helsinki-NLP/opus-mt-fr-he
+      SARAH_MT_THREADS: "2"
+      HF_HOME: /models
+    volumes:
+      - sarah-translation-model:/models
+    mem_limit: 4g
+
+volumes:
+  sarah-translation-model:

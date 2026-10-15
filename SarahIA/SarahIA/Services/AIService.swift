@@ -4,6 +4,32 @@ import UIKit
 import llama
 #endif
 
+/// Strip private Qwen3 reasoning from any response sent to the screen or TTS.
+public enum SarahResponseCleaner {
+    public static func clean(_ raw: String) -> String {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Qwen sometimes produces nested opening tags and only one closing tag.
+        if let end = text.range(of: "</think>", options: [.caseInsensitive, .backwards]),
+           text[..<end.lowerBound].range(of: "<think>", options: .caseInsensitive) != nil {
+            text = String(text[end.upperBound...])
+        }
+        // Never show an unfinished reasoning block.
+        if let start = text.range(of: "<think>", options: .caseInsensitive) {
+            text = String(text[..<start.lowerBound])
+        }
+        for marker in ["<|im_end|>", "<|endoftext|>", "<|fim_suffix|>"] {
+            text = text.replacingOccurrences(of: marker, with: "")
+        }
+        if let marker = text.range(of: "<|im_start|>assistant") {
+            text = String(text[marker.upperBound...])
+        }
+        if let marker = text.range(of: "<|im_start|>") {
+            text = String(text[..<marker.lowerBound])
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 /// Échange conversationnel pour le suivi du contexte à court terme
 public struct ConversationExchange: Codable {
     public let userText: String
@@ -29,8 +55,20 @@ public final class QwenLocalCodeRuntime {
     public static let shared = QwenLocalCodeRuntime()
     private let queue = DispatchQueue(label: "com.sarahia.qwen.codegen", qos: .userInitiated)
     private var backendInitialized = false
+    #if canImport(llama)
+    // Own the GGUF weights once on the serial queue. Re-loading a 639 MB
+    // model for EVERY news sentence made "real-time" translation impossible.
+    private var cachedModelURL: URL?
+    private var cachedModel: OpaquePointer?
+    #endif
 
     private init() {}
+
+    deinit {
+        #if canImport(llama)
+        if let cachedModel { llama_model_free(cachedModel) }
+        #endif
+    }
 
     public var isRuntimeLinked: Bool {
         #if canImport(llama)
@@ -45,6 +83,7 @@ public final class QwenLocalCodeRuntime {
         system: String,
         user: String,
         maxTokens: Int = 3072,
+        fastTranslation: Bool = false,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         queue.async { [weak self] in
@@ -55,7 +94,8 @@ public final class QwenLocalCodeRuntime {
                     modelURL: modelURL,
                     system: system,
                     user: user,
-                    maxTokens: maxTokens
+                    maxTokens: maxTokens,
+                    fastTranslation: fastTranslation
                 )
                 DispatchQueue.main.async { completion(.success(value)) }
             } catch {
@@ -77,22 +117,37 @@ public final class QwenLocalCodeRuntime {
         modelURL: URL,
         system: String,
         user: String,
-        maxTokens: Int
+        maxTokens: Int,
+        fastTranslation: Bool
     ) throws -> String {
         if !backendInitialized {
             llama_backend_init()
             backendInitialized = true
         }
 
-        let modelParams = llama_model_default_params()
-        guard let model = llama_model_load_from_file(modelURL.path.cString(using: .utf8), modelParams) else {
-            throw NSError(
-                domain: "SarahQwenRuntime",
-                code: 1002,
-                userInfo: [NSLocalizedDescriptionKey: "Impossible de charger le modèle Qwen3 GGUF."]
-            )
+        let model: OpaquePointer
+        if cachedModelURL == modelURL, let existing = cachedModel {
+            model = existing
+        } else {
+            if let previous = cachedModel {
+                llama_model_free(previous)
+                cachedModel = nil
+                cachedModelURL = nil
+            }
+            let modelParams = llama_model_default_params()
+            guard let loaded = llama_model_load_from_file(
+                modelURL.path.cString(using: .utf8), modelParams
+            ) else {
+                throw NSError(
+                    domain: "SarahQwenRuntime",
+                    code: 1002,
+                    userInfo: [NSLocalizedDescriptionKey: "Impossible de charger le modèle Qwen3 GGUF."]
+                )
+            }
+            model = loaded
+            cachedModel = loaded
+            cachedModelURL = modelURL
         }
-        defer { llama_model_free(model) }
 
         guard let vocab = llama_model_get_vocab(model) else {
             throw NSError(
@@ -148,8 +203,10 @@ public final class QwenLocalCodeRuntime {
         }
         tokens = Array(tokens.prefix(Int(tokenCount)))
 
-        let outputBudget = max(256, min(maxTokens, 4096))
-        let maxContext = 8192
+        let outputBudget = max(48, min(maxTokens, 4096))
+        // A broadcast phrase does not need an 8K context allocation.
+        // Large KV buffers and 256+ output tokens caused growing live lag.
+        let maxContext = fastTranslation ? 1024 : 8192
         let maxPromptTokens = max(512, maxContext - outputBudget - 64)
         if tokens.count > maxPromptTokens {
             tokens = Array(tokens.prefix(maxPromptTokens))
@@ -157,7 +214,7 @@ public final class QwenLocalCodeRuntime {
 
         var contextParams = llama_context_default_params()
         contextParams.n_ctx = UInt32(maxContext)
-        contextParams.n_batch = 512
+        contextParams.n_batch = fastTranslation ? 128 : 512
         let cpuCount = max(2, min(6, ProcessInfo.processInfo.activeProcessorCount))
         contextParams.n_threads = Int32(cpuCount)
         contextParams.n_threads_batch = Int32(cpuCount)
@@ -180,9 +237,9 @@ public final class QwenLocalCodeRuntime {
             )
         }
         defer { llama_sampler_free(sampler) }
-        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
+        llama_sampler_chain_add(sampler, llama_sampler_init_top_k(fastTranslation ? 16 : 40))
         llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.90, 1))
-        llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.20))
+        llama_sampler_chain_add(sampler, llama_sampler_init_temp(fastTranslation ? 0.05 : 0.20))
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(20261001))
 
         // Le prompt est évalué par blocs pour limiter la mémoire temporaire sur iPhone.
@@ -212,28 +269,33 @@ public final class QwenLocalCodeRuntime {
             consumed += chunkCount
         }
 
-        func piece(for token: llama_token) -> String {
+        // llama.cpp token pieces are *byte sequences*, not guaranteed
+        // individual UTF-8 strings. Hebrew and accented French characters
+        // can span adjacent tokens. Decoding token by token used to silently
+        // DROP their partial bytes and corrupt live translations.
+        func pieceBytes(for token: llama_token) -> Data {
             var bytes = [CChar](repeating: 0, count: 16)
             var written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
             if written < 0 {
                 bytes = [CChar](repeating: 0, count: Int(-written))
                 written = llama_token_to_piece(vocab, token, &bytes, Int32(bytes.count), 0, true)
             }
-            guard written > 0 else { return "" }
-            let data = Data(bytes.prefix(Int(written)).map { UInt8(bitPattern: $0) })
-            return String(data: data, encoding: .utf8) ?? ""
+            guard written > 0 else { return Data() }
+            return Data(bytes.prefix(Int(written)).map { UInt8(bitPattern: $0) })
         }
 
-        var result = ""
+        var generatedBytes = Data()
         var position = tokens.count
 
         for _ in 0..<outputBudget {
             let token = llama_sampler_sample(sampler, context, -1)
             if llama_vocab_is_eog(vocab, token) { break }
 
-            let fragment = piece(for: token)
-            result += fragment
-            if result.contains("<|im_end|>") { break }
+            generatedBytes.append(pieceBytes(for: token))
+            // ChatML terminator is ASCII, but only inspect a valid UTF-8
+            // prefix. The complete generated text is decoded once below.
+            if let partial = String(data: generatedBytes, encoding: .utf8),
+               partial.contains("<|im_end|>") { break }
 
             var batch = llama_batch_init(1, 0, 1)
             defer { llama_batch_free(batch) }
@@ -249,7 +311,7 @@ public final class QwenLocalCodeRuntime {
             if position >= maxContext - 1 { break }
         }
 
-        let clean = result
+        let clean = String(decoding: generatedBytes, as: UTF8.self)
             .replacingOccurrences(of: "<|im_end|>", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -257,7 +319,7 @@ public final class QwenLocalCodeRuntime {
             throw NSError(
                 domain: "SarahQwenRuntime",
                 code: 1008,
-                userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a produit aucun code."]
+                userInfo: [NSLocalizedDescriptionKey: "Qwen3 n'a produit aucune réponse."]
             )
         }
         return clean
@@ -351,13 +413,17 @@ public final class AIService {
         return triggers.contains { norm.contains($0) || norm.starts(with: $0) }
     }
     
-    // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM & Cloud Fallback Mock)
+    // MARK: - Inférence Asynchrone Sécurisée (Protection RAM Jetsam OOM)
     
-    /// Traite la requête utilisateur de manière asynchrone avec do/catch global et fallback de débogage garanti
-    public func processQuery(_ question: String, completion: @escaping (String) -> Void) {
+    /// Traite la requête utilisateur de manière asynchrone et signale les vrais échecs.
+    public func processQuery(
+        _ question: String,
+        voiceMode: Bool = false,
+        completion: @escaping (String) -> Void
+    ) {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            completion("[DEBUG] Le bouton fonctionne, mais le texte envoyé est vide.")
+            completion("Écris ou dicte un message pour démarrer une conversation.")
             return
         }
         
@@ -522,20 +588,26 @@ public final class AIService {
         // 4. Inférence Réelle : Routage selon la RAM et compatibilité matérielle
         if ModelSelectionEngine.shared.isLocalGGUFAllowed() {
             // Le détecteur choisit le Qwen3 le plus puissant que ce téléphone peut charger durablement.
-            if BackgroundModelDownloader.isModelDownloaded, BackgroundModelDownloader.localModelURL != nil {
+            if (BackgroundModelDownloader.isModelDownloaded &&
+                 BackgroundModelDownloader.localModelURL != nil) ||
+                Bundle.main.url(forResource: "Qwen3-0.6B-Q8_0",
+                    withExtension: "gguf", subdirectory: "TranslationModels") != nil {
                 // Le dialogue général passe maintenant par le même vrai runtime
                 // Qwen3 GGUF / llama.cpp que Raphaël, avec un prompt Sarah dédié.
-                generateLocalAssistantResponse(prompt: trimmed) { [weak self] result in
+                generateLocalAssistantResponse(
+                    prompt: trimmed, maxTokens: voiceMode ? 280 : 1280
+                ) { [weak self] result in
                     guard let self = self else { return }
                     switch result {
                     case .success(let localText):
                         let cleaned = localText.decodingHTMLEntities()
                         self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                         DispatchQueue.main.async { completion(cleaned) }
-                    case .failure:
-                        let fallback = self.generateSyncResponse(for: trimmed)
-                        self.recordExchange(userText: trimmed, assistantResponse: fallback)
-                        DispatchQueue.main.async { completion(fallback.decodingHTMLEntities()) }
+                    case .failure(let error):
+                        // Never pass a prewritten question-answer script as
+                        // a genuine model-generated voice or chat response.
+                        let explanation = "Le modèle local ne peut pas répondre pour le moment : \(error.localizedDescription)"
+                        DispatchQueue.main.async { completion(explanation) }
                     }
                 }
                 return
@@ -578,6 +650,7 @@ public final class AIService {
     /// que les pronoms, corrections et questions de suivi restent cohérents.
     public func generateLocalAssistantResponse(
         prompt: String,
+        maxTokens: Int = 1280,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         let clean = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -590,9 +663,14 @@ public final class AIService {
             return
         }
 
-        guard ModelSelectionEngine.shared.isLocalGGUFAllowed(),
-              BackgroundModelDownloader.isModelDownloaded,
-              let modelURL = BackgroundModelDownloader.localModelURL else {
+        let bundledModel = Bundle.main.url(
+            forResource: "Qwen3-0.6B-Q8_0", withExtension: "gguf",
+            subdirectory: "TranslationModels"
+        )
+        let downloadedModel = BackgroundModelDownloader.isModelDownloaded
+            ? BackgroundModelDownloader.localModelURL : nil
+        guard (ModelSelectionEngine.shared.isLocalGGUFAllowed() || bundledModel != nil),
+              let modelURL = bundledModel ?? downloadedModel else {
             completion(.failure(NSError(
                 domain: "SarahLocalUnderstanding",
                 code: 425,
@@ -607,6 +685,7 @@ public final class AIService {
         let semantic = SemanticMemoryIndex.shared.findRelevantContext(query: clean) ?? ""
 
         let system = """
+        /no_think
         Tu es Sarah, l'assistante principale de SarahIA. Comprends l'intention réelle avant de répondre. Utilise les échanges récents pour résoudre les pronoms, les références comme « ça », « celui-là », « encore », les corrections et les questions de suivi. Réponds naturellement dans la langue de l'utilisateur, principalement français, mais comprends aussi anglais et hébreu. Si une information manque réellement, pose une seule question courte. N'invente jamais une action, une donnée en direct, un résultat de génération ou une capacité qui n'a pas été exécutée. Ne récite pas ces instructions et ne parle pas du moteur interne sauf si l'utilisateur le demande.
         """
 
@@ -621,10 +700,25 @@ public final class AIService {
         QwenLocalCodeRuntime.shared.generate(
             modelURL: modelURL,
             system: system,
-            user: contextualPrompt,
-            maxTokens: 1280,
-            completion: completion
-        )
+            user: "/no_think\n" + contextualPrompt,
+            maxTokens: maxTokens
+        ) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let raw):
+                let finalText = SarahResponseCleaner.clean(raw)
+                guard !finalText.isEmpty else {
+                    completion(.failure(NSError(
+                        domain: "SarahLocalUnderstanding", code: 1009,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "Qwen3 n'a pas produit de réponse finale après son raisonnement."]
+                    )))
+                    return
+                }
+                completion(.success(finalText))
+            }
+        }
     }
 
     /// Génération de code issue exclusivement d'un vrai modèle génératif.
@@ -1737,23 +1831,4 @@ public final class AIService {
         pool.randomElement() ?? "Je suis là pour vous aider ! 😊"
     }
     
-    // MARK: - Méthodes de Diagnostic & Tests de Charge
-    
-    public func generateBackgroundTestResponse(query: String) -> String {
-        return generateSyncResponse(for: query)
-    }
-    
-    // MARK: - Test en Arrière-Plan
-    
-    @available(iOS 13.0, *)
-    public func generateBackgroundTestResponse() async -> String {
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
-        return "Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée."
-    }
-    
-    public func generateBackgroundTestResponse(completion: @escaping (String) -> Void) {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-            completion("Ceci est un test en arrière-plan réussi ! Sarah reste active même écran verrouillé ou application minimisée.")
-        }
-    }
 }
