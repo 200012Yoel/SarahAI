@@ -757,6 +757,10 @@ public struct SarahPlaceCardView: View {
     /// Essaie l'application installée et revient au lien officiel si elle manque.
     private func openInstalledAppOrFallback(nativeURL: String, webURL: String) {
         guard let native = URL(string: nativeURL), let web = URL(string: webURL) else { return }
+        guard UIApplication.shared.canOpenURL(native) else {
+            UIApplication.shared.open(web, options: [:], completionHandler: nil)
+            return
+        }
         UIApplication.shared.open(native, options: [:]) { didOpen in
             if !didOpen {
                 DispatchQueue.main.async {
