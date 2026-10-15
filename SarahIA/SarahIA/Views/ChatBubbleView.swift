@@ -136,7 +136,7 @@ public struct ChatBubbleView: View {
                         return rawContent
                     }()
 
-                    if !displayContent.isEmpty {
+                    if !displayContent.isEmpty && message.placeCard == nil {
                         Text(displayContent)
                             .font(.system(size: 16, weight: .regular, design: .rounded))
                             .foregroundColor(.white)
@@ -605,99 +605,130 @@ public struct SarahPlaceCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 10) {
-                Button(action: { showExpandedMap = true }) {
+        VStack(spacing: 7) {
+            // Toute la surface de la petite carte (vignette + nom + adresse)
+            // ouvre le détail. Les trois boutons restent des actions distinctes.
+            Button(action: { showExpandedMap = true }) {
+                HStack(alignment: .center, spacing: 9) {
                     ZStack(alignment: .bottomTrailing) {
                         SarahPlaceMapRepresentable(place: place)
                             .frame(width: 105, height: 105)
                             .allowsHitTesting(false)
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
                             .font(.system(size: 10, weight: .semibold))
-                            .padding(6)
                             .foregroundColor(.white)
-                            .background(Color.black.opacity(0.76))
+                            .padding(6)
+                            .background(Color.black.opacity(0.75))
                             .cornerRadius(7)
                             .padding(5)
                     }
                     .frame(width: 105, height: 105)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(PlainButtonStyle())
-                .accessibilityLabel("Agrandir la carte de \(place.name)")
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(place.name)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if !place.address.isEmpty {
-                        Text(place.address)
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.72))
-                            .lineLimit(3)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(place.name)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
+                        if !place.address.isEmpty {
+                            Text(place.address)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.74))
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Label("Ouvrir la carte", systemImage: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(Color(red: 0.42, green: 0.73, blue: 1.0))
                     }
-                    Button(action: { showExpandedMap = true }) {
-                        Label("Voir la carte", systemImage: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            navigationButtons
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Afficher la carte de \(place.name) en plein écran")
+
+            navigationButtons(isExpanded: false)
         }
         .padding(9)
-        .foregroundColor(.white)
         .background(Color(red: 0.13, green: 0.14, blue: 0.17))
-        .cornerRadius(14)
+        .clipShape(RoundedRectangle(cornerRadius: 15))
         .fullScreenCover(isPresented: $showExpandedMap) {
             NavigationView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(spacing: 0) {
+                    // La carte remplit tout l'espace disponible en haut.
                     SarahPlaceMapRepresentable(place: place)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .cornerRadius(12)
-                    Text(place.name)
-                        .font(.headline)
-                    if !place.address.isEmpty {
-                        Text(place.address)
-                            .font(.subheadline)
+                        .accessibilityLabel("Carte du lieu \(place.name)")
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(place.name)
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                        if !place.address.isEmpty {
+                            Text(place.address)
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.72))
+                        }
+                        // En bas, les trois vrais logos et leurs redirections.
+                        navigationButtons(isExpanded: true)
                     }
-                    navigationButtons
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color(red: 0.11, green: 0.11, blue: 0.14))
                 }
-                .padding()
+                .background(Color.black)
                 .navigationBarTitle("Carte du lieu", displayMode: .inline)
                 .navigationBarItems(trailing: Button("Fermer") { showExpandedMap = false })
             }
+            .navigationViewStyle(StackNavigationViewStyle())
+            .preferredColorScheme(.dark)
         }
     }
 
-    private var navigationButtons: some View {
-        HStack(spacing: 6) {
-            navigationButton("Plans", symbol: "map.fill") { openAppleMaps() }
-            navigationButton("Google Maps", symbol: "arrow.triangle.turn.up.right.diamond.fill") {
-                openWebNavigation("https://www.google.com/maps/dir/?api=1&destination=\(place.latitude),\(place.longitude)")
+    private func navigationButtons(isExpanded: Bool) -> some View {
+        HStack(spacing: isExpanded ? 10 : 5) {
+            navigationButton("Plans", assetName: "SarahAppleMapsLogo", isExpanded: isExpanded) {
+                openAppleMaps()
             }
-            navigationButton("Waze", symbol: "car.fill") {
-                openWebNavigation("https://waze.com/ul?ll=\(place.latitude)%2C\(place.longitude)&navigate=yes")
+            navigationButton("Google Maps", assetName: "SarahGoogleMapsLogo", isExpanded: isExpanded) {
+                openGoogleMaps()
+            }
+            navigationButton("Waze", assetName: "SarahWazeLogo", isExpanded: isExpanded) {
+                openWaze()
             }
         }
     }
 
-    private func navigationButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
+    private func navigationButton(
+        _ title: String,
+        assetName: String,
+        isExpanded: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: symbol).font(.system(size: 16))
-                Text(title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+            VStack(spacing: isExpanded ? 7 : 4) {
+                Image(assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: isExpanded ? 29 : 19, height: isExpanded ? 29 : 19)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(size: isExpanded ? 12 : 10, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .foregroundColor(.white)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 38)
-            .background(Color(red: 0.15, green: 0.42, blue: 0.85))
-            .cornerRadius(10)
+            .frame(height: isExpanded ? 66 : 43)
+            .background(Color(red: 0.19, green: 0.23, blue: 0.30))
+            .cornerRadius(11)
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("Itinéraire avec \(title)")
+        .accessibilityLabel("Itinéraire vers \(place.name) avec \(title)")
     }
 
     private func openAppleMaps() {
@@ -707,9 +738,36 @@ public struct SarahPlaceCardView: View {
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }
 
-    private func openWebNavigation(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+    private func openGoogleMaps() {
+        let destination = "\(place.latitude),\(place.longitude)"
+        openInstalledAppOrFallback(
+            nativeURL: "comgooglemaps://?daddr=\(destination)&directionsmode=driving",
+            webURL: "https://www.google.com/maps/dir/?api=1&destination=\(destination)"
+        )
+    }
+
+    private func openWaze() {
+        let destination = "\(place.latitude),\(place.longitude)"
+        openInstalledAppOrFallback(
+            nativeURL: "waze://?ll=\(destination)&navigate=yes",
+            webURL: "https://waze.com/ul?ll=\(destination)&navigate=yes"
+        )
+    }
+
+    /// Essaie l'application installée et revient au lien officiel si elle manque.
+    private func openInstalledAppOrFallback(nativeURL: String, webURL: String) {
+        guard let native = URL(string: nativeURL), let web = URL(string: webURL) else { return }
+        guard UIApplication.shared.canOpenURL(native) else {
+            UIApplication.shared.open(web, options: [:], completionHandler: nil)
+            return
+        }
+        UIApplication.shared.open(native, options: [:]) { didOpen in
+            if !didOpen {
+                DispatchQueue.main.async {
+                    UIApplication.shared.open(web, options: [:], completionHandler: nil)
+                }
+            }
+        }
     }
 }
 

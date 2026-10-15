@@ -67,6 +67,12 @@
 	<string>Sarah IA utilise le microphone pour le mode vocal et transcrit votre voix localement sur l’iPhone avec OpenAI Whisper.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Sarah IA effectue la transcription vocale avec le modèle OpenAI Whisper intégré à l’application, sans envoyer votre voix à un service de transcription en ligne.</string>
+	<!-- Vérifier les applications de navigation installées avant de proposer le navigateur web. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+		<string>waze</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
