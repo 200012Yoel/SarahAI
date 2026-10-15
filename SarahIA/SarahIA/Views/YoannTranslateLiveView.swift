@@ -178,6 +178,18 @@ public struct YoannTranslateLiveView: View {
             }
 
             ScrollView {
+                // Like live subtitles: the previous sentence stays visible,
+                // dimmed, above the newest one.
+                if live.history.count > 1 {
+                    Text(live.history[1].translation)
+                        .font(.system(size: max(15, min(20, paneHeight * 0.09)), weight: .medium))
+                        .foregroundColor(.white.opacity(0.45))
+                        .multilineTextAlignment(isRTL(targetLanguage) ? .trailing : .center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .environment(\.layoutDirection,
+                            isRTL(targetLanguage) ? .rightToLeft : .leftToRight)
+                        .padding(.bottom, 2)
+                }
                 Text(live.lastTranslation.isEmpty
                     ? "La traduction en \(TranslateLiveLanguages.label(for: targetLanguage)) s'affichera ici."
                     : live.lastTranslation)

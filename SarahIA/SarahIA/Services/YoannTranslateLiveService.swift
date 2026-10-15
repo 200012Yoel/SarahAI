@@ -123,6 +123,11 @@ public final class YoannTranslateLiveService: ObservableObject {
     private var lastShownAt = Date.distantPast
     private var lastChunk = ""
     private var lastChunkAt = Date.distantPast
+    /// Google-style stabilisation: a few words cut off mid-sentence (no pause)
+    /// are held and joined to the next chunk instead of being translated
+    /// alone, which produced meaningless half-sentences.
+    private var heldFragment = ""
+    private var heldFragmentID = UUID()
     private var routeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var micLevelSubscription: AnyCancellable?
@@ -150,6 +155,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         sourceLanguage = source
         targetLanguage = target
         self.outputMode = outputMode
+        if TranslateLiveLanguages.engineCode(for: source) == "he" {
+            HebrewFrenchDictionary.shared.preload()
+        }
         customTranslationServerURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
         hint = nil
@@ -163,6 +171,7 @@ public final class YoannTranslateLiveService: ObservableObject {
         isPlayingAudio = false
         lastChunk = ""
         lastChunkAt = .distantPast
+        heldFragment = ""
         appleTranslator = nil
         applePair = nil
         engine = .none
@@ -369,9 +378,9 @@ public final class YoannTranslateLiveService: ObservableObject {
         whisper.preferredLanguageCode = sourceLanguage == "auto"
             ? nil : TranslateLiveLanguages.engineCode(for: sourceLanguage)
 
-        whisper.onLiveInterpretationChunk = { [weak self] chunk, _ in
+        whisper.onLiveInterpretationChunk = { [weak self] chunk, paused in
             guard let self, self.isActive, self.sessionToken == token else { return }
-            self.receive(chunk: chunk, token: token)
+            self.receiveStabilized(chunk: chunk, paused: paused, token: token)
         }
         if relay {
             whisper.onLiveEnglishPivotChunk = { [weak self] heard, english, _ in
@@ -461,6 +470,34 @@ public final class YoannTranslateLiveService: ObservableObject {
 
     // MARK: - Recognized speech
 
+    private func receiveStabilized(chunk: String, paused: Bool, token: UUID) {
+        var text = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        if !heldFragment.isEmpty {
+            text = heldFragment + " " + text
+            heldFragment = ""
+        }
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        let endsSentence = text.last.map { ".?!".contains($0) } ?? false
+        if !paused && !endsSentence && wordCount < 4 && engine == .madlad {
+            heldFragment = text
+            lastSource = text // show the Hebrew right away
+            let id = UUID()
+            heldFragmentID = id
+            // Never hold more than 2.5 s: translate it alone if nothing follows.
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard let self, self.isActive, self.sessionToken == token,
+                      self.heldFragmentID == id, !self.heldFragment.isEmpty else { return }
+                let held = self.heldFragment
+                self.heldFragment = ""
+                self.receive(chunk: held, token: token)
+            }
+            return
+        }
+        receive(chunk: text, token: token)
+    }
+
     private func receive(chunk: String, token: UUID) {
         guard isActive, sessionToken == token else { return }
         let text = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -497,7 +534,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         case .madlad where TranslateLiveLanguages.engineCode(for: sourceLanguage) == "he"
                 && TranslateLiveLanguages.engineCode(for: targetLanguage) == "fr":
             lastSource = text
-            if let french = HebrewFrenchPhrasebook.translate(text) {
+            if let french = HebrewFrenchPhrasebook.translate(text)
+                ?? HebrewFrenchDictionary.shared.translate(text) {
                 appendTranslated(french, source: text)
                 break
             }
@@ -546,7 +584,8 @@ public final class YoannTranslateLiveService: ObservableObject {
         // Everyday expressions: Whisper's English for them is unreliable
         // (it spells them phonetically), so use a verified phrasebook.
         if sourceIsHebrew, TranslateLiveLanguages.engineCode(for: targetLanguage) == "fr",
-           let french = HebrewFrenchPhrasebook.translate(original) {
+           let french = HebrewFrenchPhrasebook.translate(original)
+                ?? HebrewFrenchDictionary.shared.translate(original) {
             appendTranslated(french, source: original)
             updateStatus()
             return

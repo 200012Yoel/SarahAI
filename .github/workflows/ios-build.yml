@@ -245,6 +245,16 @@ jobs:
           cp "$RUNNER_TEMP/TranslationModels/Qwen3-0.6B-Q8_0.gguf" "$APP_PATH/TranslationModels/"
           cp "$RUNNER_TEMP/TranslationModels/Qwen3-Apache-2.0-LICENSE.txt" "$APP_PATH/TranslationModels/"
           test "$(stat -f%z "$APP_PATH/TranslationModels/Qwen3-0.6B-Q8_0.gguf")" -gt 500000000
+          # Open Hebrew -> French dictionary (Tatoeba CC BY 2.0 FR, Wiktionary CC BY-SA 4.0).
+          if [ -s SarahIA/SarahIA/Resources/he_fr_dictionary.tsv ]; then
+            cp SarahIA/SarahIA/Resources/he_fr_dictionary.tsv "$APP_PATH/TranslationModels/"
+            printf '%s\n' \
+              'Hebrew-French dictionary data:' \
+              '- Tatoeba (https://tatoeba.org), CC BY 2.0 FR' \
+              '- Wiktionary contributors (https://www.wiktionary.org), CC BY-SA 4.0, extracted by kaikki.org / wiktextract' \
+              > "$APP_PATH/TranslationModels/he_fr_dictionary-LICENSES.txt"
+            echo "Dictionary entries: $(grep -vc '^#' "$APP_PATH/TranslationModels/he_fr_dictionary.tsv")"
+          fi
 
 
 
