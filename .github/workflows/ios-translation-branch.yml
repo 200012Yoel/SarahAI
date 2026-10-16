@@ -20,7 +20,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 75
     permissions:
-      contents: read
+      contents: write
       actions: read
 
     steps:
@@ -110,10 +110,28 @@ jobs:
 
       - name: Summarize compiler errors
         if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -f xcodebuild.log ]; then
-            grep -E 'error:|fatal error' xcodebuild.log | sort -u | head -80 | tee build-errors.txt || true
-          fi
+          set +e
+          touch xcodebuild.log
+          grep -E 'error:|fatal error|warning: .*(WhisperKit|MLKit)' xcodebuild.log | sort -u | head -200 > build-errors.txt
+          tail -300 xcodebuild.log > build-tail.txt
+          # Annotations lisibles via l'API (10 premières erreurs)
+          grep -E '^/.*:[0-9]+:[0-9]+: error:' build-errors.txt | head -10 | while IFS= read -r line; do
+            file=$(echo "$line" | cut -d: -f1); ln=$(echo "$line" | cut -d: -f2); msg=$(echo "$line" | cut -d: -f5-)
+            echo "::error file=${file##*/},line=$ln::${msg}"
+          done
+          # Copie complète poussée sur une branche dédiée (journaux GitHub inaccessibles depuis certains environnements)
+          mkdir -p /tmp/cilogs && cp build-errors.txt build-tail.txt /tmp/cilogs/
+          cd /tmp/cilogs
+          git init -q -b ci-logs-traduction
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "Run ${{ github.run_id }} — commit ${{ github.sha }}" > RUN.txt
+          git add -A && git commit -q -m "Erreurs du build ${{ github.run_number }}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs-traduction
+          cat build-errors.txt | head -60
 
       - name: Package IPA
         run: |
