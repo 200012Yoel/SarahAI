@@ -95,6 +95,7 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
