@@ -1495,12 +1495,12 @@ private struct LocalGenerationSettingsView: View {
     }
 }
 
-/// Carte de réglage de la traduction en temps réel : clé DeepL (en ligne) et état du mode hors ligne.
+/// Carte d'état de la traduction en temps réel (100 % gratuite, avec ou sans Internet).
 @available(iOS 15.0, *)
 private struct TranslationEngineSettingsCard: View {
-    @State private var deepLKey: String = TranslationEngine.shared.deepLAPIKey ?? ""
-    @State private var isKeySaved: Bool = TranslationEngine.shared.hasDeepLKey
-    @State private var offlineStatusText: String = "Vérification…"
+    @State private var packsRequested = false
+
+    private var googleAvailable: Bool { TranslationEngine.shared.isGoogleOfflineAvailable }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1508,47 +1508,33 @@ private struct TranslationEngineSettingsCard: View {
                 .font(.headline)
                 .foregroundColor(.white)
 
-            Text("Avec Internet : DeepL (meilleure qualité hébreu ⇄ français). Sans Internet : pack hors ligne de Google Traduction, directement dans Sarah (téléchargé une seule fois, ~30 Mo par langue).")
+            Text("Hébreu ⇄ français avec le pack hors ligne de Google Traduction, directement dans Sarah. Gratuit, sans abonnement, avec ou sans Internet.")
                 .font(.footnote)
                 .foregroundColor(Color.white.opacity(0.54))
 
-            SecureField("Clé API DeepL (se termine par :fx pour l’offre gratuite)", text: $deepLKey)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .padding(12)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .onSubmit(saveKey)
+            Text(googleAvailable
+                 ? "✅ Moteur Google intégré"
+                 : "⚠️ Moteur Google non installé : lancer « pod install » sur le Mac puis ouvrir SarahIA.xcworkspace")
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.7))
 
-            HStack(spacing: 10) {
-                Button(action: saveKey) {
-                    Text("Enregistrer la clé")
+            if googleAvailable {
+                Button(action: {
+                    TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
+                    packsRequested = true
+                    HapticService.shared.buttonTap()
+                }) {
+                    Text(packsRequested ? "Téléchargement lancé ✓" : "Télécharger les packs hébreu et français (~60 Mo)")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(Capsule().fill(Color.cyan.opacity(0.22)))
                         .foregroundColor(.cyan)
                 }
-
-                if isKeySaved {
-                    Button(action: {
-                        deepLKey = ""
-                        saveKey()
-                    }) {
-                        Text("Supprimer")
-                            .font(.subheadline)
-                            .foregroundColor(Color.red.opacity(0.8))
-                    }
-                }
+                .disabled(packsRequested)
             }
 
-            Text(isKeySaved
-                 ? "✅ DeepL actif : les phrases terminées sont traduites par DeepL."
-                 : "Aucune clé : Sarah utilise le pack hors ligne Google. Pour une app vendue, utilise l’offre DeepL API Pro.")
-                .font(.caption)
-                .foregroundColor(Color.white.opacity(0.54))
-
-            Text("Hors ligne Google : \(TranslationEngine.shared.isGoogleOfflineAvailable ? "intégré ✅ — packs téléchargés au premier lancement de la traduction" : "non installé (lancer pod install)") · iOS : \(offlineStatusText)")
+            Text("Les packs se téléchargent une seule fois (aussi automatiquement au premier appel traduit). Traductions affichées avec la mention « Traduit par Google ».")
                 .font(.caption)
                 .foregroundColor(Color.white.opacity(0.38))
         }
@@ -1557,23 +1543,6 @@ private struct TranslationEngineSettingsCard: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color.white.opacity(0.075))
         )
-        .task {
-            let status = await TranslationEngine.shared.onDeviceStatus(from: "he", to: "fr")
-            switch status {
-            case .installed:
-                offlineStatusText = "prêt ✅"
-            case .downloadable:
-                offlineStatusText = "pack à télécharger (Sarah le propose au lancement de la traduction)"
-            case .unsupported:
-                offlineStatusText = "non disponible sur cette version d’iOS (iOS 27 requis)"
-            }
-        }
-    }
-
-    private func saveKey() {
-        TranslationEngine.shared.deepLAPIKey = deepLKey
-        isKeySaved = TranslationEngine.shared.hasDeepLKey
-        HapticService.shared.buttonTap()
     }
 }
 

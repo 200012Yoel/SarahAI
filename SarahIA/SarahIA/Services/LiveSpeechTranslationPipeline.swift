@@ -7,8 +7,8 @@ import Speech
 ///
 /// Fonctionnement :
 /// 1. Pendant que la personne parle : sous-titres immédiats (texte reconnu + traduction rapide sur l'iPhone).
-/// 2. À la première pause (~0,8 s) : la phrase est figée, traduite avec le meilleur moteur (DeepL en ligne,
-///    sinon iOS hors ligne), puis prononcée.
+/// 2. À la première pause (~0,8 s) : la phrase est figée, traduite par le pack Google hors ligne
+///    (gratuit, avec ou sans Internet), puis prononcée.
 /// 3. Pendant que Sarah parle, le micro est ignoré : le téléphone ne retraduit jamais sa propre voix.
 ///    L'écoute reprend toute seule dès que la voix a fini.
 public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDelegate, AVSpeechSynthesizerDelegate {

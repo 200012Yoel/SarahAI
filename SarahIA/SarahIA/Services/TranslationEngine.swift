@@ -1,5 +1,4 @@
 import Foundation
-import Security
 #if canImport(Translation)
 import Translation
 #endif
@@ -8,16 +7,14 @@ import MLKitTranslate
 #endif
 
 /// Moteur de traduction de Sarah (français, hébreu, anglais), entièrement dans l'application.
-/// Tous les moteurs utilisés sont autorisés dans une application vendue.
+/// 100 % gratuit, aucun abonnement, autorisé dans une application vendue.
 ///
-/// Ordre des moteurs :
-/// - `.fast` (sous-titres pendant que la personne parle, aucun réseau) :
-///   dictionnaire → cache → Google ML Kit hors ligne → moteur iOS hors ligne.
-/// - `.best` (phrase terminée, celle qui est prononcée) :
-///   dictionnaire → cache → DeepL (Internet) → Google ML Kit hors ligne → moteur iOS → lexique embarqué.
+/// Ordre des moteurs (identique avec ou sans Internet) :
+///   dictionnaire → cache → Google ML Kit (pack hors ligne de Google Traduction)
+///   → moteur iOS hors ligne (s'il existe sur l'appareil) → lexique embarqué.
 ///
-/// Google ML Kit = le pack hors ligne de Google Traduction (hébreu et français, ~30 Mo par langue),
-/// téléchargé une seule fois par Sarah. Obligation : afficher « Traduit par Google » (voir `attribution`).
+/// Google ML Kit : hébreu et français, ~30 Mo par langue, téléchargés une seule fois par Sarah.
+/// Obligation : afficher « Traduit par Google » (voir `EngineUsed.attribution`).
 public final class TranslationEngine {
 
     public static let shared = TranslationEngine()
@@ -36,8 +33,8 @@ public final class TranslationEngine {
         }
     }
 
-    /// `.fast` : réponse quasi instantanée, sans réseau (sous-titres en direct).
-    /// `.best` : meilleure qualité possible (phrase finale).
+    /// `.fast` : sous-titres en direct (pas de lexique de secours, on garde l'ancienne traduction).
+    /// `.best` : phrase finale (tous les moteurs, lexique compris).
     public enum Quality {
         case fast
         case best
@@ -47,7 +44,6 @@ public final class TranslationEngine {
     public enum EngineUsed: String {
         case dictionary = "Dictionnaire"
         case cache = "Cache"
-        case deepL = "DeepL"
         case googleOffline = "Google (hors ligne)"
         case onDevice = "iOS (hors ligne)"
         case phrasebook = "Lexique local"
@@ -57,7 +53,6 @@ public final class TranslationEngine {
         public var attribution: String? {
             switch self {
             case .googleOffline: return "Traduit par Google"
-            case .deepL: return "Traduit par DeepL"
             default: return nil
             }
         }
@@ -76,14 +71,6 @@ public final class TranslationEngine {
     }
 
     public private(set) var lastEngineUsed: EngineUsed = .none
-
-    private lazy var session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 5.0
-        config.timeoutIntervalForResource = 8.0
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        return URLSession(configuration: config)
-    }()
 
     private let fastLocalDict: [String: String] = [
         // FR -> HE
@@ -132,48 +119,6 @@ public final class TranslationEngine {
     ]
 
     private init() {}
-
-    // MARK: - Clé DeepL (stockée dans le trousseau iOS)
-
-    private static let keychainService = "com.sarahia.deepl"
-    private static let keychainAccount = "apiKey"
-
-    /// Clé API DeepL saisie dans les Réglages. `nil` si aucune clé.
-    public var deepLAPIKey: String? {
-        get {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: Self.keychainService,
-                kSecAttrAccount as String: Self.keychainAccount,
-                kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
-            ]
-            var item: CFTypeRef?
-            guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-                  let data = item as? Data,
-                  let key = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !key.isEmpty else {
-                return nil
-            }
-            return key
-        }
-        set {
-            let baseQuery: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: Self.keychainService,
-                kSecAttrAccount as String: Self.keychainAccount
-            ]
-            SecItemDelete(baseQuery as CFDictionary)
-            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return }
-            var addQuery = baseQuery
-            addQuery[kSecValueData as String] = data
-            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            SecItemAdd(addQuery as CFDictionary, nil)
-        }
-    }
-
-    public var hasDeepLKey: Bool { deepLAPIKey != nil }
 
     // MARK: - Détection d'intention
 
@@ -314,25 +259,19 @@ public final class TranslationEngine {
             return record(cached)
         }
 
-        if quality == .best, NetworkMonitor.shared.isOnline, let key = deepLAPIKey,
-           let deepL = await translateWithDeepL(clean, from: source, to: target, apiKey: key) {
-            // 3. DeepL (Internet, meilleure qualité)
-            return record(store(TranslationResult(text: deepL, engine: .deepL), key: cacheKey))
-        }
-
-        // 4. Google ML Kit (pack hors ligne de Google Traduction)
+        // 3. Google ML Kit (pack hors ligne de Google Traduction)
         if let google = await GoogleOfflineTranslator.shared.translate(clean, from: source, to: target) {
             return record(store(TranslationResult(text: google, engine: .googleOffline), key: cacheKey))
         }
 
-        // 5. Moteur iOS hors ligne (si disponible sur l'appareil)
+        // 4. Moteur iOS hors ligne (si disponible sur l'appareil)
         if let onDevice = await translateOnDevice(clean, from: source, to: target) {
             return record(store(TranslationResult(text: onDevice, engine: .onDevice), key: cacheKey))
         }
 
         guard quality == .best else { return nil }
 
-        // 6. Lexique de phrases embarqué
+        // 5. Lexique de phrases embarqué
         let phrase = OfflineTranslationAssetLoader.shared.translateOffline(text: clean, from: source, to: target)
         if phrase.lowercased() != clean.lowercased() {
             return record(TranslationResult(text: phrase, engine: .phrasebook))
@@ -419,72 +358,12 @@ public final class TranslationEngine {
         return nil
     }
 
-    // MARK: - DeepL
-
-    @available(iOS 13.0, *)
-    private func translateWithDeepL(_ text: String, from source: String, to target: String, apiKey: String) async -> String? {
-        let host = apiKey.hasSuffix(":fx") ? "https://api-free.deepl.com" : "https://api.deepl.com"
-        guard let url = URL(string: "\(host)/v2/translate") else { return nil }
-
-        let targetCode: String
-        switch target {
-        case "en": targetCode = "EN-US"
-        case "he": targetCode = "HE"
-        default: targetCode = "FR"
-        }
-
-        var body: [String: Any] = [
-            "text": [text],
-            "target_lang": targetCode
-        ]
-        if ["fr", "he", "en"].contains(source) {
-            body["source_lang"] = source.uppercased()
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("DeepL-Auth-Key \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        guard let (data, response) = try? await dataTask(request),
-              let http = response as? HTTPURLResponse else {
-            return nil
-        }
-        guard http.statusCode == 200 else {
-            // 403 : clé invalide · 456 : quota atteint · 429 : trop de requêtes
-            print("⚠️ [Traduction] DeepL a répondu \(http.statusCode)")
-            return nil
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let translations = json["translations"] as? [[String: Any]],
-              let translated = translations.first?["text"] as? String,
-              !translated.isEmpty else {
-            return nil
-        }
-        return translated
-    }
-
     // MARK: - Utilitaires
 
     private func normalizedSource(_ sourceLang: String, text: String) -> String {
         switch sourceLang {
         case "fr", "he", "en": return sourceLang
         default: return detectLanguage(text: text)
-        }
-    }
-
-    /// `URLSession.data(for:)` n'existe qu'à partir d'iOS 15 : version compatible iOS 13+.
-    @available(iOS 13.0, *)
-    private func dataTask(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
-            session.dataTask(with: request) { data, response, error in
-                if let data = data, let response = response {
-                    continuation.resume(returning: (data, response))
-                } else {
-                    continuation.resume(throwing: error ?? URLError(.badServerResponse))
-                }
-            }.resume()
         }
     }
 
