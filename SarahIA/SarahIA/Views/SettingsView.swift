@@ -1508,7 +1508,7 @@ private struct TranslationEngineSettingsCard: View {
                 .font(.headline)
                 .foregroundColor(.white)
 
-            Text("Avec Internet : DeepL (meilleure qualité hébreu ⇄ français). Sans Internet : moteur de traduction d’iOS, directement dans Sarah.")
+            Text("Avec Internet : DeepL (meilleure qualité hébreu ⇄ français). Sans Internet : pack hors ligne de Google Traduction, directement dans Sarah (téléchargé une seule fois, ~30 Mo par langue).")
                 .font(.footnote)
                 .foregroundColor(Color.white.opacity(0.54))
 
@@ -1544,11 +1544,11 @@ private struct TranslationEngineSettingsCard: View {
 
             Text(isKeySaved
                  ? "✅ DeepL actif : les phrases terminées sont traduites par DeepL."
-                 : "Aucune clé : Sarah utilise le moteur hors ligne d’iOS, puis un service gratuit de secours.")
+                 : "Aucune clé : Sarah utilise le pack hors ligne Google. Pour une app vendue, utilise l’offre DeepL API Pro.")
                 .font(.caption)
                 .foregroundColor(Color.white.opacity(0.54))
 
-            Text("Hors ligne hébreu → français : \(offlineStatusText)")
+            Text("Hors ligne Google : \(TranslationEngine.shared.isGoogleOfflineAvailable ? "intégré ✅ — packs téléchargés au premier lancement de la traduction" : "non installé (lancer pod install)") · iOS : \(offlineStatusText)")
                 .font(.caption)
                 .foregroundColor(Color.white.opacity(0.38))
         }

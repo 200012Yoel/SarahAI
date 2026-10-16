@@ -90,7 +90,9 @@ public struct CallTranscriptItem: Identifiable, Equatable {
     public let targetLanguage: String
     public let timestamp: Date
     public var isFinal: Bool
-    
+    /// Mention du moteur à afficher sous la traduction (ex. « Traduit par Google », obligatoire pour ML Kit).
+    public let attribution: String?
+
     public init(
         id: String = UUID().uuidString,
         isLocalSpeaker: Bool,
@@ -99,7 +101,8 @@ public struct CallTranscriptItem: Identifiable, Equatable {
         translatedText: String,
         targetLanguage: String,
         timestamp: Date = Date(),
-        isFinal: Bool = false
+        isFinal: Bool = false,
+        attribution: String? = nil
     ) {
         self.id = id
         self.isLocalSpeaker = isLocalSpeaker
@@ -109,5 +112,6 @@ public struct CallTranscriptItem: Identifiable, Equatable {
         self.targetLanguage = targetLanguage
         self.timestamp = timestamp
         self.isFinal = isFinal
+        self.attribution = attribution
     }
 }

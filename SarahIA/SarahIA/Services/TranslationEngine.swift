@@ -3,17 +3,21 @@ import Security
 #if canImport(Translation)
 import Translation
 #endif
+#if canImport(MLKitTranslate)
+import MLKitTranslate
+#endif
 
 /// Moteur de traduction de Sarah (français, hébreu, anglais), entièrement dans l'application.
+/// Tous les moteurs utilisés sont autorisés dans une application vendue.
 ///
 /// Ordre des moteurs :
-/// - `.fast` (sous-titres pendant que la personne parle) :
-///   dictionnaire → cache → moteur iOS sur l'appareil (hors ligne).
+/// - `.fast` (sous-titres pendant que la personne parle, aucun réseau) :
+///   dictionnaire → cache → Google ML Kit hors ligne → moteur iOS hors ligne.
 /// - `.best` (phrase terminée, celle qui est prononcée) :
-///   dictionnaire → cache → DeepL (Internet) → moteur iOS sur l'appareil → MyMemory → dictionnaire de phrases.
+///   dictionnaire → cache → DeepL (Internet) → Google ML Kit hors ligne → moteur iOS → lexique embarqué.
 ///
-/// Le moteur iOS est la brique système `Translation` : il fonctionne dans Sarah,
-/// sans ouvrir l'app Traduction. L'hébreu y est disponible à partir d'iOS 27.
+/// Google ML Kit = le pack hors ligne de Google Traduction (hébreu et français, ~30 Mo par langue),
+/// téléchargé une seule fois par Sarah. Obligation : afficher « Traduit par Google » (voir `attribution`).
 public final class TranslationEngine {
 
     public static let shared = TranslationEngine()
@@ -44,10 +48,25 @@ public final class TranslationEngine {
         case dictionary = "Dictionnaire"
         case cache = "Cache"
         case deepL = "DeepL"
-        case onDevice = "iPhone (hors ligne)"
-        case myMemory = "MyMemory"
+        case googleOffline = "Google (hors ligne)"
+        case onDevice = "iOS (hors ligne)"
         case phrasebook = "Lexique local"
         case none = "Aucun"
+
+        /// Mention à afficher sous la traduction (obligatoire pour Google ML Kit).
+        public var attribution: String? {
+            switch self {
+            case .googleOffline: return "Traduit par Google"
+            case .deepL: return "Traduit par DeepL"
+            default: return nil
+            }
+        }
+    }
+
+    /// Résultat détaillé : texte traduit + moteur utilisé.
+    public struct TranslationResult {
+        public let text: String
+        public let engine: EngineUsed
     }
 
     public struct TranslationRequest {
@@ -65,8 +84,6 @@ public final class TranslationEngine {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config)
     }()
-
-    private let cache = NSCache<NSString, NSString>()
 
     private let fastLocalDict: [String: String] = [
         // FR -> HE
@@ -114,9 +131,7 @@ public final class TranslationEngine {
         "je t'aime|en": "I love you"
     ]
 
-    private init() {
-        cache.countLimit = 500
-    }
+    private init() {}
 
     // MARK: - Clé DeepL (stockée dans le trousseau iOS)
 
@@ -273,76 +288,103 @@ public final class TranslationEngine {
     /// (utile pour les sous-titres : on garde alors l'ancienne traduction affichée).
     @available(iOS 13.0, *)
     public func translateIfPossible(text: String, sourceLang: String, targetLang: TargetLanguage, quality: Quality) async -> String? {
+        await translateDetailed(text: text, sourceLang: sourceLang, targetLang: targetLang, quality: quality)?.text
+    }
+
+    /// Traduction avec le nom du moteur utilisé (pour afficher « Traduit par Google »).
+    @available(iOS 13.0, *)
+    public func translateDetailed(text: String, sourceLang: String, targetLang: TargetLanguage, quality: Quality) async -> TranslationResult? {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return nil }
 
         let target = targetLang.rawValue
         let source = normalizedSource(sourceLang, text: clean)
-        if source == target { return clean }
+        if source == target { return TranslationResult(text: clean, engine: .none) }
 
         // 1. Dictionnaire instantané
         let lower = clean.lowercased()
         let dictKey = targetLang == .english ? "\(lower)|en" : lower
         if let localMatch = fastLocalDict[dictKey] {
-            lastEngineUsed = .dictionary
-            return localMatch
+            return record(TranslationResult(text: localMatch, engine: .dictionary))
         }
 
-        // 2. Cache (la qualité "best" n'utilise que les résultats DeepL / iOS mis en cache)
-        let cacheKey = "\(source)|\(target)|\(clean)" as NSString
-        if let cached = cache.object(forKey: cacheKey) {
-            lastEngineUsed = .cache
-            return cached as String
+        // 2. Cache (garde le moteur d'origine pour l'attribution)
+        let cacheKey = "\(source)|\(target)|\(clean)"
+        if let cached = cachedResult(cacheKey) {
+            return record(cached)
         }
 
-        switch quality {
-        case .fast:
-            // Sous-titres : uniquement le moteur iOS sur l'appareil (aucun réseau, aucun quota consommé)
-            if let onDevice = await translateOnDevice(clean, from: source, to: target) {
-                lastEngineUsed = .onDevice
-                return onDevice
-            }
-            return nil
-
-        case .best:
-            let online = NetworkMonitor.shared.isOnline
-
+        if quality == .best, NetworkMonitor.shared.isOnline, let key = deepLAPIKey,
+           let deepL = await translateWithDeepL(clean, from: source, to: target, apiKey: key) {
             // 3. DeepL (Internet, meilleure qualité)
-            if online, let key = deepLAPIKey,
-               let deepL = await translateWithDeepL(clean, from: source, to: target, apiKey: key) {
-                cache.setObject(deepL as NSString, forKey: cacheKey)
-                lastEngineUsed = .deepL
-                return deepL
-            }
-
-            // 4. Moteur iOS sur l'appareil (hors ligne)
-            if let onDevice = await translateOnDevice(clean, from: source, to: target) {
-                cache.setObject(onDevice as NSString, forKey: cacheKey)
-                lastEngineUsed = .onDevice
-                return onDevice
-            }
-
-            // 5. MyMemory (gratuit, qualité moyenne, petit quota)
-            if online, let memory = await translateWithMyMemory(clean, from: source, to: target) {
-                lastEngineUsed = .myMemory
-                return memory
-            }
-
-            // 6. Lexique de phrases embarqué
-            let phrase = OfflineTranslationAssetLoader.shared.translateOffline(text: clean, from: source, to: target)
-            if phrase.lowercased() != clean.lowercased() {
-                lastEngineUsed = .phrasebook
-                return phrase
-            }
-
-            lastEngineUsed = .none
-            return nil
+            return record(store(TranslationResult(text: deepL, engine: .deepL), key: cacheKey))
         }
+
+        // 4. Google ML Kit (pack hors ligne de Google Traduction)
+        if let google = await GoogleOfflineTranslator.shared.translate(clean, from: source, to: target) {
+            return record(store(TranslationResult(text: google, engine: .googleOffline), key: cacheKey))
+        }
+
+        // 5. Moteur iOS hors ligne (si disponible sur l'appareil)
+        if let onDevice = await translateOnDevice(clean, from: source, to: target) {
+            return record(store(TranslationResult(text: onDevice, engine: .onDevice), key: cacheKey))
+        }
+
+        guard quality == .best else { return nil }
+
+        // 6. Lexique de phrases embarqué
+        let phrase = OfflineTranslationAssetLoader.shared.translateOffline(text: clean, from: source, to: target)
+        if phrase.lowercased() != clean.lowercased() {
+            return record(TranslationResult(text: phrase, engine: .phrasebook))
+        }
+
+        lastEngineUsed = .none
+        return nil
+    }
+
+    // MARK: - Packs hors ligne
+
+    /// Télécharge à l'avance les packs Google hors ligne des langues données (une seule fois, ~30 Mo chacun).
+    public func prepareOfflinePacks(for languages: [String]) {
+        GoogleOfflineTranslator.shared.prepare(languages: languages)
+    }
+
+    /// `true` si la traduction Google hors ligne est intégrée à cette version de Sarah.
+    public var isGoogleOfflineAvailable: Bool {
+        GoogleOfflineTranslator.isAvailable
+    }
+
+    // MARK: - Cache
+
+    private let cacheLock = NSLock()
+    private var engineCache: [String: TranslationResult] = [:]
+    private var engineCacheOrder: [String] = []
+
+    private func cachedResult(_ key: String) -> TranslationResult? {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        return engineCache[key]
+    }
+
+    private func store(_ result: TranslationResult, key: String) -> TranslationResult {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if engineCache[key] == nil {
+            engineCacheOrder.append(key)
+            if engineCacheOrder.count > 500 {
+                engineCache.removeValue(forKey: engineCacheOrder.removeFirst())
+            }
+        }
+        engineCache[key] = result
+        return result
+    }
+
+    private func record(_ result: TranslationResult) -> TranslationResult {
+        lastEngineUsed = result.engine
+        return result
     }
 
     // MARK: - Moteur iOS sur l'appareil
 
-    /// État du moteur hors ligne pour une paire de langues.
+    /// État du moteur hors ligne iOS pour une paire de langues.
     public enum OnDeviceStatus {
         case installed      // prêt, fonctionne sans Internet
         case downloadable   // supporté, le pack doit être téléchargé une fois
@@ -423,29 +465,6 @@ public final class TranslationEngine {
         return translated
     }
 
-    // MARK: - MyMemory (dernier recours en ligne)
-
-    @available(iOS 13.0, *)
-    private func translateWithMyMemory(_ text: String, from source: String, to target: String) async -> String? {
-        guard let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://api.mymemory.translated.net/get?q=\(encoded)&langpair=\(source)|\(target)") else {
-            return nil
-        }
-        guard let (data, response) = try? await dataTask(URLRequest(url: url)),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let responseData = json["responseData"] as? [String: Any],
-              let translated = responseData["translatedText"] as? String,
-              !translated.isEmpty else {
-            return nil
-        }
-        let lower = translated.lowercased()
-        if lower.contains("no query specified") || lower.contains("mymemory warning") || lower.contains("quota") {
-            return nil
-        }
-        return translated
-    }
-
     // MARK: - Utilitaires
 
     private func normalizedSource(_ sourceLang: String, text: String) -> String {
@@ -521,3 +540,132 @@ private actor OnDeviceTranslator {
     }
 }
 #endif
+
+// MARK: - Google ML Kit : pack hors ligne de Google Traduction
+
+/// Traduction hors ligne avec Google ML Kit (Pod `GoogleMLKit/Translate`).
+/// Si le Pod n'est pas installé, ce traducteur est simplement inactif et l'app compile quand même.
+private final class GoogleOfflineTranslator {
+    static let shared = GoogleOfflineTranslator()
+
+    static var isAvailable: Bool {
+        #if canImport(MLKitTranslate)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    #if canImport(MLKitTranslate)
+    private let lock = NSLock()
+    private var translators: [String: Translator] = [:]
+    private var readyPairs: Set<String> = []
+    private var downloadingPairs: Set<String> = []
+
+    private static func mlLanguage(_ code: String) -> TranslateLanguage? {
+        switch code {
+        case "fr": return .french
+        case "he": return .hebrew
+        case "en": return .english
+        default: return nil
+        }
+    }
+
+    private func translator(from source: String, to target: String) -> Translator? {
+        guard let sourceLanguage = Self.mlLanguage(source),
+              let targetLanguage = Self.mlLanguage(target) else { return nil }
+        let key = "\(source)|\(target)"
+        lock.lock(); defer { lock.unlock() }
+        if let existing = translators[key] { return existing }
+        let options = TranslatorOptions(sourceLanguage: sourceLanguage, targetLanguage: targetLanguage)
+        let created = Translator.translator(options: options)
+        translators[key] = created
+        return created
+    }
+
+    /// Vrai si les packs des deux langues sont déjà sur l'iPhone.
+    private func packsAreDownloaded(from source: String, to target: String) -> Bool {
+        let manager = ModelManager.modelManager()
+        for code in [source, target] where code != "en" {
+            guard let language = Self.mlLanguage(code) else { return false }
+            let model = TranslateRemoteModel.translateRemoteModel(language: language)
+            if !manager.isModelDownloaded(model) { return false }
+        }
+        return true
+    }
+
+    func prepare(languages: [String]) {
+        let codes = Array(Set(languages)).filter { Self.mlLanguage($0) != nil }
+        for source in codes {
+            for target in codes where source != target {
+                ensureDownloaded(from: source, to: target)
+            }
+        }
+    }
+
+    private func ensureDownloaded(from source: String, to target: String) {
+        let key = "\(source)|\(target)"
+        lock.lock()
+        if readyPairs.contains(key) || downloadingPairs.contains(key) {
+            lock.unlock()
+            return
+        }
+        downloadingPairs.insert(key)
+        lock.unlock()
+
+        guard let translator = translator(from: source, to: target) else {
+            lock.lock(); downloadingPairs.remove(key); lock.unlock()
+            return
+        }
+
+        // Packs d'environ 30 Mo : autorisés en 4G/5G pour que la traduction marche partout.
+        let conditions = ModelDownloadConditions(allowsCellularAccess: true, allowsBackgroundDownloading: true)
+        translator.downloadModelIfNeeded(with: conditions) { [weak self] error in
+            guard let self = self else { return }
+            self.lock.lock()
+            self.downloadingPairs.remove(key)
+            if error == nil { self.readyPairs.insert(key) }
+            self.lock.unlock()
+            if let error = error {
+                print("⚠️ [Traduction] Pack Google \(source) → \(target) non téléchargé : \(error.localizedDescription)")
+            } else {
+                print("✅ [Traduction] Pack Google hors ligne \(source) → \(target) prêt")
+            }
+        }
+    }
+
+    @available(iOS 13.0, *)
+    func translate(_ text: String, from source: String, to target: String) async -> String? {
+        let key = "\(source)|\(target)"
+
+        lock.lock()
+        var isReady = readyPairs.contains(key)
+        lock.unlock()
+
+        if !isReady && packsAreDownloaded(from: source, to: target) {
+            lock.lock(); readyPairs.insert(key); lock.unlock()
+            isReady = true
+        }
+
+        guard isReady, let translator = translator(from: source, to: target) else {
+            // Pas encore téléchargé : on lance le téléchargement, les autres moteurs prennent le relais.
+            ensureDownloaded(from: source, to: target)
+            return nil
+        }
+
+        return await withCheckedContinuation { continuation in
+            translator.translate(text) { translated, error in
+                let output = translated?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                continuation.resume(returning: (error == nil && !output.isEmpty) ? output : nil)
+            }
+        }
+    }
+    #else
+    func prepare(languages: [String]) {}
+
+    @available(iOS 13.0, *)
+    func translate(_ text: String, from source: String, to target: String) async -> String? {
+        nil
+    }
+    #endif
+}

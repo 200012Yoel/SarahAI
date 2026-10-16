@@ -1,0 +1,11 @@
+# Sarah IA — dépendances CocoaPods
+# Installation sur le Mac : `cd SarahIA && pod install`, puis ouvrir SarahIA.xcworkspace.
+
+platform :ios, '16.2'
+
+target 'SarahIA' do
+  use_frameworks!
+
+  # Pack hors ligne de Google Traduction (hébreu ⇄ français sans Internet)
+  pod 'GoogleMLKit/Translate', '8.0.0'
+end

@@ -301,6 +301,13 @@ public struct VoiceCallScreenView: View {
                         .foregroundColor(item.isLocalSpeaker ? Color(red: 0.0, green: 0.85, blue: 1.0) : Color(red: 0.85, green: 0.55, blue: 1.0))
                         .multilineTextAlignment(item.isLocalSpeaker ? .trailing : .leading)
                 }
+
+                // Mention du moteur (obligatoire pour la traduction Google hors ligne)
+                if let attribution = item.attribution {
+                    Text(attribution)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.gray.opacity(0.8))
+                }
             }
             .padding(10)
             .background(

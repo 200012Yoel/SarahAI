@@ -56,6 +56,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private var currentSegmentId = UUID().uuidString
     private var currentOriginalText = ""
     private var currentPartialTranslation = ""
+    private var currentPartialAttribution: String?
     private var silenceTimer: Timer?
 
     private var isPartialTranslationInFlight = false
@@ -75,6 +76,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.stopPipelineOnMain()
             self.currentLanguagePair = languagePair
             self.isPipelineRunning = true
+            TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.localLanguage, languagePair.remoteLanguage])
 
             let localeId = self.localeIdentifier(for: languagePair.localLanguage)
             self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
@@ -203,6 +205,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         currentSegmentId = UUID().uuidString
         currentOriginalText = ""
         currentPartialTranslation = ""
+        currentPartialAttribution = nil
         pendingPartialText = nil
 
         setActiveRequest(request)
@@ -291,7 +294,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         let pair = currentLanguagePair
 
         Task { [weak self] in
-            let translated = await TranslationEngine.shared.translateIfPossible(
+            let result = await TranslationEngine.shared.translateDetailed(
                 text: text,
                 sourceLang: pair.localLanguage,
                 targetLang: Self.targetEnum(pair.remoteLanguage),
@@ -300,9 +303,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             await MainActor.run {
                 guard let self = self else { return }
                 self.isPartialTranslationInFlight = false
-                if let translated = translated, segmentId == self.currentSegmentId {
-                    self.currentPartialTranslation = translated
-                    self.publishLocalItem(original: self.currentOriginalText, translated: translated, isFinal: false)
+                if let result = result, segmentId == self.currentSegmentId {
+                    self.currentPartialTranslation = result.text
+                    self.currentPartialAttribution = result.engine.attribution
+                    self.publishLocalItem(original: self.currentOriginalText, translated: result.text, isFinal: false)
                 }
                 self.schedulePartialTranslation()
             }
@@ -319,6 +323,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         let segmentId = currentSegmentId
         let pair = currentLanguagePair
         let partial = currentPartialTranslation
+        let partialAttribution = currentPartialAttribution
 
         guard !text.isEmpty else { return }
 
@@ -326,6 +331,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         endRecognitionSession()
         currentOriginalText = ""
         currentPartialTranslation = ""
+        currentPartialAttribution = nil
         pendingPartialText = nil
 
         let willSpeak = pair.isVoiceTranslationEnabled
@@ -337,7 +343,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
 
         Task { [weak self] in
-            let translated = await TranslationEngine.shared.translate(
+            let result = await TranslationEngine.shared.translateDetailed(
                 text: text,
                 sourceLang: pair.localLanguage,
                 targetLang: Self.targetEnum(pair.remoteLanguage),
@@ -345,8 +351,9 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             )
             await MainActor.run {
                 guard let self = self else { return }
-                // Si aucun moteur n'a traduit, on garde au moins la traduction rapide
-                let finalText = (translated == text && !partial.isEmpty) ? partial : translated
+                // Si aucun moteur n'a traduit, on garde au moins la traduction rapide, sinon le texte d'origine
+                let finalText = result?.text ?? (partial.isEmpty ? text : partial)
+                let attribution = result?.engine.attribution ?? (partial.isEmpty ? nil : partialAttribution)
                 self.publishItem(
                     id: segmentId,
                     isLocal: true,
@@ -354,7 +361,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                     originalLanguage: pair.localLanguage,
                     translated: finalText,
                     targetLanguage: pair.remoteLanguage,
-                    isFinal: true
+                    isFinal: true,
+                    attribution: attribution
                 )
                 guard self.isPipelineRunning else { return }
                 if willSpeak {
@@ -436,7 +444,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
 
         Task { [weak self] in
-            let translated = await TranslationEngine.shared.translate(
+            let result = await TranslationEngine.shared.translateDetailed(
                 text: remoteText,
                 sourceLang: pair.remoteLanguage,
                 targetLang: Self.targetEnum(pair.localLanguage),
@@ -448,9 +456,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                     isLocal: false,
                     original: remoteText,
                     originalLanguage: pair.remoteLanguage,
-                    translated: translated,
+                    translated: result?.text ?? remoteText,
                     targetLanguage: pair.localLanguage,
-                    isFinal: true
+                    isFinal: true,
+                    attribution: result?.engine.attribution
                 )
             }
         }
@@ -466,11 +475,12 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             originalLanguage: currentLanguagePair.localLanguage,
             translated: translated,
             targetLanguage: currentLanguagePair.remoteLanguage,
-            isFinal: isFinal
+            isFinal: isFinal,
+            attribution: currentPartialTranslation.isEmpty ? nil : currentPartialAttribution
         )
     }
 
-    private func publishItem(id: String, isLocal: Bool, original: String, originalLanguage: String, translated: String, targetLanguage: String, isFinal: Bool) {
+    private func publishItem(id: String, isLocal: Bool, original: String, originalLanguage: String, translated: String, targetLanguage: String, isFinal: Bool, attribution: String? = nil) {
         let item = CallTranscriptItem(
             id: id,
             isLocalSpeaker: isLocal,
@@ -478,7 +488,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             originalLanguage: originalLanguage,
             translatedText: translated,
             targetLanguage: targetLanguage,
-            isFinal: isFinal
+            isFinal: isFinal,
+            attribution: attribution
         )
         onTranscriptItemUpdated?(item)
     }
