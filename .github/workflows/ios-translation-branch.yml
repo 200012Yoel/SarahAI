@@ -1,0 +1,157 @@
+name: Traduction en direct (branche) — build iOS
+run-name: Traduction en direct — build #${{ github.run_number }}
+
+# Compile la branche de la traduction en direct (Google ML Kit + WhisperKit + llama.cpp)
+# et produit une IPA de test. Ne publie aucune release.
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/traduction-temps-reel]
+    paths:
+      - 'SarahIA/**'
+      - '.github/workflows/ios-translation-branch.yml'
+
+concurrency:
+  group: sarahia-translation-branch
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore website voice bridge before compiling
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/restore_website_voice_bridge.py
+          grep -q 'public func speakWebsiteGuide(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func speakSequence(' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+
+      - name: Verify translation stack (no call code, no paid service)
+        run: |
+          set -euo pipefail
+          grep -q 'import WhisperKit' SarahIA/SarahIA/Services/WhisperService.swift
+          grep -q 'MLKitTranslate' SarahIA/SarahIA/Services/TranslationEngine.swift
+          grep -q 'public struct LiveTranslationView' SarahIA/SarahIA/Views/LiveTranslationView.swift
+          if grep -rq 'WebRTCVoiceCallManager\|VoiceCallContactManager' SarahIA/SarahIA; then
+            echo 'Code d appel encore present'; exit 1
+          fi
+          if grep -rqi 'deepl\.com\|mymemory' SarahIA/SarahIA; then
+            echo 'Service payant encore present'; exit 1
+          fi
+          echo 'Translation stack verified'
+
+      - name: Build llama.cpp v0.4.1 XCFramework
+        run: |
+          set -euo pipefail
+          LLAMA_ROOT="$RUNNER_TEMP/llama.cpp"
+          rm -rf "$LLAMA_ROOT"
+          git clone --depth 1 --branch v0.4.1 https://github.com/ggml-org/llama.cpp.git "$LLAMA_ROOT"
+          cd "$LLAMA_ROOT"
+          ./build-xcframework.sh ios-device
+          test -d build-apple/llama.xcframework
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Install CocoaPods dependencies (Google ML Kit)
+        working-directory: SarahIA
+        run: |
+          set -euo pipefail
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods --no-document
+          fi
+          pod --version
+          pod install --repo-update
+          test -d Pods/MLKitTranslate
+
+      - name: Configure build number
+        run: |
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
+          find . -path "*/SarahIA/Info.plist" -exec plutil -replace CFBundleVersion -string "${{ github.run_number }}" {} \; 2>/dev/null || true
+
+      - name: Build device app
+        working-directory: SarahIA
+        run: |
+          set -euo pipefail
+          LLAMA_FRAMEWORK=$(find "$RUNNER_TEMP/llama.cpp/build-apple/llama.xcframework" -path '*/ios-arm64/llama.framework' -type d -print -quit)
+          test -n "$LLAMA_FRAMEWORK"
+          LLAMA_FRAMEWORK_DIR=$(dirname "$LLAMA_FRAMEWORK")
+
+          set -o pipefail
+          xcodebuild \
+            -workspace SarahIA.xcworkspace \
+            -scheme SarahIA \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            CLANG_ENABLE_MODULES=YES \
+            FRAMEWORK_SEARCH_PATHS="\$(inherited) $LLAMA_FRAMEWORK_DIR" \
+            OTHER_LDFLAGS='$(inherited) -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
+            LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+          grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
+
+      - name: Summarize compiler errors
+        if: failure()
+        run: |
+          if [ -f xcodebuild.log ]; then
+            grep -E 'error:|fatal error' xcodebuild.log | sort -u | head -80 | tee build-errors.txt || true
+          fi
+
+      - name: Package IPA
+        run: |
+          set -eo pipefail
+          APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+
+          LLAMA_FRAMEWORK=$(find "$RUNNER_TEMP/llama.cpp/build-apple/llama.xcframework" -path '*/ios-arm64/llama.framework' -type d -print -quit)
+          if file "$LLAMA_FRAMEWORK/llama" | grep -q 'dynamically linked shared library'; then
+            mkdir -p "$APP_PATH/Frameworks"
+            cp -R "$LLAMA_FRAMEWORK" "$APP_PATH/Frameworks/"
+          fi
+
+          rm -rf /tmp/Payload && mkdir -p /tmp/Payload
+          cp -R "$APP_PATH" /tmp/Payload/
+          APP_TARGET_DIR="/tmp/Payload/$(basename "$APP_PATH")"
+          if [ -d "$APP_TARGET_DIR/Frameworks" ]; then
+            find "$APP_TARGET_DIR/Frameworks" -type d -name '*.framework' -print0 | while IFS= read -r -d '' F; do codesign -f -s - "$F"; done
+          fi
+          codesign -f -s - "$APP_TARGET_DIR"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA-traduction.ipa" Payload
+          ls -lh "$GITHUB_WORKSPACE/dist/SarahIA-traduction.ipa"
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-traduction-build-log
+          path: |
+            xcodebuild.log
+            build-errors.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SarahIA-traduction-IPA
+          path: dist/SarahIA-traduction.ipa
+          retention-days: 14
