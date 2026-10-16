@@ -24,7 +24,7 @@ public final class LiveTranslationSession: ObservableObject {
 
     /// Lu depuis le thread audio.
     private let muteLock = NSLock()
-    private var _isMuted = false
+    private var audioThreadMuted = false
 
     private init() {
         pipeline.onTranscriptItemUpdated = { [weak self] item in
@@ -84,7 +84,7 @@ public final class LiveTranslationSession: ObservableObject {
         HapticService.shared.buttonTap()
         isMuted.toggle()
         muteLock.lock()
-        _isMuted = isMuted
+        audioThreadMuted = isMuted
         muteLock.unlock()
         if isMuted { micEnergy = 0 }
     }
@@ -170,7 +170,7 @@ public final class LiveTranslationSession: ObservableObject {
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self = self else { return }
             self.muteLock.lock()
-            let muted = self._isMuted
+            let muted = self.audioThreadMuted
             self.muteLock.unlock()
             guard !muted else { return }
             self.pipeline.processMicrophoneBuffer(buffer)
