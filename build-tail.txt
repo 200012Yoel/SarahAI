@@ -1,0 +1,300 @@
+172 |                     
+173 |                     // Traitement QR Code / Code-Barres prioritaire
+174 |                     if let barcodes = barcodeRequest.results as? [VNBarcodeObservation], let firstBarcode = barcodes.first, let payload = firstBarcode.payloadStringValue {
+    |                                                              `- warning: conditional downcast from '[VNBarcodeObservation]?' to '[VNBarcodeObservation]' does nothing
+175 |                         detectedFrench = "QR Code de synchronisation"
+176 |                         detectedEmoji = "📱"
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LocalVisionEngine.swift:214:97: warning: conditional downcast from 'VNBarcodeObservation?' to 'VNBarcodeObservation' does nothing
+212 |                     try? handler.perform([barcodeRequest, faceRequest, rectRequest])
+213 |                     
+214 |                     if let barcodes = barcodeRequest.results, let firstBarcode = barcodes.first as? VNBarcodeObservation, let payload = firstBarcode.payloadStringValue {
+    |                                                                                                 `- warning: conditional downcast from 'VNBarcodeObservation?' to 'VNBarcodeObservation' does nothing
+215 |                         detectedFrench = "QR Code de synchronisation"
+216 |                         detectedEmoji = "📱"
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LocalVisionEngine.swift:155:21: warning: variable 'detectedLabel' was written to, but never read
+153 |                 }
+154 |                 
+155 |                 var detectedLabel = ""
+    |                     `- warning: variable 'detectedLabel' was written to, but never read
+156 |                 var detectedFrench = ""
+157 |                 var detectedEmoji = "🔍"
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LocalVisionEngine.swift:359:54: warning: 'supportedRecognitionLanguages(for:revision:)' was deprecated in iOS 15.0 [#DeprecatedDeclaration]
+357 |     private static func configureSupportedLanguages(for request: VNRecognizeTextRequest) {
+358 |         let preferred = ["fr-FR", "en-US", "he-IL"]
+359 |         let supported = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(
+    |                                                      `- warning: 'supportedRecognitionLanguages(for:revision:)' was deprecated in iOS 15.0 [#DeprecatedDeclaration]
+360 |             for: request.recognitionLevel,
+361 |             revision: VNRecognizeTextRequest.currentRevision
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LocalVisionEngine.swift:364:58: warning: 'languageCode' was deprecated in iOS 16: renamed to 'language.languageCode.identifier' [#DeprecatedDeclaration]
+362 |         )) ?? []
+363 |         let compatible = preferred.filter { candidate in
+364 |             let language = Locale(identifier: candidate).languageCode
+    |                                                          |- warning: 'languageCode' was deprecated in iOS 16: renamed to 'language.languageCode.identifier' [#DeprecatedDeclaration]
+    |                                                          `- note: use 'language.languageCode.identifier' instead
+365 |             return supported.contains { Locale(identifier: $0).languageCode == language }
+366 |         }
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LocalVisionEngine.swift:365:64: warning: 'languageCode' was deprecated in iOS 16: renamed to 'language.languageCode.identifier' [#DeprecatedDeclaration]
+363 |         let compatible = preferred.filter { candidate in
+364 |             let language = Locale(identifier: candidate).languageCode
+365 |             return supported.contains { Locale(identifier: $0).languageCode == language }
+    |                                                                |- warning: 'languageCode' was deprecated in iOS 16: renamed to 'language.languageCode.identifier' [#DeprecatedDeclaration]
+    |                                                                `- note: use 'language.languageCode.identifier' instead
+366 |         }
+367 |         if !compatible.isEmpty {
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/SidebarView.swift:420:37: warning: 'keyWindow' was deprecated in iOS 13.0: Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes [#DeprecatedDeclaration]
+418 |                 .safeAreaInsets ?? .zero
+419 |         }
+420 |         return UIApplication.shared.keyWindow?.safeAreaInsets ?? .zero
+    |                                     `- warning: 'keyWindow' was deprecated in iOS 13.0: Should not be used for applications that support multiple scenes as it returns a key window across all connected scenes [#DeprecatedDeclaration]
+421 |     }
+422 | 
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/AudioSessionManager.swift:90:47: warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+ 88 |                 .playAndRecord,
+ 89 |                 mode: .voiceChat,
+ 90 |                 options: [.defaultToSpeaker, .allowBluetooth]
+    |                                               |- warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+    |                                               `- note: use 'AVAudioSession.CategoryOptions.allowBluetoothHFP' instead
+ 91 |             )
+ 92 |             try session.setPreferredIOBufferDuration(0.02)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/AudioSessionManager.swift:155:47: warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+153 |                 .playAndRecord,
+154 |                 mode: .measurement,
+155 |                 options: [.defaultToSpeaker, .allowBluetooth]
+    |                                               |- warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+    |                                               `- note: use 'AVAudioSession.CategoryOptions.allowBluetoothHFP' instead
+156 |             )
+157 |             try session.setPreferredIOBufferDuration(0.02)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WebSearchService.swift:430:35: warning: 'javaScriptEnabled' was deprecated in iOS 14.0: Use WKWebpagePreferences.allowsContentJavaScript to disable content JavaScript on a per-navigation basis [#DeprecatedDeclaration]
+428 |         let configuration = WKWebViewConfiguration()
+429 |         configuration.websiteDataStore = .default()
+430 |         configuration.preferences.javaScriptEnabled = true
+    |                                   `- warning: 'javaScriptEnabled' was deprecated in iOS 14.0: Use WKWebpagePreferences.allowsContentJavaScript to disable content JavaScript on a per-navigation basis [#DeprecatedDeclaration]
+431 |         self.webView = WKWebView(frame: .zero, configuration: configuration)
+432 | 
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/MediaStreamingService.swift:72:9: warning: result of call to 'stopRadio()' is unused [#NoUsage]
+ 70 |         }
+ 71 |         
+ 72 |         stopRadio()
+    |         `- warning: result of call to 'stopRadio()' is unused [#NoUsage]
+ 73 |         
+ 74 |         let playerItem = AVPlayerItem(url: url)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/YouTubePlayerViewController.swift:19:68: warning: 'white' was deprecated in iOS 13.0: renamed to 'UIActivityIndicatorView.Style.medium' [#DeprecatedDeclaration]
+ 17 |     private var webView: WKWebView!
+ 18 |     private let videoContainer = UIView()
+ 19 |     private let loadingIndicator = UIActivityIndicatorView(style: .white)
+    |                                                                    |- warning: 'white' was deprecated in iOS 13.0: renamed to 'UIActivityIndicatorView.Style.medium' [#DeprecatedDeclaration]
+    |                                                                    `- note: use 'UIActivityIndicatorView.Style.medium' instead
+ 20 |     
+ 21 |     private let tableView = UITableView()
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/YouTubePlayerViewController.swift:64:21: warning: 'contentEdgeInsets' was deprecated in iOS 15.0: This property is ignored when using UIButtonConfiguration [#DeprecatedDeclaration]
+ 62 |         closeButton.backgroundColor = UIColor(white: 0.25, alpha: 0.8)
+ 63 |         closeButton.layer.cornerRadius = 14
+ 64 |         closeButton.contentEdgeInsets = UIEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+    |                     `- warning: 'contentEdgeInsets' was deprecated in iOS 15.0: This property is ignored when using UIButtonConfiguration [#DeprecatedDeclaration]
+ 65 |         closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+ 66 |         topBar.addSubview(closeButton)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift:11:17: warning: stored property 'synthesizer' of 'Sendable'-conforming class 'AgentVoiceManager' has non-Sendable type 'AVSpeechSynthesizer'
+  9 |     public static let shared = AgentVoiceManager()
+ 10 |     
+ 11 |     private let synthesizer = AVSpeechSynthesizer()
+    |                 `- warning: stored property 'synthesizer' of 'Sendable'-conforming class 'AgentVoiceManager' has non-Sendable type 'AVSpeechSynthesizer'
+ 12 |     public private(set) var currentSpokenText: String = ""
+ 13 |     
+
+/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk/System/Library/Frameworks/AVFAudio.framework/Headers/AVSpeechSynthesis.h:227:12: note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+225 | NS_SWIFT_NONSENDABLE
+226 | NS_CLASS_AVAILABLE(10_14, 7_0)
+227 | @interface AVSpeechSynthesizer : NSObject
+    |            `- note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+228 | 
+229 | @property(nonatomic, weak, nullable) id<AVSpeechSynthesizerDelegate> delegate;
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift:371:13: warning: 'AppleSpeechRecognizer' is deprecated: renamed to 'WhisperSpeechRecognizer' [#DeprecatedDeclaration]
+369 |     ) {
+370 |         if !AudioSessionManager.shared.isContinuousVoiceSessionActive {
+371 |             AppleSpeechRecognizer.shared.stopListening()
+    |             |- warning: 'AppleSpeechRecognizer' is deprecated: renamed to 'WhisperSpeechRecognizer' [#DeprecatedDeclaration]
+    |             `- note: use 'WhisperSpeechRecognizer' instead
+372 |         }
+373 | 
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/MultimodalMediaCardViews.swift:115:24: warning: value 'img' was defined but never used; consider replacing with boolean test [#NoUsage]
+113 |                 Spacer()
+114 |                 
+115 |                 if let img = loadedImage {
+    |                        `- warning: value 'img' was defined but never used; consider replacing with boolean test [#NoUsage]
+116 |                     Button(action: {
+117 |                         isShowingShareSheet = true
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift:508:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+506 |             let text = await SarahWhisperEngine.shared.transcribe(snapshot, language: language, skipIfBusy: true)
+507 |             await MainActor.run {
+508 |                 guard let self = self else { return }
+    |                                  `- warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+509 |                 self.isWhisperPartialInFlight = false
+510 |                 guard let text = text,
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift:555:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+553 |             let finalText = await SarahWhisperEngine.shared.transcribe(samples, language: pair.sourceLanguage)
+554 |             await MainActor.run {
+555 |                 guard let self = self, self.isPipelineRunning else { return }
+    |                                  `- warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+556 |                 let text = (finalText ?? partialText).trimmingCharacters(in: .whitespacesAndNewlines)
+557 |                 guard !text.isEmpty else {
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift:605:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+603 |             )
+604 |             await MainActor.run {
+605 |                 guard let self = self else { return }
+    |                                  `- warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+606 |                 self.isPartialTranslationInFlight = false
+607 |                 if let result = result, segmentId == self.currentSegmentId {
+
+
+SwiftCompile normal arm64 (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift:640:34: warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+638 |             )
+639 |             await MainActor.run {
+640 |                 guard let self = self else { return }
+    |                                  `- warning: reference to captured var 'self' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+641 |                 // Si aucun moteur n'a traduit, on garde au moins la traduction rapide, sinon le texte d'origine
+642 |                 let finalText = result?.text ?? (partial.isEmpty ? text : partial)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/LiveTranslationSession.swift:143:101: warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+141 |         let session = AVAudioSession.sharedInstance()
+142 |         do {
+143 |             try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+    |                                                                                                     |- warning: 'allowBluetooth' was deprecated in iOS 8.0: renamed to 'AVAudioSession.CategoryOptions.allowBluetoothHFP' [#DeprecatedDeclaration]
+    |                                                                                                     `- note: use 'AVAudioSession.CategoryOptions.allowBluetoothHFP' instead
+144 |             try session.setPreferredIOBufferDuration(0.01)
+145 |             try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/SarahDesignSystem.swift:177:9: warning: 'contentEdgeInsets' was deprecated in iOS 15.0: This property is ignored when using UIButtonConfiguration [#DeprecatedDeclaration]
+175 |         layer.borderWidth = 1.0
+176 |         layer.borderColor = SarahDesignSystem.Colors.border.cgColor
+177 |         contentEdgeInsets = UIEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+    |         `- warning: 'contentEdgeInsets' was deprecated in iOS 15.0: This property is ignored when using UIButtonConfiguration [#DeprecatedDeclaration]
+178 |         setTitleColor(.white, for: .normal)
+179 |         titleLabel?.font = SarahDesignSystem.Typography.headline(size: 14)
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Views/VirtualPhoneViewController.swift:31:21: warning: 'javaScriptEnabled' was deprecated in iOS 14.0: Use WKWebpagePreferences.allowsContentJavaScript to disable content JavaScript on a per-navigation basis [#DeprecatedDeclaration]
+29 |         
+30 |         let preferences = WKPreferences()
+31 |         preferences.javaScriptEnabled = true
+   |                     `- warning: 'javaScriptEnabled' was deprecated in iOS 14.0: Use WKWebpagePreferences.allowsContentJavaScript to disable content JavaScript on a per-navigation basis [#DeprecatedDeclaration]
+32 |         config.preferences = preferences
+33 |         
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Models/AgentType.swift:177:9: warning: default will never be executed
+175 |                 speechIdentifier
+176 |             ]
+177 |         default:
+    |         `- warning: default will never be executed
+178 |             return [speechIdentifier]
+179 |         }
+
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/HapticService.swift:29:13: warning: will never be executed
+ 26 |         #endif
+ 27 |         
+ 28 |         if isSimulator {
+    |            `- note: condition always evaluates to false
+ 29 |             self.supportsHaptics = false
+    |             `- warning: will never be executed
+ 30 |         } else {
+ 31 |             // Sur les appareils physiques, on initialise de façon protégée
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#NonSendableExitingActor]: <https://docs.swift.org/compiler/documentation/diagnostics/getting-non-sendable-values-out-of-actors>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+SwiftDriverJobDiscovery normal arm64 Compiling SarahIAApp.swift, ContentView.swift, Message.swift, AIService.swift, NotificationService.swift, ChatViewModel.swift, ChatBubbleView.swift, TypingIndicatorView.swift, StorageService.swift, AudioEngineManager.swift, WhisperService.swift, TTSService.swift, HapticService.swift, MemoryVaultView.swift, SettingsView.swift, LocalNeuralIntelligenceEngine.swift, AdvancedVisionEngine.swift, OpenSourceMusicEngine.swift, OpenSourceImageGenerationService.swift, TranslationEngine.swift, ModelDownloader.swift, NetworkMonitor.swift, LocalVisionEngine.swift, SemanticMemoryIndex.swift, DeviceController.swift, LocalScriptSandbox.swift, ClipboardCompanion.swift, WakeWordDetector.swift, BackTapGestureDetector.swift, SidebarView.swift, ChatScreenView.swift, Conversation.swift, AppleSpeechRecognizer.swift, AudioSessionManager.swift, SpeechManager.swift, MessageList.swift, MessageBar.swift, KeyboardObserver.swift, WebSearchService.swift, MediaStreamingService.swift, SarahBrainEngine.swift, WeatherService.swift, RedAlertService.swift, NewsService.swift, YouTubeService.swift, YouTubePlayerViewController.swift, TTSManager.swift, FlashlightManager.swift, BatteryMonitorManager.swift, SarahVoiceWaveSquareView.swift, IsraelCityDatabase.swift, IsraelAlertService.swift, AlertCardRenderer.swift, AgentType.swift, TomKnowledgeBase.swift, YohanLexiconEngine.swift, VAICodeEngine.swift, MultiAgentCoordinator.swift, MultiAgentVoiceManager.swift, MultiAgentOrbView.swift, VoiceOrbModalView.swift, VAICodingStudioView.swift, CommonStyles.swift, DeviceCapabilityProfile.swift, DeviceCapabilityDetector.swift, ModelProfile.swift, ModelSelectionEngine.swift, EmbeddedModelManager.swift, AIResourceManager.swift, AIStreamingBuffer.swift, AIProgressiveScheduler.swift, HardwareDetector.swift, MultimodalMediaCardViews.swift, LiveTranslationModels.swift, LiveSpeechTranslationPipeline.swift, LiveTranslationSession.swift, LiveTranslationView.swift, OfflineTranslationAssetLoader.swift, SarahDesignSystem.swift, SarahActionCoordinator.swift, VirtualPhoneManager.swift, VirtualPhoneViewController.swift, DevCodeInjector.swift, SessionTimeoutManager.swift, RealtimeAudioWaveformExtractor.swift, BackgroundModelDownloader.swift, SQLiteChatDatabase.swift, SarahLocalImageGenEngine.swift, SarahLocalMusicGenEngine.swift (in target 'SarahIA' from project 'SarahIA')
+
+SwiftDriver\ Compilation\ Requirements SarahIA normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SarahIA -O -whole-module-optimization @/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.SwiftFileList -D COCOAPODS -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk -target arm64-apple-ios16.2 -g -module-cache-path /Users/runner/work/SarahAI/SarahAI/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -swift-version 5 -I /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleDataTransport -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleToolboxForMac -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleUtilities -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PromisesObjC -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SSZipArchive -F /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/nanopb -F /Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitCommon/Frameworks -F /Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitNaturalLanguage/Frameworks -F /Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitTranslate/Frameworks -F /Users/runner/work/_temp/llama.cpp/build-apple/llama.xcframework/ios-arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /Users/runner/work/SarahAI/SarahAI/DerivedData/SDKStatCaches.noindex/iphoneos27.0-24A430-edb66e1c87ad9550e0cc33700c257328.sdkstatcache -output-file-map /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA-OutputFileMap.json -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/SarahAI/SarahAI/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/SarahAI/SarahAI/DerivedData/SDKExplicitPrecompiledModules -emit-dependencies -emit-module -emit-module-path /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftmodule -serialize-diagnostics -dependency-scan-serialize-diagnostics-path /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA-dependency-scan.dia -validate-clang-modules-once -clang-build-session-file /Users/runner/work/SarahAI/SarahAI/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -fmodules-prune-interval\=86400 -Xcc -fmodules-prune-after\=345600 -emit-const-values -const-gather-protocols-list /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/SarahIA-generated-files.hmap -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/SarahIA-own-target-headers.hmap -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/SarahIA-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA-d4be73999236efae0f132bad17867f14-VFS-iphoneos/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/SarahIA-project-headers.hmap -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/include -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher/GTMSessionFetcher.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleDataTransport/GoogleDataTransport.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleToolboxForMac/GoogleToolboxForMac.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleUtilities/GoogleUtilities.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PromisesObjC/FBLPromises.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SSZipArchive/SSZipArchive.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/nanopb/nanopb.framework/Headers -Xcc -I/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Headers/Public -Xcc -I/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Headers/Public/GoogleMLKit -Xcc -I/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/GoogleMLKit/MLKitCore/Sources -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources -Xcc -DCOCOAPODS\=1 -Xcc -DPB_FIELD_32BIT\=1 -Xcc -DPB_NO_PACKED_STRUCTS\=1 -Xcc -DPB_ENABLE_MALLOC\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA-Swift.h -working-directory /Users/runner/work/SarahAI/SarahAI/SarahIA -no-emit-module-separately-wmo
+
+SwiftMergeGeneratedHeaders /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources/SarahIA-Swift.h /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA-Swift.h (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA-Swift.h -o /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources/SarahIA-Swift.h
+
+Copy /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.swiftmodule /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftmodule (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftmodule /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.swiftmodule
+
+Copy /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.swiftdoc /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftdoc (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftdoc /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.swiftdoc
+
+Copy /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.abi.json /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.abi.json (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.abi.json /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/arm64-apple-ios.abi.json
+
+Copy /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftsourceinfo (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftsourceinfo /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo
+
+Ld /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/SarahIA normal (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    /Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.2 -isysroot /Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk -Os -Xlinker -no_warn_duplicate_libraries -L/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Release-iphoneos -L/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -L/Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk/usr/lib/swift -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/EagerLinkingTBDs/Release-iphoneos -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PackageFrameworks -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleDataTransport -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleToolboxForMac -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleUtilities -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PromisesObjC -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SSZipArchive -F/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/nanopb -F/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitCommon/Frameworks -F/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitNaturalLanguage/Frameworks -F/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/MLKitTranslate/Frameworks -F/Users/runner/work/_temp/llama.cpp/build-apple/llama.xcframework/ios-arm64 -filelist /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.LinkFileList -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA_lto.o -Xlinker -dependency_info -Xlinker /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Objects-normal/arm64/SarahIA.swiftmodule -ObjC -lc++ -liconv -lsqlite3 -lz -framework CoreTelephony -framework FBLPromises -framework Foundation -framework GTMSessionFetcher -framework GoogleDataTransport -framework GoogleToolboxForMac -framework GoogleUtilities -framework LocalAuthentication -framework MLKitCommon -framework MLKitNaturalLanguage -framework MLKitTranslate -framework SSZipArchive -framework Security -framework SystemConfiguration -framework nanopb -weak_framework SwiftUI -weak_framework Combine -weak_framework Vision -framework AVFoundation -framework WebKit -framework MapKit -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML -framework Pods_SarahIA -o /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/SarahIA
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA.xcodeproj: SarahIA: ld: warning: building for iOS-16.2, but linking with dylib '@rpath/llama.framework/llama' which was built for newer version 16.4
+
+PhaseScriptExecution [CP]\ Embed\ Pods\ Frameworks /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Script-FE1D0A204A31E19A3414CC76.sh (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    /usr/bin/sandbox-exec -D SCRIPT_OUTPUT_FILE_0\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GTMSessionFetcher.framework -D SCRIPT_OUTPUT_FILE_1\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GoogleDataTransport.framework -D SCRIPT_OUTPUT_FILE_2\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GoogleToolboxForMac.framework -D SCRIPT_OUTPUT_FILE_3\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GoogleUtilities.framework -D SCRIPT_OUTPUT_FILE_4\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/FBLPromises.framework -D SCRIPT_OUTPUT_FILE_5\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/SSZipArchive.framework -D SCRIPT_OUTPUT_FILE_6\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/nanopb.framework -D SCRIPT_INPUT_FILE_0\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Target\ Support\ Files/Pods-SarahIA/Pods-SarahIA-frameworks-Release-input-files.xcfilelist -D SCRIPT_INPUT_FILE_1\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Target\ Support\ Files/Pods-SarahIA/Pods-SarahIA-frameworks-Release-output-files.xcfilelist -D SCRIPT_INPUT_FILE_2\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Target\ Support\ Files/Pods-SarahIA/Pods-SarahIA-frameworks.sh -D SCRIPT_INPUT_FILE_3\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher/GTMSessionFetcher.framework -D SCRIPT_INPUT_FILE_4\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleDataTransport/GoogleDataTransport.framework -D SCRIPT_INPUT_FILE_5\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleToolboxForMac/GoogleToolboxForMac.framework -D SCRIPT_INPUT_FILE_6\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleUtilities/GoogleUtilities.framework -D SCRIPT_INPUT_FILE_7\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PromisesObjC/FBLPromises.framework -D SCRIPT_INPUT_FILE_8\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SSZipArchive/SSZipArchive.framework -D SCRIPT_INPUT_FILE_9\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/nanopb/nanopb.framework -D SCRIPT_INPUT_FILE_10\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/InputFileList-FE1D0A204A31E19A3414CC76-Pods-SarahIA-frameworks-Release-input-files-46e5671046e1a6669d83f00db020f1f6-resolved.xcfilelist -D SCRIPT_INPUT_FILE_11\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/OutputFileList-FE1D0A204A31E19A3414CC76-Pods-SarahIA-frameworks-Release-output-files-072220f95382cec3c196b9d73abd7815-resolved.xcfilelist -D SCRIPT_INPUT_FILE_12\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Script-FE1D0A204A31E19A3414CC76.sh -D SCRIPT_INPUT_ANCESTOR_0\=/ -D SCRIPT_INPUT_ANCESTOR_1\=/Users -D SCRIPT_INPUT_ANCESTOR_2\=/Users/runner -D SCRIPT_INPUT_ANCESTOR_3\=/Users/runner/work -D SCRIPT_INPUT_ANCESTOR_4\=/Users/runner/work/SarahAI -D SCRIPT_INPUT_ANCESTOR_5\=/Users/runner/work/SarahAI/SarahAI -D SCRIPT_INPUT_ANCESTOR_6\=/Users/runner/work/SarahAI/SarahAI/DerivedData -D SCRIPT_INPUT_ANCESTOR_7\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build -D SCRIPT_INPUT_ANCESTOR_8\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex -D SCRIPT_INPUT_ANCESTOR_9\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build -D SCRIPT_INPUT_ANCESTOR_10\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos -D SCRIPT_INPUT_ANCESTOR_11\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build -D SCRIPT_INPUT_ANCESTOR_12\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products -D SCRIPT_INPUT_ANCESTOR_13\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -D SCRIPT_INPUT_ANCESTOR_14\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher -D SCRIPT_INPUT_ANCESTOR_15\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleDataTransport -D SCRIPT_INPUT_ANCESTOR_16\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleToolboxForMac -D SCRIPT_INPUT_ANCESTOR_17\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GoogleUtilities -D SCRIPT_INPUT_ANCESTOR_18\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/PromisesObjC -D SCRIPT_INPUT_ANCESTOR_19\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SSZipArchive -D SCRIPT_INPUT_ANCESTOR_20\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/nanopb -D SCRIPT_INPUT_ANCESTOR_21\=/Users/runner/work/SarahAI/SarahAI/SarahIA -D SCRIPT_INPUT_ANCESTOR_22\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods -D SCRIPT_INPUT_ANCESTOR_23\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Target\ Support\ Files -D SCRIPT_INPUT_ANCESTOR_24\=/Users/runner/work/SarahAI/SarahAI/SarahIA/Pods/Target\ Support\ Files/Pods-SarahIA -D SCRIPT_OUTPUT_ANCESTOR_0\=/ -D SCRIPT_OUTPUT_ANCESTOR_1\=/Users -D SCRIPT_OUTPUT_ANCESTOR_2\=/Users/runner -D SCRIPT_OUTPUT_ANCESTOR_3\=/Users/runner/work -D SCRIPT_OUTPUT_ANCESTOR_4\=/Users/runner/work/SarahAI -D SCRIPT_OUTPUT_ANCESTOR_5\=/Users/runner/work/SarahAI/SarahAI -D SCRIPT_OUTPUT_ANCESTOR_6\=/Users/runner/work/SarahAI/SarahAI/DerivedData -D SCRIPT_OUTPUT_ANCESTOR_7\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build -D SCRIPT_OUTPUT_ANCESTOR_8\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products -D SCRIPT_OUTPUT_ANCESTOR_9\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -D SCRIPT_OUTPUT_ANCESTOR_10\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app -D SCRIPT_OUTPUT_ANCESTOR_11\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks -D SRCROOT\=/Users/runner/work/SarahAI/SarahAI/SarahIA -D PROJECT_DIR\=/Users/runner/work/SarahAI/SarahAI/SarahIA -D OBJROOT\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex -D SYMROOT\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products -D DSTROOT\=/tmp/SarahIA.dst -D SHARED_PRECOMPS_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/PrecompiledHeaders -D CACHE_ROOT\=/var/folders/5n/5t77mfb93jd7q8v9s6f0dn0m0000gn/C/com.apple.DeveloperTools/27.0-27A266a/Xcode -D CONFIGURATION_BUILD_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos -D CONFIGURATION_TEMP_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos -D LOCROOT\=/Users/runner/work/SarahAI/SarahAI/SarahIA -D LOCSYMROOT\=/Users/runner/work/SarahAI/SarahAI/SarahIA -D INDEX_PRECOMPS_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Index.noindex/PrecompiledHeaders -D INDEX_DATA_STORE_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Index.noindex/DataStore -D TEMP_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build -D TARGET_TEMP_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build -D DERIVED_FILE_DIR\=/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/DerivedSources -f /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/ee5fea025212ba8ec2d57935fd107334.sb /bin/sh -c /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Script-FE1D0A204A31E19A3414CC76.sh
+error: Sandbox: rsync(32614) deny(1) file-write-create /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GTMSessionFetcher.framework/GTMSessionFetcher_Core_Privacy.bundle (in target 'SarahIA' from project 'SarahIA')
+error: Sandbox: rsync(32614) deny(1) file-write-create /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GTMSessionFetcher.framework/.GTMSessionFetcher.mKqrcJC7r1 (in target 'SarahIA' from project 'SarahIA')
+mkdir -p /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks
+rsync --delete -av --filter P .*.?????? --links --filter "- CVS/" --filter "- .svn/" --filter "- .git/" --filter "- .hg/" --filter "- Headers" --filter "- PrivateHeaders" --filter "- Modules" "/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/GTMSessionFetcher/GTMSessionFetcher.framework" "/Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks"
+Transfer starting: 6 files
+rsync(32614): error: GTMSessionFetcher.framework/GTMSessionFetcher_Core_Privacy.bundle/: mkpathat: Operation not permitted
+GTMSessionFetcher.framework/
+GTMSessionFetcher.framework/GTMSessionFetcher
+rsync(32614): error: mkstempat: 'GTMSessionFetcher.framework/.GTMSessionFetcher.mKqrcJC7r1': Operation not permitted
+GTMSessionFetcher.framework/Info.plist
+rsync(32614): error: GTMSessionFetcher.framework/GTMSessionFetcher: utimensat (2): No such file or directory
+rsync(32614): error: rsync_set_metadata
+rsync(32614): error: rsync_downloader
+rsync(32614): error: rsync_receiver
+rsync(32613): error: unexpected end of file
+rsync(32613): error: io_read_nonblocking
+rsync(32613): error: io_read_blocking
+rsync(32613): error: io_read_flush
+rsync(32613): error: rsync_sender
+rsync(32613): warning: child 32614 exited with status 1
+
+GenerateDSYMFile /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app.dSYM /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/SarahIA (in target 'SarahIA' from project 'SarahIA')
+    cd /Users/runner/work/SarahAI/SarahAI/SarahIA
+    export PATH\=/Applications/Xcode_27.app/Contents/SharedFrameworks/SwiftBuild.framework/Versions/A/PlugIns/SWBBuildService.bundle/Contents/PlugIns/SWBUniversalPlatformPlugin.bundle/Contents/Frameworks/SWBUniversalPlatform.framework/Resources:/Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:/Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/bin:/Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec:/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/bin:/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/usr/local/bin:/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin:/Applications/Xcode_27.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/bin:/Applications/Xcode_27.app/Contents/Developer/usr/bin:/Applications/Xcode_27.app/Contents/Developer/usr/local/bin:/opt/homebrew/lib/ruby/gems/3.4.0/bin:/opt/homebrew/opt/ruby@3.4/bin:/Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+    /Applications/Xcode_27.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/SarahIA -o /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app.dSYM
+
+PruneExplicitPrecompiledModules /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/runner/work/SarahAI/SarahAI/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+** BUILD FAILED **
+
+
+The following build commands failed:
+	PhaseScriptExecution [CP]\ Embed\ Pods\ Frameworks /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Intermediates.noindex/SarahIA.build/Release-iphoneos/SarahIA.build/Script-FE1D0A204A31E19A3414CC76.sh (in target 'SarahIA' from project 'SarahIA')
+	Building workspace SarahIA with scheme SarahIA and configuration Release
+(2 failures)

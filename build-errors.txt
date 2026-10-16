@@ -1,0 +1,33 @@
+    |                                                 `- warning: non-Sendable type 'WhisperKit?' of nonisolated property 'value' cannot be sent to actor-isolated context; this is an error in the Swift 6 language mode
+    |                                                 `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+    |                                           `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+    |                                        `- warning: non-Sendable type 'Task<WhisperKit?, Never>' cannot exit actor-isolated context in call to nonisolated property 'value'; this is an error in the Swift 6 language mode [#NonSendableExitingActor]
+    |                                 `- warning: non-Sendable type 'WhisperKit?' of nonisolated property 'value' cannot be sent to actor-isolated context; this is an error in the Swift 6 language mode
+    |                                 `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+    |                            `- warning: non-Sendable type 'Task<WhisperKit?, Never>' cannot exit actor-isolated context in call to nonisolated property 'value'; this is an error in the Swift 6 language mode [#NonSendableExitingActor]
+    |                    `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+    |                 `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+    |             `- warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:106:40: warning: non-Sendable type 'Task<WhisperKit?, Never>' cannot exit actor-isolated context in call to nonisolated property 'value'; this is an error in the Swift 6 language mode [#NonSendableExitingActor]
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:106:49: warning: non-Sendable type 'WhisperKit?' of nonisolated property 'value' cannot be sent to actor-isolated context; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:106:49: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:108:13: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:108:20: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:108:43: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:155:28: warning: non-Sendable type 'Task<WhisperKit?, Never>' cannot exit actor-isolated context in call to nonisolated property 'value'; this is an error in the Swift 6 language mode [#NonSendableExitingActor]
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:155:33: warning: non-Sendable type 'WhisperKit?' of nonisolated property 'value' cannot be sent to actor-isolated context; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:155:33: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/Services/WhisperService.swift:79:17: warning: type 'WhisperKit' does not conform to the 'Sendable' protocol; this is an error in the Swift 6 language mode
+error: Sandbox: rsync(32614) deny(1) file-write-create /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GTMSessionFetcher.framework/.GTMSessionFetcher.mKqrcJC7r1 (in target 'SarahIA' from project 'SarahIA')
+error: Sandbox: rsync(32614) deny(1) file-write-create /Users/runner/work/SarahAI/SarahAI/DerivedData/Build/Products/Release-iphoneos/SarahIA.app/Frameworks/GTMSessionFetcher.framework/GTMSessionFetcher_Core_Privacy.bundle (in target 'SarahIA' from project 'SarahIA')
+rsync(32613): error: io_read_blocking
+rsync(32613): error: io_read_flush
+rsync(32613): error: io_read_nonblocking
+rsync(32613): error: rsync_sender
+rsync(32613): error: unexpected end of file
+rsync(32614): error: GTMSessionFetcher.framework/GTMSessionFetcher_Core_Privacy.bundle/: mkpathat: Operation not permitted
+rsync(32614): error: GTMSessionFetcher.framework/GTMSessionFetcher: utimensat (2): No such file or directory
+rsync(32614): error: mkstempat: 'GTMSessionFetcher.framework/.GTMSessionFetcher.mKqrcJC7r1': Operation not permitted
+rsync(32614): error: rsync_downloader
+rsync(32614): error: rsync_receiver
+rsync(32614): error: rsync_set_metadata
