@@ -174,3 +174,17 @@ jobs:
           name: SarahIA-traduction-IPA
           path: dist/SarahIA-traduction.ipa
           retention-days: 14
+
+      - name: Publish test IPA (direct download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sarah-ia-traduction-test
+          target_commitish: ${{ github.sha }}
+          name: 'Sarah IA — test traduction en direct'
+          body: 'Build de test de la branche feature/traduction-temps-reel (build #${{ github.run_number }}, commit ${{ github.sha }}). Traduction hébreu ⇄ français hors ligne (Google ML Kit) + reconnaissance vocale hors ligne (WhisperKit). IPA non signée.'
+          files: dist/SarahIA-traduction.ipa
+          overwrite_files: true
+          prerelease: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
