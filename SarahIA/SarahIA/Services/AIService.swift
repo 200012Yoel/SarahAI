@@ -781,24 +781,16 @@ public final class AIService {
             return reply
         }
         
-        // 1.3 APPEL VOCAL WEBRTC AVEC TRADUCTION VOCALE EN DIRECT (ex: "Appelle papa", "Appelle David en anglais")
-        if (normalized.starts(with: "appelle ") || normalized.starts(with: "appel ") ||
-            normalized.contains("passe un appel") || normalized.contains("lance un appel") ||
-            normalized.starts(with: "telephone a ") || normalized.starts(with: "téléphone à ")) &&
-            !normalized.contains("comment tu t appelles") && !normalized.contains("comment je m appelle") {
-            
-            if let match = VoiceCallContactManager.shared.resolveContact(from: trimmed) {
-                DispatchQueue.main.async {
-                    WebRTCVoiceCallManager.shared.startOutboundCall(to: match.contact, targetLanguage: match.targetLanguage)
-                    SarahActionCoordinator.shared.dispatch(.openVoiceCall(contact: match.contact))
-                }
-                let targetLangName = match.targetLanguage == "en" ? "Anglais 🇬🇧" : (match.targetLanguage == "he" ? "Hébreu 🇮🇱" : "Français 🇫🇷")
-                let reply = "📞 J'établis l'appel WebRTC sécurisé avec **\(match.contact.name)** (\(match.contact.role)).\nTraduction vocale en direct activée vers : **\(targetLangName)**."
-                recordExchange(userText: trimmed, assistantResponse: reply)
-                return reply
+        // 1.3 OUVERTURE DE LA TRADUCTION EN DIRECT (ex : « traduction en direct », « traduis en direct »)
+        if normalized.contains("traduction en direct") || normalized.contains("traduis en direct") ||
+            normalized.contains("traduction en temps reel") || normalized.contains("traduction live") {
+            DispatchQueue.main.async {
+                SarahActionCoordinator.shared.dispatch(.openLiveTranslation)
             }
+            let reply = "🌐 J'ouvre la traduction en direct hébreu ⇄ français. Parle normalement, je traduis au fil de l'eau."
+            recordExchange(userText: trimmed, assistantResponse: reply)
+            return reply
         }
-        
 
         var state = storage.loadState()
         

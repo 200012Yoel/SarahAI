@@ -19,9 +19,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     public static let shared = LiveSpeechTranslationPipeline()
 
-    // Callbacks pour l'UI et la couche d'appel (toujours appelés sur le thread principal)
-    public var onTranscriptItemUpdated: ((CallTranscriptItem) -> Void)?
-    public var onSynthesizedAudioReady: ((Data, String) -> Void)?
+    // Callbacks pour l'interface (toujours appelés sur le thread principal)
+    public var onTranscriptItemUpdated: ((LiveTranscriptItem) -> Void)?
     public var onAudioEnergyLevel: ((Float) -> Void)?
 
     /// Moteur de reconnaissance actuellement utilisé (affichable dans l'interface).
@@ -77,7 +76,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     // MARK: - État (thread principal uniquement)
 
-    private var currentLanguagePair = CallLanguagePair()
+    private var currentLanguagePair = LiveLanguagePair()
     private var isPipelineRunning = false
     /// Incrémenté à chaque nouvelle session : les résultats d'une ancienne session sont ignorés.
     private var recognitionGeneration = 0
@@ -103,7 +102,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     // MARK: - Démarrage / Arrêt
 
-    public func startPipeline(with languagePair: CallLanguagePair) {
+    public func startPipeline(with languagePair: LiveLanguagePair) {
         runOnMain { [weak self] in
             guard let self = self else { return }
             self.stopPipelineOnMain()
@@ -112,12 +111,12 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.hasShownUnavailableNotice = false
 
             // Packs de traduction Google + modèle Whisper : prêts pour le hors ligne
-            TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.localLanguage, languagePair.remoteLanguage])
+            TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.sourceLanguage, languagePair.targetLanguage])
             Task {
                 await SarahWhisperEngine.shared.prepare(allowDownload: NetworkMonitor.shared.isOnUnmeteredNetwork)
             }
 
-            let localeId = self.localeIdentifier(for: languagePair.localLanguage)
+            let localeId = self.localeIdentifier(for: languagePair.sourceLanguage)
             self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
             self.localSpeechRecognizer?.delegate = self
 
@@ -131,10 +130,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
     }
 
-    public func updateLanguagePair(_ newPair: CallLanguagePair) {
+    public func updateLanguagePair(_ newPair: LiveLanguagePair) {
         runOnMain { [weak self] in
             guard let self = self else { return }
-            let needsRestart = newPair.localLanguage != self.currentLanguagePair.localLanguage
+            let needsRestart = newPair.sourceLanguage != self.currentLanguagePair.sourceLanguage
             self.currentLanguagePair = newPair
             if needsRestart && self.isPipelineRunning {
                 self.startPipeline(with: newPair)
@@ -288,7 +287,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             : "Sans Internet, Sarah a besoin de sa reconnaissance vocale hors ligne. Télécharge-la une fois dans Réglages > Sarah Engine (Wi-Fi conseillé)."
         publishItem(
             id: "sarah-notice-\(UUID().uuidString)",
-            isLocal: false,
+            isSpeech: false,
             original: message,
             originalLanguage: "fr",
             translated: "Mode hors ligne",
@@ -371,7 +370,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         let partial = currentPartialTranslation
         let partialAttribution = currentPartialAttribution
         let pair = currentLanguagePair
-        let willSpeak = pair.isVoiceTranslationEnabled
+        let willSpeak = pair.isVoiceEnabled
 
         // On coupe la session : la phrase suivante repartira de zéro (plus de texte accumulé)
         endRecognitionSession()
@@ -501,7 +500,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         isWhisperPartialInFlight = true
         let generation = recognitionGeneration
         let segmentId = currentSegmentId
-        let language = currentLanguagePair.localLanguage
+        let language = currentLanguagePair.sourceLanguage
 
         Task { [weak self] in
             let text = await SarahWhisperEngine.shared.transcribe(snapshot, language: language, skipIfBusy: true)
@@ -537,7 +536,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         let partial = currentPartialTranslation
         let partialAttribution = currentPartialAttribution
         let pair = currentLanguagePair
-        let willSpeak = pair.isVoiceTranslationEnabled
+        let willSpeak = pair.isVoiceEnabled
 
         // Nouveau segment pour la phrase suivante (l'écoute continue si Sarah ne parle pas)
         currentSegmentId = UUID().uuidString
@@ -551,7 +550,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
 
         Task { [weak self] in
-            let finalText = await SarahWhisperEngine.shared.transcribe(samples, language: pair.localLanguage)
+            let finalText = await SarahWhisperEngine.shared.transcribe(samples, language: pair.sourceLanguage)
             await MainActor.run {
                 guard let self = self, self.isPipelineRunning else { return }
                 let text = (finalText ?? partialText).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -598,8 +597,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         Task { [weak self] in
             let result = await TranslationEngine.shared.translateDetailed(
                 text: text,
-                sourceLang: pair.localLanguage,
-                targetLang: Self.targetEnum(pair.remoteLanguage),
+                sourceLang: pair.sourceLanguage,
+                targetLang: Self.targetEnum(pair.targetLanguage),
                 quality: .fast
             )
             await MainActor.run {
@@ -617,15 +616,15 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     // MARK: - Phrase terminée : traduction finale + voix
 
-    private func translateAndSpeak(text: String, segmentId: String, pair: CallLanguagePair, partial: String, partialAttribution: String?, willSpeak: Bool) {
+    private func translateAndSpeak(text: String, segmentId: String, pair: LiveLanguagePair, partial: String, partialAttribution: String?, willSpeak: Bool) {
         // Le texte reconnu s'affiche figé tout de suite, la traduction finale suit
         publishItem(
             id: segmentId,
-            isLocal: true,
+            isSpeech: true,
             original: text,
-            originalLanguage: pair.localLanguage,
+            originalLanguage: pair.sourceLanguage,
             translated: partial.isEmpty ? "…" : partial,
-            targetLanguage: pair.remoteLanguage,
+            targetLanguage: pair.targetLanguage,
             isFinal: false,
             attribution: partial.isEmpty ? nil : partialAttribution
         )
@@ -633,8 +632,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         Task { [weak self] in
             let result = await TranslationEngine.shared.translateDetailed(
                 text: text,
-                sourceLang: pair.localLanguage,
-                targetLang: Self.targetEnum(pair.remoteLanguage),
+                sourceLang: pair.sourceLanguage,
+                targetLang: Self.targetEnum(pair.targetLanguage),
                 quality: .best
             )
             await MainActor.run {
@@ -644,17 +643,17 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                 let attribution = result?.engine.attribution ?? (partial.isEmpty ? nil : partialAttribution)
                 self.publishItem(
                     id: segmentId,
-                    isLocal: true,
+                    isSpeech: true,
                     original: text,
-                    originalLanguage: pair.localLanguage,
+                    originalLanguage: pair.sourceLanguage,
                     translated: finalText,
-                    targetLanguage: pair.remoteLanguage,
+                    targetLanguage: pair.targetLanguage,
                     isFinal: true,
                     attribution: attribution
                 )
                 guard self.isPipelineRunning else { return }
                 if willSpeak {
-                    self.speak(finalText, language: pair.remoteLanguage)
+                    self.speak(finalText, language: pair.targetLanguage)
                 }
             }
         }
@@ -681,7 +680,6 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
         speechSynthesizer.speak(utterance)
 
-        onSynthesizedAudioReady?(Data(text.utf8), language)
     }
 
     private func resumeListening() {
@@ -713,65 +711,25 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         resumeListening()
     }
 
-    // MARK: - Audio distant (correspondant -> utilisateur)
-
-    public func handleRemoteIncomingText(_ remoteText: String) {
-        let pair = currentLanguagePair
-        let id = UUID().uuidString
-
-        runOnMain { [weak self] in
-            self?.publishItem(
-                id: id,
-                isLocal: false,
-                original: remoteText,
-                originalLanguage: pair.remoteLanguage,
-                translated: "…",
-                targetLanguage: pair.localLanguage,
-                isFinal: false
-            )
-        }
-
-        Task { [weak self] in
-            let result = await TranslationEngine.shared.translateDetailed(
-                text: remoteText,
-                sourceLang: pair.remoteLanguage,
-                targetLang: Self.targetEnum(pair.localLanguage),
-                quality: .best
-            )
-            await MainActor.run {
-                self?.publishItem(
-                    id: id,
-                    isLocal: false,
-                    original: remoteText,
-                    originalLanguage: pair.remoteLanguage,
-                    translated: result?.text ?? remoteText,
-                    targetLanguage: pair.localLanguage,
-                    isFinal: true,
-                    attribution: result?.engine.attribution
-                )
-            }
-        }
-    }
-
     // MARK: - Publication vers l'UI
 
     private func publishLocalItem(original: String, translated: String, isFinal: Bool) {
         publishItem(
             id: currentSegmentId,
-            isLocal: true,
+            isSpeech: true,
             original: original,
-            originalLanguage: currentLanguagePair.localLanguage,
+            originalLanguage: currentLanguagePair.sourceLanguage,
             translated: translated,
-            targetLanguage: currentLanguagePair.remoteLanguage,
+            targetLanguage: currentLanguagePair.targetLanguage,
             isFinal: isFinal,
             attribution: currentPartialTranslation.isEmpty ? nil : currentPartialAttribution
         )
     }
 
-    private func publishItem(id: String, isLocal: Bool, original: String, originalLanguage: String, translated: String, targetLanguage: String, isFinal: Bool, attribution: String? = nil) {
-        let item = CallTranscriptItem(
+    private func publishItem(id: String, isSpeech: Bool, original: String, originalLanguage: String, translated: String, targetLanguage: String, isFinal: Bool, attribution: String? = nil) {
+        let item = LiveTranscriptItem(
             id: id,
-            isLocalSpeaker: isLocal,
+            isSpeech: isSpeech,
             originalText: original,
             originalLanguage: originalLanguage,
             translatedText: translated,

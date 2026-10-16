@@ -15,7 +15,7 @@ public struct ChatScreenView: View {
     @Binding var isShowingSettings: Bool
 
     @State private var isShowingActionSheet = false
-    @State private var isShowingVoiceCallScreen = false
+    @State private var isShowingLiveTranslation = false
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
@@ -133,23 +133,19 @@ public struct ChatScreenView: View {
         .sheet(isPresented: $viewModel.isShowingWebsiteBuilder) {
             WebsiteBuilderFlowView(viewModel: viewModel)
         }
-        .fullScreenCover(isPresented: $isShowingVoiceCallScreen) {
-            VoiceCallScreenView()
+        .fullScreenCover(isPresented: $isShowingLiveTranslation) {
+            LiveTranslationView()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SarahPresentVoiceCallModal"))) { _ in
-            isShowingVoiceCallScreen = true
+        .onReceive(NotificationCenter.default.publisher(for: .sarahPresentLiveTranslation)) { _ in
+            isShowingLiveTranslation = true
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("SarahIA"),
                 message: Text("Outils et agents"),
                 buttons: [
-                    .default(Text("📞 Appel vocal")) {
-                        if WebRTCVoiceCallManager.shared.callState == .idle,
-                           let contact = VoiceCallContactManager.shared.contacts.first {
-                            WebRTCVoiceCallManager.shared.startOutboundCall(to: contact)
-                        }
-                        isShowingVoiceCallScreen = true
+                    .default(Text("🌐 Traduction en direct")) {
+                        isShowingLiveTranslation = true
                     },
                     .default(Text("💻 Studio Raphaël")) {
                         viewModel.activeAgent = .esther

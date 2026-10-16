@@ -11,10 +11,9 @@ public extension Notification.Name {
     static let sarahClearCurrentChat         = Notification.Name("SarahClearCurrentChat")
     static let sarahStartNewChat             = Notification.Name("SarahStartNewChat")
     static let sarahAgentSelected            = Notification.Name("SarahAgentSelected")
-    static let sarahPresentVoiceCall         = Notification.Name("SarahPresentVoiceCallModal")
+    static let sarahPresentLiveTranslation   = Notification.Name("SarahPresentLiveTranslation")
     static let sarahSendTextMessage          = Notification.Name("SarahSendTextMessage")
     static let sarahToggleVoiceRecording     = Notification.Name("SarahToggleVoiceRecording")
-    static let sarahWebRTCStateChanged       = Notification.Name("SarahWebRTCStateChanged")
 }
 
 // ============================================================================
@@ -29,7 +28,7 @@ public enum SarahAppAction {
     case clearCurrentChat
     case sendTextMessage(String)
     case toggleVoiceRecording
-    case openVoiceCall(contact: VoiceCallContact?)
+    case openLiveTranslation
     case showNotification(title: String, message: String)
 }
 
@@ -81,9 +80,9 @@ public final class SarahActionCoordinator {
             HapticService.shared.buttonTap()
             NotificationCenter.default.post(name: .sarahToggleVoiceRecording, object: nil)
             
-        case .openVoiceCall(let contact):
+        case .openLiveTranslation:
             HapticService.shared.buttonTap()
-            NotificationCenter.default.post(name: .sarahPresentVoiceCall, object: contact)
+            NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
             
         case .showNotification(let title, let message):
             NotificationService.shared.showInAppNotification(title: title, message: message)
