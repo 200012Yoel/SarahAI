@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(Translation)
+import Translation
+#endif
 
 /// Écran d'Appel Vocal WebRTC avec Traduction Bilingue en Direct (SwiftUI)
 @available(iOS 14.0, *)
@@ -44,6 +47,17 @@ public struct VoiceCallScreenView: View {
                 presentationMode.wrappedValue.dismiss()
             }
         }
+        // Packs de traduction hors ligne (dans les deux sens), téléchargés depuis Sarah
+        .sarahPrepareOfflineTranslation(
+            from: callManager.languagePair.localLanguage,
+            to: callManager.languagePair.remoteLanguage
+        )
+        .background(
+            Color.clear.sarahPrepareOfflineTranslation(
+                from: callManager.languagePair.remoteLanguage,
+                to: callManager.languagePair.localLanguage
+            )
+        )
     }
     
     // MARK: - Lueurs d'Énergie Audio
@@ -407,5 +421,66 @@ public struct VoiceCallScreenView: View {
         case .idle:
             return "Prêt"
         }
+    }
+}
+
+// MARK: - Préparation de la traduction hors ligne
+
+/// Télécharge, depuis Sarah, le pack de traduction hors ligne d'iOS pour une paire de langues.
+/// iOS affiche lui-même la demande de téléchargement la première fois ; ensuite tout fonctionne sans Internet.
+/// Aucun besoin d'ouvrir l'app Traduction.
+public struct OfflineTranslationPreparationModifier: ViewModifier {
+    let source: String
+    let target: String
+
+    public func body(content: Content) -> some View {
+        #if canImport(Translation)
+        if #available(iOS 18.0, *) {
+            content.modifier(OfflineTranslationPreparationIOS18(source: source, target: target))
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+#if canImport(Translation)
+@available(iOS 18.0, *)
+private struct OfflineTranslationPreparationIOS18: ViewModifier {
+    let source: String
+    let target: String
+
+    @State private var configuration: TranslationSession.Configuration?
+
+    func body(content: Content) -> some View {
+        content
+            .translationTask(configuration) { session in
+                do {
+                    try await session.prepareTranslation()
+                    print("✅ [Traduction] Pack hors ligne \(source) → \(target) prêt")
+                } catch {
+                    print("⚠️ [Traduction] Pack hors ligne \(source) → \(target) non téléchargé : \(error.localizedDescription)")
+                }
+            }
+            .task(id: "\(source)|\(target)") {
+                guard source != target else { return }
+                let status = await TranslationEngine.shared.onDeviceStatus(from: source, to: target)
+                if status == .downloadable {
+                    configuration = TranslationSession.Configuration(
+                        source: Locale.Language(identifier: source),
+                        target: Locale.Language(identifier: target)
+                    )
+                }
+            }
+    }
+}
+#endif
+
+public extension View {
+    /// Prépare la traduction hors ligne iOS pour la paire donnée (téléchargement unique du pack).
+    func sarahPrepareOfflineTranslation(from source: String, to target: String) -> some View {
+        modifier(OfflineTranslationPreparationModifier(source: source, target: target))
     }
 }

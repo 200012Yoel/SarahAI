@@ -1495,6 +1495,88 @@ private struct LocalGenerationSettingsView: View {
     }
 }
 
+/// Carte de réglage de la traduction en temps réel : clé DeepL (en ligne) et état du mode hors ligne.
+@available(iOS 15.0, *)
+private struct TranslationEngineSettingsCard: View {
+    @State private var deepLKey: String = TranslationEngine.shared.deepLAPIKey ?? ""
+    @State private var isKeySaved: Bool = TranslationEngine.shared.hasDeepLKey
+    @State private var offlineStatusText: String = "Vérification…"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Traduction en temps réel", systemImage: "character.bubble.fill")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Avec Internet : DeepL (meilleure qualité hébreu ⇄ français). Sans Internet : moteur de traduction d’iOS, directement dans Sarah.")
+                .font(.footnote)
+                .foregroundColor(Color.white.opacity(0.54))
+
+            SecureField("Clé API DeepL (se termine par :fx pour l’offre gratuite)", text: $deepLKey)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .padding(12)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .onSubmit(saveKey)
+
+            HStack(spacing: 10) {
+                Button(action: saveKey) {
+                    Text("Enregistrer la clé")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.cyan.opacity(0.22)))
+                        .foregroundColor(.cyan)
+                }
+
+                if isKeySaved {
+                    Button(action: {
+                        deepLKey = ""
+                        saveKey()
+                    }) {
+                        Text("Supprimer")
+                            .font(.subheadline)
+                            .foregroundColor(Color.red.opacity(0.8))
+                    }
+                }
+            }
+
+            Text(isKeySaved
+                 ? "✅ DeepL actif : les phrases terminées sont traduites par DeepL."
+                 : "Aucune clé : Sarah utilise le moteur hors ligne d’iOS, puis un service gratuit de secours.")
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.54))
+
+            Text("Hors ligne hébreu → français : \(offlineStatusText)")
+                .font(.caption)
+                .foregroundColor(Color.white.opacity(0.38))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.075))
+        )
+        .task {
+            let status = await TranslationEngine.shared.onDeviceStatus(from: "he", to: "fr")
+            switch status {
+            case .installed:
+                offlineStatusText = "prêt ✅"
+            case .downloadable:
+                offlineStatusText = "pack à télécharger (Sarah le propose au lancement de la traduction)"
+            case .unsupported:
+                offlineStatusText = "non disponible sur cette version d’iOS (iOS 27 requis)"
+            }
+        }
+    }
+
+    private func saveKey() {
+        TranslationEngine.shared.deepLAPIKey = deepLKey
+        isKeySaved = TranslationEngine.shared.hasDeepLKey
+        HapticService.shared.buttonTap()
+    }
+}
+
 @available(iOS 15.0, *)
 private struct SarahEngineSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -1568,6 +1650,8 @@ private struct SarahEngineSettingsView: View {
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(Color.white.opacity(0.075))
                     )
+
+                    TranslationEngineSettingsCard()
 
                     engineCard(
                         icon: "photo.fill",

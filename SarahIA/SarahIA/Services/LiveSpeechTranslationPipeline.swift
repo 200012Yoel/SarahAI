@@ -1,88 +1,151 @@
 import Foundation
 import AVFoundation
+import QuartzCore
 import Speech
 
-/// Pipeline de Traduction Vocale & Synthèse Temps Réel en Appel (Full Duplex)
+/// Pipeline de traduction vocale en temps réel.
+///
+/// Fonctionnement :
+/// 1. Pendant que la personne parle : sous-titres immédiats (texte reconnu + traduction rapide sur l'iPhone).
+/// 2. À la première pause (~0,8 s) : la phrase est figée, traduite avec le meilleur moteur (DeepL en ligne,
+///    sinon iOS hors ligne), puis prononcée.
+/// 3. Pendant que Sarah parle, le micro est ignoré : le téléphone ne retraduit jamais sa propre voix.
+///    L'écoute reprend toute seule dès que la voix a fini.
 public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDelegate, AVSpeechSynthesizerDelegate {
-    
+
     public static let shared = LiveSpeechTranslationPipeline()
-    
-    // Callbacks pour l'UI et le moteur WebRTC
+
+    // Callbacks pour l'UI et la couche d'appel (toujours appelés sur le thread principal)
     public var onTranscriptItemUpdated: ((CallTranscriptItem) -> Void)?
     public var onSynthesizedAudioReady: ((Data, String) -> Void)?
     public var onAudioEnergyLevel: ((Float) -> Void)?
-    
+
+    // MARK: - Réglages de réactivité
+
+    /// Silence après lequel la phrase est considérée comme terminée.
+    private let endOfSentenceSilence: TimeInterval = 0.8
+    /// Intervalle minimal entre deux traductions rapides des sous-titres.
+    private let partialTranslationInterval: TimeInterval = 0.25
+    /// Délai avant de réécouter après la fin de la voix (évite d'attraper la fin du son).
+    private let resumeListeningDelay: TimeInterval = 0.25
+    /// Fréquence max de mise à jour de l'animation du micro (~15 images/s).
+    private let energyUpdateInterval: CFTimeInterval = 1.0 / 15.0
+
+    // MARK: - Reconnaissance vocale
+
     private var localSpeechRecognizer: SFSpeechRecognizer?
-    private var localRecognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var localRecognitionTask: SFSpeechRecognitionTask?
-    
+
+    /// Requête courante, lue depuis le thread audio : protégée par un verrou.
+    private let audioLock = NSLock()
+    private var _activeRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var _isMicSuspended = false
+    private var lastEnergyUpdate: CFTimeInterval = 0
+
+    // MARK: - Synthèse vocale
+
     private let speechSynthesizer = AVSpeechSynthesizer()
+
+    // MARK: - État (thread principal uniquement)
+
     private var currentLanguagePair = CallLanguagePair()
     private var isPipelineRunning = false
-    
-    // Suivi du segment en cours
-    private var currentLocalSegmentId: String = UUID().uuidString
-    private var lastRecognizedText: String = ""
-    private var silenceDebounceTimer: Timer?
-    
+    /// Incrémenté à chaque nouvelle session de reconnaissance : les résultats d'une ancienne session sont ignorés.
+    private var recognitionGeneration = 0
+
+    private var currentSegmentId = UUID().uuidString
+    private var currentOriginalText = ""
+    private var currentPartialTranslation = ""
+    private var silenceTimer: Timer?
+
+    private var isPartialTranslationInFlight = false
+    private var pendingPartialText: String?
+    private var lastPartialTranslationDate = Date.distantPast
+
     private override init() {
         super.init()
         speechSynthesizer.delegate = self
     }
-    
-    // MARK: - Démarrage / Arrêt du Pipeline
-    
+
+    // MARK: - Démarrage / Arrêt
+
     public func startPipeline(with languagePair: CallLanguagePair) {
-        stopPipeline()
-        self.currentLanguagePair = languagePair
-        self.isPipelineRunning = true
-        
-        let localeId = localeIdentifier(for: languagePair.localLanguage)
-        localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
-        localSpeechRecognizer?.delegate = self
-        
-        startRecognitionSession()
-    }
-    
-    public func updateLanguagePair(_ newPair: CallLanguagePair) {
-        let needsRestart = newPair.localLanguage != currentLanguagePair.localLanguage
-        self.currentLanguagePair = newPair
-        if needsRestart && isPipelineRunning {
-            startPipeline(with: newPair)
+        runOnMain { [weak self] in
+            guard let self = self else { return }
+            self.stopPipelineOnMain()
+            self.currentLanguagePair = languagePair
+            self.isPipelineRunning = true
+
+            let localeId = self.localeIdentifier(for: languagePair.localLanguage)
+            self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
+            self.localSpeechRecognizer?.delegate = self
+
+            self.requestSpeechAuthorizationIfNeeded { authorized in
+                guard authorized, self.isPipelineRunning else {
+                    print("⚠️ [Traduction] Reconnaissance vocale non autorisée")
+                    return
+                }
+                self.startRecognitionSession()
+            }
         }
     }
-    
+
+    public func updateLanguagePair(_ newPair: CallLanguagePair) {
+        runOnMain { [weak self] in
+            guard let self = self else { return }
+            let needsRestart = newPair.localLanguage != self.currentLanguagePair.localLanguage
+            self.currentLanguagePair = newPair
+            if needsRestart && self.isPipelineRunning {
+                self.startPipeline(with: newPair)
+            }
+        }
+    }
+
     public func stopPipeline() {
+        runOnMain { [weak self] in
+            self?.stopPipelineOnMain()
+        }
+    }
+
+    private func stopPipelineOnMain() {
         isPipelineRunning = false
-        silenceDebounceTimer?.invalidate()
-        silenceDebounceTimer = nil
-        
-        localRecognitionRequest?.endAudio()
-        localRecognitionRequest = nil
-        
-        localRecognitionTask?.cancel()
-        localRecognitionTask = nil
-        
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+        pendingPartialText = nil
+        isPartialTranslationInFlight = false
+
+        endRecognitionSession()
+        setMicSuspended(false)
+
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
     }
-    
-    // MARK: - Ingestion des Buffers PCM Micro
-    
+
+    // MARK: - Ingestion des buffers micro (thread audio)
+
     public func processMicrophoneBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard isPipelineRunning, let request = localRecognitionRequest else { return }
-        request.append(buffer)
-        
-        // Calcul du niveau d'énergie audio RMS pour l'animation visuelle
-        calculateAudioEnergy(buffer: buffer)
+        audioLock.lock()
+        let request = _activeRequest
+        let suspended = _isMicSuspended
+        audioLock.unlock()
+
+        // Pendant que Sarah parle, on n'écoute pas : pas d'écho, pas de boucle.
+        guard !suspended else { return }
+
+        request?.append(buffer)
+        publishAudioEnergy(buffer: buffer)
     }
-    
-    private func calculateAudioEnergy(buffer: AVAudioPCMBuffer) {
+
+    private func publishAudioEnergy(buffer: AVAudioPCMBuffer) {
+        let now = CACurrentMediaTime()
+        guard now - lastEnergyUpdate >= energyUpdateInterval else { return }
+        lastEnergyUpdate = now
+
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let frameLength = Int(buffer.frameLength)
-        if frameLength == 0 { return }
-        
+        guard frameLength > 0 else { return }
+
         var sum: Float = 0.0
         for i in 0..<frameLength {
             let sample = channelData[i]
@@ -90,158 +153,369 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
         let rms = sqrtf(sum / Float(frameLength))
         let normalized = min(max(rms * 10.0, 0.0), 1.0)
-        
+
         DispatchQueue.main.async { [weak self] in
             self?.onAudioEnergyLevel?(normalized)
         }
     }
-    
-    // MARK: - Session de Reconnaissance Vocale Continue
-    
+
+    private func setActiveRequest(_ request: SFSpeechAudioBufferRecognitionRequest?) {
+        audioLock.lock()
+        _activeRequest = request
+        audioLock.unlock()
+    }
+
+    private func setMicSuspended(_ suspended: Bool) {
+        audioLock.lock()
+        _isMicSuspended = suspended
+        audioLock.unlock()
+        if suspended {
+            onAudioEnergyLevel?(0)
+        }
+    }
+
+    // MARK: - Session de reconnaissance
+
     private func startRecognitionSession() {
+        guard isPipelineRunning else { return }
         guard let recognizer = localSpeechRecognizer, recognizer.isAvailable else {
-            print("⚠️ [SpeechPipeline] SFSpeechRecognizer non disponible")
+            print("⚠️ [Traduction] Reconnaissance vocale indisponible, nouvel essai dans 1 s")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.startRecognitionSession()
+            }
             return
         }
-        
-        localRecognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let request = localRecognitionRequest else { return }
-        
+
+        endRecognitionSession()
+
+        let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if #available(iOS 13.0, *) {
-            request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        request.taskHint = .dictation
+        if #available(iOS 16.0, *) {
+            request.addsPunctuation = true
         }
-        
-        currentLocalSegmentId = UUID().uuidString
-        lastRecognizedText = ""
-        
-        localRecognitionTask = recognizer.recognitionTask(with: request) { [weak self] (result, error) in
-            guard let self = self else { return }
-            
-            if let result = result {
-                let transcription = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !transcription.isEmpty && transcription != self.lastRecognizedText {
-                    self.lastRecognizedText = transcription
-                    self.handleLocalTranscription(text: transcription, isFinal: result.isFinal)
-                }
-            }
-            
-            if error != nil || (result?.isFinal ?? false) {
-                // Recommencer une session propre si le pipeline est toujours actif
-                if self.isPipelineRunning {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        self.startRecognitionSession()
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Traitement & Traduction en Direct
-    
-    private func handleLocalTranscription(text: String, isFinal: Bool) {
-        silenceDebounceTimer?.invalidate()
-        
-        // Traduction instantanée locale
-        let targetLang = currentLanguagePair.remoteLanguage
-        let sourceLang = currentLanguagePair.localLanguage
-        
-        // Traduction ultra-rapide (dictionnaire local + fallback)
-        let targetEnum: TranslationEngine.TargetLanguage = {
-            switch targetLang {
-            case "en": return .english
-            case "he": return .hebrew
-            default: return .french
-            }
-        }()
-        
-        TranslationEngine.shared.translate(text: text, sourceLang: sourceLang, targetLang: targetEnum) { [weak self] (translatedText) in
-            guard let self = self else { return }
-            
-            let item = CallTranscriptItem(
-                id: self.currentLocalSegmentId,
-                isLocalSpeaker: true,
-                originalText: text,
-                originalLanguage: sourceLang,
-                translatedText: translatedText,
-                targetLanguage: targetLang,
-                isFinal: isFinal
-            )
-            
+        // Sur l'iPhone quand c'est possible (plus rapide, marche sans Internet)
+        request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+
+        currentSegmentId = UUID().uuidString
+        currentOriginalText = ""
+        currentPartialTranslation = ""
+        pendingPartialText = nil
+
+        setActiveRequest(request)
+
+        localRecognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             DispatchQueue.main.async {
-                self.onTranscriptItemUpdated?(item)
-            }
-            
-            // Si la phrase est validée ou après un court silence, on synthétise la voix traduite
-            self.silenceDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.9, repeats: false) { [weak self] _ in
-                guard let self = self, self.currentLanguagePair.isVoiceTranslationEnabled else { return }
-                self.synthesizeAndInjectTranslatedVoice(text: translatedText, language: targetLang)
-                // Nouveau segment pour la phrase suivante
-                self.currentLocalSegmentId = UUID().uuidString
-                self.lastRecognizedText = ""
+                self?.handleRecognition(result: result, error: error, generation: generation)
             }
         }
     }
-    
-    // MARK: - Synthèse Vocale & Injection WebRTC
-    
-    private func synthesizeAndInjectTranslatedVoice(text: String, language: String) {
+
+    private func endRecognitionSession() {
+        recognitionGeneration += 1
+        audioLock.lock()
+        let request = _activeRequest
+        _activeRequest = nil
+        audioLock.unlock()
+        request?.endAudio()
+        localRecognitionTask?.cancel()
+        localRecognitionTask = nil
+    }
+
+    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?, generation: Int) {
+        // Résultat d'une ancienne session : ignoré (c'est ce qui causait les répétitions)
+        guard generation == recognitionGeneration, isPipelineRunning else { return }
+
+        if let result = result {
+            let transcription = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !transcription.isEmpty && transcription != currentOriginalText {
+                currentOriginalText = transcription
+                handlePartialTranscription(transcription)
+            }
+            if result.isFinal {
+                finalizeCurrentSegment()
+                return
+            }
+        }
+
+        if error != nil {
+            // Fin de session côté iOS (limite de durée, silence prolongé…) : on termine la phrase et on relance.
+            if !currentOriginalText.isEmpty {
+                finalizeCurrentSegment()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    self?.startRecognitionSession()
+                }
+            }
+        }
+    }
+
+    // MARK: - Sous-titres en direct
+
+    private func handlePartialTranscription(_ text: String) {
+        // 1. Le texte original s'affiche tout de suite
+        publishLocalItem(original: text, translated: currentPartialTranslation.isEmpty ? "…" : currentPartialTranslation, isFinal: false)
+
+        // 2. Traduction rapide (sur l'iPhone), limitée à 4 par seconde
+        pendingPartialText = text
+        schedulePartialTranslation()
+
+        // 3. Détection de fin de phrase par le silence
+        silenceTimer?.invalidate()
+        silenceTimer = Timer.scheduledTimer(withTimeInterval: endOfSentenceSilence, repeats: false) { [weak self] _ in
+            self?.finalizeCurrentSegment()
+        }
+    }
+
+    private func schedulePartialTranslation() {
+        guard !isPartialTranslationInFlight, let text = pendingPartialText else { return }
+
+        let wait = partialTranslationInterval - Date().timeIntervalSince(lastPartialTranslationDate)
+        if wait > 0 {
+            isPartialTranslationInFlight = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
+                self?.isPartialTranslationInFlight = false
+                self?.schedulePartialTranslation()
+            }
+            return
+        }
+
+        pendingPartialText = nil
+        isPartialTranslationInFlight = true
+        lastPartialTranslationDate = Date()
+
+        let segmentId = currentSegmentId
+        let pair = currentLanguagePair
+
+        Task { [weak self] in
+            let translated = await TranslationEngine.shared.translateIfPossible(
+                text: text,
+                sourceLang: pair.localLanguage,
+                targetLang: Self.targetEnum(pair.remoteLanguage),
+                quality: .fast
+            )
+            await MainActor.run {
+                guard let self = self else { return }
+                self.isPartialTranslationInFlight = false
+                if let translated = translated, segmentId == self.currentSegmentId {
+                    self.currentPartialTranslation = translated
+                    self.publishLocalItem(original: self.currentOriginalText, translated: translated, isFinal: false)
+                }
+                self.schedulePartialTranslation()
+            }
+        }
+    }
+
+    // MARK: - Phrase terminée
+
+    private func finalizeCurrentSegment() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
+
+        let text = currentOriginalText
+        let segmentId = currentSegmentId
+        let pair = currentLanguagePair
+        let partial = currentPartialTranslation
+
         guard !text.isEmpty else { return }
-        
+
+        // On coupe la session : la phrase suivante repartira de zéro (plus de texte accumulé)
+        endRecognitionSession()
+        currentOriginalText = ""
+        currentPartialTranslation = ""
+        pendingPartialText = nil
+
+        let willSpeak = pair.isVoiceTranslationEnabled
+        if willSpeak {
+            // Micro coupé dès maintenant pour ne pas capter la voix de Sarah
+            setMicSuspended(true)
+        } else {
+            startRecognitionSession()
+        }
+
+        Task { [weak self] in
+            let translated = await TranslationEngine.shared.translate(
+                text: text,
+                sourceLang: pair.localLanguage,
+                targetLang: Self.targetEnum(pair.remoteLanguage),
+                quality: .best
+            )
+            await MainActor.run {
+                guard let self = self else { return }
+                // Si aucun moteur n'a traduit, on garde au moins la traduction rapide
+                let finalText = (translated == text && !partial.isEmpty) ? partial : translated
+                self.publishItem(
+                    id: segmentId,
+                    isLocal: true,
+                    original: text,
+                    originalLanguage: pair.localLanguage,
+                    translated: finalText,
+                    targetLanguage: pair.remoteLanguage,
+                    isFinal: true
+                )
+                guard self.isPipelineRunning else { return }
+                if willSpeak {
+                    self.speak(finalText, language: pair.remoteLanguage)
+                }
+            }
+        }
+    }
+
+    // MARK: - Synthèse vocale
+
+    private func speak(_ text: String, language: String) {
+        guard !text.isEmpty, text != "…" else {
+            resumeListening()
+            return
+        }
+
+        setMicSuspended(true)
+
         let utterance = MultiAgentVoiceManager.shared.makeUtterance(text: text)
-        let localeCode = localeIdentifier(for: language)
-        utterance.voice = AVSpeechSynthesisVoice(language: localeCode) ?? AVSpeechSynthesisVoice(language: "en-US")
+        utterance.voice = bestVoice(for: language)
         utterance.rate = 0.52
         utterance.pitchMultiplier = 1.05
         utterance.volume = 1.0
-        
-        // Stopper toute synthèse précédente
+
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
-        
         speechSynthesizer.speak(utterance)
-        
-        // Émission de l'événement de voix synthétisée pour la couche WebRTC
-        let utf8Data = Data(text.utf8)
-        self.onSynthesizedAudioReady?(utf8Data, language)
+
+        onSynthesizedAudioReady?(Data(text.utf8), language)
     }
-    
-    // MARK: - Traitement de l'Audio Distant (Correspondant -> Utilisateur iPhone)
-    
+
+    private func resumeListening() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + resumeListeningDelay) { [weak self] in
+            guard let self = self, self.isPipelineRunning, !self.speechSynthesizer.isSpeaking else { return }
+            self.setMicSuspended(false)
+            self.startRecognitionSession()
+        }
+    }
+
+    /// Voix de meilleure qualité installée pour la langue (Premium > Améliorée > Standard).
+    private func bestVoice(for language: String) -> AVSpeechSynthesisVoice? {
+        let localeCode = localeIdentifier(for: language)
+        let prefix = String(localeCode.prefix(2))
+        let candidates = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix(prefix) }
+        let exact = candidates.filter { $0.language == localeCode }
+        let pool = exact.isEmpty ? candidates : exact
+        if let best = pool.max(by: { $0.quality.rawValue < $1.quality.rawValue }) {
+            return best
+        }
+        return AVSpeechSynthesisVoice(language: localeCode) ?? AVSpeechSynthesisVoice(language: "fr-FR")
+    }
+
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        resumeListening()
+    }
+
+    public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        resumeListening()
+    }
+
+    // MARK: - Audio distant (correspondant -> utilisateur)
+
     public func handleRemoteIncomingText(_ remoteText: String) {
-        let sourceLang = currentLanguagePair.remoteLanguage
-        let targetLang = currentLanguagePair.localLanguage
-        
-        let targetEnum: TranslationEngine.TargetLanguage = {
-            switch targetLang {
-            case "he": return .hebrew
-            case "en": return .english
-            default: return .french
-            }
-        }()
-        
-        TranslationEngine.shared.translate(text: remoteText, sourceLang: sourceLang, targetLang: targetEnum) { [weak self] (translatedText) in
-            guard let self = self else { return }
-            
-            let item = CallTranscriptItem(
-                id: UUID().uuidString,
-                isLocalSpeaker: false,
-                originalText: remoteText,
-                originalLanguage: sourceLang,
-                translatedText: translatedText,
-                targetLanguage: targetLang,
-                isFinal: true
+        let pair = currentLanguagePair
+        let id = UUID().uuidString
+
+        runOnMain { [weak self] in
+            self?.publishItem(
+                id: id,
+                isLocal: false,
+                original: remoteText,
+                originalLanguage: pair.remoteLanguage,
+                translated: "…",
+                targetLanguage: pair.localLanguage,
+                isFinal: false
             )
-            
-            DispatchQueue.main.async {
-                self.onTranscriptItemUpdated?(item)
+        }
+
+        Task { [weak self] in
+            let translated = await TranslationEngine.shared.translate(
+                text: remoteText,
+                sourceLang: pair.remoteLanguage,
+                targetLang: Self.targetEnum(pair.localLanguage),
+                quality: .best
+            )
+            await MainActor.run {
+                self?.publishItem(
+                    id: id,
+                    isLocal: false,
+                    original: remoteText,
+                    originalLanguage: pair.remoteLanguage,
+                    translated: translated,
+                    targetLanguage: pair.localLanguage,
+                    isFinal: true
+                )
             }
         }
     }
-    
+
+    // MARK: - Publication vers l'UI
+
+    private func publishLocalItem(original: String, translated: String, isFinal: Bool) {
+        publishItem(
+            id: currentSegmentId,
+            isLocal: true,
+            original: original,
+            originalLanguage: currentLanguagePair.localLanguage,
+            translated: translated,
+            targetLanguage: currentLanguagePair.remoteLanguage,
+            isFinal: isFinal
+        )
+    }
+
+    private func publishItem(id: String, isLocal: Bool, original: String, originalLanguage: String, translated: String, targetLanguage: String, isFinal: Bool) {
+        let item = CallTranscriptItem(
+            id: id,
+            isLocalSpeaker: isLocal,
+            originalText: original,
+            originalLanguage: originalLanguage,
+            translatedText: translated,
+            targetLanguage: targetLanguage,
+            isFinal: isFinal
+        )
+        onTranscriptItemUpdated?(item)
+    }
+
+    // MARK: - Autorisations
+
+    private func requestSpeechAuthorizationIfNeeded(_ completion: @escaping (Bool) -> Void) {
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            SFSpeechRecognizer.requestAuthorization { status in
+                DispatchQueue.main.async { completion(status == .authorized) }
+            }
+        default:
+            completion(false)
+        }
+    }
+
     // MARK: - Helpers
-    
+
+    private func runOnMain(_ block: @escaping () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.async(execute: block)
+        }
+    }
+
+    private static func targetEnum(_ code: String) -> TranslationEngine.TargetLanguage {
+        switch code {
+        case "en": return .english
+        case "he": return .hebrew
+        default: return .french
+        }
+    }
+
     private func localeIdentifier(for langCode: String) -> String {
         switch langCode {
         case "en": return "en-US"

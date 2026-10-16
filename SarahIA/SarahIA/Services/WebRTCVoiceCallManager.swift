@@ -39,7 +39,21 @@ public final class WebRTCVoiceCallManager: NSObject {
     }
     
     private func notifyStateChanged() {
-        NotificationCenter.default.post(name: .sarahWebRTCStateChanged, object: nil)
+        let notify = { [weak self] in
+            guard let self = self else { return }
+            // Sans ceci, l'écran SwiftUI ne voyait jamais les nouveaux sous-titres
+            #if canImport(Combine)
+            if #available(iOS 13.0, *) {
+                self.objectWillChange.send()
+            }
+            #endif
+            NotificationCenter.default.post(name: .sarahWebRTCStateChanged, object: nil)
+        }
+        if Thread.isMainThread {
+            notify()
+        } else {
+            DispatchQueue.main.async(execute: notify)
+        }
     }
     
     // MARK: - Moteur Audio Basse Latence (AVAudioEngine)
@@ -161,6 +175,16 @@ public final class WebRTCVoiceCallManager: NSObject {
         guard !audioEngine.isRunning else { return }
         
         let inputNode = audioEngine.inputNode
+
+        // Annulation d'écho et réduction de bruit d'iOS (à activer avant de lire le format)
+        if #available(iOS 13.0, *) {
+            do {
+                try inputNode.setVoiceProcessingEnabled(true)
+            } catch {
+                print("⚠️ [WebRTC] Annulation d'écho indisponible : \(error.localizedDescription)")
+            }
+        }
+
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         
         inputNode.removeTap(onBus: 0)
