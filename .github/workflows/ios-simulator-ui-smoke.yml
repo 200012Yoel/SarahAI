@@ -21,6 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore missing website voice bridge before compiling
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/restore_website_voice_bridge.py
+          grep -q 'public func speakWebsiteGuide(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func speakWebsiteGuideSequence(' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func cancelWebsiteGuideSpeech()' SarahIA/SarahIA/ViewModels/ChatViewModel.swift
+          grep -q 'public func speakSequence(' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
+
+
       - name: Verify canonical Sarah voice runtime
         run: |
           set -euo pipefail
