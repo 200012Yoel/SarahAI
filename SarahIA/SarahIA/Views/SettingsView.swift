@@ -1495,46 +1495,72 @@ private struct LocalGenerationSettingsView: View {
     }
 }
 
-/// Carte d'état de la traduction en temps réel (100 % gratuite, avec ou sans Internet).
+/// Carte de la traduction en temps réel (100 % gratuite, avec ou sans Internet).
 @available(iOS 15.0, *)
 private struct TranslationEngineSettingsCard: View {
+    @ObservedObject private var whisper = WhisperService.shared
     @State private var packsRequested = false
+    @State private var whisperProgress: Double?
+    @State private var whisperDownloaded = SarahWhisperEngine.isModelDownloaded
 
     private var googleAvailable: Bool { TranslationEngine.shared.isGoogleOfflineAvailable }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Label("Traduction en temps réel", systemImage: "character.bubble.fill")
                 .font(.headline)
                 .foregroundColor(.white)
 
-            Text("Hébreu ⇄ français avec le pack hors ligne de Google Traduction, directement dans Sarah. Gratuit, sans abonnement, avec ou sans Internet.")
+            Text("Fonctionne pareil avec ou sans Internet, 100 % gratuit. Deux éléments à télécharger une seule fois (Wi-Fi conseillé) :")
                 .font(.footnote)
                 .foregroundColor(Color.white.opacity(0.54))
 
-            Text(googleAvailable
-                 ? "✅ Moteur Google intégré"
-                 : "⚠️ Moteur Google non installé : lancer « pod install » sur le Mac puis ouvrir SarahIA.xcworkspace")
-                .font(.caption)
-                .foregroundColor(Color.white.opacity(0.7))
-
-            if googleAvailable {
-                Button(action: {
-                    TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
-                    packsRequested = true
-                    HapticService.shared.buttonTap()
-                }) {
-                    Text(packsRequested ? "Téléchargement lancé ✓" : "Télécharger les packs hébreu et français (~60 Mo)")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.cyan.opacity(0.22)))
-                        .foregroundColor(.cyan)
+            // 1. Traduction (Google hors ligne)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("1 · Traduction hébreu ⇄ français (Google, ~60 Mo)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                if googleAvailable {
+                    actionButton(packsRequested ? "Téléchargement lancé ✓" : "Télécharger", disabled: packsRequested) {
+                        TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
+                        packsRequested = true
+                    }
+                } else {
+                    Text("⚠️ Non installé : lancer « pod install » sur le Mac puis ouvrir SarahIA.xcworkspace")
+                        .font(.caption)
+                        .foregroundColor(Color.orange.opacity(0.85))
                 }
-                .disabled(packsRequested)
             }
 
-            Text("Les packs se téléchargent une seule fois (aussi automatiquement au premier appel traduit). Traductions affichées avec la mention « Traduit par Google ».")
+            // 2. Reconnaissance de la voix hors ligne (Whisper)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("2 · Reconnaissance de la voix hors ligne (Whisper, \(SarahWhisperEngine.modelDisplaySize))")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+
+                if !SarahWhisperEngine.isAvailable {
+                    Text("⚠️ WhisperKit non inclus dans cette compilation.")
+                        .font(.caption)
+                        .foregroundColor(Color.orange.opacity(0.85))
+                } else if whisperDownloaded || whisper.isModelReady {
+                    Text("✅ Prête — la voix est reconnue même sans Internet")
+                        .font(.caption)
+                        .foregroundColor(Color.green.opacity(0.85))
+                } else if let progress = whisperProgress {
+                    ProgressView(value: progress)
+                        .tint(.cyan)
+                    Text("Téléchargement : \(Int(progress * 100)) %")
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.6))
+                } else {
+                    actionButton(whisper.isModelLoading ? "Préparation…" : "Télécharger", disabled: whisper.isModelLoading) {
+                        whisperProgress = 0
+                        whisper.downloadModelNow()
+                    }
+                }
+            }
+
+            Text("Les traductions Google s'affichent avec la mention « Traduit par Google ».")
                 .font(.caption)
                 .foregroundColor(Color.white.opacity(0.38))
         }
@@ -1543,6 +1569,32 @@ private struct TranslationEngineSettingsCard: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color.white.opacity(0.075))
         )
+        .onReceive(NotificationCenter.default.publisher(for: SarahWhisperEngine.downloadProgressNotification).receive(on: RunLoop.main)) { note in
+            if let value = note.userInfo?["progress"] as? Double {
+                whisperProgress = value
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: SarahWhisperEngine.stateChangedNotification).receive(on: RunLoop.main)) { note in
+            whisperDownloaded = SarahWhisperEngine.isModelDownloaded
+            if (note.userInfo?["ready"] as? Bool) != true {
+                whisperProgress = nil
+            }
+        }
+    }
+
+    private func actionButton(_ title: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            HapticService.shared.buttonTap()
+            action()
+        }) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.cyan.opacity(0.22)))
+                .foregroundColor(.cyan)
+        }
+        .disabled(disabled)
     }
 }
 

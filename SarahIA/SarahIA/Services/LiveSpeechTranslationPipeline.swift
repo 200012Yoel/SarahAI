@@ -3,10 +3,14 @@ import AVFoundation
 import QuartzCore
 import Speech
 
-/// Pipeline de traduction vocale en temps réel.
+/// Pipeline de traduction vocale en temps réel — fonctionne aussi bien avec que sans Internet.
 ///
-/// Fonctionnement :
-/// 1. Pendant que la personne parle : sous-titres immédiats (texte reconnu + traduction rapide sur l'iPhone).
+/// Reconnaissance de la voix (choix automatique, réévalué à chaque phrase) :
+/// - **Apple** (iOS) quand elle est disponible : avec Internet, ou sans si l'iPhone la gère hors ligne.
+/// - **Whisper** sur l'iPhone (WhisperKit) dès qu'Apple n'est pas disponible, par exemple hors ligne.
+///
+/// Déroulé :
+/// 1. Pendant que la personne parle : sous-titres immédiats (texte reconnu + traduction rapide).
 /// 2. À la première pause (~0,8 s) : la phrase est figée, traduite par le pack Google hors ligne
 ///    (gratuit, avec ou sans Internet), puis prononcée.
 /// 3. Pendant que Sarah parle, le micro est ignoré : le téléphone ne retraduit jamais sa propre voix.
@@ -20,6 +24,15 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     public var onSynthesizedAudioReady: ((Data, String) -> Void)?
     public var onAudioEnergyLevel: ((Float) -> Void)?
 
+    /// Moteur de reconnaissance actuellement utilisé (affichable dans l'interface).
+    public enum RecognitionMode: String {
+        case apple = "Apple"
+        case whisper = "Whisper (hors ligne)"
+        case unavailable = "Indisponible"
+    }
+
+    public private(set) var currentRecognitionMode: RecognitionMode = .unavailable
+
     // MARK: - Réglages de réactivité
 
     /// Silence après lequel la phrase est considérée comme terminée.
@@ -31,15 +44,31 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     /// Fréquence max de mise à jour de l'animation du micro (~15 images/s).
     private let energyUpdateInterval: CFTimeInterval = 1.0 / 15.0
 
-    // MARK: - Reconnaissance vocale
+    // Whisper
+    private let whisperSampleRate: Double = 16_000
+    private let whisperVoiceThresholdDB: Float = -45
+    private let whisperPartialInterval: TimeInterval = 1.0
+    private let whisperMinimumSpeech: Double = 0.5
+    private let whisperMaximumSegment: Double = 25
+    private let whisperPreRoll: Double = 0.4
+
+    // MARK: - Reconnaissance Apple
 
     private var localSpeechRecognizer: SFSpeechRecognizer?
     private var localRecognitionTask: SFSpeechRecognitionTask?
 
-    /// Requête courante, lue depuis le thread audio : protégée par un verrou.
+    // MARK: - État partagé avec le thread audio (protégé par `audioLock`)
+
     private let audioLock = NSLock()
+    private var _mode: RecognitionMode = .unavailable
     private var _activeRequest: SFSpeechAudioBufferRecognitionRequest?
     private var _isMicSuspended = false
+    private var _whisperSamples: [Float] = []
+    private var _whisperHasSpeech = false
+    private var _whisperLastVoice: CFTimeInterval = 0
+    private var _whisperFinalizeRequested = false
+    private var _converter: AVAudioConverter?
+    private var _converterInputFormat: AVAudioFormat?
     private var lastEnergyUpdate: CFTimeInterval = 0
 
     // MARK: - Synthèse vocale
@@ -50,7 +79,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     private var currentLanguagePair = CallLanguagePair()
     private var isPipelineRunning = false
-    /// Incrémenté à chaque nouvelle session de reconnaissance : les résultats d'une ancienne session sont ignorés.
+    /// Incrémenté à chaque nouvelle session : les résultats d'une ancienne session sont ignorés.
     private var recognitionGeneration = 0
 
     private var currentSegmentId = UUID().uuidString
@@ -62,6 +91,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private var isPartialTranslationInFlight = false
     private var pendingPartialText: String?
     private var lastPartialTranslationDate = Date.distantPast
+
+    private var whisperPartialTimer: Timer?
+    private var isWhisperPartialInFlight = false
+    private var hasShownUnavailableNotice = false
 
     private override init() {
         super.init()
@@ -76,16 +109,22 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.stopPipelineOnMain()
             self.currentLanguagePair = languagePair
             self.isPipelineRunning = true
+            self.hasShownUnavailableNotice = false
+
+            // Packs de traduction Google + modèle Whisper : prêts pour le hors ligne
             TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.localLanguage, languagePair.remoteLanguage])
+            Task {
+                await SarahWhisperEngine.shared.prepare(allowDownload: NetworkMonitor.shared.isOnUnmeteredNetwork)
+            }
 
             let localeId = self.localeIdentifier(for: languagePair.localLanguage)
             self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
             self.localSpeechRecognizer?.delegate = self
 
             self.requestSpeechAuthorizationIfNeeded { authorized in
-                guard authorized, self.isPipelineRunning else {
-                    print("⚠️ [Traduction] Reconnaissance vocale non autorisée")
-                    return
+                guard self.isPipelineRunning else { return }
+                if !authorized {
+                    print("⚠️ [Traduction] Reconnaissance Apple non autorisée : Whisper uniquement")
                 }
                 self.startRecognitionSession()
             }
@@ -128,6 +167,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     public func processMicrophoneBuffer(_ buffer: AVAudioPCMBuffer) {
         audioLock.lock()
+        let mode = _mode
         let request = _activeRequest
         let suspended = _isMicSuspended
         audioLock.unlock()
@@ -135,7 +175,14 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         // Pendant que Sarah parle, on n'écoute pas : pas d'écho, pas de boucle.
         guard !suspended else { return }
 
-        request?.append(buffer)
+        switch mode {
+        case .apple:
+            request?.append(buffer)
+        case .whisper:
+            appendToWhisper(buffer)
+        case .unavailable:
+            break
+        }
         publishAudioEnergy(buffer: buffer)
     }
 
@@ -161,12 +208,6 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
     }
 
-    private func setActiveRequest(_ request: SFSpeechAudioBufferRecognitionRequest?) {
-        audioLock.lock()
-        _activeRequest = request
-        audioLock.unlock()
-    }
-
     private func setMicSuspended(_ suspended: Bool) {
         audioLock.lock()
         _isMicSuspended = suspended
@@ -176,19 +217,90 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
     }
 
+    // MARK: - Choix du moteur de reconnaissance
+
+    private func chooseRecognitionMode() -> RecognitionMode {
+        let appleAuthorized = SFSpeechRecognizer.authorizationStatus() == .authorized
+        let appleWorks: Bool = {
+            guard appleAuthorized, let recognizer = localSpeechRecognizer, recognizer.isAvailable else { return false }
+            return NetworkMonitor.shared.isOnline || recognizer.supportsOnDeviceRecognition
+        }()
+        if appleWorks { return .apple }
+        if SarahWhisperEngine.isAvailable && SarahWhisperEngine.isModelDownloaded { return .whisper }
+        return .unavailable
+    }
+
     // MARK: - Session de reconnaissance
 
     private func startRecognitionSession() {
         guard isPipelineRunning else { return }
-        guard let recognizer = localSpeechRecognizer, recognizer.isAvailable else {
-            print("⚠️ [Traduction] Reconnaissance vocale indisponible, nouvel essai dans 1 s")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.startRecognitionSession()
-            }
-            return
-        }
 
         endRecognitionSession()
+
+        recognitionGeneration += 1
+        currentSegmentId = UUID().uuidString
+        currentOriginalText = ""
+        currentPartialTranslation = ""
+        currentPartialAttribution = nil
+        pendingPartialText = nil
+
+        let mode = chooseRecognitionMode()
+        currentRecognitionMode = mode
+
+        switch mode {
+        case .apple:
+            startAppleSession()
+        case .whisper:
+            startWhisperSession()
+        case .unavailable:
+            showUnavailableNoticeOnce()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.startRecognitionSession()
+            }
+        }
+    }
+
+    private func endRecognitionSession() {
+        recognitionGeneration += 1
+
+        audioLock.lock()
+        let request = _activeRequest
+        _activeRequest = nil
+        _mode = .unavailable
+        _whisperSamples.removeAll(keepingCapacity: true)
+        _whisperHasSpeech = false
+        _whisperFinalizeRequested = false
+        audioLock.unlock()
+
+        request?.endAudio()
+        localRecognitionTask?.cancel()
+        localRecognitionTask = nil
+
+        whisperPartialTimer?.invalidate()
+        whisperPartialTimer = nil
+    }
+
+    private func showUnavailableNoticeOnce() {
+        guard !hasShownUnavailableNotice else { return }
+        hasShownUnavailableNotice = true
+        let message = SarahWhisperEngine.isModelDownloaded
+            ? "Reconnaissance vocale momentanément indisponible, nouvel essai…"
+            : "Sans Internet, Sarah a besoin de sa reconnaissance vocale hors ligne. Télécharge-la une fois dans Réglages > Sarah Engine (Wi-Fi conseillé)."
+        publishItem(
+            id: "sarah-notice-\(UUID().uuidString)",
+            isLocal: false,
+            original: message,
+            originalLanguage: "fr",
+            translated: "Mode hors ligne",
+            targetLanguage: "fr",
+            isFinal: true
+        )
+    }
+
+    // MARK: - Mode Apple
+
+    private func startAppleSession() {
+        guard let recognizer = localSpeechRecognizer else { return }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -199,36 +311,21 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         // Sur l'iPhone quand c'est possible (plus rapide, marche sans Internet)
         request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
 
-        recognitionGeneration += 1
         let generation = recognitionGeneration
 
-        currentSegmentId = UUID().uuidString
-        currentOriginalText = ""
-        currentPartialTranslation = ""
-        currentPartialAttribution = nil
-        pendingPartialText = nil
-
-        setActiveRequest(request)
+        audioLock.lock()
+        _activeRequest = request
+        _mode = .apple
+        audioLock.unlock()
 
         localRecognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             DispatchQueue.main.async {
-                self?.handleRecognition(result: result, error: error, generation: generation)
+                self?.handleAppleRecognition(result: result, error: error, generation: generation)
             }
         }
     }
 
-    private func endRecognitionSession() {
-        recognitionGeneration += 1
-        audioLock.lock()
-        let request = _activeRequest
-        _activeRequest = nil
-        audioLock.unlock()
-        request?.endAudio()
-        localRecognitionTask?.cancel()
-        localRecognitionTask = nil
-    }
-
-    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?, generation: Int) {
+    private func handleAppleRecognition(result: SFSpeechRecognitionResult?, error: Error?, generation: Int) {
         // Résultat d'une ancienne session : ignoré (c'est ce qui causait les répétitions)
         guard generation == recognitionGeneration, isPipelineRunning else { return }
 
@@ -236,18 +333,25 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             let transcription = result.bestTranscription.formattedString.trimmingCharacters(in: .whitespacesAndNewlines)
             if !transcription.isEmpty && transcription != currentOriginalText {
                 currentOriginalText = transcription
-                handlePartialTranscription(transcription)
+                showPartial(transcription)
+
+                // Détection de fin de phrase par le silence
+                silenceTimer?.invalidate()
+                silenceTimer = Timer.scheduledTimer(withTimeInterval: endOfSentenceSilence, repeats: false) { [weak self] _ in
+                    self?.finalizeAppleSegment()
+                }
             }
             if result.isFinal {
-                finalizeCurrentSegment()
+                finalizeAppleSegment()
                 return
             }
         }
 
         if error != nil {
-            // Fin de session côté iOS (limite de durée, silence prolongé…) : on termine la phrase et on relance.
+            // Fin de session côté iOS (Internet coupé, limite de durée, silence prolongé…) :
+            // on termine la phrase et on relance — le moteur est rechoisi (Whisper si plus d'Internet).
             if !currentOriginalText.isEmpty {
-                finalizeCurrentSegment()
+                finalizeAppleSegment()
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                     self?.startRecognitionSession()
@@ -256,21 +360,219 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
     }
 
-    // MARK: - Sous-titres en direct
+    private func finalizeAppleSegment() {
+        silenceTimer?.invalidate()
+        silenceTimer = nil
 
-    private func handlePartialTranscription(_ text: String) {
+        let text = currentOriginalText
+        guard !text.isEmpty else { return }
+
+        let segmentId = currentSegmentId
+        let partial = currentPartialTranslation
+        let partialAttribution = currentPartialAttribution
+        let pair = currentLanguagePair
+        let willSpeak = pair.isVoiceTranslationEnabled
+
+        // On coupe la session : la phrase suivante repartira de zéro (plus de texte accumulé)
+        endRecognitionSession()
+        currentOriginalText = ""
+        currentPartialTranslation = ""
+        currentPartialAttribution = nil
+        pendingPartialText = nil
+
+        if willSpeak {
+            // Micro coupé dès maintenant pour ne pas capter la voix de Sarah
+            setMicSuspended(true)
+        } else {
+            startRecognitionSession()
+        }
+
+        translateAndSpeak(text: text, segmentId: segmentId, pair: pair, partial: partial, partialAttribution: partialAttribution, willSpeak: willSpeak)
+    }
+
+    // MARK: - Mode Whisper (hors ligne)
+
+    private func startWhisperSession() {
+        audioLock.lock()
+        _mode = .whisper
+        _whisperSamples.removeAll(keepingCapacity: true)
+        _whisperHasSpeech = false
+        _whisperFinalizeRequested = false
+        audioLock.unlock()
+
+        whisperPartialTimer = Timer.scheduledTimer(withTimeInterval: whisperPartialInterval, repeats: true) { [weak self] _ in
+            self?.runWhisperPartial()
+        }
+    }
+
+    /// Thread audio : conversion 16 kHz mono, détection de voix et de fin de phrase.
+    private func appendToWhisper(_ buffer: AVAudioPCMBuffer) {
+        guard let chunk = convertTo16kMono(buffer), !chunk.isEmpty else { return }
+
+        let rms = sqrtf(chunk.reduce(Float(0)) { $0 + $1 * $1 } / Float(chunk.count))
+        let db = 20 * log10f(max(rms, 0.000_001))
+        let now = CACurrentMediaTime()
+
+        var shouldFinalize = false
+
+        audioLock.lock()
+        if _mode == .whisper && !_whisperFinalizeRequested {
+            _whisperSamples.append(contentsOf: chunk)
+
+            if db >= whisperVoiceThresholdDB {
+                _whisperHasSpeech = true
+                _whisperLastVoice = now
+            }
+
+            let duration = Double(_whisperSamples.count) / whisperSampleRate
+            if !_whisperHasSpeech {
+                // Avant la parole : on ne garde qu'un court « pré-roll »
+                let keep = Int(whisperPreRoll * whisperSampleRate)
+                if _whisperSamples.count > keep {
+                    _whisperSamples.removeFirst(_whisperSamples.count - keep)
+                }
+            } else if (duration >= whisperMinimumSpeech && now - _whisperLastVoice >= endOfSentenceSilence)
+                        || duration >= whisperMaximumSegment {
+                _whisperFinalizeRequested = true
+                shouldFinalize = true
+            }
+        }
+        audioLock.unlock()
+
+        if shouldFinalize {
+            DispatchQueue.main.async { [weak self] in
+                self?.finalizeWhisperSegment()
+            }
+        }
+    }
+
+    private func convertTo16kMono(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+        guard let targetFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: whisperSampleRate,
+            channels: 1,
+            interleaved: false
+        ) else { return nil }
+
+        audioLock.lock()
+        if _converter == nil || _converterInputFormat != buffer.format {
+            _converter = AVAudioConverter(from: buffer.format, to: targetFormat)
+            _converterInputFormat = buffer.format
+        }
+        let converter = _converter
+        audioLock.unlock()
+
+        guard let converter = converter else { return nil }
+
+        let ratio = whisperSampleRate / max(1, buffer.format.sampleRate)
+        let capacity = AVAudioFrameCount(max(1, Int(Double(buffer.frameLength) * ratio) + 32))
+        guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return nil }
+
+        var supplied = false
+        var conversionError: NSError?
+        let status = converter.convert(to: converted, error: &conversionError) { _, outStatus in
+            if supplied {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            supplied = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+        guard conversionError == nil, status != .error,
+              let channel = converted.floatChannelData?[0], converted.frameLength > 0 else { return nil }
+        return Array(UnsafeBufferPointer(start: channel, count: Int(converted.frameLength)))
+    }
+
+    /// Sous-titres partiels Whisper (environ une fois par seconde pendant que la personne parle).
+    private func runWhisperPartial() {
+        guard isPipelineRunning, !isWhisperPartialInFlight else { return }
+
+        audioLock.lock()
+        let isWhisper = _mode == .whisper
+        let hasSpeech = _whisperHasSpeech
+        let finalizing = _whisperFinalizeRequested
+        let snapshot = _whisperSamples
+        audioLock.unlock()
+
+        guard isWhisper, hasSpeech, !finalizing,
+              Double(snapshot.count) / whisperSampleRate >= whisperMinimumSpeech else { return }
+
+        isWhisperPartialInFlight = true
+        let generation = recognitionGeneration
+        let segmentId = currentSegmentId
+        let language = currentLanguagePair.localLanguage
+
+        Task { [weak self] in
+            let text = await SarahWhisperEngine.shared.transcribe(snapshot, language: language, skipIfBusy: true)
+            await MainActor.run {
+                guard let self = self else { return }
+                self.isWhisperPartialInFlight = false
+                guard let text = text,
+                      generation == self.recognitionGeneration,
+                      segmentId == self.currentSegmentId,
+                      text != self.currentOriginalText else { return }
+                self.currentOriginalText = text
+                self.showPartial(text)
+            }
+        }
+    }
+
+    private func finalizeWhisperSegment() {
+        guard isPipelineRunning else { return }
+
+        audioLock.lock()
+        guard _mode == .whisper else {
+            audioLock.unlock()
+            return
+        }
+        let samples = _whisperSamples
+        _whisperSamples.removeAll(keepingCapacity: true)
+        _whisperHasSpeech = false
+        _whisperFinalizeRequested = false
+        audioLock.unlock()
+
+        let segmentId = currentSegmentId
+        let partialText = currentOriginalText
+        let partial = currentPartialTranslation
+        let partialAttribution = currentPartialAttribution
+        let pair = currentLanguagePair
+        let willSpeak = pair.isVoiceTranslationEnabled
+
+        // Nouveau segment pour la phrase suivante (l'écoute continue si Sarah ne parle pas)
+        currentSegmentId = UUID().uuidString
+        currentOriginalText = ""
+        currentPartialTranslation = ""
+        currentPartialAttribution = nil
+        pendingPartialText = nil
+
+        if willSpeak {
+            setMicSuspended(true)
+        }
+
+        Task { [weak self] in
+            let finalText = await SarahWhisperEngine.shared.transcribe(samples, language: pair.localLanguage)
+            await MainActor.run {
+                guard let self = self, self.isPipelineRunning else { return }
+                let text = (finalText ?? partialText).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    if willSpeak { self.resumeListening() }
+                    return
+                }
+                self.translateAndSpeak(text: text, segmentId: segmentId, pair: pair, partial: partial, partialAttribution: partialAttribution, willSpeak: willSpeak)
+            }
+        }
+    }
+
+    // MARK: - Sous-titres en direct (communs aux deux moteurs)
+
+    private func showPartial(_ text: String) {
         // 1. Le texte original s'affiche tout de suite
         publishLocalItem(original: text, translated: currentPartialTranslation.isEmpty ? "…" : currentPartialTranslation, isFinal: false)
 
-        // 2. Traduction rapide (sur l'iPhone), limitée à 4 par seconde
+        // 2. Traduction rapide, limitée à 4 par seconde
         pendingPartialText = text
         schedulePartialTranslation()
-
-        // 3. Détection de fin de phrase par le silence
-        silenceTimer?.invalidate()
-        silenceTimer = Timer.scheduledTimer(withTimeInterval: endOfSentenceSilence, repeats: false) { [weak self] _ in
-            self?.finalizeCurrentSegment()
-        }
     }
 
     private func schedulePartialTranslation() {
@@ -313,34 +615,20 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
     }
 
-    // MARK: - Phrase terminée
+    // MARK: - Phrase terminée : traduction finale + voix
 
-    private func finalizeCurrentSegment() {
-        silenceTimer?.invalidate()
-        silenceTimer = nil
-
-        let text = currentOriginalText
-        let segmentId = currentSegmentId
-        let pair = currentLanguagePair
-        let partial = currentPartialTranslation
-        let partialAttribution = currentPartialAttribution
-
-        guard !text.isEmpty else { return }
-
-        // On coupe la session : la phrase suivante repartira de zéro (plus de texte accumulé)
-        endRecognitionSession()
-        currentOriginalText = ""
-        currentPartialTranslation = ""
-        currentPartialAttribution = nil
-        pendingPartialText = nil
-
-        let willSpeak = pair.isVoiceTranslationEnabled
-        if willSpeak {
-            // Micro coupé dès maintenant pour ne pas capter la voix de Sarah
-            setMicSuspended(true)
-        } else {
-            startRecognitionSession()
-        }
+    private func translateAndSpeak(text: String, segmentId: String, pair: CallLanguagePair, partial: String, partialAttribution: String?, willSpeak: Bool) {
+        // Le texte reconnu s'affiche figé tout de suite, la traduction finale suit
+        publishItem(
+            id: segmentId,
+            isLocal: true,
+            original: text,
+            originalLanguage: pair.localLanguage,
+            translated: partial.isEmpty ? "…" : partial,
+            targetLanguage: pair.remoteLanguage,
+            isFinal: false,
+            attribution: partial.isEmpty ? nil : partialAttribution
+        )
 
         Task { [weak self] in
             let result = await TranslationEngine.shared.translateDetailed(
