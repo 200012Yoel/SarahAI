@@ -20,7 +20,7 @@ jobs:
   build:
     if: github.event_name == 'push' || inputs.confirm_release == 'yes'
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: write
       actions: read
@@ -56,6 +56,20 @@ jobs:
           grep -q '!AudioSessionManager.shared.isContinuousVoiceSessionActive' SarahIA/SarahIA/Services/MultiAgentVoiceManager.swift
           grep -q 'mode: .voiceChat' SarahIA/SarahIA/Services/AudioSessionManager.swift
           echo 'Canonical OpenAI Whisper barge-in + iOS echo cancellation verified'
+
+      - name: Verify translation stack (no call code, no paid service)
+        run: |
+          set -euo pipefail
+          grep -q 'MLKitTranslate' SarahIA/SarahIA/Services/TranslationEngine.swift
+          grep -q 'public struct LiveTranslationView' SarahIA/SarahIA/Views/LiveTranslationView.swift
+          grep -q 'final class LiveWhisperTranscriber' SarahIA/SarahIA/Services/LiveSpeechTranslationPipeline.swift
+          if grep -rq 'WebRTCVoiceCallManager\|VoiceCallContactManager\|WhisperKit' SarahIA/SarahIA; then
+            echo 'Code d appel ou WhisperKit encore present'; exit 1
+          fi
+          if grep -rqi 'deepl\.com\|mymemory' SarahIA/SarahIA; then
+            echo 'Service payant encore present'; exit 1
+          fi
+          echo 'Translation stack verified'
 
       - name: Verify Raphaël production web generation
         run: |
@@ -117,6 +131,16 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
+      - name: Install CocoaPods dependencies (Google ML Kit)
+        working-directory: SarahIA
+        run: |
+          set -euo pipefail
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods --no-document
+          fi
+          pod install --repo-update
+          test -d Pods/MLKitTranslate
+
       - name: Configure build number
         run: |
           find . -path "*/SarahIA/Info.plist" -exec plutil -replace MinimumOSVersion -string "16.2" {} \; 2>/dev/null || true
@@ -125,7 +149,7 @@ jobs:
       - name: Build device app with Whisper and Qwen
         run: |
           set -euo pipefail
-          PROJECT_FILE=$(find . -name "*.xcodeproj" -type d | head -n 1)
+          PROJECT_FILE="./SarahIA/SarahIA.xcodeproj"
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           PROJECT_NAME=$(basename "$PROJECT_FILE")
 
@@ -142,15 +166,18 @@ jobs:
           echo "Using iPhone llama.cpp framework: $LLAMA_FRAMEWORK"
 
           cd "$PROJECT_DIR"
+          WORKSPACE_NAME="${PROJECT_NAME%.xcodeproj}.xcworkspace"
+          test -d "$WORKSPACE_NAME"
           set -o pipefail
           xcodebuild \
-            -project "$PROJECT_NAME" \
+            -workspace "$WORKSPACE_NAME" \
             -scheme SarahIA \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
             IPHONEOS_DEPLOYMENT_TARGET=16.2 \
+            ENABLE_USER_SCRIPT_SANDBOXING=NO \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' \
@@ -158,11 +185,30 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             CLANG_ENABLE_MODULES=YES \
-            FRAMEWORK_SEARCH_PATHS="$WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
+            FRAMEWORK_SEARCH_PATHS="\$(inherited) $WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
             OTHER_LDFLAGS='$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
-            clean build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
+            build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
           grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
+
+      - name: Summarize compiler errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          touch xcodebuild.log
+          grep -E 'error:|fatal error' xcodebuild.log | sort -u | head -200 > build-errors.txt
+          tail -300 xcodebuild.log > build-tail.txt
+          mkdir -p /tmp/cilogs && cp build-errors.txt build-tail.txt /tmp/cilogs/
+          cd /tmp/cilogs
+          git init -q -b ci-logs-build
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          echo "Run ${{ github.run_id }} — commit ${{ github.sha }}" > RUN.txt
+          git add -A && git commit -q -m "Erreurs du build ${{ github.run_number }}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs-build
+          head -60 build-errors.txt
 
       - name: Bundle local AI frameworks, Whisper model and licenses
         run: |
