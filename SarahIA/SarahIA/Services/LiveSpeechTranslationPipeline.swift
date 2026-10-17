@@ -678,6 +678,12 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
+        // Sortie audible : si iOS a placé le son sur l'écouteur du haut, on repasse sur le haut-parleur.
+        let session = AVAudioSession.sharedInstance()
+        let outputs = session.currentRoute.outputs
+        if outputs.count == 1, outputs.first?.portType == .builtInReceiver {
+            try? session.overrideOutputAudioPort(.speaker)
+        }
         speechSynthesizer.speak(utterance)
 
     }

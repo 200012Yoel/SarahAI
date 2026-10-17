@@ -11,10 +11,11 @@ import WhisperKit
 
 /// Moteur Whisper de Sarah, entièrement sur l'iPhone (WhisperKit / Core ML, licence MIT : utilisable dans une app vendue).
 ///
-/// - Le modèle est téléchargé **une seule fois**, en Wi-Fi (ou à la demande dans les Réglages),
-///   puis tout fonctionne **sans Internet**.
-/// - iPhone avec 6 Go de RAM ou plus : `large-v3 turbo` (632 Mo, très bon en hébreu).
-///   Sinon : `small` (216 Mo).
+/// - **Modèle intégré à l'app** (`openai_whisper-base`) : la voix marche dès l'installation, sans Internet,
+///   sans aucun téléchargement.
+/// - **Précision maximale en option** : `large-v3 turbo` (632 Mo, très bon en hébreu) sur les iPhone
+///   avec 6 Go de RAM ou plus, sinon `small` (216 Mo). Téléchargé une seule fois (bouton des Réglages,
+///   ou automatiquement en Wi-Fi), puis utilisé à la place du modèle intégré.
 public actor SarahWhisperEngine {
 
     public static let shared = SarahWhisperEngine()
@@ -32,7 +33,16 @@ public actor SarahWhisperEngine {
         #endif
     }
 
-    /// Modèle choisi selon la mémoire de l'iPhone.
+    // MARK: Modèle intégré
+
+    /// Modèle livré dans l'IPA (ajouté par le workflow de compilation).
+    public static var bundledModelFolder: URL? {
+        Bundle.main.url(forResource: "openai_whisper-base", withExtension: nil, subdirectory: "WhisperKitModels")
+    }
+
+    // MARK: Modèle de précision maximale (optionnel)
+
+    /// Modèle de précision maximale, choisi selon la mémoire de l'iPhone.
     public static var modelVariant: String {
         let ramGB = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
         return ramGB >= 5.5
@@ -47,7 +57,7 @@ public actor SarahWhisperEngine {
     private static let savedFolderKey = "sarah.whisper.modelRelativePath"
     private static let savedVariantKey = "sarah.whisper.modelVariant"
 
-    /// Dossier des modèles (Application Support, exclu de la sauvegarde iCloud).
+    /// Dossier des modèles téléchargés (Application Support, exclu de la sauvegarde iCloud).
     private static var downloadBase: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SarahWhisper", isDirectory: true)
@@ -61,7 +71,7 @@ public actor SarahWhisperEngine {
         return base
     }
 
-    /// Dossier du modèle déjà téléchargé, s'il existe sur l'iPhone.
+    /// Dossier du modèle de précision maximale, s'il a été téléchargé.
     public static var downloadedModelFolder: URL? {
         let defaults = UserDefaults.standard
         guard defaults.string(forKey: savedVariantKey) == modelVariant,
@@ -70,15 +80,23 @@ public actor SarahWhisperEngine {
         return FileManager.default.fileExists(atPath: folder.path) ? folder : nil
     }
 
-    public static var isModelDownloaded: Bool {
+    /// Vrai si la précision maximale est installée.
+    public static var isUpgradeInstalled: Bool {
         downloadedModelFolder != nil
+    }
+
+    /// Vrai si une reconnaissance vocale hors ligne est disponible (modèle intégré ou téléchargé).
+    public static var isModelDownloaded: Bool {
+        isAvailable && (bundledModelFolder != nil || downloadedModelFolder != nil)
     }
 
     #if canImport(WhisperKit)
     private var pipe: WhisperKit?
+    private var pipeIsUpgrade = false
     private var loadTask: Task<WhisperKit?, Never>?
     #endif
     private var isBusy = false
+    private var isDownloadingUpgrade = false
 
     public var isReady: Bool {
         #if canImport(WhisperKit)
@@ -88,72 +106,58 @@ public actor SarahWhisperEngine {
         #endif
     }
 
+    public var isUpgradeDownloading: Bool { isDownloadingUpgrade }
+
     // MARK: Préparation
 
-    /// Charge le modèle s'il est sur l'iPhone ; sinon le télécharge si `allowDownload` et qu'Internet est là.
+    /// Charge le meilleur modèle présent sur l'iPhone (jamais de téléchargement ici, donc rapide).
+    /// Si `allowDownload`, lance en plus le téléchargement de la précision maximale en arrière-plan.
     @discardableResult
     public func prepare(allowDownload: Bool) async -> Bool {
         #if canImport(WhisperKit)
-        return await loadIfNeeded(allowDownload: allowDownload) != nil
+        let ready = await loadIfNeeded() != nil
+        if allowDownload && !Self.isUpgradeInstalled && !isDownloadingUpgrade && NetworkMonitor.shared.isOnline {
+            Task { await self.downloadUpgrade() }
+        }
+        return ready
         #else
         return false
         #endif
     }
 
     #if canImport(WhisperKit)
-    private func loadIfNeeded(allowDownload: Bool) async -> WhisperKit? {
+    private func loadIfNeeded() async -> WhisperKit? {
         if let pipe { return pipe }
         if let loadTask { return await loadTask.value }
 
+        let upgrade = Self.downloadedModelFolder
+        guard let modelFolder = upgrade ?? Self.bundledModelFolder else {
+            print("⚠️ [Whisper] Aucun modèle vocal présent dans l'app")
+            return nil
+        }
+        let isUpgrade = upgrade != nil
+
         let task = Task<WhisperKit?, Never> {
             do {
-                let base = Self.downloadBase
-                var folder = Self.downloadedModelFolder
-                var freshlyDownloaded = false
-                if folder == nil {
-                    guard allowDownload, NetworkMonitor.shared.isOnline else { return nil }
-                    folder = try await WhisperKit.download(
-                        variant: Self.modelVariant,
-                        downloadBase: base,
-                        progressCallback: { progress in
-                            NotificationCenter.default.post(
-                                name: SarahWhisperEngine.downloadProgressNotification,
-                                object: nil,
-                                userInfo: ["progress": progress.fractionCompleted]
-                            )
-                        }
-                    )
-                    freshlyDownloaded = true
-                }
-                guard let modelFolder = folder else { return nil }
-
-                // Le tokenizer est rangé à côté du modèle (dans `base`) au premier chargement,
-                // en ligne : les chargements suivants fonctionnent ensuite sans Internet.
-                let kit = try await WhisperKit(
-                    modelFolder: modelFolder.path,
-                    tokenizerFolder: base,
-                    verbose: false,
-                    logLevel: .error,
-                    prewarm: true,
-                    load: true,
-                    download: false
-                )
-
-                // Le modèle n'est marqué « présent » qu'une fois chargé avec succès (tokenizer compris).
-                if freshlyDownloaded {
-                    let relative = modelFolder.path.replacingOccurrences(of: base.path + "/", with: "")
-                    UserDefaults.standard.set(relative, forKey: Self.savedFolderKey)
-                    UserDefaults.standard.set(Self.modelVariant, forKey: Self.savedVariantKey)
-                }
-                return kit
+                return try await Self.makeKit(modelFolder: modelFolder)
             } catch {
-                print("⚠️ [Whisper] Modèle indisponible : \(error.localizedDescription)")
+                print("⚠️ [Whisper] Chargement impossible : \(error.localizedDescription)")
                 return nil
             }
         }
         loadTask = task
-        let result = await task.value
+        var result = await task.value
         loadTask = nil
+
+        // Si le modèle téléchargé est abîmé, on revient au modèle intégré.
+        if result == nil, isUpgrade, let bundled = Self.bundledModelFolder {
+            UserDefaults.standard.removeObject(forKey: Self.savedFolderKey)
+            result = try? await Self.makeKit(modelFolder: bundled)
+            pipeIsUpgrade = false
+        } else {
+            pipeIsUpgrade = isUpgrade
+        }
+
         pipe = result
         NotificationCenter.default.post(
             name: Self.stateChangedNotification,
@@ -162,7 +166,65 @@ public actor SarahWhisperEngine {
         )
         return result
     }
+
+    private static func makeKit(modelFolder: URL) async throws -> WhisperKit {
+        // Le tokenizer est cherché à côté du modèle (inclus pour le modèle intégré) puis dans
+        // `downloadBase` (rangé là au premier chargement en ligne du modèle téléchargé).
+        try await WhisperKit(
+            modelFolder: modelFolder.path,
+            tokenizerFolder: downloadBase,
+            verbose: false,
+            logLevel: .error,
+            prewarm: true,
+            load: true,
+            download: false
+        )
+    }
     #endif
+
+    /// Télécharge la précision maximale (une seule fois), puis l'utilise à la place du modèle intégré.
+    @discardableResult
+    public func downloadUpgrade() async -> Bool {
+        #if canImport(WhisperKit)
+        if Self.isUpgradeInstalled {
+            if !pipeIsUpgrade { pipe = nil; _ = await loadIfNeeded() }
+            return true
+        }
+        guard !isDownloadingUpgrade, NetworkMonitor.shared.isOnline else { return false }
+        isDownloadingUpgrade = true
+        defer { isDownloadingUpgrade = false }
+
+        do {
+            let base = Self.downloadBase
+            let folder = try await WhisperKit.download(
+                variant: Self.modelVariant,
+                downloadBase: base,
+                progressCallback: { progress in
+                    NotificationCenter.default.post(
+                        name: SarahWhisperEngine.downloadProgressNotification,
+                        object: nil,
+                        userInfo: ["progress": progress.fractionCompleted]
+                    )
+                }
+            )
+            // Premier chargement en ligne : récupère et range le tokenizer pour le hors ligne.
+            let kit = try await Self.makeKit(modelFolder: folder)
+            let relative = folder.path.replacingOccurrences(of: base.path + "/", with: "")
+            UserDefaults.standard.set(relative, forKey: Self.savedFolderKey)
+            UserDefaults.standard.set(Self.modelVariant, forKey: Self.savedVariantKey)
+            pipe = kit
+            pipeIsUpgrade = true
+            NotificationCenter.default.post(name: Self.stateChangedNotification, object: nil, userInfo: ["ready": true])
+            return true
+        } catch {
+            print("⚠️ [Whisper] Téléchargement de la précision maximale impossible : \(error.localizedDescription)")
+            NotificationCenter.default.post(name: Self.stateChangedNotification, object: nil, userInfo: ["ready": pipe != nil])
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
 
     // MARK: Transcription
 
@@ -174,7 +236,7 @@ public actor SarahWhisperEngine {
         #if canImport(WhisperKit)
         guard !samples.isEmpty else { return nil }
         if skipIfBusy && isBusy { return nil }
-        guard let pipe = await loadIfNeeded(allowDownload: false) else { return nil }
+        guard let pipe = await loadIfNeeded() else { return nil }
 
         isBusy = true
         defer { isBusy = false }
@@ -284,17 +346,26 @@ public final class WhisperService: ObservableObject {
 
     // MARK: Lifecycle
 
-    /// Prépare le modèle au lancement : chargement s'il est déjà sur l'iPhone,
-    /// téléchargement seulement en Wi-Fi (jamais en 4G/5G sans demande).
+    @Published public private(set) var isUpgradeDownloading = false
+
+    /// Prépare le modèle au lancement (modèle intégré : immédiat et hors ligne).
+    /// En Wi-Fi, la précision maximale se télécharge en plus, en arrière-plan.
     public func prepareModel() {
         guard !isModelReady else { return }
         prepareModelInBackgroundIfNeeded(allowDownload: NetworkMonitor.shared.isOnUnmeteredNetwork)
     }
 
-    /// Téléchargement demandé explicitement (bouton des Réglages) : autorisé sur tout réseau.
+    /// Téléchargement de la précision maximale demandé dans les Réglages (tout réseau).
     public func downloadModelNow() {
-        guard !isModelReady else { return }
-        prepareModelInBackgroundIfNeeded(allowDownload: true)
+        guard !isUpgradeDownloading else { return }
+        isUpgradeDownloading = true
+        Task { [weak self] in
+            let ok = await SarahWhisperEngine.shared.downloadUpgrade()
+            await MainActor.run {
+                self?.isUpgradeDownloading = false
+                if ok { self?.isModelReady = true }
+            }
+        }
     }
 
     public func startRecording(autoFinalizeOnSilence: Bool = true) {
@@ -313,9 +384,10 @@ public final class WhisperService: ObservableObject {
         }
 
         if !isModelReady {
+            // Chargement du modèle intégré (quelques secondes au tout premier usage), jamais de téléchargement.
             wantsRecordingAfterModelLoad = true
             pendingAutoFinalizeOnSilence = autoFinalizeOnSilence
-            prepareModelInBackgroundIfNeeded(allowDownload: NetworkMonitor.shared.isOnline)
+            prepareModelInBackgroundIfNeeded(allowDownload: false)
             return
         }
 
@@ -343,9 +415,9 @@ public final class WhisperService: ObservableObject {
                     self.startRecording(autoFinalizeOnSilence: autoFinalize)
                 } else {
                     self.wantsRecordingAfterModelLoad = false
-                    self.lastError = SarahWhisperEngine.isAvailable
-                        ? "Le modèle vocal hors ligne n'est pas encore téléchargé (Réglages > Sarah Engine)."
-                        : "Le moteur Whisper n'est pas inclus dans cette version."
+                    self.lastError = SarahWhisperEngine.isModelDownloaded
+                        ? "Le moteur vocal n'a pas pu démarrer. Réessaie dans un instant."
+                        : "Le moteur vocal n'est pas inclus dans cette version de Sarah."
                 }
             }
         }
@@ -581,7 +653,7 @@ public final class WhisperService: ObservableObject {
                 self.isFinalizing = false
                 self.isTranscribing = false
                 if text.isEmpty && !SarahWhisperEngine.isModelDownloaded {
-                    self.lastError = "Le modèle vocal hors ligne n'est pas encore téléchargé (Réglages > Sarah Engine)."
+                    self.lastError = "Le moteur vocal n'est pas inclus dans cette version de Sarah."
                 }
                 if final {
                     if !text.isEmpty { self.onFinalTranscription?(text) }

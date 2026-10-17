@@ -1501,7 +1501,7 @@ private struct TranslationEngineSettingsCard: View {
     @ObservedObject private var whisper = WhisperService.shared
     @State private var packsRequested = false
     @State private var whisperProgress: Double?
-    @State private var whisperDownloaded = SarahWhisperEngine.isModelDownloaded
+    @State private var upgradeInstalled = SarahWhisperEngine.isUpgradeInstalled
 
     private var googleAvailable: Bool { TranslationEngine.shared.isGoogleOfflineAvailable }
 
@@ -1511,7 +1511,7 @@ private struct TranslationEngineSettingsCard: View {
                 .font(.headline)
                 .foregroundColor(.white)
 
-            Text("Fonctionne pareil avec ou sans Internet, 100 % gratuit. Deux éléments à télécharger une seule fois (Wi-Fi conseillé) :")
+            Text("Fonctionne pareil avec ou sans Internet, 100 % gratuit. La voix est intégrée à l'app ; les packs de traduction Google se téléchargent tout seuls au premier lancement.")
                 .font(.footnote)
                 .foregroundColor(Color.white.opacity(0.54))
 
@@ -1534,28 +1534,34 @@ private struct TranslationEngineSettingsCard: View {
 
             // 2. Reconnaissance de la voix hors ligne (Whisper)
             VStack(alignment: .leading, spacing: 6) {
-                Text("2 · Reconnaissance de la voix hors ligne (Whisper, \(SarahWhisperEngine.modelDisplaySize))")
+                Text("2 · Reconnaissance de la voix hors ligne (Whisper)")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.white)
 
-                if !SarahWhisperEngine.isAvailable {
-                    Text("⚠️ WhisperKit non inclus dans cette compilation.")
+                if !SarahWhisperEngine.isModelDownloaded {
+                    Text("⚠️ Moteur vocal absent de cette version.")
                         .font(.caption)
                         .foregroundColor(Color.orange.opacity(0.85))
-                } else if whisperDownloaded || whisper.isModelReady {
-                    Text("✅ Prête — la voix est reconnue même sans Internet")
+                } else if upgradeInstalled {
+                    Text("✅ Précision maximale installée — la voix est reconnue même sans Internet")
                         .font(.caption)
                         .foregroundColor(Color.green.opacity(0.85))
-                } else if let progress = whisperProgress {
-                    ProgressView(value: progress)
-                        .tint(.cyan)
-                    Text("Téléchargement : \(Int(progress * 100)) %")
-                        .font(.caption)
-                        .foregroundColor(Color.white.opacity(0.6))
                 } else {
-                    actionButton(whisper.isModelLoading ? "Préparation…" : "Télécharger", disabled: whisper.isModelLoading) {
-                        whisperProgress = 0
-                        whisper.downloadModelNow()
+                    Text("✅ Intégrée à l'app — fonctionne déjà sans Internet")
+                        .font(.caption)
+                        .foregroundColor(Color.green.opacity(0.85))
+
+                    if let progress = whisperProgress, whisper.isUpgradeDownloading {
+                        ProgressView(value: progress)
+                            .tint(.cyan)
+                        Text("Précision maximale : \(Int(progress * 100)) %")
+                            .font(.caption)
+                            .foregroundColor(Color.white.opacity(0.6))
+                    } else {
+                        actionButton(whisper.isUpgradeDownloading ? "Préparation…" : "Améliorer la précision en hébreu (\(SarahWhisperEngine.modelDisplaySize))", disabled: whisper.isUpgradeDownloading) {
+                            whisperProgress = 0
+                            whisper.downloadModelNow()
+                        }
                     }
                 }
             }
@@ -1575,10 +1581,8 @@ private struct TranslationEngineSettingsCard: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: SarahWhisperEngine.stateChangedNotification).receive(on: RunLoop.main)) { note in
-            whisperDownloaded = SarahWhisperEngine.isModelDownloaded
-            if (note.userInfo?["ready"] as? Bool) != true {
-                whisperProgress = nil
-            }
+            upgradeInstalled = SarahWhisperEngine.isUpgradeInstalled
+            whisperProgress = nil
         }
     }
 

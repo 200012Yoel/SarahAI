@@ -46,6 +46,9 @@ public final class LiveTranslationSession: ObservableObject {
         guard !isActive else { return }
         lastError = nil
 
+        // Coupe la voix du chat si elle parlait encore
+        MultiAgentVoiceManager.shared.stop()
+
         requestMicrophonePermission { [weak self] granted in
             guard let self = self else { return }
             guard granted else {
@@ -140,7 +143,8 @@ public final class LiveTranslationSession: ObservableObject {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+            // Pas d'A2DP : ce profil Bluetooth est sans micro et peut couper l'écoute.
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
             try session.setPreferredIOBufferDuration(0.01)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
@@ -158,6 +162,13 @@ public final class LiveTranslationSession: ObservableObject {
             try inputNode.setVoiceProcessingEnabled(true)
         } catch {
             print("⚠️ [Traduction] Annulation d'écho indisponible : \(error.localizedDescription)")
+        }
+
+        // L'annulation d'écho d'iOS baisse fortement le volume des autres sons, y compris la voix
+        // de Sarah : on désactive cette atténuation pour que la traduction reste bien audible.
+        if #available(iOS 17.0, *) {
+            inputNode.voiceProcessingOtherAudioDuckingConfiguration =
+                AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
         }
 
         let format = inputNode.outputFormat(forBus: 0)

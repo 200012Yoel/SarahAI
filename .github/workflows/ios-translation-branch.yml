@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: xcode-27
-    timeout-minutes: 75
+    timeout-minutes: 120
     permissions:
       contents: write
       actions: read
@@ -134,6 +134,38 @@ jobs:
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs-traduction
           cat build-errors.txt | head -60
 
+      - name: Download bundled AI models (Whisper base + Qwen3 1.7B)
+        run: |
+          set -euo pipefail
+          MODELS="$RUNNER_TEMP/BundledModels"
+          rm -rf "$MODELS" && mkdir -p "$MODELS/WhisperKitModels" "$MODELS/QwenModels" "$MODELS/Licenses"
+          python3 -m venv "$RUNNER_TEMP/hfenv"
+          "$RUNNER_TEMP/hfenv/bin/pip" install -q huggingface_hub
+          "$RUNNER_TEMP/hfenv/bin/python" - <<'PY'
+          from huggingface_hub import snapshot_download, hf_hub_download
+          import shutil, os
+          root = os.environ["RUNNER_TEMP"] + "/BundledModels"
+          # Reconnaissance vocale : WhisperKit (Core ML) multilingue, licence MIT
+          snapshot_download("argmaxinc/whisperkit-coreml", allow_patterns=["openai_whisper-base/*"],
+                            local_dir=root + "/WhisperKitModels")
+          for name in ["tokenizer.json", "tokenizer_config.json"]:
+              path = hf_hub_download("openai/whisper-base", name)
+              shutil.copy(path, root + "/WhisperKitModels/openai_whisper-base/" + name)
+          # Cerveau de Sarah : Qwen3 1.7B Q4_K_M, licence Apache-2.0
+          path = hf_hub_download("unsloth/Qwen3-1.7B-GGUF", "Qwen3-1.7B-Q4_K_M.gguf")
+          shutil.copy(path, root + "/QwenModels/Qwen3-1.7B-Q4_K_M.gguf")
+          lic = hf_hub_download("Qwen/Qwen3-1.7B-GGUF", "LICENSE")
+          shutil.copy(lic, root + "/Licenses/Qwen3-Apache-2.0.txt")
+          PY
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' -o "$MODELS/Licenses/OpenAI-Whisper-MIT.txt"
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/argmaxinc/WhisperKit/main/LICENSE' -o "$MODELS/Licenses/WhisperKit-MIT.txt"
+          cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$MODELS/Licenses/llama.cpp-MIT.txt"
+          rm -rf "$MODELS/WhisperKitModels/.cache"
+          test -d "$MODELS/WhisperKitModels/openai_whisper-base/TextDecoder.mlmodelc"
+          test -s "$MODELS/WhisperKitModels/openai_whisper-base/tokenizer.json"
+          test -s "$MODELS/QwenModels/Qwen3-1.7B-Q4_K_M.gguf"
+          du -sh "$MODELS"/*
+
       - name: Package IPA
         run: |
           set -eo pipefail
@@ -145,6 +177,12 @@ jobs:
             mkdir -p "$APP_PATH/Frameworks"
             cp -R "$LLAMA_FRAMEWORK" "$APP_PATH/Frameworks/"
           fi
+
+          # Modèles d'IA intégrés : Sarah parle et comprend dès l'installation, sans téléchargement
+          cp -R "$RUNNER_TEMP/BundledModels/WhisperKitModels" "$APP_PATH/"
+          cp -R "$RUNNER_TEMP/BundledModels/QwenModels" "$APP_PATH/"
+          mkdir -p "$APP_PATH/Licenses" && cp "$RUNNER_TEMP/BundledModels/Licenses/"* "$APP_PATH/Licenses/"
+          du -sh "$APP_PATH"
 
           rm -rf /tmp/Payload && mkdir -p /tmp/Payload
           cp -R "$APP_PATH" /tmp/Payload/
@@ -168,20 +206,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: SarahIA-traduction-IPA
-          path: dist/SarahIA-traduction.ipa
-          retention-days: 14
-
       - name: Publish test IPA (direct download link)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: sarah-ia-traduction-test
           target_commitish: ${{ github.sha }}
-          name: 'Sarah IA — test traduction en direct'
-          body: 'Build de test de la branche feature/traduction-temps-reel (build #${{ github.run_number }}, commit ${{ github.sha }}). Traduction hébreu ⇄ français hors ligne (Google ML Kit) + reconnaissance vocale hors ligne (WhisperKit). IPA non signée.'
+          name: 'Sarah IA — version complète (test)'
+          body: 'IPA complète de la branche feature/traduction-temps-reel (build #${{ github.run_number }}, commit ${{ github.sha }}). Modèles intégrés : Whisper base (voix, hors ligne) + Qwen3 1.7B (cerveau, hors ligne). Traduction hébreu ⇄ français Google ML Kit (packs téléchargés au premier lancement). IPA non signée.'
           files: dist/SarahIA-traduction.ipa
           overwrite_files: true
           prerelease: true

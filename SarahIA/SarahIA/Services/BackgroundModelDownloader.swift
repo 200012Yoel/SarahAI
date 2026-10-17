@@ -35,14 +35,39 @@ public final class BackgroundModelDownloader: NSObject {
         self.resumeData = UserDefaults.standard.data(forKey: resumeDataKey)
     }
     
-    /// Chemin vers le fichier GGUF local dans Application Support
-    public static var localModelURL: URL? {
+    /// Chemin du modèle téléchargé recommandé pour l'appareil (Application Support).
+    public static var downloadedModelURL: URL? {
         let fileManager = FileManager.default
         guard let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
         let modelsDir = appSupportDir.appendingPathComponent("SarahAI/models", isDirectory: true)
         return modelsDir.appendingPathComponent(ModelSelectionEngine.shared.recommendedLocalModelFileName)
+    }
+
+    /// Modèle Qwen3 1.7B livré dans l'IPA (ajouté par le workflow de compilation).
+    public static var bundledModelURL: URL? {
+        Bundle.main.url(
+            forResource: (ModelSelectionEngine.qwen17BFileName as NSString).deletingPathExtension,
+            withExtension: "gguf",
+            subdirectory: "QwenModels"
+        )
+    }
+
+    /// Le modèle intégré (1.7B) n'est utilisé que si l'iPhone a assez de mémoire pour lui.
+    private static var deviceCanRunBundledModel: Bool {
+        ModelSelectionEngine.shared.recommendedLocalModelFileName != ModelSelectionEngine.qwen06BFileName
+    }
+
+    /// Modèle à utiliser : le modèle téléchargé s'il existe, sinon celui intégré à l'app.
+    public static var localModelURL: URL? {
+        if let downloaded = downloadedModelURL, FileManager.default.fileExists(atPath: downloaded.path) {
+            return downloaded
+        }
+        if deviceCanRunBundledModel, let bundled = bundledModelURL {
+            return bundled
+        }
+        return downloadedModelURL
     }
     
     /// Vérifie si le modèle Qwen3 recommandé est déjà téléchargé.
@@ -88,7 +113,7 @@ public final class BackgroundModelDownloader: NSObject {
     /// Vérifie la place libre avant de lancer un téléchargement en arrière-plan.
     /// On conserve une marge afin que l'installation du modèle ne sature pas iOS.
     private func hasEnoughDiskSpaceForRecommendedModel() -> Bool {
-        guard let modelURL = BackgroundModelDownloader.localModelURL else { return false }
+        guard let modelURL = BackgroundModelDownloader.downloadedModelURL else { return false }
         let required = ModelSelectionEngine.shared.recommendedDownloadBytes + (500 * 1024 * 1024)
         let values = try? modelURL.deletingLastPathComponent().resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         guard let available = values?.volumeAvailableCapacityForImportantUsage else { return true }
@@ -145,7 +170,7 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
         UserDefaults.standard.removeObject(forKey: resumeDataKey)
         
         let fileManager = FileManager.default
-        guard let destinationURL = BackgroundModelDownloader.localModelURL else {
+        guard let destinationURL = BackgroundModelDownloader.downloadedModelURL else {
             DispatchQueue.main.async { [weak self] in
                 self?.onCompletion?(.failure(NSError(domain: "com.sarahia.downloader", code: 500, userInfo: [NSLocalizedDescriptionKey: "Emplacement de stockage introuvable"])))
             }

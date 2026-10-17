@@ -105,6 +105,9 @@ public struct ContentView: View {
             // mode vocal ouvre l'interface immédiatement.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
                 WhisperService.shared.prepareModel()
+                // Packs de traduction Google hébreu ⇄ français (~60 Mo, une seule fois) :
+                // Google ne permet pas de les inclure dans l'app, Sarah les récupère dès le premier lancement.
+                TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
             }
         }
         .onChange(of: isShowingSettings) { isPresented in
