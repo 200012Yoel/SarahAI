@@ -2,12 +2,16 @@ import Foundation
 import AVFoundation
 import QuartzCore
 import Speech
+#if canImport(whisper)
+import whisper
+#endif
 
 /// Pipeline de traduction vocale en temps réel — fonctionne aussi bien avec que sans Internet.
 ///
 /// Reconnaissance de la voix (choix automatique, réévalué à chaque phrase) :
 /// - **Apple** (iOS) quand elle est disponible : avec Internet, ou sans si l'iPhone la gère hors ligne.
-/// - **Whisper** sur l'iPhone (WhisperKit) dès qu'Apple n'est pas disponible, par exemple hors ligne.
+/// - **Whisper** sur l'iPhone (même moteur et même modèle que le mode vocal) dès qu'Apple n'est pas
+///   disponible, par exemple hors ligne.
 ///
 /// Déroulé :
 /// 1. Pendant que la personne parle : sous-titres immédiats (texte reconnu + traduction rapide).
@@ -112,9 +116,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
             // Packs de traduction Google + modèle Whisper : prêts pour le hors ligne
             TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.sourceLanguage, languagePair.targetLanguage])
-            Task {
-                await SarahWhisperEngine.shared.prepare(allowDownload: NetworkMonitor.shared.isOnUnmeteredNetwork)
-            }
+            LiveWhisperTranscriber.shared.prepare()
 
             let localeId = self.localeIdentifier(for: languagePair.sourceLanguage)
             self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
@@ -148,6 +150,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     }
 
     private func stopPipelineOnMain() {
+        let wasRunning = isPipelineRunning
         isPipelineRunning = false
         silenceTimer?.invalidate()
         silenceTimer = nil
@@ -159,6 +162,9 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
+        }
+        if wasRunning {
+            LiveWhisperTranscriber.shared.release()
         }
     }
 
@@ -225,7 +231,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             return NetworkMonitor.shared.isOnline || recognizer.supportsOnDeviceRecognition
         }()
         if appleWorks { return .apple }
-        if SarahWhisperEngine.isAvailable && SarahWhisperEngine.isModelDownloaded { return .whisper }
+        if LiveWhisperTranscriber.isAvailable { return .whisper }
         return .unavailable
     }
 
@@ -282,9 +288,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private func showUnavailableNoticeOnce() {
         guard !hasShownUnavailableNotice else { return }
         hasShownUnavailableNotice = true
-        let message = SarahWhisperEngine.isModelDownloaded
-            ? "Reconnaissance vocale momentanément indisponible, nouvel essai…"
-            : "Sans Internet, Sarah a besoin de sa reconnaissance vocale hors ligne. Télécharge-la une fois dans Réglages > Sarah Engine (Wi-Fi conseillé)."
+        let message = "Reconnaissance vocale momentanément indisponible, nouvel essai…"
         publishItem(
             id: "sarah-notice-\(UUID().uuidString)",
             isSpeech: false,
@@ -503,7 +507,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         let language = currentLanguagePair.sourceLanguage
 
         Task { [weak self] in
-            let text = await SarahWhisperEngine.shared.transcribe(snapshot, language: language, skipIfBusy: true)
+            let text = await LiveWhisperTranscriber.shared.transcribe(snapshot, language: language, skipIfBusy: true)
             await MainActor.run {
                 guard let self = self else { return }
                 self.isWhisperPartialInFlight = false
@@ -550,7 +554,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         }
 
         Task { [weak self] in
-            let finalText = await SarahWhisperEngine.shared.transcribe(samples, language: pair.sourceLanguage)
+            let finalText = await LiveWhisperTranscriber.shared.transcribe(samples, language: pair.sourceLanguage)
             await MainActor.run {
                 guard let self = self, self.isPipelineRunning else { return }
                 let text = (finalText ?? partialText).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -786,5 +790,153 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         case "fr": return "fr-FR"
         default: return "fr-FR"
         }
+    }
+}
+
+// MARK: - Whisper hors ligne pour la traduction en direct
+
+/// Transcription hors ligne pour la traduction en direct, avec le même moteur et le même modèle
+/// que le mode vocal (whisper.cpp + `WhisperModels/ggml-base.bin` déjà inclus dans l'app).
+/// Contexte séparé : le mode vocal du chat n'est jamais touché. Libéré à la fermeture de l'écran.
+final class LiveWhisperTranscriber {
+    static let shared = LiveWhisperTranscriber()
+
+    private let queue = DispatchQueue(label: "sarah.live.whisper", qos: .userInitiated)
+    private let lock = NSLock()
+    private var busy = false
+    private var context: OpaquePointer?
+
+    private static var modelURL: URL? {
+        Bundle.main.url(forResource: "ggml-base", withExtension: "bin", subdirectory: "WhisperModels")
+    }
+
+    /// Vrai si Whisper et son modèle sont présents dans l'app.
+    static var isAvailable: Bool {
+        #if canImport(whisper)
+        return modelURL != nil
+        #else
+        return false
+        #endif
+    }
+
+    /// Charge le modèle en arrière-plan (quelques secondes la première fois).
+    func prepare() {
+        queue.async { [weak self] in
+            _ = self?.loadIfNeeded()
+        }
+    }
+
+    /// Libère la mémoire quand la traduction en direct est fermée.
+    func release() {
+        queue.async { [weak self] in
+            #if canImport(whisper)
+            if let context = self?.context {
+                whisper_free(context)
+            }
+            #endif
+            self?.context = nil
+        }
+    }
+
+    /// Transcrit un extrait 16 kHz mono. `language` : "he", "fr", "en" ou `nil` (détection automatique).
+    func transcribe(_ samples: [Float], language: String?, skipIfBusy: Bool = false) async -> String? {
+        guard !samples.isEmpty else { return nil }
+        lock.lock()
+        if skipIfBusy && busy {
+            lock.unlock()
+            return nil
+        }
+        busy = true
+        lock.unlock()
+
+        return await withCheckedContinuation { continuation in
+            queue.async { [weak self] in
+                let text = self?.runInference(samples, language: language)
+                self?.lock.lock()
+                self?.busy = false
+                self?.lock.unlock()
+                continuation.resume(returning: text)
+            }
+        }
+    }
+
+    // MARK: Moteur (file `queue` uniquement)
+
+    private func loadIfNeeded() -> Bool {
+        #if canImport(whisper)
+        if context != nil { return true }
+        guard let url = Self.modelURL else { return false }
+
+        func load(useGPU: Bool, flashAttention: Bool) -> OpaquePointer? {
+            var params = whisper_context_default_params()
+            params.use_gpu = useGPU
+            params.flash_attn = flashAttention
+            return whisper_init_from_file_with_params(url.path, params)
+        }
+
+        #if targetEnvironment(simulator)
+        context = load(useGPU: false, flashAttention: false)
+        #else
+        context = load(useGPU: true, flashAttention: true)
+            ?? load(useGPU: true, flashAttention: false)
+            ?? load(useGPU: false, flashAttention: false)
+        #endif
+        return context != nil
+        #else
+        return false
+        #endif
+    }
+
+    private func runInference(_ audio: [Float], language: String?) -> String? {
+        #if canImport(whisper)
+        guard loadIfNeeded(), let context = context else { return nil }
+
+        let threadCount = Int32(max(1, min(8, ProcessInfo.processInfo.activeProcessorCount - 2)))
+        var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
+        params.print_realtime = false
+        params.print_progress = false
+        params.print_timestamps = false
+        params.print_special = false
+        params.translate = false
+        params.no_context = true
+        params.single_segment = false
+        params.n_threads = threadCount
+        params.temperature_inc = -1
+
+        let result: Int32 = (language ?? "auto").withCString { languagePointer in
+            params.language = languagePointer
+            return audio.withUnsafeBufferPointer { pointer in
+                whisper_full(context, params, pointer.baseAddress, Int32(audio.count))
+            }
+        }
+        guard result == 0 else { return nil }
+
+        var pieces: [String] = []
+        let count = whisper_full_n_segments(context)
+        if count > 0 {
+            for index in 0..<count {
+                if let cText = whisper_full_get_segment_text(context, index) {
+                    let text = String(cString: cText).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty { pieces.append(text) }
+                }
+            }
+        }
+        let text = pieces.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return Self.isHallucination(text) ? nil : text
+        #else
+        return nil
+        #endif
+    }
+
+    /// Filtre les phrases fantômes que Whisper invente parfois sur du silence.
+    private static func isHallucination(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        if cleaned.isEmpty { return true }
+        let lower = cleaned.lowercased()
+        let ghosts = [
+            "sous-titres réalisés par", "sous-titrage", "merci d'avoir regardé",
+            "thank you for watching", "thanks for watching", "תודה רבה שצפיתם", "תודה שצפיתם"
+        ]
+        return ghosts.contains { lower.contains($0) }
     }
 }

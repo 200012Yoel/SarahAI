@@ -98,7 +98,6 @@
 		A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */; };
 		A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */; };
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
-		A1B2C3D400010001000000B4 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000004 /* WhisperKit */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
 /* End PBXBuildFile section */
@@ -206,7 +205,6 @@
 			files = (
 				A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */,
 				A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */,
-				A1B2C3D400010001000000B4 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -379,7 +377,6 @@
 			packageProductDependencies = (
 				A1B2C3D4000B000100000001 /* ZIPFoundation */,
 				A1B2C3D4000B000100000003 /* StableDiffusion */,
-				A1B2C3D4000B000100000004 /* WhisperKit */,
 			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
@@ -413,7 +410,6 @@
 			packageReferences = (
 				A1B2C3D4000A000100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */,
-				A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			productRefGroup = A1B2C3D40004000100000007 /* Products */;
 			projectDirPath = "";
@@ -552,14 +548,6 @@
 				version = 1.1.1;
 			};
 		};
-		A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -572,11 +560,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4000A000100000003 /* XCRemoteSwiftPackageReference "ml-stable-diffusion" */;
 			productName = StableDiffusion;
-		};
-		A1B2C3D4000B000100000004 /* WhisperKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4000A000100000004 /* XCRemoteSwiftPackageReference "WhisperKit" */;
-			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 

@@ -75,10 +75,8 @@ public final class NetworkMonitor: NSObject {
             let monitor = NWPathMonitor()
             monitor.pathUpdateHandler = { [weak self] path in
                 let reachable = (path.status == .satisfied)
-                let expensive = path.isExpensive || path.isConstrained
                 DispatchQueue.main.async {
                     self?.isConnected = reachable
-                    self?.isExpensive = expensive
                 }
             }
             monitor.start(queue: queue)
@@ -118,27 +116,6 @@ public final class NetworkMonitor: NSObject {
     
     public var isOnline: Bool {
         return isConnected
-    }
-
-    private var _isExpensive: Bool = false
-
-    /// Vrai en 4G/5G (ou mode données réduites) : évite les gros téléchargements hors Wi-Fi.
-    public var isExpensive: Bool {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _isExpensive
-        }
-        set {
-            lock.lock()
-            _isExpensive = newValue
-            lock.unlock()
-        }
-    }
-
-    /// Connecté en Wi-Fi (ou réseau non limité).
-    public var isOnUnmeteredNetwork: Bool {
-        return isConnected && !isExpensive
     }
     
     deinit {
