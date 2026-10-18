@@ -42,7 +42,19 @@ public final class BackgroundModelDownloader: NSObject {
             return nil
         }
         let modelsDir = appSupportDir.appendingPathComponent("SarahAI/models", isDirectory: true)
-        return modelsDir.appendingPathComponent(ModelSelectionEngine.shared.recommendedLocalModelFileName)
+        let fileName = ModelSelectionEngine.shared.recommendedLocalModelFileName
+        let installedModel = modelsDir.appendingPathComponent(fileName)
+        if fileManager.fileExists(atPath: installedModel.path) {
+            return installedModel
+        }
+        // Utiliser le modèle GGUF fourni avec l'IPA complète, sans téléchargement.
+        let bundledStem = (fileName as NSString).deletingPathExtension
+        let bundledExtension = (fileName as NSString).pathExtension
+        if let bundled = Bundle.main.url(forResource: bundledStem, withExtension: bundledExtension),
+           fileManager.fileExists(atPath: bundled.path) {
+            return bundled
+        }
+        return installedModel
     }
     
     /// Vérifie si le modèle Qwen3 recommandé est déjà téléchargé.
@@ -54,6 +66,12 @@ public final class BackgroundModelDownloader: NSObject {
     /// Lance le téléchargement du modèle Qwen3 adapté au profil matériel détecté.
     public func startQwenModelDownload() {
         guard !isDownloading else { return }
+        if Self.isModelDownloaded, let existingModel = Self.localModelURL {
+            DispatchQueue.main.async { [weak self] in
+                self?.onCompletion?(.success(existingModel))
+            }
+            return
+        }
         guard ModelSelectionEngine.shared.isLocalGGUFAllowed() else {
             let error = NSError(domain: "com.sarahia.downloader", code: 403, userInfo: [NSLocalizedDescriptionKey: "Téléchargement interdit : RAM insuffisante (<= 2 Go). Utilisation du Cloud Fallback requise."])
             onCompletion?(.failure(error))

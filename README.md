@@ -55,3 +55,13 @@ L’interface utilise un seul rendu web responsive adapté à la largeur du tél
 ## 🔒 Principe de transparence
 
 Sarah ne doit pas annoncer qu’un moteur lourd fonctionne directement sur l’iPhone si ce runtime n’est pas réellement présent. Les modèles externes restent optionnels et le comportement de secours local reste disponible quand ils ne sont pas configurés.
+
+## IPA officielle unique
+
+La release canonique est [Sarah IA version complète](https://github.com/200012Yoel/SarahAI/releases/tag/sarah-ia-latest-fix). Le build principal doit intégrer Whisper base multilingue et Qwen3 1.7B Q4_K_M GGUF (modèle local embarqué). Il refuse désormais d'écraser la release avec une IPA de moins de 1 Go. Le build de récupération ne publie pas de nouvelle release.
+
+Les recherches de lieux utilisent MapKit pour afficher une petite fiche dans le chat, son agrandissement plein écran et les boutons Plans, Google Maps et Waze.
+
+La traduction vocale en direct utilise Whisper/Apple pour transcrire et Google ML Kit ou la traduction iOS pour traduire. Les packs ML Kit sont à télécharger une première fois en ligne, puis sont utilisables hors ligne. Une traduction manquante ne doit plus être annoncée comme réussie. La fluidité et l'écho haut-parleur/micro doivent être testés sur iPhone.
+
+Le nettoyage des anciennes releases s'exécute après la publication réussie de la version complète, jamais après une compilation incomplète. Les commits restent préservés.

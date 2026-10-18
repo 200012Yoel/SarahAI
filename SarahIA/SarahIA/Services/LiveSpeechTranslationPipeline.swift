@@ -82,6 +82,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
     private var currentLanguagePair = LiveLanguagePair()
     private var isPipelineRunning = false
+    private var pipelineEpoch = 0 // Invalidation des réponses d'une ancienne session
     /// Incrémenté à chaque nouvelle session : les résultats d'une ancienne session sont ignorés.
     private var recognitionGeneration = 0
 
@@ -150,6 +151,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     }
 
     private func stopPipelineOnMain() {
+        pipelineEpoch += 1
         let wasRunning = isPipelineRunning
         isPipelineRunning = false
         silenceTimer?.invalidate()
@@ -633,6 +635,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             attribution: partial.isEmpty ? nil : partialAttribution
         )
 
+        let epoch = pipelineEpoch
         Task { [weak self] in
             let result = await TranslationEngine.shared.translateDetailed(
                 text: text,
@@ -641,10 +644,11 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                 quality: .best
             )
             await MainActor.run {
-                guard let self = self else { return }
-                // Si aucun moteur n'a traduit, on garde au moins la traduction rapide, sinon le texte d'origine
-                let finalText = result?.text ?? (partial.isEmpty ? text : partial)
-                let attribution = result?.engine.attribution ?? (partial.isEmpty ? nil : partialAttribution)
+                guard let self = self, self.isPipelineRunning, epoch == self.pipelineEpoch else { return }
+                // Ne pas présenter l'hébreu inchangé comme une traduction française.
+                let hasPartial = !partial.isEmpty && partial != "…"
+                let finalText = result?.text ?? (hasPartial ? partial : "Traduction indisponible : préparez les langues hors ligne.")
+                let attribution = result?.engine.attribution ?? (hasPartial ? partialAttribution : nil)
                 self.publishItem(
                     id: segmentId,
                     isSpeech: true,
@@ -655,9 +659,12 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                     isFinal: true,
                     attribution: attribution
                 )
-                guard self.isPipelineRunning else { return }
                 if willSpeak {
-                    self.speak(finalText, language: pair.targetLanguage)
+                    if result != nil || hasPartial {
+                        self.speak(finalText, language: pair.targetLanguage)
+                    } else {
+                        self.resumeListening()
+                    }
                 }
             }
         }

@@ -174,18 +174,7 @@ jobs:
           path: dist/SarahIA.ipa
           retention-days: 14
 
-      - name: Publish permanent IPA
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: sarah-ia-4.0-latest
-          name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'SarahIA recovery build #${{ env.BUILD_NUMBER }}. Whisper barge-in/AEC, Qwen3 local generation and restored website voice bridge.'
-          files: dist/SarahIA.ipa
-          overwrite_files: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Protect permanent full IPA
+        run: echo "Recovery builds remain workflow artifacts only."
 
 # Recovery build trigger 2026-10-05
