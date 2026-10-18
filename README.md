@@ -70,3 +70,6 @@ Le nettoyage des anciennes releases s'exécute après la publication réussie de
 ### Demandes de lieux et d'adresses
 
 La version principale reconnaît « Donne-moi l'adresse de la Tour Eiffel », « Montre-moi sur la carte la gare de Lyon », « 12 rue de Rivoli, Paris » et « Où se trouve le Louvre ? ». La recherche MapKit renvoie une fiche intégrée contenant le lieu, l'adresse et une carte compacte. Un toucher ouvre la carte en plein écran, avec des boutons vers Plans, Google Maps et Waze. Le résultat est issu d'Apple Plans, non d'une coordonnée inventée.
+
+
+Le paquet complet contient aussi le modèle Qwen3 0.6B Q4_K_M de secours, afin de proposer une inférence locale adaptée à un budget mémoire plus réduit sans télécharger ce modèle après installation. Le téléchargement et les sommes de contrôle SHA-256 des deux poids GGUF sont vérifiés dans la compilation. Les très gros modèles de code restent optionnels sur serveur, comme expliqué dans le README.

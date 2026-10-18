@@ -140,6 +140,15 @@ jobs:
           curl -fL --retry 3 'https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/LICENSE' -o "$RUNNER_TEMP/QwenModels/LICENSE"
           test "$(stat -f%z "$RUNNER_TEMP/QwenModels/LICENSE")" -ge 10000
 
+      - name: Download compact Qwen3 0.6B GGUF fallback
+        run: |
+          set -euo pipefail
+          SMALL="$RUNNER_TEMP/QwenModels/Qwen3-0.6B-Q4_K_M.gguf"
+          curl -fL --retry 3 --retry-all-errors 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/1208e45d782fe18602c5eaf10e5758d5b0f24c03/Qwen3-0.6B-Q4_K_M.gguf?download=true' -o "$SMALL"
+          test "$(stat -f%z "$SMALL")" -ge 350000000
+          test "$(head -c 4 "$SMALL")" = "GGUF"
+          echo "b0638f08417a2d3c8652760462eb5407c6e30173cf9608ad0820757a281eea0e  $SMALL" | shasum -a 256 -c -
+
       - name: Xcode version
         run: xcodebuild -version
 
@@ -233,6 +242,7 @@ jobs:
           cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
           cp "$RUNNER_TEMP/QwenModels/Qwen3-1.7B-Q4_K_M.gguf" "$APP_PATH/"
+          cp "$RUNNER_TEMP/QwenModels/Qwen3-0.6B-Q4_K_M.gguf" "$APP_PATH/"
           cp "$RUNNER_TEMP/QwenModels/LICENSE" "$APP_PATH/Qwen3-Apache-2.0-LICENSE.txt"
 
           WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
@@ -293,6 +303,7 @@ jobs:
           IPA="$GITHUB_WORKSPACE/dist/SarahIA.ipa"
           test "$(stat -f%z "$IPA")" -ge 1000000000
           unzip -Z -1 "$IPA" | grep '/Qwen3-1.7B-Q4_K_M.gguf$' > /dev/null
+          unzip -Z -1 "$IPA" | grep '/Qwen3-0.6B-Q4_K_M.gguf$' > /dev/null
           unzip -Z -1 "$IPA" | grep '/WhisperModels/ggml-base.bin$' > /dev/null
 
       - name: Publish permanent website IPA
@@ -301,7 +312,7 @@ jobs:
         with:
           tag_name: sarah-ia-latest-fix
           name: 'Sarah IA - Version complète unifiée'
-          body: 'Build #${{ github.run_number }} : Whisper base multilingue et Qwen3 1.7B GGUF embarqués, MapKit, traduction Apple / Google ML Kit. Les packs linguistiques doivent être téléchargés une première fois.'
+          body: 'Build #${{ github.run_number }} : Whisper base multilingue, Qwen3 1.7B + 0.6B GGUF embarqués, MapKit, traduction Apple / Google ML Kit. Les packs linguistiques doivent être téléchargés une première fois.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false

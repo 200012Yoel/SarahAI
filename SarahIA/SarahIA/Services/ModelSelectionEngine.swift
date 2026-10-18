@@ -6,7 +6,7 @@ public final class ModelSelectionEngine {
     public static let shared = ModelSelectionEngine()
 
     // Poids Qwen3 sous licence Apache-2.0, en GGUF Q4.
-    public static let qwen06BDownloadURL = "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
+    public static let qwen06BDownloadURL = "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/1208e45d782fe18602c5eaf10e5758d5b0f24c03/Qwen3-0.6B-Q4_K_M.gguf"
     public static let qwen06BFileName = "Qwen3-0.6B-Q4_K_M.gguf"
     public static let qwen17BDownloadURL = "https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
     public static let qwen17BFileName = "Qwen3-1.7B-Q4_K_M.gguf"
