@@ -3,7 +3,13 @@ name: Nettoyage des anciennes IPA
 # Manuel (SUPPRIMER) ou déclenché après publication réussie de l'IPA complète.
 # Vérifie la taille du livrable canonique avant de supprimer les anciennes releases.
 # Les commits et l'historique de code sont conservés.
+# Au premier push du workflow, seules les anciennes releases < 1 Go sont supprimées.
+# Après une compilation complète réussie, une seule release officielle reste.
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-releases.yml'
   workflow_dispatch:
     inputs:
       confirm:
@@ -24,7 +30,7 @@ permissions:
 
 jobs:
   cleanup:
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm == 'SUPPRIMER') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.confirm == 'SUPPRIMER') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -43,10 +49,14 @@ jobs:
           KEEP="sarah-ia-latest-fix $KEEP"
           deleted=0
           gh api --paginate "repos/$REPO/releases?per_page=100" \
-            --jq '.[] | "\(.id) \(.tag_name)"' > releases.txt
-          while read -r id tag; do
+            --jq '.[] | "\(.id) \(.tag_name) \([.assets[].size] | max // 0)"' > releases.txt
+          while read -r id tag size; do
             if [[ " $KEEP " == *" $tag "* ]]; then
               echo "Gardée : $tag"
+              continue
+            fi
+            if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$size" -ge 1000000000 ]; then
+              echo "Conservée pour consolidation (>= 1 Go) : $tag"
               continue
             fi
             if gh api -X DELETE "repos/$REPO/releases/$id" --silent; then
