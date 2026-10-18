@@ -128,7 +128,7 @@ jobs:
           cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
           ls -lh "$RUNNER_TEMP/WhisperModels"
 
-      - name: Download local Qwen3 1.7B GGUF for complete IPA
+      - name: Download on-device Qwen3 1.7B GGUF for complete IPA
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/QwenModels"
@@ -288,43 +288,18 @@ jobs:
       - name: Protect canonical IPA from reduced builds
         run: |
           set -euo pipefail
-          test "$(stat -f%z "$GITHUB_WORKSPACE/dist/SarahIA.ipa")" -ge 1000000000
-          unzip -Z -1 "$GITHUB_WORKSPACE/dist/SarahIA.ipa" | grep -q '/Qwen3-1.7B-Q4_K_M.gguf
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: sarah-ia-latest-fix
-          name: 'Sarah IA - Version complète unifiée'
-          body: 'Build #${{ github.run_number }} avec Whisper base multilingue, Qwen3 1.7B GGUF local, fiches cartographiques MapKit et pipeline vocal de traduction Apple / Google ML Kit. Les packs Google doivent être préparés la première fois.'
-          files: dist/SarahIA.ipa
-          overwrite_files: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          unzip -Z -1 "$GITHUB_WORKSPACE/dist/SarahIA.ipa" | grep -q '/WhisperModels/ggml-base.bin
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: sarah-ia-4.0-latest
-          name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. OpenAI Whisper voice with barge-in/AEC plus real local Qwen3 GGUF code generation through official llama.cpp. No deterministic HTML fallback.'
-          files: dist/SarahIA.ipa
-          overwrite_files: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          IPA="$GITHUB_WORKSPACE/dist/SarahIA.ipa"
+          test "$(stat -f%z "$IPA")" -ge 1000000000
+          unzip -Z -1 "$IPA" | grep '/Qwen3-1.7B-Q4_K_M.gguf$' > /dev/null
+          unzip -Z -1 "$IPA" | grep '/WhisperModels/ggml-base.bin$' > /dev/null
 
       - name: Publish permanent website IPA
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: sarah-ia-4.0-latest
-          name: 'Sarah IA 4.0 - iOS 26 Stable'
-          body: 'Latest Sarah IA device build. Build #${{ github.run_number }}. OpenAI Whisper voice with barge-in/AEC plus real local Qwen3 GGUF code generation through official llama.cpp. No deterministic HTML fallback.'
+          tag_name: sarah-ia-latest-fix
+          name: 'Sarah IA - Version complète unifiée'
+          body: 'Build #${{ github.run_number }} : Whisper base multilingue et Qwen3 1.7B GGUF embarqués, MapKit, traduction Apple / Google ML Kit. Les packs linguistiques doivent être téléchargés une première fois.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
