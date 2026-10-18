@@ -1254,6 +1254,12 @@ public final class SarahPlaceSearchService {
             ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
             ("affiche la carte de ", true), ("affiche sur la carte ", true),
             ("je voudrais voir sur la carte ", true),
+            ("donne moi l'adresse de ", true), ("donne moi l'adresse du ", true),
+            ("donne moi l'adresse ", true), ("donne l'adresse de ", true),
+            ("trouve l'adresse de ", true), ("montre moi l'adresse de ", true),
+            ("affiche moi la carte de ", true), ("ouvre la carte de ", true),
+            ("fais moi une carte de ", true), ("carte de ", true),
+            ("je veux aller a ", true), ("navigue vers ", true),
             ("ou se trouve ", true), ("ou est situe ", true), ("ou est ", true),
             ("quelle est l'adresse de ", true), ("quelle est l'adresse du ", true),
             ("adresse de ", true), ("l'adresse de ", true),
@@ -1266,6 +1272,15 @@ public final class SarahPlaceSearchService {
             ("montre moi ", false)
         ]
         guard let (prefix, explicitLocation) = prefixes.first(where: { normalized.hasPrefix($0.0) }) else {
+            // Une adresse fournie seule, par exemple « 12 rue de Rivoli, Paris »,
+            // ouvre également la fiche cartographique native.
+            let directAddressPattern = #"^\d{1,4}\s*(?:bis\s+|ter\s+)?(?:rue|avenue|boulevard|place|route|chemin|quai|impasse|allee|passage|square|cours)\s+\S+"#
+            if normalized.range(of: directAddressPattern, options: .regularExpression) != nil {
+                return text
+            }
+            if normalized == "tour eiffel" {
+                return text
+            }
             return nil
         }
 

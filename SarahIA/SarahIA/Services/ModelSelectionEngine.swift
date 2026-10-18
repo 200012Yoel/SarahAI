@@ -8,9 +8,9 @@ public final class ModelSelectionEngine {
     // Poids Qwen3 sous licence Apache-2.0, en GGUF Q4.
     public static let qwen06BDownloadURL = "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
     public static let qwen06BFileName = "Qwen3-0.6B-Q4_K_M.gguf"
-    public static let qwen17BDownloadURL = "https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
+    public static let qwen17BDownloadURL = "https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
     public static let qwen17BFileName = "Qwen3-1.7B-Q4_K_M.gguf"
-    public static let qwen4BDownloadURL = "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
+    public static let qwen4BDownloadURL = "https://huggingface.co/ggml-org/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
     public static let qwen4BFileName = "Qwen3-4B-Q4_K_M.gguf"
 
     private var registeredProfiles: [ModelProfile] = []

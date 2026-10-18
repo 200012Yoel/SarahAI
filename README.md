@@ -65,3 +65,8 @@ Les recherches de lieux utilisent MapKit pour afficher une petite fiche dans le 
 La traduction vocale en direct utilise Whisper/Apple pour transcrire et Google ML Kit ou la traduction iOS pour traduire. Les packs ML Kit sont à télécharger une première fois en ligne, puis sont utilisables hors ligne. Une traduction manquante ne doit plus être annoncée comme réussie. La fluidité et l'écho haut-parleur/micro doivent être testés sur iPhone.
 
 Le nettoyage des anciennes releases s'exécute après la publication réussie de la version complète, jamais après une compilation incomplète. Les commits restent préservés.
+
+
+### Demandes de lieux et d'adresses
+
+La version principale reconnaît « Donne-moi l'adresse de la Tour Eiffel », « Montre-moi sur la carte la gare de Lyon », « 12 rue de Rivoli, Paris » et « Où se trouve le Louvre ? ». La recherche MapKit renvoie une fiche intégrée contenant le lieu, l'adresse et une carte compacte. Un toucher ouvre la carte en plein écran, avec des boutons vers Plans, Google Maps et Waze. Le résultat est issu d'Apple Plans, non d'une coordonnée inventée.
