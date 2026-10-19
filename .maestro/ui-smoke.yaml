@@ -12,8 +12,9 @@ appId: com.sarahia.app
 
 # 2. Recherche latérale : un seul tap doit suffire
 - tapOn: "Rechercher"
-# Après ouverture, toucher le champ visible (SwiftUI peut masquer son id à Maestro).
-- tapOn: "Rechercher"
+# Touche la zone de saisie complète, y compris son icône.
+- tapOn:
+    id: "sarah.sidebar.search.field"
 - inputText: "test recherche"
 - assertVisible: "test recherche"
 
