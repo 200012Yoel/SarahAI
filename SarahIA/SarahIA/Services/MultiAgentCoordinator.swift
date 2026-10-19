@@ -1254,6 +1254,8 @@ public final class SarahPlaceSearchService {
             ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
             ("affiche la carte de ", true), ("affiche sur la carte ", true),
             ("je voudrais voir sur la carte ", true),
+            ("recherche l'adresse de ", true), ("recherche l'adresse du ", true),
+            ("recherche l'adresse ", true), ("cherche l'adresse de ", true),
             ("donne moi l'adresse de ", true), ("donne moi l'adresse du ", true),
             ("donne moi l'adresse ", true), ("donne l'adresse de ", true),
             ("trouve l'adresse de ", true), ("montre moi l'adresse de ", true),
