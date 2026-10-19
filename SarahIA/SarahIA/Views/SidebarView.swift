@@ -369,6 +369,7 @@ public struct SidebarView: View {
                 isShowingSettings = true
             }
             .accessibilityLabel("Réglages")
+            .accessibilityIdentifier("sarah.settings.button")
         }
         .padding(.horizontal, horizontal)
         .padding(.top, 10)
