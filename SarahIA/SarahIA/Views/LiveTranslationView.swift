@@ -99,7 +99,7 @@ public struct LiveTranslationView: View {
 
     private var languageBar: some View {
         HStack(spacing: 10) {
-            languageChip(session.languagePair.sourceFlag, session.languagePair.sourceName)
+            languageChip(session.languagePair.sourceFlag, session.languagePair.sourceName, isSource: true)
             Button {
                 session.swapLanguages()
             } label: {
@@ -110,20 +110,53 @@ public struct LiveTranslationView: View {
                     .background(Capsule().fill(accent.opacity(0.15)))
             }
             .accessibilityLabel("Inverser les langues")
-            languageChip(session.languagePair.targetFlag, session.languagePair.targetName)
+            languageChip(session.languagePair.targetFlag, session.languagePair.targetName, isSource: false)
         }
     }
 
-    private func languageChip(_ flag: String, _ name: String) -> some View {
-        HStack(spacing: 6) {
-            Text(flag)
-            Text(name)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white)
+    // Les trois langues disponibles utilisent le même pipeline local Whisper/ML Kit.
+    // Un pack de traduction peut nécessiter un téléchargement initial.
+    private func languageChip(_ flag: String, _ name: String, isSource: Bool) -> some View {
+        Menu {
+            ForEach(["he", "fr", "en"], id: \.self) { code in
+                Button {
+                    var pair = session.languagePair
+                    if isSource {
+                        if code == pair.targetLanguage {
+                            pair.targetLanguage = pair.sourceLanguage
+                        }
+                        pair.sourceLanguage = code
+                    } else {
+                        if code == pair.sourceLanguage {
+                            pair.sourceLanguage = pair.targetLanguage
+                        }
+                        pair.targetLanguage = code
+                    }
+                    session.setLanguages(pair)
+                } label: {
+                    let label = "\(LiveLanguagePair.flag(for: code)) \(LiveLanguagePair.name(for: code))"
+                    if code == (isSource ? session.languagePair.sourceLanguage : session.languagePair.targetLanguage) {
+                        Label(label, systemImage: "checkmark")
+                    } else {
+                        Text(label)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(flag)
+                Text(name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(panelBackground))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(panelBackground))
+        .accessibilityLabel(isSource ? "Choisir la langue entendue" : "Choisir la langue de traduction")
     }
 
     // MARK: - Panneaux de texte

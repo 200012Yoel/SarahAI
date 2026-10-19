@@ -41,7 +41,7 @@ ensure_replace(
 
             Spacer(minLength: 4)
 
-            glassCircleButton(systemName: "gearshape.fill") {
+            // L'accès aux réglages reste dans le menu latéral.
 ''',
     '''            }
             .buttonStyle(PlainButtonStyle())
@@ -49,29 +49,12 @@ ensure_replace(
 
             Spacer(minLength: 4)
 
-            glassCircleButton(systemName: "gearshape.fill") {
+            // L'accès aux réglages reste dans le menu latéral.
 ''',
     'accessibilityIdentifier("sarah.agent.menu")',
     "agent menu identifier",
 )
-ensure_replace(
-    chat,
-    '''            glassCircleButton(systemName: "gearshape.fill") {
-                HapticService.shared.buttonTap()
-                keyboard.dismiss()
-                isShowingSettings = true
-            }
-''',
-    '''            glassCircleButton(systemName: "gearshape.fill") {
-                HapticService.shared.buttonTap()
-                keyboard.dismiss()
-                isShowingSettings = true
-            }
-            .accessibilityIdentifier("sarah.settings.button")
-''',
-    'accessibilityIdentifier("sarah.settings.button")',
-    "settings button identifier",
-)
+# Le bouton Réglages en haut a été supprimé : il est dans le menu latéral.
 
 bar = Path("SarahIA/SarahIA/Views/MessageBar.swift")
 ensure_replace(
@@ -126,5 +109,8 @@ ensure_replace(
     'accessibilityIdentifier("sarah.sidebar")',
     "sidebar identifier",
 )
+
+if 'accessibilityIdentifier("sarah.settings.button")' not in sidebar.read_text(encoding="utf-8"):
+    raise SystemExit("Missing settings identifier in sidebar")
 
 print("Simulator UI accessibility identifiers verified")

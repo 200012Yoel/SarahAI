@@ -12,6 +12,7 @@ appId: com.sarahia.app
 
 # 2. Recherche latérale : un seul tap doit suffire
 - tapOn: "Rechercher"
+# Touche la zone de saisie complète, y compris son icône.
 - tapOn:
     id: "sarah.sidebar.search.field"
 - inputText: "test recherche"
@@ -24,10 +25,12 @@ appId: com.sarahia.app
     id: "sarah.agent.menu"
 - assertVisible: "Raphaël"
 - assertVisible: "Yohan"
-- assertVisible: "Tom"
+- assertVisible: "Ethel"
 
-# 4. Réglages
+# 4. Réglages accessibles depuis le menu latéral
 - launchApp
+- tapOn:
+    id: "sarah.menu.button"
 - tapOn:
     id: "sarah.settings.button"
 - assertVisible: "Réglages"

@@ -3,7 +3,7 @@ name: iOS Simulator UI Smoke
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, work/sarah-final-ui-audit-20261019]
     paths:
       - 'SarahIA/**'
       - '.maestro/**'
@@ -223,6 +223,8 @@ jobs:
           export PATH="$HOME/.maestro/bin:$PATH"
           mkdir -p ui-smoke-artifacts
           maestro --version
+          # Sur les runners Xcode 27, le pilote XCTest démarre parfois lentement.
+          export MAESTRO_DRIVER_STARTUP_TIMEOUT=300000
           maestro test .maestro/ui-smoke.yaml 2>&1 | tee ui-smoke-artifacts/maestro.log
 
       - name: Capture final simulator screenshot

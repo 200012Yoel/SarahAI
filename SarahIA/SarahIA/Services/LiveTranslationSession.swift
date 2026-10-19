@@ -21,6 +21,9 @@ public final class LiveTranslationSession: ObservableObject {
     private let audioEngine = AVAudioEngine()
     private let pipeline = LiveSpeechTranslationPipeline.shared
     private let maxItems = 30
+    // Invalide une autorisation micro qui arrive après la fermeture de la vue.
+    private var startupEpoch = 0
+    private var isStarting = false
 
     /// Lu depuis le thread audio.
     private let muteLock = NSLock()
@@ -43,14 +46,18 @@ public final class LiveTranslationSession: ObservableObject {
     // MARK: - Démarrage / arrêt
 
     public func start() {
-        guard !isActive else { return }
+        guard !isActive && !isStarting else { return }
+        isStarting = true
+        startupEpoch &+= 1
+        let epoch = startupEpoch
         lastError = nil
 
         // Coupe la voix du chat si elle parlait encore
         MultiAgentVoiceManager.shared.stop()
 
         requestMicrophonePermission { [weak self] granted in
-            guard let self = self else { return }
+            guard let self = self, self.startupEpoch == epoch else { return }
+            self.isStarting = false
             guard granted else {
                 self.lastError = "Autorise le micro dans Réglages > Sarah IA pour utiliser la traduction en direct."
                 return
@@ -66,6 +73,8 @@ public final class LiveTranslationSession: ObservableObject {
     }
 
     public func stop() {
+        startupEpoch &+= 1
+        isStarting = false
         guard isActive else { return }
         pipeline.stopPipeline()
         stopAudioEngine()
