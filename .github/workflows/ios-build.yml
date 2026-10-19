@@ -308,7 +308,6 @@ jobs:
 
       - name: Publish permanent website IPA
         if: github.ref == 'refs/heads/main'
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: sarah-ia-latest-fix
