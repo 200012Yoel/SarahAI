@@ -11,7 +11,7 @@ on:
         options: ['no', 'yes']
         default: 'no'
   push:
-    branches: [main]
+    branches: [main, work/sarah-final-ui-audit-20261019]
     paths:
       - 'SarahIA/**'
       - '.github/workflows/ios-build.yml'
@@ -307,6 +307,7 @@ jobs:
           unzip -Z -1 "$IPA" | grep '/WhisperModels/ggml-base.bin$' > /dev/null
 
       - name: Publish permanent website IPA
+        if: github.ref == 'refs/heads/main'
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
