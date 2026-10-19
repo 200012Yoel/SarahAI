@@ -164,9 +164,9 @@ public struct ChatScreenView: View {
                         viewModel.activeAgent = .yohan
                         viewModel.inputText = "Traduis en hébreu : "
                     },
-                    .default(Text("🌍 Tom · Histoire")) {
-                        viewModel.activeAgent = .tom
-                        viewModel.inputText = "Explique-moi "
+                    .default(Text("✨ Ethel · Création")) {
+                        viewModel.activeAgent = .ethel
+                        viewModel.inputText = "Aide-moi à créer "
                     },
                     .default(Text("🎙️ Mode vocal Sarah")) {
                         keyboard.dismiss()
@@ -245,7 +245,7 @@ public struct ChatScreenView: View {
                 Button("Sarah") { viewModel.activeAgent = .sarah }
                 Button("Raphaël") { viewModel.activeAgent = .esther }
                 Button("Yohan") { viewModel.activeAgent = .yohan }
-                Button("Tom") { viewModel.activeAgent = .tom }
+                Button("Ethel") { viewModel.activeAgent = .ethel }
                 Divider()
                 Button("Outils") { isShowingActionSheet = true }
             } label: {
@@ -273,11 +273,11 @@ public struct ChatScreenView: View {
 
             Spacer(minLength: 4)
 
-            glassCircleButton(systemName: "gearshape.fill") {
-                HapticService.shared.buttonTap()
-                keyboard.dismiss()
-                isShowingSettings = true
-            }
+            // L'accès aux réglages reste dans le menu latéral.
+            // Espace invisible pour garder le sélecteur d'agents centré.
+            Color.clear
+                .frame(width: 44, height: 44)
+                .accessibilityHidden(true)
         }
     }
 
