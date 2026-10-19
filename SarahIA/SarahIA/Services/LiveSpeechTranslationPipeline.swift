@@ -114,6 +114,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.currentLanguagePair = languagePair
             self.isPipelineRunning = true
             self.hasShownUnavailableNotice = false
+            let recognitionEpoch = self.pipelineEpoch
 
             // Packs de traduction Google + modèle Whisper : prêts pour le hors ligne
             TranslationEngine.shared.prepareOfflinePacks(for: [languagePair.sourceLanguage, languagePair.targetLanguage])
@@ -123,8 +124,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.localSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
             self.localSpeechRecognizer?.delegate = self
 
-            self.requestSpeechAuthorizationIfNeeded { authorized in
-                guard self.isPipelineRunning else { return }
+            self.requestSpeechAuthorizationIfNeeded { [weak self] authorized in
+                guard let self = self,
+                      self.isPipelineRunning,
+                      self.pipelineEpoch == recognitionEpoch else { return }
                 if !authorized {
                     print("⚠️ [Traduction] Reconnaissance Apple non autorisée : Whisper uniquement")
                 }
