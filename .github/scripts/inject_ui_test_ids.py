@@ -49,7 +49,7 @@ ensure_replace(
 
             Spacer(minLength: 4)
 
-            glassCircleButton(systemName: "gearshape.fill") {
+            // L'accès aux réglages reste dans le menu latéral.
 ''',
     'accessibilityIdentifier("sarah.agent.menu")',
     "agent menu identifier",
