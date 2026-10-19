@@ -240,7 +240,7 @@ public struct MessageBar: View {
                         .fill(Color.white)
                         .frame(width: 12, height: 12)
                 } else {
-                    Image(systemName: hasText ? "arrow.up" : "waveform")
+                    Image(systemName: hasText ? "arrow.up" : "sparkle")
                         .font(.system(size: 19, weight: hasText ? .bold : .semibold))
                         .foregroundColor(.white)
                 }
