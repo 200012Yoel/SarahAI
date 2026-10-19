@@ -154,7 +154,7 @@ public struct SidebarView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 .contentShape(Rectangle())
-                .accessibilityIdentifier("sarah.sidebar.search.field")
+
 
             if !viewModel.searchQuery.isEmpty {
                 Button {
@@ -177,6 +177,8 @@ public struct SidebarView: View {
                 .allowsHitTesting(false)
         )
         .padding(.horizontal, horizontal)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sarah.sidebar.search.field")
     }
 
     // MARK: - Active conversations
