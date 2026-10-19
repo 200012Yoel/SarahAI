@@ -246,6 +246,7 @@ public struct ChatScreenView: View {
                 Button("Raphaël") { viewModel.activeAgent = .esther }
                 Button("Yohan") { viewModel.activeAgent = .yohan }
                 Button("Ethel") { viewModel.activeAgent = .ethel }
+                Button("Nathan") { viewModel.activeAgent = .nathan }
                 Divider()
                 Button("Outils") { isShowingActionSheet = true }
             } label: {
