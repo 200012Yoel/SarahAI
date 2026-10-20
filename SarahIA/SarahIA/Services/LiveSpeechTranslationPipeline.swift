@@ -144,6 +144,11 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             self.currentLanguagePair = newPair
             if needsRestart && self.isPipelineRunning {
                 self.startPipeline(with: newPair)
+            } else if !newPair.isVoiceEnabled, self.speechSynthesizer.isSpeaking {
+                // Le bouton Muet coupe immédiatement la lecture puis reprend le micro.
+                self.speakingUtterance = nil
+                self.speechSynthesizer.stopSpeaking(at: .immediate)
+                self.resumeListening()
             }
         }
     }
@@ -616,6 +621,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
 
         let segmentId = currentSegmentId
         let pair = currentLanguagePair
+        let epoch = pipelineEpoch
 
         Task { [weak self] in
             let result = await TranslationEngine.shared.translateDetailed(
@@ -625,7 +631,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
                 quality: .fast
             )
             await MainActor.run {
-                guard let self = self else { return }
+                guard let self = self, self.isPipelineRunning,
+                      self.pipelineEpoch == epoch else { return }
                 self.isPartialTranslationInFlight = false
                 if let result = result, segmentId == self.currentSegmentId {
                     self.currentPartialTranslation = result.text
@@ -715,6 +722,15 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         speakingUtterance = utterance
         speechSynthesizer.speak(utterance)
 
+        // Secours si iOS ne renvoie aucun delegate de fin de lecture.
+        let epoch = pipelineEpoch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+            guard let self = self, self.isPipelineRunning, self.pipelineEpoch == epoch,
+                  self.speakingUtterance === utterance,
+                  !self.speechSynthesizer.isSpeaking else { return }
+            self.speakingUtterance = nil
+            self.resumeListening()
+        }
     }
 
     private func resumeListening() {
