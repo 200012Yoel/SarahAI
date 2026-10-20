@@ -1,6 +1,11 @@
 name: iOS 27 Local AI Build
 run-name: iOS 27 Local AI (Build #${{ github.run_number }})
 
+# Only the newest source revision may publish the canonical SarahIA.ipa.
+concurrency:
+  group: sarah-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
