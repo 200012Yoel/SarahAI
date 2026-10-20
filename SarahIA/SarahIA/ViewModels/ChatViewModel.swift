@@ -642,6 +642,30 @@ public final class ChatViewModel: ObservableObject {
         appendMessage(userMessage)
         inputText = ""
 
+        // Commandes vocales et textuelles de traduction continue : priorité sur le LLM.
+        // "Je comprends rien" active le mode hébreu → français demandé par l'utilisateur.
+        let liveCommand = text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+            .replacingOccurrences(of: "’", with: "'")
+        let livePhrases = [
+            "traduction en direct", "traduction directe", "traduis en direct",
+            "traduction en temps reel", "traduction live", "live translate",
+            "traduis la tele", "traduis l'hebreu", "je comprends rien",
+            "je ne comprends rien", "je comprends pas", "je ne comprends pas"
+        ]
+        if livePhrases.contains(where: { liveCommand.contains($0) }) {
+            // Un seul moteur micro à la fois : on ferme Whisper/chat AVANT le plein écran.
+            stopVoiceConversation()
+            appendMessage(Message(
+                content: "🌐 Traduction en direct activée : hébreu entendu, français affiché et lu. L'écoute redémarre après chaque phrase.",
+                isFromUser: false
+            ))
+            isTyping = false
+            voiceStatus = .idle
+            SarahActionCoordinator.shared.dispatch(.openLiveTranslation)
+            return
+        }
+
         // Raphaël ouvre un vrai brief de création au lieu d'envoyer une réponse générique.
         // Le même parcours sert aussi à reprendre et améliorer la dernière maquette créée.
         if WebsiteBrief.shouldOpenBuilder(for: text) {
