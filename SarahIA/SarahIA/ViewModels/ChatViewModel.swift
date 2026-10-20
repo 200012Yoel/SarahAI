@@ -651,10 +651,19 @@ public final class ChatViewModel: ObservableObject {
         let livePhrases = [
             "traduction en direct", "traduction directe", "traduis en direct",
             "traduction en temps reel", "traduction live", "live translate",
-            "traduis la tele", "traduis l'hebreu", "je comprends rien",
-            "je ne comprends rien", "je comprends pas", "je ne comprends pas"
+            "traduis la tele", "traduis l'hebreu"
         ]
-        if livePhrases.contains(where: { liveCommand.contains($0) }) {
+        let spontaneousPhrase = liveCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "mais ", with: "", options: .anchored)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
+        let confusionPhrases = [
+            "je comprends rien", "je ne comprends rien",
+            "je comprends pas", "je ne comprends pas",
+            "je comprends rien a l'hebreu", "je comprends pas ce qu'il dit"
+        ]
+        let contextualHelp = isContinuousConversationActive &&
+            confusionPhrases.contains(spontaneousPhrase)
+        if livePhrases.contains(where: { liveCommand.contains($0) }) || contextualHelp {
             // Un seul moteur micro à la fois : on ferme Whisper/chat AVANT le plein écran.
             stopVoiceConversation()
             appendMessage(Message(
