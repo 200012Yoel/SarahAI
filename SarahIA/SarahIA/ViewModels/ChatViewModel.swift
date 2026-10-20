@@ -454,7 +454,8 @@ public final class ChatViewModel: ObservableObject {
         }
 
         WhisperSpeechRecognizer.shared.onFinalTranscription = { [weak self] finalTranscription in
-            guard let self = self else { return }
+            // Un résultat Whisper retardé ne doit pas rouvrir le chat pendant Live Translate.
+            guard let self = self, self.isContinuousConversationActive else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else {
                 self.voiceStatus = .idle
