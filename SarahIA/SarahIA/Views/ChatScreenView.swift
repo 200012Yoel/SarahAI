@@ -26,6 +26,16 @@ public struct ChatScreenView: View {
         self._isShowingSettings = isShowingSettings
     }
 
+    /// Le mode vocal et la traduction ne doivent jamais ouvrir deux micros simultanément.
+    private func presentContinuousTranslation() {
+        viewModel.stopVoiceConversation()
+        viewModel.isShowingVoiceOrbModal = false
+        // Laisser à SwiftUI le temps de fermer la feuille vocale avant le plein écran.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isShowingLiveTranslation = true
+        }
+    }
+
     private func analyzeSelectedPhoto(_ item: PhotosPickerItem?) {
         guard let item else { return }
         Task {
@@ -137,7 +147,7 @@ public struct ChatScreenView: View {
             LiveTranslationView()
         }
         .onReceive(NotificationCenter.default.publisher(for: .sarahPresentLiveTranslation)) { _ in
-            isShowingLiveTranslation = true
+            presentContinuousTranslation()
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
@@ -145,7 +155,7 @@ public struct ChatScreenView: View {
                 message: Text("Outils et agents"),
                 buttons: [
                     .default(Text("🌐 Traduction en direct")) {
-                        isShowingLiveTranslation = true
+                        presentContinuousTranslation()
                     },
                     .default(Text("💻 Studio Raphaël")) {
                         viewModel.activeAgent = .esther
