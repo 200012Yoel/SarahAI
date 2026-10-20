@@ -52,8 +52,15 @@ public final class LiveTranslationSession: ObservableObject {
         let epoch = startupEpoch
         lastError = nil
 
-        // Coupe la voix du chat si elle parlait encore
+        // Ferme le micro du chat avant d'ouvrir celui de la traduction.
+        // Deux AVAudioEngine actifs étaient susceptibles de monopoliser l'entrée audio.
         MultiAgentVoiceManager.shared.stop()
+        WhisperSpeechRecognizer.shared.stopListening()
+        AudioSessionManager.shared.endContinuousVoiceSession()
+        isMuted = false
+        muteLock.lock()
+        audioThreadMuted = false
+        muteLock.unlock()
 
         requestMicrophonePermission { [weak self] granted in
             guard let self = self, self.startupEpoch == epoch else { return }
@@ -154,7 +161,8 @@ public final class LiveTranslationSession: ObservableObject {
         do {
             // Pas d'A2DP : ce profil Bluetooth est sans micro et peut couper l'écoute.
             try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
-            try session.setPreferredIOBufferDuration(0.01)
+            // 20 ms : limite les réveils CPU et la chauffe sans dégrader les voix parlées.
+            try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("⚠️ [Traduction] Session audio : \(error.localizedDescription)")
