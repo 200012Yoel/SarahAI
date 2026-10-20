@@ -41,7 +41,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     /// Silence après lequel la phrase est considérée comme terminée.
     private let endOfSentenceSilence: TimeInterval = 0.8
     /// Intervalle minimal entre deux traductions rapides des sous-titres.
-    private let partialTranslationInterval: TimeInterval = 0.25
+    private let partialTranslationInterval: TimeInterval = 0.9
     /// Délai avant de réécouter après la fin de la voix (évite d'attraper la fin du son).
     private let resumeListeningDelay: TimeInterval = 0.25
     /// Fréquence max de mise à jour de l'animation du micro (~15 images/s).
@@ -50,7 +50,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     // Whisper
     private let whisperSampleRate: Double = 16_000
     private let whisperVoiceThresholdDB: Float = -45
-    private let whisperPartialInterval: TimeInterval = 1.0
+    private let whisperPartialInterval: TimeInterval = 2.5
     private let whisperMinimumSpeech: Double = 0.5
     private let whisperMaximumSegment: Double = 25
     private let whisperPreRoll: Double = 0.4
@@ -77,6 +77,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     // MARK: - Synthèse vocale
 
     private let speechSynthesizer = AVSpeechSynthesizer()
+    private var speakingUtterance: AVSpeechUtterance?
 
     // MARK: - État (thread principal uniquement)
 
@@ -165,6 +166,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         endRecognitionSession()
         setMicSuspended(false)
 
+        speakingUtterance = nil
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .immediate)
         }
@@ -264,8 +266,10 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             startWhisperSession()
         case .unavailable:
             showUnavailableNoticeOnce()
+            let epoch = pipelineEpoch
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-                self?.startRecognitionSession()
+                guard let self = self, self.isPipelineRunning, self.pipelineEpoch == epoch else { return }
+                self.startRecognitionSession()
             }
         }
     }
@@ -361,8 +365,11 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
             if !currentOriginalText.isEmpty {
                 finalizeAppleSegment()
             } else {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                    self?.startRecognitionSession()
+                let epoch = pipelineEpoch
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    guard let self = self, self.isPipelineRunning, self.pipelineEpoch == epoch,
+                          generation == self.recognitionGeneration else { return }
+                    self.startRecognitionSession()
                 }
             }
         }
@@ -495,6 +502,11 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     /// Sous-titres partiels Whisper (environ une fois par seconde pendant que la personne parle).
     private func runWhisperPartial() {
         guard isPipelineRunning, !isWhisperPartialInFlight else { return }
+        // L'inférence partielle sur tout le buffer en permanence surcharge l'iPhone.
+        // En économie d'énergie / chauffe, on garde seulement la transcription finale.
+        let state = ProcessInfo.processInfo.thermalState
+        guard !ProcessInfo.processInfo.isLowPowerModeEnabled,
+              state != .serious, state != .critical else { return }
 
         audioLock.lock()
         let isWhisper = _mode == .whisper
@@ -540,6 +552,7 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         _whisperFinalizeRequested = false
         audioLock.unlock()
 
+        let epoch = pipelineEpoch
         let segmentId = currentSegmentId
         let partialText = currentOriginalText
         let partial = currentPartialTranslation
@@ -561,7 +574,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         Task { [weak self] in
             let finalText = await LiveWhisperTranscriber.shared.transcribe(samples, language: pair.sourceLanguage)
             await MainActor.run {
-                guard let self = self, self.isPipelineRunning else { return }
+                guard let self = self, self.isPipelineRunning,
+                      self.pipelineEpoch == epoch else { return }
                 let text = (finalText ?? partialText).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else {
                     if willSpeak { self.resumeListening() }
@@ -698,13 +712,16 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         if outputs.count == 1, outputs.first?.portType == .builtInReceiver {
             try? session.overrideOutputAudioPort(.speaker)
         }
+        speakingUtterance = utterance
         speechSynthesizer.speak(utterance)
 
     }
 
     private func resumeListening() {
+        let epoch = pipelineEpoch
         DispatchQueue.main.asyncAfter(deadline: .now() + resumeListeningDelay) { [weak self] in
-            guard let self = self, self.isPipelineRunning, !self.speechSynthesizer.isSpeaking else { return }
+            guard let self = self, self.isPipelineRunning, self.pipelineEpoch == epoch,
+                  !self.speechSynthesizer.isSpeaking else { return }
             self.setMicSuspended(false)
             self.startRecognitionSession()
         }
@@ -724,10 +741,14 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        guard speakingUtterance === utterance else { return }
+        speakingUtterance = nil
         resumeListening()
     }
 
     public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        guard speakingUtterance === utterance else { return }
+        speakingUtterance = nil
         resumeListening()
     }
 
@@ -901,7 +922,10 @@ final class LiveWhisperTranscriber {
         #if canImport(whisper)
         guard loadIfNeeded(), let context = context else { return nil }
 
-        let threadCount = Int32(max(1, min(8, ProcessInfo.processInfo.activeProcessorCount - 2)))
+        let thermal = ProcessInfo.processInfo.thermalState
+        let maxThreads = (thermal == .serious || thermal == .critical) ? 1 :
+            (ProcessInfo.processInfo.isLowPowerModeEnabled ? 2 : 3)
+        let threadCount = Int32(max(1, min(maxThreads, ProcessInfo.processInfo.activeProcessorCount - 1)))
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
         params.print_realtime = false
         params.print_progress = false
