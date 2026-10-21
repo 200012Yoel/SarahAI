@@ -67,7 +67,7 @@ public final class WhisperSpeechRecognizer: NSObject {
             self.currentLiveText = text
             self.isListening = false
             self.state = .processing
-            HapticService.shared.notificationSuccess()
+            if !text.isEmpty { HapticService.shared.notificationSuccess() }
             if self.suppressNextExternalFinalCallback {
                 self.suppressNextExternalFinalCallback = false
             } else {
