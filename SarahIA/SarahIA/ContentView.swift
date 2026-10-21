@@ -222,7 +222,9 @@ public struct ContentView: View {
             }
         }
         .padding(.trailing, 18)
-        .padding(.bottom, 10)
+        // Le mini-orbe reste au-dessus du composer : il ne recouvre plus
+        // le bouton vocal rose et ne vole plus son premier appui.
+        .padding(.bottom, 92)
     }
 
     private var drawerOverlay: some View {
