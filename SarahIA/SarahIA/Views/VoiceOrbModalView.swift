@@ -267,6 +267,7 @@ public struct VoiceOrbModalView: View {
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
+            .accessibilityIdentifier("sarah.voice.minimize")
 
             Spacer()
 
@@ -379,6 +380,9 @@ public struct VoiceOrbModalView: View {
             )
         }
         .contentShape(Circle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Orbe vocal Sarah")
+        .accessibilityIdentifier("sarah.voice.orb.expanded")
         .onTapGesture {
             // Toucher l'orbe pendant l'écoute NE coupe jamais le micro.
             // Le bouton micro dédié gère explicitement la sourdine.
