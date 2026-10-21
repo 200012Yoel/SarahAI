@@ -159,11 +159,25 @@ public final class LiveTranslationSession: ObservableObject {
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            // Pas d'A2DP : ce profil Bluetooth est sans micro et peut couper l'écoute.
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
+            // HFP permet le micro des écouteurs ; A2DP permet la lecture de la
+            // traduction dans les écouteurs avec le micro de l'iPhone.
+            // Ce sont des routes iOS standards, pas une API AirPods privée.
+            let hasAirPods = AirPodsTranslationSupport.connectedName != nil
+            try session.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+            )
             // 20 ms : limite les réveils CPU et la chauffe sans dégrader les voix parlées.
             try session.setPreferredIOBufferDuration(0.02)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            if hasAirPods,
+               let phoneMicrophone = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
+                // Une personne près de l'iPhone doit être entendue, même si
+                // l'utilisateur reçoit la traduction dans ses AirPods.
+                do { try session.setPreferredInput(phoneMicrophone) }
+                catch { print("⚠️ [Traduction] Micro iPhone indisponible : \(error.localizedDescription)") }
+            }
         } catch {
             print("⚠️ [Traduction] Session audio : \(error.localizedDescription)")
         }
