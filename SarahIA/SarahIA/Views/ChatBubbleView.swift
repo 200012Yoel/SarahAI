@@ -56,6 +56,8 @@ public struct ChatBubbleView: View {
                     Text(message.content)
                         .font(.system(size: 16, weight: .regular, design: .rounded))
                         .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
                 }
             }
             .padding(.horizontal, message.imageData != nil ? 6 : 16)
@@ -136,10 +138,15 @@ public struct ChatBubbleView: View {
                         return rawContent
                     }()
 
-                    if !displayContent.isEmpty && message.placeCard == nil {
-                        Text(displayContent)
+                    // Montrer aussi la réponse textuelle lorsque la carte
+                    // existe ; auparavant le message était entièrement caché.
+                    if !displayContent.isEmpty {
+                        Text(.init(displayContent))
                             .font(.system(size: 16, weight: .regular, design: .rounded))
                             .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                             .lineSpacing(3)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
@@ -159,6 +166,7 @@ public struct ChatBubbleView: View {
                 if let place = message.placeCard {
                     SarahPlaceCardView(place: place)
                         .frame(maxWidth: 280)
+                        .accessibilityIdentifier("sarah.chat.placeCard")
                 }
 
                 if let youtube = message.detectedYouTubeCard {
