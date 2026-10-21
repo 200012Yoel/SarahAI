@@ -223,15 +223,12 @@ public struct MessageBar: View {
             ZStack {
                 Circle()
                     .fill(
-                        (isProcessing || hasText)
                         ? activeAgent.themeColor.opacity(0.92)
-                        : Color.white.opacity(0.08)
+                        : activeAgent.themeColor.opacity(0.92)
                     )
                 Circle()
                     .stroke(
-                        (isProcessing || hasText)
-                        ? Color.white.opacity(0.26)
-                        : Color.white.opacity(0.14),
+                        Color.white.opacity(0.26),
                         lineWidth: 0.8
                     )
 
@@ -240,8 +237,8 @@ public struct MessageBar: View {
                         .fill(Color.white)
                         .frame(width: 12, height: 12)
                 } else {
-                    Image(systemName: hasText ? "arrow.up" : "sparkle")
-                        .font(.system(size: 19, weight: hasText ? .bold : .semibold))
+                    Image(systemName: hasText ? "arrow.up" : "waveform")
+                        .font(.system(size: 19, weight: .bold))
                         .foregroundColor(.white)
                 }
             }
