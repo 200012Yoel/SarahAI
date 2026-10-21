@@ -44,25 +44,31 @@ public struct VoiceOrbModalView: View {
         case .speaking:
             return "Sarah parle"
         case .error:
-            return "Micro indisponible"
+            return "Whisper indisponible"
+        case .starting:
+            return "Activation du micro…"
         default:
             if !viewModel.liveTranscriptionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Je t’écoute."
             }
-            return viewModel.isMicRunning ? "Je t’écoute." : "Micro coupé"
+            return viewModel.isVoiceMicrophoneMuted ? "Micro coupé" : "Je t’écoute."
         }
     }
 
     private var statusSubtitle: String {
         switch viewModel.voiceStatus {
-        case .error:
-            return "Touchez le micro pour réessayer"
+        case .error(let message):
+            return message
+        case .starting:
+            return WhisperService.shared.isModelLoading
+                ? "Chargement du modèle Whisper local…"
+                : "Autorise le microphone si iOS le demande"
         case .processing:
             return "Un instant…"
         case .speaking:
             return "Tu peux interrompre Sarah en touchant le micro"
         default:
-            return viewModel.isMicRunning ? "Parle normalement" : "Touchez le micro pour reprendre"
+            return viewModel.isVoiceMicrophoneMuted ? "Touchez le micro pour reprendre" : "Parle normalement"
         }
     }
 
@@ -358,10 +364,10 @@ public struct VoiceOrbModalView: View {
         }
         .contentShape(Circle())
         .onTapGesture {
+            // Toucher l'orbe pendant l'écoute NE coupe jamais le micro.
+            // Le bouton micro dédié gère explicitement la sourdine.
             HapticService.shared.buttonTap()
-            if viewModel.isMicRunning {
-                viewModel.toggleMicrophone()
-            } else {
+            if !viewModel.isContinuousConversationActive || viewModel.isVoiceMicrophoneMuted {
                 viewModel.startVoiceConversation()
             }
         }
@@ -418,25 +424,20 @@ public struct VoiceOrbModalView: View {
                         sendTextIfNeeded()
                     }
 
+                if !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Button(action: {
                     HapticService.shared.buttonTap()
-                    if viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        if viewModel.isMicRunning {
-                            viewModel.toggleMicrophone()
-                        } else {
-                            viewModel.startVoiceConversation()
-                        }
-                    } else {
-                        sendTextIfNeeded()
-                    }
+                    sendTextIfNeeded()
                 }) {
-                    Image(systemName: viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "waveform" : "arrow.up")
+                    Image(systemName: "arrow.up")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(accent)
                         .frame(width: 36, height: 36)
                         .background(Circle().fill(accent.opacity(0.11)))
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel("Envoyer")
+                }
             }
             .padding(.leading, 14)
             .padding(.trailing, 7)
@@ -451,9 +452,9 @@ public struct VoiceOrbModalView: View {
             )
 
             circleButton(
-                systemName: viewModel.isMicRunning ? "mic.fill" : "mic.slash.fill",
+                systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "mic.fill",
                 size: 50,
-                highlighted: viewModel.isMicRunning
+                highlighted: viewModel.isContinuousConversationActive && !viewModel.isVoiceMicrophoneMuted
             ) {
                 HapticService.shared.buttonTap()
                 viewModel.toggleMicrophone()
