@@ -53,17 +53,28 @@ appId: com.sarahia.app
     id: "sarah.composer.action"
 - assertVisible: "test interaction SarahIA"
 
-# 7. Mode vocal Sarah : ouverture en un tap + ancienne réduction compacte
+# 7. Mode vocal Sarah : premier appui puis réduction sans coupure du micro
 - launchApp
 - assertVisible: "Sarah"
 - tapOn:
     id: "sarah.composer.action"
-- assertVisible: "Mode vocal"
 - assertVisible:
-    id: "sarah.voice.orb.expanded"
-- swipe:
-    start: 50%, 12%
-    end: 50%, 78%
-    duration: 650
+    id: "sarah.voice.minimize"
+- tapOn:
+    id: "sarah.voice.minimize"
 - assertVisible:
-    id: "sarah.voice.orb.compact"
+    id: "sarah.voice.compactOrb"
+- assertVisible:
+    id: "sarah.voice.compactStop"
+# Rouvrir le plein écran ne crée pas une seconde session vocale.
+- tapOn:
+    id: "sarah.voice.compactOrb"
+- assertVisible:
+    id: "sarah.voice.minimize"
+# Stop est la seule action depuis le mini-orbe qui met fin à la voix.
+- tapOn:
+    id: "sarah.voice.minimize"
+- tapOn:
+    id: "sarah.voice.compactStop"
+- assertNotVisible:
+    id: "sarah.voice.compactOrb"
