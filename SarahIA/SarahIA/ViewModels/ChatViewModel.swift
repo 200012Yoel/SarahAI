@@ -588,7 +588,15 @@ public final class ChatViewModel: ObservableObject {
         // Ce bouton est un vrai interrupteur utilisateur. La capture peut
         // temporairement être arrêtée parce que Whisper charge ou transcrit :
         // isMicRunning seul ne permettait pas de savoir si elle était "allumée".
-        if isContinuousConversationActive && !isVoiceMicrophoneMuted {
+        let isVoiceStarting: Bool
+        switch voiceStatus {
+        case .starting, .processing, .error:
+            isVoiceStarting = true
+        default:
+            isVoiceStarting = false
+        }
+        if isContinuousConversationActive && !isVoiceMicrophoneMuted &&
+           !(isVoiceStarting && !isMicRunning) {
             isVoiceMicrophoneMuted = true
             WhisperSpeechRecognizer.shared.stopListening()
             isMicRunning = false
@@ -625,6 +633,15 @@ public final class ChatViewModel: ObservableObject {
         if isContinuousConversationActive {
             if isVoiceMicrophoneMuted {
                 toggleMicrophone()
+            } else if WhisperService.shared.lastError != nil {
+                // Un modèle ou moteur audio en erreur peut être relancé au
+                // premier appui, sans fermer toute la feuille vocale.
+                WhisperSpeechRecognizer.shared.startListening(
+                    autoFinalizeOnSilence: true,
+                    preserveActiveSpeech: true
+                )
+                isMicRunning = WhisperSpeechRecognizer.shared.isListening
+                voiceStatus = isMicRunning ? .listening(level: micInputLevel) : .starting
             } else if !WhisperSpeechRecognizer.shared.isListening &&
                       !WhisperService.shared.isTranscribing &&
                       !WhisperService.shared.isModelLoading &&
