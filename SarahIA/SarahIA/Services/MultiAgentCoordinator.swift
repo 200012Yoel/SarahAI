@@ -87,7 +87,7 @@ public final class MultiAgentCoordinator {
             SarahPlaceSearchService.shared.search(placeQuery) { result in
                 switch result {
                 case .success(let place):
-                    let reply = "📍 Voici le lieu que j’ai trouvé. Appuie sur la vignette pour agrandir la carte ou choisis un itinéraire."
+                    let reply = "📍 \(place.name). Appuie sur la petite carte pour la voir en grand, puis ouvre ton itinéraire dans Plans, Google Maps ou Waze."
                     completion(AgentResponse(
                         agent: .sarah,
                         text: reply,
@@ -1261,7 +1261,16 @@ public final class SarahPlaceSearchService {
             ("trouve l'adresse de ", true), ("montre moi l'adresse de ", true),
             ("affiche moi la carte de ", true), ("ouvre la carte de ", true),
             ("fais moi une carte de ", true), ("carte de ", true),
-            ("je veux aller a ", true), ("navigue vers ", true),
+            ("je veux aller a ", true), ("je voudrais aller a ", true),
+            ("j'aimerais aller a ", true), ("j'aimerai aller a ", true),
+            ("je souhaite aller a ", true), ("je veux me rendre a ", true),
+            ("je voudrais me rendre a ", true), ("comment aller a ", true),
+            ("comment me rendre a ", true), ("comment on va a ", true),
+            ("comment se rendre a ", true), ("peux tu m'emmener a ", true),
+            ("tu peux m'emmener a ", true), ("va a ", true),
+            ("on va a ", true), ("amene moi a ", true),
+            ("je vais a ", true), ("je vais vers ", true),
+            ("navigue vers ", true),
             ("ou se trouve ", true), ("ou est situe ", true), ("ou est ", true),
             ("quelle est l'adresse de ", true), ("quelle est l'adresse du ", true),
             ("adresse de ", true), ("l'adresse de ", true),
@@ -1289,7 +1298,11 @@ public final class SarahPlaceSearchService {
         // Les transformations ci-dessus ne modifient pas le nombre de caractères.
         var candidate = String(text.dropFirst(prefix.count))
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let trailing = [" sur la carte", " dans plans", " sur plans", " sur google maps"]
+        let trailing = [
+            " sur la carte", " dans plans", " sur plans", " sur google maps",
+            " s'il te plait", " s'il vous plait", " stp", " svp",
+            " pour moi", " maintenant"
+        ]
         for suffix in trailing {
             let folded = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
             if folded.hasSuffix(suffix) {
@@ -1304,6 +1317,9 @@ public final class SarahPlaceSearchService {
             }
         }
         candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".,!?;:")))
+        // Whisper ajoute parfois une virgule ou une formule de politesse.
+        // On élimine ces seuls suffixes, pas les noms propres ou les adresses.
+        candidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
         guard candidate.count >= 3 else { return nil }
         if explicitLocation { return candidate }
 
