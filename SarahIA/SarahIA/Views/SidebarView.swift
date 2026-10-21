@@ -148,6 +148,7 @@ public struct SidebarView: View {
                 .foregroundColor(Color.white.opacity(0.50))
 
             TextField("Rechercher", text: $viewModel.searchQuery)
+                .accessibilityIdentifier("sarah.sidebar.search.field")
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .font(.system(size: 17))
@@ -178,7 +179,6 @@ public struct SidebarView: View {
         )
         .padding(.horizontal, horizontal)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("sarah.sidebar.search.field")
     }
 
     // MARK: - Active conversations
