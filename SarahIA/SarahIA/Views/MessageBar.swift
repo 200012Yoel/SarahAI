@@ -222,10 +222,7 @@ public struct MessageBar: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(
-                        ? activeAgent.themeColor.opacity(0.92)
-                        : activeAgent.themeColor.opacity(0.92)
-                    )
+                    .fill(activeAgent.themeColor.opacity(0.92))
                 Circle()
                     .stroke(
                         Color.white.opacity(0.26),
