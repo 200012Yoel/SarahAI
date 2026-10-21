@@ -469,7 +469,9 @@ public final class WhisperService: ObservableObject {
                 self.isFinalizing = false
                 self.isTranscribing = false
                 if final {
-                    if !text.isEmpty { self.onFinalTranscription?(text) }
+                    // Un résultat vide doit lui aussi notifier le contrôleur vocal :
+                    // sinon celui-ci ne sait pas qu'il doit réarmer l'écoute.
+                    self.onFinalTranscription?(text)
                 } else if !text.isEmpty {
                     self.onPartialTranscription?(text)
                 }
