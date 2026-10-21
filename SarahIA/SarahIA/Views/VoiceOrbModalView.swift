@@ -128,7 +128,11 @@ public struct VoiceOrbModalView: View {
         .onAppear {
             pulse = true
             drift = true
-            viewModel.startVoiceConversation()
+            // Rouvrir depuis le mini-orbe ne doit ni couper la parole de Sarah,
+            // ni sortir d'une pause micro volontaire.
+            if !viewModel.isContinuousConversationActive {
+                viewModel.startVoiceConversation()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             // Sarah ne doit jamais conserver une route audio active quand
@@ -244,15 +248,25 @@ public struct VoiceOrbModalView: View {
 
             Spacer()
 
-            VStack(spacing: 2) {
-                Text(viewModel.activeAgent.displayName)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+            Button {
+                HapticService.shared.buttonTap()
+                closeVoiceSurface()
+            } label: {
+                VStack(spacing: 2) {
+                    HStack(spacing: 7) {
+                        Text(viewModel.activeAgent.displayName)
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
                     .foregroundColor(.white)
-
-                Text("Mode vocal")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.46))
+                    Text("Réduire · écoute maintenue")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.64))
+                }
             }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Réduire le mode vocal sans couper l'écoute")
 
             Spacer()
 
@@ -267,7 +281,9 @@ public struct VoiceOrbModalView: View {
     }
 
     private func closeVoiceSurface() {
-        viewModel.stopVoiceConversation()
+        // Comme dans la build 900, fermer la feuille réduit uniquement l'UI.
+        // La conversation reste active dans le mini-orbe du chat. Le bouton Stop
+        // de cette bulle ou le départ en arrière-plan coupe réellement l'audio.
         withAnimation(.easeOut(duration: 0.16)) {
             viewModel.isShowingVoiceOrbModal = false
         }
