@@ -2046,7 +2046,7 @@ private struct AirPodsTranslationSettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            .scrollContentBackground(.hidden)
+            .background(Color.black)
         }
         .navigationTitle("AirPods et traduction")
         .navigationBarTitleDisplayMode(.inline)
