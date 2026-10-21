@@ -207,7 +207,85 @@ public struct ChatScreenView: View {
         .allowsHitTesting(false)
     }
 
+    // Le mini-mode vocal de la build 900 : reste à droite de la barre de
+    // saisie après une réduction, sans relancer Whisper ni masquer les boutons.
+    private var compactVoiceStatus: String {
+        switch viewModel.voiceStatus {
+        case .starting: return "Activation…"
+        case .listening: return "Sarah écoute"
+        case .processing: return "Transcription…"
+        case .speaking: return "Sarah parle"
+        case .error: return "Micro indisponible"
+        case .idle:
+            return viewModel.isVoiceMicrophoneMuted ? "Micro en pause" : "Mode vocal actif"
+        }
+    }
+
+    private var compactVoiceBubble: some View {
+        HStack(spacing: 7) {
+            Button {
+                HapticService.shared.buttonTap()
+                viewModel.stopVoiceConversation()
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Arrêter complètement le mode vocal")
+            .accessibilityIdentifier("sarah.voice.compactStop")
+
+            Button {
+                HapticService.shared.buttonTap()
+                keyboard.dismiss()
+                viewModel.isShowingVoiceOrbModal = true
+            } label: {
+                HStack(spacing: 8) {
+                    Text(compactVoiceStatus)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    ZStack {
+                        Circle()
+                            .fill(RadialGradient(
+                                colors: [.white.opacity(0.9), viewModel.activeAgent.themeColor],
+                                center: .topLeading,
+                                startRadius: 1,
+                                endRadius: 38
+                            ))
+                            .shadow(color: viewModel.activeAgent.themeColor.opacity(0.4), radius: 8)
+                        Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "waveform")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 50, height: 50)
+                    .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1.0) * 0.055)
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, 4)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color(red: 0.055, green: 0.07, blue: 0.14)))
+                .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Rouvrir le mode vocal, " + compactVoiceStatus)
+            .accessibilityIdentifier("sarah.voice.compactOrb")
+        }
+    }
+
     private var composerDock: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            if viewModel.isContinuousConversationActive &&
+               !viewModel.isShowingVoiceOrbModal &&
+               !isShowingLiveTranslation &&
+               !viewModel.isDrawerOpen {
+                compactVoiceBubble
+                    .padding(.trailing, 16)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
         MessageBar(
             text: $viewModel.inputText,
             activeAgent: $viewModel.activeAgent,
@@ -239,6 +317,7 @@ public struct ChatScreenView: View {
         )
         .padding(.top, 3)
         .padding(.bottom, 6)
+        }
     }
 
     private var topBar: some View {
