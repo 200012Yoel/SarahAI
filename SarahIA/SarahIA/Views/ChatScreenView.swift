@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
+import AVFoundation
 
 /// Écran principal SarahIA.
 ///
@@ -20,6 +21,10 @@ public struct ChatScreenView: View {
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var isShowingCamera = false
     @State private var isShowingFileImporter = false
+    @State private var isShowingAirPodsTranslationOffer = false
+    @State private var lastDetectedAirPods: String?
+    @AppStorage("sarah.airpods.offerTranslation") private var offerAirPodsTranslation = false
+    @AppStorage("sarah.airpods.heardLanguage") private var airPodsHeardLanguage = "he"
 
     public init(viewModel: ChatViewModel, isShowingSettings: Binding<Bool>) {
         self.viewModel = viewModel
@@ -34,6 +39,32 @@ public struct ChatScreenView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             isShowingLiveTranslation = true
         }
+    }
+
+    /// iOS publie les changements de ROUTE Bluetooth, pas l'événement
+    /// « AirPods mis dans l'oreille ». N'ouvre une proposition que si Sarah
+    /// est visible et que l'utilisateur a activé ce comportement.
+    private func refreshAirPodsTranslationOffer(allowOffer: Bool) {
+        let connected = AirPodsTranslationSupport.connectedName
+        defer { lastDetectedAirPods = connected }
+        guard allowOffer, offerAirPodsTranslation,
+              let connected = connected,
+              connected != lastDetectedAirPods,
+              UIApplication.shared.applicationState == .active,
+              !isShowingLiveTranslation,
+              !isShowingSettings,
+              !viewModel.isShowingVoiceOrbModal,
+              !LiveTranslationSession.shared.isActive else { return }
+        isShowingAirPodsTranslationOffer = true
+    }
+
+    private func startAirPodsTranslation() {
+        isShowingAirPodsTranslationOffer = false
+        let language = ["he", "en"].contains(airPodsHeardLanguage) ? airPodsHeardLanguage : "he"
+        LiveTranslationSession.shared.setLanguages(
+            LiveLanguagePair(sourceLanguage: language, targetLanguage: "fr", isVoiceEnabled: true)
+        )
+        presentContinuousTranslation()
     }
 
     private func analyzeSelectedPhoto(_ item: PhotosPickerItem?) {
@@ -148,6 +179,21 @@ public struct ChatScreenView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sarahPresentLiveTranslation)) { _ in
             presentContinuousTranslation()
+        }
+        .onAppear {
+            lastDetectedAirPods = nil
+            refreshAirPodsTranslationOffer(allowOffer: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                refreshAirPodsTranslationOffer(allowOffer: true)
+            }
+        }
+        .alert("AirPods détectés", isPresented: $isShowingAirPodsTranslationOffer) {
+            Button("Traduire en français") { startAirPodsTranslation() }
+            Button("Plus tard", role: .cancel) {}
+        } message: {
+            Text("Lancer la traduction dans Sarah ? Le micro sera utilisé après ton accord. La langue entendue est configurable dans Réglages → Écouteurs et traduction.")
         }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
