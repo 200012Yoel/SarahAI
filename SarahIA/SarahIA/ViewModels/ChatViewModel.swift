@@ -77,6 +77,9 @@ public final class ChatViewModel: ObservableObject {
     private var shouldResumeVoiceAfterSystemInterruption = false
     private var websiteGenerationID = UUID()
     private var isBargeInMonitorActive = false
+    // Identifie la session vocale pour que les reprises différées ne rallument
+    // jamais le micro après une fermeture ou une mise en sourdine.
+    private var voiceSessionGeneration = UUID()
     
     public init() {
         restorePersistedState()
@@ -173,9 +176,17 @@ public final class ChatViewModel: ObservableObject {
         ObservableSpeechRecognizer.shared.$isListening
             .receive(on: DispatchQueue.main)
             .sink { [weak self] listening in
-                self?.isMicRunning = listening
+                guard let self = self else { return }
+                // Ignorer les notifications Combine retardées si l'utilisateur
+                // a entre-temps coupé la session ou désactivé le micro.
+                guard self.isContinuousConversationActive,
+                      !self.isVoiceMicrophoneMuted else {
+                    self.isMicRunning = false
+                    return
+                }
+                self.isMicRunning = listening
                 if listening {
-                    self?.voiceStatus = .listening(level: 0.5)
+                    self.voiceStatus = .listening(level: self.micInputLevel)
                 }
             }
             .store(in: &cancellables)
@@ -458,7 +469,11 @@ public final class ChatViewModel: ObservableObject {
             guard let self = self, self.isContinuousConversationActive else { return }
             let cleaned = finalTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else {
-                self.voiceStatus = .idle
+                // Whisper peut rendre une transcription vide sur une pause ou
+                // un bruit. Sans reprise explicite, le mode vocal restait figé
+                // jusqu'à un second appui sur l'orbe.
+                self.voiceStatus = .starting
+                self.scheduleVoiceListeningRecovery()
                 return
             }
             self.liveTranscriptionText = ""
@@ -527,6 +542,7 @@ public final class ChatViewModel: ObservableObject {
                     )
                     self.isMicRunning = WhisperSpeechRecognizer.shared.isListening
                     self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
+                    if !self.isMicRunning { self.scheduleVoiceListeningRecovery() }
                 }
             } else {
                 // Barge-in : Whisper est déjà en train d'enregistrer l'utilisateur.
@@ -536,11 +552,43 @@ public final class ChatViewModel: ObservableObject {
         }
     }
     
+    // Vérifie une seule fois que la capture reprend après une transcription vide.
+    // Les callbacks tardifs sont ignorés dès qu'une session est fermée.
+    private func scheduleVoiceListeningRecovery(after delay: TimeInterval = 0.35) {
+        let session = voiceSessionGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self,
+                  self.voiceSessionGeneration == session,
+                  self.isContinuousConversationActive,
+                  !self.isVoiceMicrophoneMuted,
+                  !self.isTyping,
+                  !self.voiceManager.isSpeaking else { return }
+
+            let recognizer = WhisperSpeechRecognizer.shared
+            if recognizer.isListening { return }
+            // L'initialisation du modèle et une inférence déjà en cours ont
+            // priorité. La reprise se fera à la fin, sans second appui.
+            if WhisperService.shared.isTranscribing || WhisperService.shared.isModelLoading {
+                self.scheduleVoiceListeningRecovery(after: 0.8)
+                return
+            }
+            if WhisperService.shared.lastError != nil { return }
+
+            AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+            recognizer.startListening(autoFinalizeOnSilence: true, preserveActiveSpeech: true)
+            self.isMicRunning = recognizer.isListening
+            self.voiceStatus = self.isMicRunning ? .listening(level: self.micInputLevel) : .starting
+        }
+    }
+
     public func toggleMicrophone() {
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
 
-        if isMicRunning || WhisperSpeechRecognizer.shared.isListening {
+        // Ce bouton est un vrai interrupteur utilisateur. La capture peut
+        // temporairement être arrêtée parce que Whisper charge ou transcrit :
+        // isMicRunning seul ne permettait pas de savoir si elle était "allumée".
+        if isContinuousConversationActive && !isVoiceMicrophoneMuted {
             isVoiceMicrophoneMuted = true
             WhisperSpeechRecognizer.shared.stopListening()
             isMicRunning = false
@@ -550,8 +598,16 @@ public final class ChatViewModel: ObservableObject {
         }
 
         isVoiceMicrophoneMuted = false
-        isContinuousConversationActive = true
-        AudioSessionManager.shared.beginContinuousVoiceSession()
+        if !isContinuousConversationActive {
+            startVoiceConversation()
+            return
+        }
+        AudioSessionManager.shared.restoreContinuousVoiceSessionIfNeeded()
+        if WhisperService.shared.isTranscribing || WhisperService.shared.isModelLoading {
+            voiceStatus = .starting
+            scheduleVoiceListeningRecovery()
+            return
+        }
         WhisperSpeechRecognizer.shared.startListening(
             autoFinalizeOnSilence: true,
             preserveActiveSpeech: true
@@ -562,34 +618,47 @@ public final class ChatViewModel: ObservableObject {
             : (isMicRunning ? .listening(level: micInputLevel) : .starting)
     }
 
-    /// Démarre explicitement une session vocale continue.
-    /// Utilisé par le plein écran vocal pour éviter les doubles démarrages.
+    /// Le premier appui ouvre le mode vocal et arme le microphone. Les
+    /// réapparitions SwiftUI et les appuis sur l'orbe ne redémarrent pas le moteur.
     public func startVoiceConversation() {
         ensureVoicePipelinePrepared()
+        if isContinuousConversationActive {
+            if isVoiceMicrophoneMuted {
+                toggleMicrophone()
+            } else if !WhisperSpeechRecognizer.shared.isListening &&
+                      !WhisperService.shared.isTranscribing &&
+                      !WhisperService.shared.isModelLoading &&
+                      !voiceManager.isSpeaking && !isTyping {
+                scheduleVoiceListeningRecovery(after: 0.05)
+            }
+            return
+        }
+
+        voiceSessionGeneration = UUID()
         voiceManager.stop()
-        AudioSessionManager.shared.beginContinuousVoiceSession()
         isContinuousConversationActive = true
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
-
-        guard !WhisperSpeechRecognizer.shared.isListening else {
-            isMicRunning = true
-            voiceStatus = .listening(level: micInputLevel)
-            return
-        }
+        voiceStatus = .starting
+        AudioSessionManager.shared.beginContinuousVoiceSession()
 
         WhisperSpeechRecognizer.shared.startListening(
             autoFinalizeOnSilence: true,
             preserveActiveSpeech: true
         )
         isMicRunning = WhisperSpeechRecognizer.shared.isListening
-        voiceStatus = isMicRunning ? .listening(level: 0.0) : .starting
+        if isMicRunning {
+            voiceStatus = .listening(level: 0.0)
+        } else if WhisperService.shared.isModelLoading || WhisperService.shared.isTranscribing {
+            scheduleVoiceListeningRecovery(after: 0.8)
+        }
     }
 
     /// Coupe complètement le mode vocal et rend la session audio à iOS.
     /// Cette méthode doit être appelée à chaque fermeture de l'écran vocal,
     /// même si Sarah est en train de parler et que le micro est déjà arrêté.
     public func stopVoiceConversation(stopSpeech: Bool = true) {
+        voiceSessionGeneration = UUID()
         isContinuousConversationActive = false
         isVoiceMicrophoneMuted = false
         isBargeInMonitorActive = false
