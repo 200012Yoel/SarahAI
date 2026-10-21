@@ -797,13 +797,26 @@ public final class ChatViewModel: ObservableObject {
                     self.activeAgent = response.agent
                 }
                 
-                let rawText = response.text.isEmpty ? "[DEBUG] Le bouton fonctionne, mais le moteur IA n'a pas démarré." : response.text
+                let rawText = response.text.isEmpty
+                    ? "Je n’ai pas réussi à produire une réponse. Tu peux réessayer."
+                    : response.text
+                // Évite les retours Windows, espaces incohérents et entités HTML
+                // visibles dans les bulles sans altérer les langues non latines.
                 var responseContent = rawText.decodingHTMLEntities()
+                    .replacingOccurrences(of: "\r\n", with: "\n")
+                    .replacingOccurrences(of: "\r", with: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
                 let aiMessage = Message(content: responseContent, isFromUser: false, placeCard: response.placeCard)
                 self.appendMessage(aiMessage)
+                // En conversation vocale, l'utilisateur doit VOIR la petite
+                // carte MapKit sans chercher derrière le grand écran vocal.
+                // Fermer uniquement la feuille garde le micro et la parole actifs.
+                if response.placeCard != nil && self.isShowingVoiceOrbModal {
+                    self.isShowingVoiceOrbModal = false
+                }
                 self.isTyping = false
                 self.voiceStatus = self.isContinuousConversationActive ? .processing : .idle
                 
