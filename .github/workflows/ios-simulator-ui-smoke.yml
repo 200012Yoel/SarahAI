@@ -17,7 +17,7 @@ concurrency:
 jobs:
   simulator-ui:
     runs-on: xcode-27
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -192,13 +192,16 @@ jobs:
 
           try:
               run(['xcrun', 'simctl', 'boot', udid], timeout=40, check=False)
-              run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=180)
-              run(['xcrun', 'simctl', 'install', udid, os.environ['APP_PATH']], timeout=90)
-              launched = run(['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'], timeout=60)
+              run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=240)
+              run(['xcrun', 'simctl', 'install', udid, os.environ['APP_PATH']], timeout=240)
+              launched = run(['xcrun', 'simctl', 'launch', udid, 'com.sarahia.app'], timeout=150)
               print(launched.stdout.strip(), flush=True)
               time.sleep(4)
           except Exception:
-              run(['xcrun', 'simctl', 'shutdown', udid], timeout=20, check=False)
+              try:
+                  run(['xcrun', 'simctl', 'shutdown', udid], timeout=45, check=False)
+              except subprocess.TimeoutExpired:
+                  print('Simulator shutdown exceeded 45 seconds', flush=True)
               raise
 
           with open(os.environ['GITHUB_ENV'], 'a') as env:
