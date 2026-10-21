@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 /// Vue Réglages de Sarah AI Multi-Agents : moteurs locaux, voix et runtime de code agentique optionnel :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -75,6 +76,16 @@ public struct SettingsView: View {
                                 tint: .purple,
                                 title: "Voix et parole",
                                 detail: "Voix, vitesse et microphone"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
+                                destination: AirPodsTranslationSettingsView(),
+                                icon: "airpodspro",
+                                tint: .cyan,
+                                title: "Écouteurs et traduction",
+                                detail: "AirPods, français et hébreu"
                             )
 
                             settingsDivider
@@ -1970,6 +1981,80 @@ extension View {
             self.scrollContentBackground(.hidden)
         } else {
             self
+        }
+    }
+}
+
+// Les applications tierces ne peuvent pas modifier la page de réglages
+// système des AirPods. On se base uniquement sur la route AUDIO déjà exposée
+// par iOS, sans prétendre lire le capteur de présence dans l'oreille.
+@available(iOS 15.0, *)
+public enum AirPodsTranslationSupport {
+    public static var connectedName: String? {
+        let route = AVAudioSession.sharedInstance().currentRoute
+        let ports = route.outputs + route.inputs
+        return ports.first(where: {
+            $0.portName.localizedCaseInsensitiveContains("AirPods")
+        })?.portName
+    }
+}
+
+@available(iOS 15.0, *)
+private struct AirPodsTranslationSettingsView: View {
+    @AppStorage("sarah.airpods.offerTranslation") private var offerTranslation = false
+    @AppStorage("sarah.airpods.heardLanguage") private var heardLanguage = "he"
+    @State private var connectedName: String?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            Form {
+                Section(header: Text("AirPods · Sarah")) {
+                    HStack {
+                        Label("Sortie audio", systemImage: "airpodspro")
+                        Spacer()
+                        Text(connectedName ?? "Non détectés")
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    Toggle("Proposer la traduction à la connexion", isOn: $offerTranslation)
+                    Text("Quand des AirPods sont détectés pendant que Sarah est ouverte, l'application te demande avant de commencer à écouter.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+                Section(header: Text("Traduction entendue")) {
+                    Picker("Langue à reconnaître", selection: $heardLanguage) {
+                        Text("Hébreu").tag("he")
+                        Text("Anglais").tag("en")
+                    }
+                    HStack {
+                        Text("Langue prononcée")
+                        Spacer()
+                        Text("Français 🇫🇷")
+                            .foregroundColor(.secondary)
+                    }
+                    Button("Préparer la traduction hors ligne") {
+                        TranslationEngine.shared.prepareOfflinePacks(for: [heardLanguage, "fr"])
+                    }
+                }
+                Section {
+                    Text("Sarah ne peut ni ajouter un réglage au menu Bluetooth d'Apple, ni se lancer seule lorsque tu mets tes AirPods. La traduction démarre dans Sarah avec ton accord et la permission du microphone.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    Text("La reconnaissance suit la langue choisie. La détection universelle automatique des langues n'est pas encore disponible dans ce mode.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+        .navigationTitle("AirPods et traduction")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { connectedName = AirPodsTranslationSupport.connectedName }
+        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)) { _ in
+            DispatchQueue.main.async {
+                connectedName = AirPodsTranslationSupport.connectedName
+            }
         }
     }
 }
