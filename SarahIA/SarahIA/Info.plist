@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>fr</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scanner le QR code de Sarah IA affiché sur votre Apple Watch.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Sarah IA</string>
 	<key>CFBundleExecutable</key>
