@@ -66,6 +66,16 @@ public struct SettingsView: View {
                             settingsDivider
 
                             settingsLink(
+                                destination: SarahWatchPairingView(),
+                                icon: "applewatch",
+                                tint: .cyan,
+                                title: "Apple Watch",
+                                detail: "Scanner le QR code et connecter Sarah"
+                            )
+
+                            settingsDivider
+
+                            settingsLink(
                                 destination: VoiceAndSpeechSettingsView(
                                     viewModel: viewModel,
                                     speechRate: $speechRate,
