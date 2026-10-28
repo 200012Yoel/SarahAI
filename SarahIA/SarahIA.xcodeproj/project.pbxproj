@@ -100,7 +100,34 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
+		F1C0FFEE0000000000000001 /* SarahWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C0FFEE0000000000000003 /* SarahWatchApp.swift */; };
+		F1C0FFEE0000000000000002 /* SarahWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F1C0FFEE0000000000000004 /* SarahWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A1B2C3D400010001000000B5 /* SarahWatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B5 /* SarahWatchBridge.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F1C0FFEE0000000000000011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1B2C3D40006000100000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F1C0FFEE0000000000000006;
+			remoteInfo = SarahWatch;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F1C0FFEE0000000000000010 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F1C0FFEE0000000000000002 /* SarahWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D40002000100000001 /* SarahIAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAApp.swift; sourceTree = "<group>"; };
@@ -196,6 +223,9 @@
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
+		F1C0FFEE0000000000000003 /* SarahWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWatchApp.swift; sourceTree = "<group>"; };
+		F1C0FFEE0000000000000004 /* SarahWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SarahWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D400020001000000B5 /* SarahWatchBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahWatchBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -208,6 +238,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F1C0FFEE0000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -215,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40004000100000002 /* SarahIA */,
+				F1C0FFEE0000000000000005 /* SarahWatch */,
 				A1B2C3D40004000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -304,6 +341,7 @@
 				A1B2C3D40002000100000093 /* LiveTranslationSession.swift */,
 				A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */,
 				A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */,
+				A1B2C3D400020001000000B5 /* SarahWatchBridge.swift */,
 				A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */,
 				A1B2C3D4000200010000009F /* DevCodeInjector.swift */,
 				A1B2C3D400020001000000A0 /* SessionTimeoutManager.swift */,
@@ -354,8 +392,17 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4000200010000000C /* SarahIA.app */,
+				F1C0FFEE0000000000000004 /* SarahWatch.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F1C0FFEE0000000000000005 /* SarahWatch */ = {
+			isa = PBXGroup;
+			children = (
+				F1C0FFEE0000000000000003 /* SarahWatchApp.swift */,
+			);
+			path = SarahWatch;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -368,10 +415,12 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
+				F1C0FFEE0000000000000010 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F1C0FFEE0000000000000012 /* PBXTargetDependency */,
 			);
 			name = SarahIA;
 			packageProductDependencies = (
@@ -380,6 +429,21 @@
 			);
 			productName = SarahIA;
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F1C0FFEE0000000000000006 /* SarahWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1C0FFEE0000000000000015 /* Build configuration list for PBXNativeTarget "SarahWatch" */;
+			buildPhases = (
+				F1C0FFEE0000000000000007 /* Sources */,
+				F1C0FFEE0000000000000008 /* Frameworks */,
+				F1C0FFEE0000000000000009 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = SarahWatch;
+			productName = SarahWatch;
+			productReference = F1C0FFEE0000000000000004 /* SarahWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -394,6 +458,9 @@
 				TargetAttributes = {
 					A1B2C3D40005000100000001 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					F1C0FFEE0000000000000006 = {
+						CreatedOnToolsVersion = 26.0;
 					};
 				};
 			};
@@ -416,6 +483,7 @@
 			projectRoot = "";
 			targets = (
 				A1B2C3D40005000100000001 /* SarahIA */,
+				F1C0FFEE0000000000000006 /* SarahWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -428,6 +496,12 @@
 				A1B2C3D4000100010000000B /* Assets.xcassets in Resources */,
 				A1B2C3D4000100010000000D /* LaunchScreen.storyboard in Resources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1C0FFEE0000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -517,6 +591,7 @@
 				A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */,
 				A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */,
 				A1B2C3D4000100010000009C /* SarahActionCoordinator.swift in Sources */,
+				A1B2C3D400010001000000B5 /* SarahWatchBridge.swift in Sources */,
 				A1B2C3D4000100010000009D /* VirtualPhoneManager.swift in Sources */,
 				A1B2C3D4000100010000009E /* VirtualPhoneViewController.swift in Sources */,
 				A1B2C3D4000100010000009F /* DevCodeInjector.swift in Sources */,
@@ -526,6 +601,14 @@
 				A1B2C3D400010001000000A3 /* SQLiteChatDatabase.swift in Sources */,
 				A1B2C3D400010001000000A4 /* SarahLocalImageGenEngine.swift in Sources */,
 				A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1C0FFEE0000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1C0FFEE0000000000000001 /* SarahWatchApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -562,6 +645,14 @@
 			productName = StableDiffusion;
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXTargetDependency section */
+		F1C0FFEE0000000000000012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F1C0FFEE0000000000000006 /* SarahWatch */;
+			targetProxy = F1C0FFEE0000000000000011 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1B2C3D40007000100000001 /* Debug */ = {
@@ -781,6 +872,50 @@
 			};
 			name = Release;
 		};
+		F1C0FFEE0000000000000013 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
+				INFOPLIST_KEY_WKWatchKitApp = YES;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
+				PRODUCT_NAME = SarahWatch;
+				SDKROOT = watchos;
+				SWIFT_VERSION = 5.0;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				TARGETED_DEVICE_FAMILY = "4";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		F1C0FFEE0000000000000014 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
+				INFOPLIST_KEY_WKWatchKitApp = YES;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
+				PRODUCT_NAME = SarahWatch;
+				SDKROOT = watchos;
+				SWIFT_VERSION = 5.0;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				TARGETED_DEVICE_FAMILY = "4";
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -798,6 +933,15 @@
 			buildConfigurations = (
 				A1B2C3D40007000100000004 /* Debug */,
 				A1B2C3D40007000100000005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F1C0FFEE0000000000000015 /* Build configuration list for PBXNativeTarget "SarahWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1C0FFEE0000000000000013 /* Debug */,
+				F1C0FFEE0000000000000014 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
