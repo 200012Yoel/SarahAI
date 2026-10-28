@@ -724,6 +724,19 @@ public final class ChatViewModel: ObservableObject {
         let text = (explicitText ?? inputText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
+        let watchRequest = text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+        if (watchRequest.contains("apple watch") || watchRequest.contains("applewatch"))
+            && (watchRequest.contains("connect") || watchRequest.contains("associe") || watchRequest.contains("jumel")) {
+            SarahActionCoordinator.shared.dispatch(.showNotification(
+                title: "Apple Watch",
+                message: "Scanne le QR code affiché sur la montre."
+            ))
+            NotificationCenter.default.post(name: Notification.Name("SarahPresentWatchPairing"), object: nil)
+            inputText = ""
+            return
+        }
+
         aiService.syncHistoryFromMessages(messages)
         let userMessage = Message(content: text, isFromUser: true)
         appendMessage(userMessage)
