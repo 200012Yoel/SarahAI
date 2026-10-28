@@ -1,0 +1,30 @@
+name: Sarah Watch smoke build
+
+on:
+  pull_request:
+    paths:
+      - "SarahIA/SarahWatch/**"
+      - "SarahIA/SarahIA/Services/SarahWatchBridge.swift"
+      - "SarahIA/SarahIA.xcodeproj/**"
+      - ".github/workflows/sarah-watch-smoke.yml"
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print toolchain
+        run: xcodebuild -version
+      - name: Build standalone watchOS target without signing
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project SarahIA/SarahIA.xcodeproj \
+            -target SarahWatch \
+            -configuration Debug \
+            -sdk watchsimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            build
