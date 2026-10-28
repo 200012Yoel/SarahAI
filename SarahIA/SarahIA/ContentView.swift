@@ -9,6 +9,7 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @State private var isShowingWatchPairing = false
     @State private var isShowingStartupAnimation = true
     @State private var didScheduleStartupDismissal = false
 
@@ -74,12 +75,29 @@ public struct ContentView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .sheet(isPresented: $isShowingWatchPairing) {
+            NavigationView { SarahWatchPairingView() }
+                .preferredColorScheme(.dark)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("SarahPresentWatchPairing"))) { _ in
+            isShowingSettings = false
+            viewModel.closeDrawer()
+            isShowingWatchPairing = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            openPendingWatchTranslationIfNeeded()
+        }
         .onAppear {
             // Toujours repartir d'un état visuel interactif et déterministe.
             viewModel.isDrawerOpen = false
             viewModel.drawerProgress = 0
             viewModel.isShowingVoiceOrbModal = false
             isShowingSettings = false
+
+            // Une demande reçue en arrière-plan doit attendre l’écran visible.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                openPendingWatchTranslationIfNeeded()
+            }
 
             guard !didScheduleStartupDismissal else { return }
             didScheduleStartupDismissal = true
@@ -139,6 +157,13 @@ public struct ContentView: View {
                 break
             }
         }
+    }
+
+    private func openPendingWatchTranslationIfNeeded() {
+        guard UIApplication.shared.applicationState == .active,
+              SarahPhoneWatchBridge.consumePendingTranslation() else { return }
+        viewModel.closeDrawer()
+        SarahActionCoordinator.shared.dispatch(.openLiveTranslation)
     }
 
     @ViewBuilder
