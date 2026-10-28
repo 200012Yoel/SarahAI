@@ -22,7 +22,7 @@ jobs:
           set -euo pipefail
           xcodebuild \
             -project SarahIA/SarahIA.xcodeproj \
-            -target SarahWatch \
+            -scheme SarahWatch \
             -configuration Debug \
             -sdk watchsimulator \
             CODE_SIGNING_ALLOWED=NO \
