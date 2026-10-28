@@ -1,4 +1,4 @@
-name: Sarah Watch smoke build
+name: Sarah Watch isolated build
 
 on:
   pull_request:
@@ -12,19 +12,23 @@ on:
 jobs:
   watch:
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Print toolchain
-        run: xcodebuild -version
-      - name: Build standalone watchOS target without signing
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate isolated watchOS Xcode project
+        working-directory: SarahIA/SarahWatch
+        run: xcodegen generate --spec watch-project.yml
+      - name: Compile Sarah Watch for simulator without signing
         run: |
           set -euo pipefail
           xcodebuild \
-            -project SarahIA/SarahIA.xcodeproj \
-            -scheme SarahWatch \
+            -project SarahIA/SarahWatch/SarahWatchStandalone.xcodeproj \
+            -scheme SarahWatchStandalone \
             -configuration Debug \
             -sdk watchsimulator \
+            -destination 'generic/platform=watchOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             build
