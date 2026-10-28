@@ -1,0 +1,29 @@
+name: SarahWatchStandalone
+options:
+  createIntermediateGroups: true
+packages:
+  QRCodeGenerator:
+    url: https://github.com/fwcd/swift-qrcode-generator.git
+    from: 1.0.0
+targets:
+  SarahWatchStandalone:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: SarahWatchApp.swift
+    dependencies:
+      - package: QRCodeGenerator
+        product: QRCodeGenerator
+    info:
+      path: GeneratedWatchInfo.plist
+      properties:
+        CFBundleDisplayName: Sarah IA
+        WKWatchKitApp: true
+        WKCompanionAppBundleIdentifier: com.sarahia.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sarahia.app.watchkitapp
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "4"
+        CODE_SIGNING_ALLOWED: NO
