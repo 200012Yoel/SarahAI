@@ -25,6 +25,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             didResetUserStateForNewBuild: false
         )
 
+        // Active la liaison Apple Watch dès le démarrage.
+        _ = SarahPhoneWatchBridge.shared
         UNUserNotificationCenter.current().delegate = self
 
         DispatchQueue.main.async {
