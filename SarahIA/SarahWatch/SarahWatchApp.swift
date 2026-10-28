@@ -1,6 +1,6 @@
 import SwiftUI
 import WatchConnectivity
-import CoreImage.CIFilterBuiltins
+import QRCodeGenerator
 
 /// Sarah IA Watch - première application compagnon.
 @main
@@ -208,29 +208,29 @@ private struct SarahOrb: View {
 private struct WatchQRView: View {
     let value: String
 
-    var body: some View {
-        Group {
-            if let image = qrImage {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.none)
-                    .scaledToFit()
-            } else {
-                Image(systemName: "qrcode")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(.black)
-            }
-        }
-        .padding(4)
-        .background(.white)
+    // watchOS ne fournit pas les filtres Core Image QR de l’iPhone.
+    // Utilise donc un encodeur QR pur Swift (MIT, fwcd/Nayuki).
+    private var qr: QRCode? {
+        try? QRCode.encode(text: value, ecl: .medium)
     }
 
-    private var qrImage: CGImage? {
-        let generator = CIFilter.qrCodeGenerator()
-        generator.message = Data(value.utf8)
-        generator.correctionLevel = "H"
-        guard let output = generator.outputImage else { return nil }
-        return CIContext().createCGImage(output, from: output.extent)
+    var body: some View {
+        Canvas { context, size in
+            guard let qr = qr else { return }
+            let side = CGFloat(qr.size + 8) // 4 modules blancs autour du QR.
+            let cell = min(size.width, size.height) / side
+            for y in 0..<qr.size {
+                for x in 0..<qr.size where qr.getModule(x: x, y: y) {
+                    context.fill(Path(CGRect(
+                        x: CGFloat(x + 4) * cell,
+                        y: CGFloat(y + 4) * cell,
+                        width: cell,
+                        height: cell
+                    )), with: .color(.black))
+                }
+            }
+        }
+        .background(.white)
+        .accessibilityLabel("QR code de connexion Sarah IA")
     }
 }
