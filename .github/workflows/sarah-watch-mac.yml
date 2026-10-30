@@ -1,0 +1,36 @@
+name: Sarah IA Watch - Mac Cloud
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/sarah-watch-mac.yml'
+permissions:
+  contents: read
+jobs:
+  mac-watch:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout SarahAI
+        uses: actions/checkout@v4
+      - name: Inspect macOS and Xcode
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          xcodebuild -showsdks
+      - name: Find iOS and watchOS projects
+        run: |
+          echo "Xcode projects:"
+          find . \( -name '*.xcodeproj' -o -name '*.xcworkspace' -o -name 'Package.swift' \) -print | head -80
+          echo "Watch-related files:"
+          find . -iname '*watch*' -print | head -80
+      - name: Save diagnostic
+        run: |
+          mkdir -p mac-report
+          { sw_vers; xcodebuild -version; xcodebuild -showsdks; find . \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print; } > mac-report/diagnostic.txt
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: sarah-watch-mac-diagnostic
+          path: mac-report/
