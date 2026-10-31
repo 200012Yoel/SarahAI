@@ -92,6 +92,7 @@ public struct LiveTranslationView: View {
         if let error = session.lastError { return error }
         guard session.isActive else { return "Démarrage…" }
         if session.isMuted { return "Micro coupé" }
+        if session.isUsingWatchMicrophone { return "Micro Apple Watch · traduction sur iPhone" }
         return "À l'écoute · \(session.recognitionModeLabel)"
     }
 
