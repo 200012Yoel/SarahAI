@@ -280,8 +280,17 @@ jobs:
           if [ -d "$APP_TARGET_DIR/PlugIns" ]; then
             find "$APP_TARGET_DIR/PlugIns" -type d -name '*.appex' -print0 | while IFS= read -r -d '' E; do codesign -f -s - "$E"; done
           fi
+          # Une application watchOS est imbriquée dans Payload/SarahIA.app/Watch/.
+          # Signer le paquet Watch avant son application iOS parente.
+          if [ -d "$APP_TARGET_DIR/Watch" ]; then
+            find "$APP_TARGET_DIR/Watch" -maxdepth 1 -type d -name '*.app' -print0 | while IFS= read -r -d '' W; do
+              codesign -f -s - "$W"
+              codesign --verify --strict "$W"
+            done
+          fi
           codesign -f -s - "$APP_TARGET_DIR"
           codesign --verify --deep --strict "$APP_TARGET_DIR"
+          test -d "$APP_TARGET_DIR/Watch/SarahIAWatch.app"
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cd /tmp && zip -ryq "$GITHUB_WORKSPACE/dist/SarahIA.ipa" Payload
           ls -lh "$GITHUB_WORKSPACE/dist/SarahIA.ipa"
