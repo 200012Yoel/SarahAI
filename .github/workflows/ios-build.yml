@@ -16,7 +16,7 @@ on:
         options: ['no', 'yes']
         default: 'no'
   push:
-    branches: [main, work/sarah-final-ui-audit-20261019]
+    branches: [main, work/sarah-final-ui-audit-20261019, feature/sarah-watch-live-he-fr]
     paths:
       - 'SarahIA/**'
       - '.github/workflows/ios-build.yml'
