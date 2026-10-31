@@ -668,7 +668,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -679,7 +679,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -716,7 +716,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -727,7 +727,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -880,14 +880,14 @@
                 CODE_SIGN_IDENTITY = "-";
                 CODE_SIGN_STYLE = Manual;
                 CODE_SIGNING_REQUIRED = NO;
-                CURRENT_PROJECT_VERSION = 3;
+                CURRENT_PROJECT_VERSION = 4;
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
                 INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch utilise le micro pour transmettre l'hébreu à l'iPhone jumelé pendant l'écoute.";
                 INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
                 INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
                 INFOPLIST_KEY_WKWatchKitApp = YES;
-                MARKETING_VERSION = 3.0;
+                MARKETING_VERSION = 3.1;
                 PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SDKROOT = watchos;
@@ -907,14 +907,14 @@
                 CODE_SIGN_IDENTITY = "-";
                 CODE_SIGN_STYLE = Manual;
                 CODE_SIGNING_REQUIRED = NO;
-                CURRENT_PROJECT_VERSION = 3;
+                CURRENT_PROJECT_VERSION = 4;
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
                 INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch utilise le micro pour transmettre l'hébreu à l'iPhone jumelé pendant l'écoute.";
                 INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
                 INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
                 INFOPLIST_KEY_WKWatchKitApp = YES;
-                MARKETING_VERSION = 3.0;
+                MARKETING_VERSION = 3.1;
                 PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
                 PRODUCT_NAME = "$(TARGET_NAME)";
                 SDKROOT = watchos;
