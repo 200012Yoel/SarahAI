@@ -12,6 +12,7 @@ public final class LiveTranslationSession: ObservableObject {
     public static let shared = LiveTranslationSession()
 
     @Published public private(set) var isActive = false
+    @Published public private(set) var isUsingWatchMicrophone = false
     @Published public private(set) var languagePair = LiveLanguagePair()
     @Published public private(set) var items: [LiveTranscriptItem] = []
     @Published public private(set) var micEnergy: Float = 0
@@ -47,6 +48,7 @@ public final class LiveTranslationSession: ObservableObject {
 
     public func start() {
         guard !isActive && !isStarting else { return }
+        isUsingWatchMicrophone = false
         isStarting = true
         startupEpoch &+= 1
         let epoch = startupEpoch
@@ -79,10 +81,75 @@ public final class LiveTranslationSession: ObservableObject {
         }
     }
 
+    /// Démarré depuis la montre : aucun micro iPhone ne doit être ouvert.
+    public func startFromWatch() {
+        if isActive && isUsingWatchMicrophone { return }
+        if isActive { stop() }
+
+        startupEpoch &+= 1
+        isStarting = false
+        lastError = nil
+        MultiAgentVoiceManager.shared.stop()
+        WhisperSpeechRecognizer.shared.stopListening()
+        AudioSessionManager.shared.endContinuousVoiceSession()
+
+        isMuted = false
+        muteLock.lock()
+        audioThreadMuted = false
+        muteLock.unlock()
+
+        do {
+            let audio = AVAudioSession.sharedInstance()
+            try audio.setCategory(.playback, mode: .default, options: [])
+            try audio.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            lastError = "Haut-parleur iPhone indisponible : \(error.localizedDescription)"
+        }
+
+        languagePair = LiveLanguagePair(sourceLanguage: "he", targetLanguage: "fr", isVoiceEnabled: true)
+        isUsingWatchMicrophone = true
+        isActive = true
+        pipeline.startPipeline(with: languagePair)
+        #if canImport(UIKit)
+        UIApplication.shared.isIdleTimerDisabled = true
+        #endif
+    }
+
+    /// Buffers Int16 mono / 16 kHz reçus de l'Apple Watch via WatchConnectivity.
+    /// On recycle exactement le pipeline Whisper/Apple/Google/voix déjà présent.
+    public func receiveWatchPCM(_ data: Data) {
+        guard isActive, isUsingWatchMicrophone, !isMuted,
+              !data.isEmpty, data.count.isMultiple(of: 2),
+              data.count <= 16_000 else { return }
+
+        let count = data.count / 2
+        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                          sampleRate: 16_000,
+                                          channels: 1,
+                                          interleaved: false),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format,
+                                            frameCapacity: AVAudioFrameCount(count)),
+              let channel = buffer.floatChannelData?[0] else { return }
+
+        data.withUnsafeBytes { raw in
+            let bytes = raw.bindMemory(to: UInt8.self)
+            for i in 0..<count {
+                let low = UInt16(bytes[2 * i])
+                let high = UInt16(bytes[2 * i + 1]) << 8
+                channel[i] = Float(Int16(bitPattern: low | high)) / 32768.0
+            }
+        }
+        buffer.frameLength = AVAudioFrameCount(count)
+        pipeline.processMicrophoneBuffer(buffer)
+    }
+
     public func stop() {
         startupEpoch &+= 1
         isStarting = false
         guard isActive else { return }
+        let wasWatch = isUsingWatchMicrophone
+        isUsingWatchMicrophone = false
+        if wasWatch { WatchAudioBridge.shared.sendStop() }
         pipeline.stopPipeline()
         stopAudioEngine()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
