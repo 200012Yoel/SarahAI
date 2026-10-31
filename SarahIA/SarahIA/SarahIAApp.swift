@@ -25,6 +25,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             didResetUserStateForNewBuild: false
         )
 
+        // Activation légère de WatchConnectivity, sans charger le moteur audio.
+        _ = WatchAudioBridge.shared
         UNUserNotificationCenter.current().delegate = self
 
         DispatchQueue.main.async {
