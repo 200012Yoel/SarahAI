@@ -18,6 +18,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     private var pcm: [Int16] = []
     private var samplePhase = 0.0
     private var phoneSpeaking = false
+    private var packetInFlight = false
     private let sampleRate = 16_000.0
     private let packetSamples = 3_200 // 200 ms de parole
 
@@ -39,15 +40,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             return
         }
 
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                guard granted else {
-                    self.status = "Autorise le micro dans Réglages"
-                    return
-                }
-                Task { @MainActor in await self.startMicrophone() }
+        Task { @MainActor in
+            let granted = await AVAudioApplication.requestRecordPermission()
+            guard granted else {
+                status = "Autorise le micro dans Réglages"
+                return
             }
+            await startMicrophone()
         }
     }
 
@@ -69,6 +68,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             conversionQueue.async { [weak self] in
                 self?.pcm.removeAll(keepingCapacity: true)
                 self?.samplePhase = 0
+                self?.packetInFlight = false
             }
             phoneSpeaking = false
             input.removeTap(onBus: 0)
@@ -80,7 +80,9 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             recording = true
             status = "🎙️ Hébreu • écoute en cours"
             WCSession.default.sendMessage(["type": "start", "source": "he", "target": "fr"],
-                                          replyHandler: nil, errorHandler: { [weak self] _ in
+                                          replyHandler: { [weak self] _ in
+                DispatchQueue.main.async { self?.status = "🎙️ Hébreu • iPhone connecté" }
+            }, errorHandler: { [weak self] _ in
                 DispatchQueue.main.async { self?.status = "Connexion iPhone interrompue" }
             })
         } catch {
@@ -96,7 +98,10 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
         engine.inputNode.removeTap(onBus: 0)
         level = 0
         status = "Micro arrêté"
-        conversionQueue.async { [weak self] in self?.pcm.removeAll(keepingCapacity: true) }
+        conversionQueue.async { [weak self] in
+            self?.pcm.removeAll(keepingCapacity: true)
+            self?.packetInFlight = false
+        }
         if notifyPhone, WCSession.default.isReachable {
             WCSession.default.sendMessage(["type": "stop"], replyHandler: nil, errorHandler: nil)
         }
@@ -135,28 +140,47 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             }
         }
 
-        if pcm.count >= packetSamples {
-            let chunk = Array(pcm.prefix(packetSamples))
-            pcm.removeFirst(packetSamples)
-            var bytes = Data(capacity: chunk.count * 2)
-            for sample in chunk {
-                let raw = UInt16(bitPattern: sample)
-                bytes.append(UInt8(truncatingIfNeeded: raw))
-                bytes.append(UInt8(truncatingIfNeeded: raw >> 8))
-            }
-            if WCSession.default.activationState == .activated && WCSession.default.isReachable {
-                WCSession.default.sendMessageData(bytes, replyHandler: nil, errorHandler: { [weak self] _ in
-                    DispatchQueue.main.async { self?.status = "Transmission interrompue : ouvre Sarah IA" }
-                })
-            } else {
-                DispatchQueue.main.async { [weak self] in
-                    self?.status = "Ouvre Sarah IA sur l'iPhone"
-                    self?.stop(notifyPhone: false)
-                }
-            }
+        // Garder moins d'une seconde de retard si la liaison ralentit.
+        // On supprime la parole la plus ancienne au lieu de lire un flux en retard.
+        if pcm.count > packetSamples * 4 {
+            pcm.removeFirst(pcm.count - packetSamples * 4)
         }
+        sendNextPacketIfPossible()
         let displayLevel = CGFloat(min(1, maxLevel * 5))
         DispatchQueue.main.async { [weak self] in self?.level = displayLevel }
+    }
+
+    private func sendNextPacketIfPossible() {
+        guard !packetInFlight, pcm.count >= packetSamples else { return }
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else {
+            DispatchQueue.main.async { [weak self] in
+                self?.status = "Ouvre Sarah IA sur l'iPhone"
+                self?.stop(notifyPhone: false)
+            }
+            return
+        }
+
+        let chunk = Array(pcm.prefix(packetSamples))
+        pcm.removeFirst(packetSamples)
+        var bytes = Data(capacity: chunk.count * 2)
+        for sample in chunk {
+            let raw = UInt16(bitPattern: sample)
+            bytes.append(UInt8(truncatingIfNeeded: raw))
+            bytes.append(UInt8(truncatingIfNeeded: raw >> 8))
+        }
+        packetInFlight = true
+        WCSession.default.sendMessageData(bytes, replyHandler: { [weak self] _ in
+            self?.conversionQueue.async {
+                self?.packetInFlight = false
+                self?.sendNextPacketIfPossible()
+            }
+        }, errorHandler: { [weak self] _ in
+            self?.conversionQueue.async { self?.packetInFlight = false }
+            DispatchQueue.main.async {
+                self?.status = "Transmission interrompue : ouvre Sarah IA"
+            }
+        })
     }
 
     func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
@@ -181,7 +205,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         DispatchQueue.main.async {
             switch message["type"] as? String {
-            case "speaking": self.phoneSpeaking = (message["active"] as? Bool) ?? false
+            case "speaking":
+                self.phoneSpeaking = (message["active"] as? Bool) ?? false
+                if self.phoneSpeaking {
+                    self.conversionQueue.async { [weak self] in
+                        self?.pcm.removeAll(keepingCapacity: true)
+                    }
+                }
             case "stop": self.stop(notifyPhone: false)
             default: break
             }
@@ -196,7 +226,7 @@ struct SarahIAWatchApp: App {
     var body: some Scene {
         WindowGroup {
             SarahWatchHome()
-                .onChange(of: scenePhase) { phase in
+                .onChange(of: scenePhase) { _, phase in
                     // L'écoute active ne survit pas arbitrairement à la suspension watchOS.
                     if phase != .active { SarahWatchAudio.shared.stop() }
                 }
