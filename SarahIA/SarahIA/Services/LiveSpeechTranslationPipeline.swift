@@ -65,6 +65,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private let audioLock = NSLock()
     private var _mode: RecognitionMode = .unavailable
     private var _activeRequest: SFSpeechAudioBufferRecognitionRequest?
+    /// Permet à l'Apple Watch de suspendre l'envoi pendant la voix française.
+    public var onMicrophoneSuspensionChanged: ((Bool) -> Void)?
     private var _isMicSuspended = false
     private var _whisperSamples: [Float] = []
     private var _whisperHasSpeech = false
@@ -231,6 +233,9 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         audioLock.unlock()
         if suspended {
             onAudioEnergyLevel?(0)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.onMicrophoneSuspensionChanged?(suspended)
         }
     }
 
