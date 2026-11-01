@@ -737,6 +737,7 @@ public final class ChatViewModel: ObservableObject {
         let livePhrases = [
             "traduction en direct", "traduction directe", "traduis en direct",
             "traduction en temps reel", "traduction live", "live translate",
+            "translate live", "start live translation", "live translation",
             "traduis la tele", "traduis l'hebreu"
         ]
         let spontaneousPhrase = liveCommand.trimmingCharacters(in: .whitespacesAndNewlines)
