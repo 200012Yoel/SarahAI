@@ -115,11 +115,11 @@ public struct LiveTranslationView: View {
         }
     }
 
-    // Les trois langues disponibles utilisent le même pipeline local Whisper/ML Kit.
-    // Un pack de traduction peut nécessiter un téléchargement initial.
+    // Les langues proposées sont celles réellement supportées par le pipeline
+    // de traduction, partagées avec le compagnon Apple Watch.
     private func languageChip(_ flag: String, _ name: String, isSource: Bool) -> some View {
         Menu {
-            ForEach(["he", "fr", "en"], id: \.self) { code in
+            ForEach(LiveLanguagePair.supportedLanguageCodes, id: \.self) { code in
                 Button {
                     var pair = session.languagePair
                     if isSource {
