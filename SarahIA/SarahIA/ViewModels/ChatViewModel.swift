@@ -696,21 +696,25 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func speakMessage(_ text: String) {
+        let spoken = SarahVisibleAnswer.cleaned(text)
+        guard !spoken.isEmpty else { return }
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        voiceManager.speak(text: text, for: activeAgent)
+        voiceManager.speak(text: spoken, for: activeAgent)
     }
-    
+
     public func toggleSpeechForMessage(_ text: String) {
+        let spoken = SarahVisibleAnswer.cleaned(text)
+        guard !spoken.isEmpty else { return }
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
         if voiceManager.isSpeaking {
             voiceManager.stop()
         } else {
-            voiceManager.speak(text: text, for: activeAgent)
+            voiceManager.speak(text: spoken, for: activeAgent)
         }
     }
-    
+
     public func cancelCurrentGeneration() {
         haptics.buttonTap()
         isTyping = false
