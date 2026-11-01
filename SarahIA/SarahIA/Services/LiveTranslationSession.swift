@@ -31,6 +31,14 @@ public final class LiveTranslationSession: ObservableObject {
     private var audioThreadMuted = false
 
     private init() {
+        // Conserve la paire choisie même après fermeture de Sarah IA.
+        if let source = UserDefaults.standard.string(forKey: "sarah.live.sourceLanguage"),
+           let target = UserDefaults.standard.string(forKey: "sarah.live.targetLanguage"),
+           LiveLanguagePair.supportedLanguageCodes.contains(source),
+           LiveLanguagePair.supportedLanguageCodes.contains(target),
+           source != target {
+            languagePair = LiveLanguagePair(sourceLanguage: source, targetLanguage: target)
+        }
         pipeline.onTranscriptItemUpdated = { [weak self] item in
             self?.upsert(item)
         }
@@ -189,8 +197,12 @@ public final class LiveTranslationSession: ObservableObject {
     }
 
     public func setLanguages(_ pair: LiveLanguagePair) {
-        guard pair.sourceLanguage != pair.targetLanguage else { return }
+        guard pair.sourceLanguage != pair.targetLanguage,
+              LiveLanguagePair.supportedLanguageCodes.contains(pair.sourceLanguage),
+              LiveLanguagePair.supportedLanguageCodes.contains(pair.targetLanguage) else { return }
         languagePair = pair
+        UserDefaults.standard.set(pair.sourceLanguage, forKey: "sarah.live.sourceLanguage")
+        UserDefaults.standard.set(pair.targetLanguage, forKey: "sarah.live.targetLanguage")
         if isActive {
             pipeline.updateLanguagePair(pair)
         }
