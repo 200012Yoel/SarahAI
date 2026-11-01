@@ -9,6 +9,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = SarahWatchAudio()
 
     @Published private(set) var recording = false
+    @Published private(set) var connecting = false
     @Published private(set) var paired = false
     @Published private(set) var level: CGFloat = 0
     @Published private(set) var status = "Connexion à l'iPhone…"
@@ -17,7 +18,9 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     private let conversionQueue = DispatchQueue(label: "sarah.watch.pcm")
     private var pcm: [Int16] = []
     private var samplePhase = 0.0
-    private var phoneSpeaking = false
+    // Utilisés exclusivement par conversionQueue, jamais par la vue SwiftUI.
+    private var conversionEnabled = false
+    private var conversionMuted = false
     private var packetInFlight = false
     private let sampleRate = 16_000.0
     private let packetSamples = 3_200 // 200 ms de parole
@@ -33,26 +36,55 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func start() {
-        guard !recording else { return }
+        guard !recording && !connecting else { return }
         guard WCSession.default.activationState == .activated,
               WCSession.default.isReachable else {
             status = "Ouvre Sarah IA sur l'iPhone"
             return
         }
-
+        connecting = true
+        status = "Autorisation du microphone…"
         Task { @MainActor in
             let granted = await AVAudioApplication.requestRecordPermission()
+            guard connecting else { return }
             guard granted else {
+                connecting = false
                 status = "Autorise le micro dans Réglages"
                 return
             }
-            await startMicrophone()
+            requestPhoneSession()
         }
+    }
+
+    private func requestPhoneSession() {
+        guard connecting else { return }
+        status = "Connexion au traducteur iPhone…"
+        // Attendre l'accord explicite avant d'envoyer le moindre paquet PCM.
+        WCSession.default.sendMessage(
+            ["type": "start", "source": "he", "target": "fr"],
+            replyHandler: { [weak self] response in
+                DispatchQueue.main.async {
+                    guard let self = self, self.connecting else { return }
+                    guard response["started"] as? Bool == true else {
+                        self.connecting = false
+                        self.status = "Traduction iPhone indisponible"
+                        return
+                    }
+                    Task { @MainActor in await self.startMicrophone() }
+                }
+            },
+            errorHandler: { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.connecting = false
+                    self?.status = "Ouvre Sarah IA sur l'iPhone"
+                }
+            }
+        )
     }
 
     @MainActor
     private func startMicrophone() async {
-        guard !recording else { return }
+        guard connecting && !recording else { return }
         do {
             let audio = AVAudioSession.sharedInstance()
             try audio.setCategory(.record, mode: .measurement)
@@ -69,8 +101,9 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                 self?.pcm.removeAll(keepingCapacity: true)
                 self?.samplePhase = 0
                 self?.packetInFlight = false
+                self?.conversionEnabled = true
+                self?.conversionMuted = false
             }
-            phoneSpeaking = false
             input.removeTap(onBus: 0)
             input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
                 self?.capture(buffer, rate: format.sampleRate)
@@ -78,27 +111,30 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             engine.prepare()
             try engine.start()
             recording = true
-            status = "🎙️ Hébreu • écoute en cours"
-            WCSession.default.sendMessage(["type": "start", "source": "he", "target": "fr"],
-                                          replyHandler: { [weak self] _ in
-                DispatchQueue.main.async { self?.status = "🎙️ Hébreu • iPhone connecté" }
-            }, errorHandler: { [weak self] _ in
-                DispatchQueue.main.async { self?.status = "Connexion iPhone interrompue" }
-            })
+            connecting = false
+            status = "🎙️ Hébreu • iPhone connecté"
         } catch {
             engine.inputNode.removeTap(onBus: 0)
+            connecting = false
+            try? AVAudioSession.sharedInstance().setActive(false)
             status = "Micro indisponible : \(error.localizedDescription)"
+            if WCSession.default.isReachable {
+                WCSession.default.sendMessage(["type": "stop"], replyHandler: nil, errorHandler: nil)
+            }
         }
     }
 
     func stop(notifyPhone: Bool = true) {
-        guard recording else { return }
+        guard recording || connecting else { return }
+        connecting = false
         recording = false
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
         level = 0
         status = "Micro arrêté"
+        try? AVAudioSession.sharedInstance().setActive(false)
         conversionQueue.async { [weak self] in
+            self?.conversionEnabled = false
             self?.pcm.removeAll(keepingCapacity: true)
             self?.packetInFlight = false
         }
@@ -108,8 +144,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     private func capture(_ buffer: AVAudioPCMBuffer, rate: Double) {
-        guard recording, !phoneSpeaking,
-              let channels = buffer.floatChannelData else { return }
+        guard let channels = buffer.floatChannelData else { return }
         let frameCount = Int(buffer.frameLength)
         let channelCount = Int(buffer.format.channelCount)
         guard frameCount > 0, channelCount > 0 else { return }
@@ -126,7 +161,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     private func consume(_ samples: [Float], inputRate: Double) {
-        guard inputRate > 0 else { return }
+        guard conversionEnabled, !conversionMuted, inputRate > 0 else { return }
         let ratio = sampleRate / inputRate
         var maxLevel: Float = 0
 
@@ -151,7 +186,8 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     private func sendNextPacketIfPossible() {
-        guard !packetInFlight, pcm.count >= packetSamples else { return }
+        guard conversionEnabled, !conversionMuted,
+              !packetInFlight, pcm.count >= packetSamples else { return }
         guard WCSession.default.activationState == .activated,
               WCSession.default.isReachable else {
             DispatchQueue.main.async { [weak self] in
@@ -206,11 +242,10 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
         DispatchQueue.main.async {
             switch message["type"] as? String {
             case "speaking":
-                self.phoneSpeaking = (message["active"] as? Bool) ?? false
-                if self.phoneSpeaking {
-                    self.conversionQueue.async { [weak self] in
-                        self?.pcm.removeAll(keepingCapacity: true)
-                    }
+                let speaking = (message["active"] as? Bool) ?? false
+                self.conversionQueue.async { [weak self] in
+                    self?.conversionMuted = speaking
+                    if speaking { self?.pcm.removeAll(keepingCapacity: true) }
                 }
             case "stop": self.stop(notifyPhone: false)
             default: break
@@ -265,19 +300,19 @@ struct SarahWatchHome: View {
                     Text("🇮🇱  →  🇫🇷").font(.system(size: 22))
 
                     Button {
-                        audio.recording ? audio.stop() : audio.start()
+                        (audio.recording || audio.connecting) ? audio.stop() : audio.start()
                     } label: {
                         ZStack {
                             Circle().fill(Color.cyan.opacity(0.18))
                                 .frame(width: 82, height: 82)
                                 .scaleEffect(audio.recording ? 1 + audio.level * 0.18 : 1)
-                            Image(systemName: audio.recording ? "stop.fill" : "mic.fill")
+                            Image(systemName: (audio.recording || audio.connecting) ? "stop.fill" : "mic.fill")
                                 .font(.system(size: 30, weight: .semibold))
-                                .foregroundStyle(audio.recording ? .red : .white)
+                                .foregroundStyle((audio.recording || audio.connecting) ? .red : .white)
                         }
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(audio.recording ? "Arrêter l'écoute" : "Démarrer l'écoute hébreu")
+                    .accessibilityLabel((audio.recording || audio.connecting) ? "Arrêter la connexion ou l'écoute" : "Démarrer l'écoute hébreu")
                     Text(audio.status)
                         .font(.system(size: 11))
                         .multilineTextAlignment(.center)
