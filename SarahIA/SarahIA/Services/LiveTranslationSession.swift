@@ -106,7 +106,8 @@ public final class LiveTranslationSession: ObservableObject {
             lastError = "Haut-parleur iPhone indisponible : \(error.localizedDescription)"
         }
 
-        languagePair = LiveLanguagePair(sourceLanguage: "he", targetLanguage: "fr", isVoiceEnabled: true)
+        // Respecter exactement les langues déjà choisies dans la vue iPhone.
+        // La Watch fournit le micro, elle ne force plus hébreu -> français.
         isUsingWatchMicrophone = true
         isActive = true
         pipeline.startPipeline(with: languagePair)
@@ -188,10 +189,13 @@ public final class LiveTranslationSession: ObservableObject {
     }
 
     public func setLanguages(_ pair: LiveLanguagePair) {
+        guard pair.sourceLanguage != pair.targetLanguage else { return }
         languagePair = pair
         if isActive {
-            pipeline.startPipeline(with: pair)
+            pipeline.updateLanguagePair(pair)
         }
+        // La même paire reste visible sur la Watch, même si le micro Watch est arrêté.
+        WatchAudioBridge.shared.sendLanguagePair(pair)
     }
 
     // MARK: - Transcription
