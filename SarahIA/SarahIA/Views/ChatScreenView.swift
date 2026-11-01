@@ -290,7 +290,7 @@ public struct ChatScreenView: View {
             } label: {
                 HStack(spacing: 8) {
                     Text(compactVoiceStatus)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
                     ZStack {
@@ -303,15 +303,15 @@ public struct ChatScreenView: View {
                             ))
                             .shadow(color: viewModel.activeAgent.themeColor.opacity(0.4), radius: 8)
                         Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "waveform")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
                     }
-                    .frame(width: 50, height: 50)
+                    .frame(width: 34, height: 34)
                     .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1.0) * 0.055)
                 }
-                .padding(.leading, 12)
+                .padding(.leading, 10)
                 .padding(.trailing, 4)
-                .padding(.vertical, 3)
+                .padding(.vertical, 2)
                 .background(Capsule().fill(Color(red: 0.055, green: 0.07, blue: 0.14)))
                 .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
             }
@@ -328,7 +328,9 @@ public struct ChatScreenView: View {
                !isShowingLiveTranslation &&
                !viewModel.isDrawerOpen {
                 compactVoiceBubble
-                    .padding(.trailing, 16)
+                    .padding(.trailing, 12)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityAddTraits(.isButton)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
