@@ -196,9 +196,9 @@ jobs:
           # Le sélecteur sdk=iphoneos* limite ces flags à iPhone + dépendances iOS.
           IOS_FLAGS_FILE="$RUNNER_TEMP/sarah-ios-only.xcconfig"
           cat > "$IOS_FLAGS_FILE" <<EOF
-FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = \$(inherited) $WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR
-OTHER_LDFLAGS[sdk=iphoneos*] = \$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML
-EOF
+          FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = \$(inherited) $WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR
+          OTHER_LDFLAGS[sdk=iphoneos*] = \$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML
+          EOF
           cd "$PROJECT_DIR"
           WORKSPACE_NAME="${PROJECT_NAME%.xcodeproj}.xcworkspace"
           test -d "$WORKSPACE_NAME"
