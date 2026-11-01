@@ -38,10 +38,22 @@ jobs:
             -destination 'generic/platform=watchOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee watch-build.log
+      - name: Build watchOS companion (physical device architecture)
+        run: |
+          set -o pipefail
+          xcodebuild -project SarahIA/SarahIA.xcodeproj \
+            -target SarahIAWatch \
+            -configuration Release \
+            -sdk watchos \
+            -destination 'generic/platform=watchOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee watch-device-build.log
       - name: Collect logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sarah-watch-build-logs
-          path: watch-build.log
+          path: |
+            watch-build.log
+            watch-device-build.log
           if-no-files-found: ignore
