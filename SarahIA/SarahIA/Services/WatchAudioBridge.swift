@@ -1,8 +1,8 @@
 import Foundation
 import WatchConnectivity
 
-/// Pont léger : la montre fournit le micro ; l'iPhone conserve toute la
-/// reconnaissance hébraïque, la traduction et la synthèse française existantes.
+/// La montre transmet le son, tandis que l'iPhone utilise la paire de langues
+/// réellement sélectionnée dans la traduction en direct.
 final class WatchAudioBridge: NSObject, WCSessionDelegate {
     static let shared = WatchAudioBridge()
 
@@ -11,6 +11,27 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
+    }
+
+    /// Synchronise les langues de la vue iPhone avec la Watch, même si
+    /// son application n'est pas actuellement ouverte (applicationContext).
+    func sendLanguagePair(_ pair: LiveLanguagePair) {
+        guard WCSession.isSupported() else { return }
+        let values: [String: Any] = [
+            "type": "languages",
+            "source": pair.sourceLanguage,
+            "target": pair.targetLanguage
+        ]
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        do {
+            try session.updateApplicationContext(values)
+        } catch {
+            print("⚠️ [Sarah Watch] Synchronisation différée : \(error.localizedDescription)")
+        }
+        if session.isReachable {
+            session.sendMessage(values, replyHandler: nil, errorHandler: nil)
+        }
     }
 
     func sendSpeaking(_ speaking: Bool) {
@@ -31,27 +52,47 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         WCSession.default.sendMessage(["type": "stop"], replyHandler: nil, errorHandler: nil)
     }
 
-    // Les délégués WatchConnectivity arrivent hors du thread principal.
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,
-                 error: Error?) {}
+                 error: Error?) {
+        if activationState == .activated {
+            DispatchQueue.main.async {
+                self.sendLanguagePair(LiveTranslationSession.shared.languagePair)
+            }
+        }
+    }
+
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        guard session.activationState == .activated else { return }
+        DispatchQueue.main.async {
+            self.sendLanguagePair(LiveTranslationSession.shared.languagePair)
+        }
+    }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}
     func sessionDidDeactivate(_ session: WCSession) { session.activate() }
+
+    /// Les callbacks WatchConnectivity peuvent arriver sur un thread secondaire.
+    private func beginWatchTranslation() -> [String: Any] {
+        let live = LiveTranslationSession.shared
+        // Ne pas remplacer la paire choisie sur iPhone : EN/FR, FR/HE, etc.
+        LiveSpeechTranslationPipeline.shared.onMicrophoneSuspensionChanged = { [weak self] state in
+            self?.sendSpeaking(state)
+        }
+        live.startFromWatch()
+        NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+        return [
+            "started": live.isActive && live.isUsingWatchMicrophone,
+            "source": live.languagePair.sourceLanguage,
+            "target": live.languagePair.targetLanguage
+        ]
+    }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         DispatchQueue.main.async {
             switch message["type"] as? String {
             case "start":
-                let live = LiveTranslationSession.shared
-                live.setLanguages(LiveLanguagePair(sourceLanguage: "he",
-                                                  targetLanguage: "fr",
-                                                  isVoiceEnabled: true))
-                LiveSpeechTranslationPipeline.shared.onMicrophoneSuspensionChanged = { [weak self] state in
-                    self?.sendSpeaking(state)
-                }
-                live.startFromWatch()
-                NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+                _ = self.beginWatchTranslation()
             case "stop":
                 if LiveTranslationSession.shared.isUsingWatchMicrophone {
                     LiveTranslationSession.shared.stop()
@@ -69,8 +110,6 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Le retour explicite évite l'accumulation de messages audio sur la montre.
-    /// L'accusé de réception est envoyé après ingestion par le moteur iPhone.
     func session(_ session: WCSession,
                  didReceiveMessageData messageData: Data,
                  replyHandler: @escaping (Data) -> Void) {
@@ -88,23 +127,15 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
                  didReceiveMessage message: [String: Any],
                  replyHandler: @escaping ([String: Any]) -> Void) {
         DispatchQueue.main.async {
-            if message["type"] as? String == "start" {
-                let live = LiveTranslationSession.shared
-                live.setLanguages(LiveLanguagePair(sourceLanguage: "he",
-                                                  targetLanguage: "fr",
-                                                  isVoiceEnabled: true))
-                LiveSpeechTranslationPipeline.shared.onMicrophoneSuspensionChanged = { [weak self] state in
-                    self?.sendSpeaking(state)
-                }
-                live.startFromWatch()
-                NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
-                replyHandler(["started": live.isUsingWatchMicrophone])
-            } else if message["type"] as? String == "stop" {
+            switch message["type"] as? String {
+            case "start":
+                replyHandler(self.beginWatchTranslation())
+            case "stop":
                 if LiveTranslationSession.shared.isUsingWatchMicrophone {
                     LiveTranslationSession.shared.stop()
                 }
                 replyHandler(["stopped": true])
-            } else {
+            default:
                 replyHandler(["unsupported": true])
             }
         }
