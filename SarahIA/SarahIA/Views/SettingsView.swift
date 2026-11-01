@@ -2139,7 +2139,7 @@ private struct SarahWatchSettingsView: View {
         .navigationTitle("Apple Watch")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { refresh() }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             if phase == .active { refresh() }
         }
         .alert("Installer Sarah IA Watch", isPresented: $showInstallInstructions) {
