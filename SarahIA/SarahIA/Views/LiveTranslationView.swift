@@ -43,7 +43,13 @@ public struct LiveTranslationView: View {
             .padding(.bottom, 12)
         }
         .preferredColorScheme(.dark)
-        .onAppear { session.start() }
+        .onAppear {
+            // Une session lancée par la Watch est déjà active. Ne surtout pas
+            // la remplacer par un micro iPhone en ouvrant l'interface de traduction.
+            if !session.isActive && !session.isStarting {
+                session.start()
+            }
+        }
         .onDisappear { session.stop() }
     }
 
