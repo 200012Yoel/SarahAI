@@ -63,7 +63,17 @@ jobs:
           for d in targets:
               if d["name"] not in seen:
                   seen.add(d["name"]); unique.append(d)
-          unique=unique[:18]
+          # Fast representative run: exact SE 2 first, then the newest Series and Ultra.
+          def priority(device):
+              name = device["name"].lower()
+              if "se (2nd generation)" in name or "se (2e génération)" in name: return 0
+              if "series 11" in name: return 1
+              if "series 10" in name: return 2
+              if "ultra 3" in name: return 3
+              if "ultra 2" in name: return 4
+              return 10
+          unique.sort(key=priority)
+          unique=unique[:5]
           report.insert(0,"Runtime watchOS: "+runtime)
           report.append("Modèles disponibles à tester: "+str(len(unique)))
           app=str(base/"watch-simulator-build/Debug-watchsimulator/SarahIAWatch.app")
