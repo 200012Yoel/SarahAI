@@ -1381,11 +1381,32 @@ public final class SarahPlaceSearchService {
                 )
                 DispatchQueue.main.async { completion(.success(place)) }
             } else {
-                let failure = error ?? NSError(
-                    domain: "SarahPlaceSearch", code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "Aucun lieu trouvé par Apple Plans."]
-                )
-                DispatchQueue.main.async { completion(.failure(failure)) }
+                // Certains numéros de rue et adresses internationales ne sont
+                // pas indexés comme points d'intérêt MapKit. Géocoder l'adresse
+                // en seconde tentative, sans inventer de coordonnées.
+                let geocoder = CLGeocoder()
+                geocoder.geocodeAddressString(rawQuery) { placemarks, geocodeError in
+                    if let placemark = placemarks?.first(where: { $0.location != nil }),
+                       let coordinate = placemark.location?.coordinate,
+                       CLLocationCoordinate2DIsValid(coordinate) {
+                        let found = SarahPlaceCardPayload(
+                            name: placemark.name ?? rawQuery,
+                            address: [placemark.thoroughfare, placemark.locality,
+                                      placemark.postalCode, placemark.country]
+                                .compactMap { $0 }
+                                .joined(separator: ", "),
+                            latitude: coordinate.latitude,
+                            longitude: coordinate.longitude
+                        )
+                        DispatchQueue.main.async { completion(.success(found)) }
+                    } else {
+                        let failure = geocodeError ?? error ?? NSError(
+                            domain: "SarahPlaceSearch", code: 404,
+                            userInfo: [NSLocalizedDescriptionKey: "Adresse introuvable dans Apple Plans."]
+                        )
+                        DispatchQueue.main.async { completion(.failure(failure)) }
+                    }
+                }
             }
         }
     }
