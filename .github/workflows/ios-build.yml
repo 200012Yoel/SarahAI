@@ -191,12 +191,21 @@ jobs:
           LLAMA_FRAMEWORK_DIR=$(dirname "$LLAMA_FRAMEWORK")
           echo "Using iPhone llama.cpp framework: $LLAMA_FRAMEWORK"
 
+          # Les options de liaison iOS ne doivent JAMAIS être imposées à la cible watchOS.
+          # Le précédent build échouait avec "ld: framework 'Metal' not found" sur Watch.
+          # Le sélecteur sdk=iphoneos* limite ces flags à iPhone + dépendances iOS.
+          IOS_FLAGS_FILE="$RUNNER_TEMP/sarah-ios-only.xcconfig"
+          cat > "$IOS_FLAGS_FILE" <<EOF
+FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = \$(inherited) $WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR
+OTHER_LDFLAGS[sdk=iphoneos*] = \$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML
+EOF
           cd "$PROJECT_DIR"
           WORKSPACE_NAME="${PROJECT_NAME%.xcodeproj}.xcworkspace"
           test -d "$WORKSPACE_NAME"
           set -o pipefail
           xcodebuild \
             -workspace "$WORKSPACE_NAME" \
+            -xcconfig "$IOS_FLAGS_FILE" \
             -scheme SarahIA \
             -configuration Release \
             -sdk iphoneos \
@@ -211,8 +220,6 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             CLANG_ENABLE_MODULES=YES \
-            FRAMEWORK_SEARCH_PATHS="\$(inherited) $WHISPER_FRAMEWORK_DIR $LLAMA_FRAMEWORK_DIR" \
-            OTHER_LDFLAGS='$(inherited) -framework whisper -framework llama -framework Accelerate -framework Metal -framework MetalKit -framework CoreML' \
             LD_RUNPATH_SEARCH_PATHS='$(inherited) @executable_path/Frameworks' \
             build 2>&1 | tee "$GITHUB_WORKSPACE/xcodebuild.log"
           grep -q '\*\* BUILD SUCCEEDED \*\*' "$GITHUB_WORKSPACE/xcodebuild.log"
