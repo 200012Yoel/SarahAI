@@ -62,7 +62,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     private var conversionMuted = false
     private var packetInFlight = false
     private let sampleRate = 16_000.0
-    private let packetSamples = 3_200 // 200 ms de parole
+    private let packetSamples = 2_560 // 160 ms : sous-titres plus réactifs sur l'iPhone
 
     private override init() {
         super.init()
@@ -412,7 +412,7 @@ struct SarahWatchHome: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(listening ? "Arrêter l'écoute" : "Démarrer la traduction")
-                        .accessibilityHint("Le microphone de la montre transmet la langue sélectionnée à l'iPhone")
+                        .accessibilityHint("Le micro de la montre envoie la langue choisie sur l'iPhone, qui affiche et prononce la traduction")
 
                         Text(audio.status)
                             .font(.system(size: compact ? 10 : 11, weight: .medium))
