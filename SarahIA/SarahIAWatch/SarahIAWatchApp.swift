@@ -13,6 +13,43 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     @Published private(set) var paired = false
     @Published private(set) var level: CGFloat = 0
     @Published private(set) var status = "Connexion à l'iPhone…"
+    @Published private(set) var sourceLanguage = "he"
+    @Published private(set) var targetLanguage = "fr"
+
+    // Les langues sont choisies dans l'app iPhone, pas figées dans la Watch.
+    var languageDisplay: String {
+        "\(Self.flag(for: sourceLanguage))  →  \(Self.flag(for: targetLanguage))"
+    }
+    var languageAccessibleText: String {
+        "\(Self.name(for: sourceLanguage)) vers \(Self.name(for: targetLanguage))"
+    }
+    private static func flag(for code: String) -> String {
+        switch code {
+        case "he": return "🇮🇱"
+        case "fr": return "🇫🇷"
+        case "en": return "🇬🇧"
+        default: return "🌐"
+        }
+    }
+    private static func name(for code: String) -> String {
+        switch code {
+        case "he": return "hébreu"
+        case "fr": return "français"
+        case "en": return "anglais"
+        default: return code.uppercased()
+        }
+    }
+    private func updateLanguages(source: String?, target: String?) {
+        guard let source, let target,
+              ["he", "fr", "en"].contains(source),
+              ["he", "fr", "en"].contains(target),
+              source != target else { return }
+        sourceLanguage = source
+        targetLanguage = target
+        if !recording && !connecting && paired {
+            status = "Prête • \(languageAccessibleText)"
+        }
+    }
 
     private let engine = AVAudioEngine()
     private let conversionQueue = DispatchQueue(label: "sarah.watch.pcm")
@@ -61,10 +98,14 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
         status = "Connexion au traducteur iPhone…"
         // Attendre l'accord explicite avant d'envoyer le moindre paquet PCM.
         WCSession.default.sendMessage(
-            ["type": "start", "source": "he", "target": "fr"],
+            ["type": "start"],
             replyHandler: { [weak self] response in
                 DispatchQueue.main.async {
                     guard let self = self, self.connecting else { return }
+                    self.updateLanguages(
+                        source: response["source"] as? String,
+                        target: response["target"] as? String
+                    )
                     guard response["started"] as? Bool == true else {
                         self.connecting = false
                         self.status = "Traduction iPhone indisponible"
@@ -93,7 +134,12 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
             guard format.sampleRate > 0, format.channelCount > 0 else {
+                connecting = false
                 status = "Micro de la montre indisponible"
+                try? audio.setActive(false)
+                if WCSession.default.isReachable {
+                    WCSession.default.sendMessage(["type": "stop"], replyHandler: nil, errorHandler: nil)
+                }
                 return
             }
 
@@ -112,7 +158,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             try engine.start()
             recording = true
             connecting = false
-            status = "🎙️ Hébreu • iPhone connecté"
+            status = "🎙️ \(languageAccessibleText) • connecté"
         } catch {
             engine.inputNode.removeTap(onBus: 0)
             connecting = false
@@ -222,8 +268,12 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
         DispatchQueue.main.async {
             self.paired = state == .activated && session.isReachable
+            self.updateLanguages(
+                source: session.receivedApplicationContext["source"] as? String,
+                target: session.receivedApplicationContext["target"] as? String
+            )
             if !self.recording {
-                self.status = self.paired ? "Prête • hébreu → français" : "Ouvre Sarah IA sur l'iPhone"
+                self.status = self.paired ? "Prête • \(self.languageAccessibleText)" : "Ouvre Sarah IA sur l'iPhone"
             }
         }
     }
@@ -233,8 +283,17 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             self.paired = session.isReachable
             if !session.isReachable && self.recording { self.stop(notifyPhone: false) }
             if !self.recording {
-                self.status = self.paired ? "Prête • hébreu → français" : "Ouvre Sarah IA sur l'iPhone"
+                self.status = self.paired ? "Prête • \(self.languageAccessibleText)" : "Ouvre Sarah IA sur l'iPhone"
             }
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        DispatchQueue.main.async {
+            self.updateLanguages(
+                source: applicationContext["source"] as? String,
+                target: applicationContext["target"] as? String
+            )
         }
     }
 
@@ -247,6 +306,11 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                     self?.conversionMuted = speaking
                     if speaking { self?.pcm.removeAll(keepingCapacity: true) }
                 }
+            case "languages":
+                self.updateLanguages(
+                    source: message["source"] as? String,
+                    target: message["target"] as? String
+                )
             case "stop": self.stop(notifyPhone: false)
             default: break
             }
@@ -317,14 +381,10 @@ struct SarahWatchHome: View {
                         }
 
                         HStack(spacing: 5) {
-                            Text("🇮🇱")
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: compact ? 12 : 14, weight: .semibold))
-                                .foregroundStyle(.cyan)
-                            Text("🇫🇷")
+                            Text(audio.languageDisplay)
                         }
                         .font(.system(size: compact ? 15 : 18))
-                        .accessibilityLabel("Traduction hébreu vers français")
+                        .accessibilityLabel("Traduction \(audio.languageAccessibleText)")
 
                         Button {
                             listening ? audio.stop() : audio.start()
@@ -350,7 +410,7 @@ struct SarahWatchHome: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(listening ? "Arrêter l'écoute" : "Démarrer la traduction")
-                        .accessibilityHint("Le microphone de la montre transmet l'hébreu à l'iPhone")
+                        .accessibilityHint("Le microphone de la montre transmet la langue sélectionnée à l'iPhone")
 
                         Text(audio.status)
                             .font(.system(size: compact ? 10 : 11, weight: .medium))
