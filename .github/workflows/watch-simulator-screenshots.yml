@@ -28,7 +28,7 @@ jobs:
           xcodebuild -project SarahIA/SarahIA.xcodeproj \
             -target SarahIAWatch -configuration Debug -sdk watchsimulator \
             -destination 'generic/platform=watchOS Simulator' \
-            -derivedDataPath "$GITHUB_WORKSPACE/watch-simulator-build" \
+            SYMROOT="$GITHUB_WORKSPACE/watch-simulator-build" \
             CODE_SIGNING_ALLOWED=NO build 2>&1 | tee watch-preview-build.log
       - name: Capture genuine Watch simulator screens
         shell: bash
@@ -66,7 +66,7 @@ jobs:
           unique=unique[:18]
           report.insert(0,"Runtime watchOS: "+runtime)
           report.append("Modèles disponibles à tester: "+str(len(unique)))
-          app=str(base/"watch-simulator-build/Build/Products/Debug-watchsimulator/SarahIAWatch.app")
+          app=str(base/"watch-simulator-build/Debug-watchsimulator/SarahIAWatch.app")
           for n,d in enumerate(unique,1):
               name,udid=d["name"],d["udid"]
               print("CAPTURE",n,len(unique),name,udid,flush=True)
