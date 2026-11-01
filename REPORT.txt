@@ -1,0 +1,13 @@
+Runtime watchOS: com.apple.CoreSimulator.SimRuntime.watchOS-26-2
+Modèles disponibles à tester: 11
+OK Apple Watch Series 11 (46mm) => 01-Apple-Watch-Series-11-46mm.png | com.sarahia.app.watchkitapp: 7179
+OK Apple Watch Series 11 (42mm) => 02-Apple-Watch-Series-11-42mm.png | com.sarahia.app.watchkitapp: 9057
+OK Apple Watch Series 10 (46mm) => 03-Apple-Watch-Series-10-46mm.png | com.sarahia.app.watchkitapp: 10881
+OK Apple Watch Series 10 (42mm) => 04-Apple-Watch-Series-10-42mm.png | com.sarahia.app.watchkitapp: 12495
+OK Apple Watch Ultra 3 (49mm) => 05-Apple-Watch-Ultra-3-49mm.png | com.sarahia.app.watchkitapp: 14111
+OK Apple Watch Ultra 2 (49mm) => 06-Apple-Watch-Ultra-2-49mm.png | com.sarahia.app.watchkitapp: 15513
+OK Apple Watch SE 3 (44mm) => 07-Apple-Watch-SE-3-44mm.png | com.sarahia.app.watchkitapp: 17054
+OK Apple Watch SE 3 (40mm) => 08-Apple-Watch-SE-3-40mm.png | com.sarahia.app.watchkitapp: 19133
+OK Apple Watch SE (44mm) (2nd generation) => 09-Apple-Watch-SE-44mm-2nd-generation.png | com.sarahia.app.watchkitapp: 20616
+OK Apple Watch SE (40mm) (2nd generation) => 10-Apple-Watch-SE-40mm-2nd-generation.png | com.sarahia.app.watchkitapp: 22345
+OK Apple Watch Series 9 (45mm) => 11-Apple-Watch-Series-9-45mm.png | com.sarahia.app.watchkitapp: 24311
