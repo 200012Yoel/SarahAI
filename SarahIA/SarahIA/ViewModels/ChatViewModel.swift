@@ -802,10 +802,14 @@ public final class ChatViewModel: ObservableObject {
                     : response.text
                 // Évite les retours Windows, espaces incohérents et entités HTML
                 // visibles dans les bulles sans altérer les langues non latines.
-                var responseContent = rawText.decodingHTMLEntities()
-                    .replacingOccurrences(of: "\r\n", with: "\n")
-                    .replacingOccurrences(of: "\r", with: "\n")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                var responseContent = SarahVisibleAnswer.cleaned(
+                    rawText.decodingHTMLEntities()
+                        .replacingOccurrences(of: "\r\n", with: "\n")
+                        .replacingOccurrences(of: "\r", with: "\n")
+                )
+                if responseContent.isEmpty && response.placeCard == nil {
+                    responseContent = "Je n'ai pas obtenu de réponse exploitable. Réessaie."
+                }
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
@@ -842,9 +846,13 @@ public final class ChatViewModel: ObservableObject {
                             targetAgent: response.agent
                         )
                     } else {
-                        let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText)
-                            .decodingHTMLEntities()
-                        self.voiceManager.speak(text: spoken, for: response.agent)
+                        let spoken = SarahVisibleAnswer.cleaned(
+                            (response.spokenText.isEmpty ? responseContent : response.spokenText)
+                                .decodingHTMLEntities()
+                        )
+                        if !spoken.isEmpty {
+                            self.voiceManager.speak(text: spoken, for: response.agent)
+                        }
                     }
                 }
             }
