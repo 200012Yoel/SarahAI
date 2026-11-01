@@ -41,12 +41,14 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     }
     private func updateLanguages(source: String?, target: String?) {
         guard let source, let target,
-              ["he", "fr", "en"].contains(source),
-              ["he", "fr", "en"].contains(target),
+              !source.isEmpty, !target.isEmpty,
+              source.count <= 12, target.count <= 12,
               source != target else { return }
         sourceLanguage = source
         targetLanguage = target
-        if !recording && !connecting && paired {
+        if recording {
+            status = "🎙️ \(languageAccessibleText) • connecté"
+        } else if !connecting && paired {
             status = "Prête • \(languageAccessibleText)"
         }
     }
