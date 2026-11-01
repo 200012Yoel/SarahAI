@@ -2074,8 +2074,12 @@ private struct AirPodsTranslationSettingsView: View {
 /// Diagnostic réel d'installation, sans QR code factice ni jumelage inventé.
 @available(iOS 15.0, *)
 private struct SarahWatchSettingsView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var status = "Vérification de la montre…"
     @State private var detail = ""
+    @State private var installedOnWatch = false
+    @State private var showInstallInstructions = false
+    @State private var showWatchOpenError = false
 
     var body: some View {
         ScrollView {
@@ -2092,8 +2096,9 @@ private struct SarahWatchSettingsView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(status, systemImage: "waveform")
+                    Label(status, systemImage: installedOnWatch ? "checkmark.circle.fill" : "applewatch")
                         .font(.headline)
+                        .foregroundColor(installedOnWatch ? .green : .white)
                     Text(detail)
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.72))
@@ -2102,18 +2107,31 @@ private struct SarahWatchSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.white.opacity(0.085), in: RoundedRectangle(cornerRadius: 16))
 
-                Text("1. Ouvre Sarah IA sur l'iPhone. 2. Ouvre Sarah IA Watch sur la montre. 3. Appuie sur le microphone et autorise son accès. 4. L'iPhone affiche et prononce la traduction en français.")
+                if !installedOnWatch {
+                    Button {
+                        showInstallInstructions = true
+                    } label: {
+                        Label("Installer sur l’Apple Watch", systemImage: "arrow.down.to.line.compact")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+
+                    Text("Ouvre l’app Watch pour lancer l’installation. Sarah IA ne peut pas installer directement un programme sur la montre : iOS vérifie d’abord sa signature watchOS.")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
+                Text("1. Installe Sarah IA sur l'iPhone avec un certificat et des profils valides pour les deux versions. 2. Sur l'iPhone, ouvre Watch > Ma montre > Apps > Apps disponibles > Sarah IA Watch > Installer. 3. Ouvre Sarah IA Watch sur la montre et autorise le micro.")
                     .font(.body)
 
                 Text("Le micro utilisé est celui de la montre. Le haut-parleur est celui de l'iPhone. Pendant la lecture française, le traitement vocal se met en pause pour limiter l'écho.")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.72))
 
-                Button("Actualiser la connexion") {
-                    refresh()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.cyan)
+                Button("Actualiser la connexion") { refresh() }
+                    .buttonStyle(.bordered)
+                    .tint(.cyan)
             }
             .padding(18)
         }
@@ -2121,10 +2139,39 @@ private struct SarahWatchSettingsView: View {
         .navigationTitle("Apple Watch")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refresh() }
+        }
+        .alert("Installer Sarah IA Watch", isPresented: $showInstallInstructions) {
+            Button("Ouvrir l’app Watch") { openWatchApp() }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Dans l’app Watch : Ma montre > Apps > Apps disponibles > Sarah IA Watch > Installer. Si Sarah IA n’apparaît pas, vérifie la signature et le profil watchOS. Ce bouton ne déclenche pas l’installation automatiquement.")
+        }
+        .alert("Ouvre Watch manuellement", isPresented: $showWatchOpenError) {
+            Button("Compris", role: .cancel) {}
+        } message: {
+            Text("L’ouverture automatique de l’app Watch n’est pas disponible sur cette version d’iOS. Ouvre l’app Watch depuis l’écran d’accueil de ton iPhone, puis Apps disponibles.")
+        }
+    }
+
+    private func openWatchApp() {
+        // Schéma système non documenté : tenter d'ouvrir Watch, sans jamais
+        // prétendre installer une app ni contourner la validation de signature.
+        guard let url = URL(string: "itms-watchs://bridge:root=APP_VIEW_ID") else {
+            showWatchOpenError = true
+            return
+        }
+        UIApplication.shared.open(url, options: [:]) { success in
+            if !success {
+                DispatchQueue.main.async { showWatchOpenError = true }
+            }
+        }
     }
 
     private func refresh() {
         guard WCSession.isSupported() else {
+            installedOnWatch = false
             status = "WatchConnectivity indisponible"
             detail = "La connexion iPhone / Apple Watch n'est pas prise en charge sur cet appareil."
             return
@@ -2132,21 +2179,31 @@ private struct SarahWatchSettingsView: View {
 
         _ = WatchAudioBridge.shared
         let session = WCSession.default
-        if !session.isPaired {
+        // isWatchAppInstalled n'est fiable que lorsque la session est activée.
+        guard session.activationState == .activated else {
+            installedOnWatch = false
+            status = "Connexion à la montre en cours"
+            detail = "Vérifie que l'Apple Watch est jumelée, puis actualise la connexion."
+            return
+        }
+
+        guard session.isPaired else {
+            installedOnWatch = false
             status = "Aucune montre jumelée"
             detail = "Jumelle d'abord l'Apple Watch à cet iPhone."
-        } else if !session.isWatchAppInstalled {
-            status = "Application Watch non installée"
-            detail = "Sarah IA est présente sur l'iPhone mais la version Watch n'est pas installée sur la montre."
-        } else if session.activationState != .activated {
-            status = "Connexion en cours"
-            detail = "La liaison WatchConnectivity n'est pas encore activée."
+            return
+        }
+
+        installedOnWatch = session.isWatchAppInstalled
+        if !installedOnWatch {
+            status = "Sarah IA Watch non installée"
+            detail = "La montre est jumelée. Vérifie la section Apps disponibles de l'app Watch pour installer le compagnon, si sa signature est acceptée."
         } else if session.isReachable {
-            status = "Apple Watch joignable"
-            detail = "La montre est à portée et Sarah IA Watch est active."
+            status = "Apple Watch connectée"
+            detail = "L'application Watch est installée et active. Tu peux lancer le micro depuis la montre."
         } else {
-            status = "Apple Watch installée"
-            detail = "Ouvre Sarah IA Watch sur la montre pour activer la connexion immédiate."
+            status = "Sarah IA Watch installée"
+            detail = "Ouvre Sarah IA Watch sur la montre pour activer la liaison audio."
         }
     }
 }
