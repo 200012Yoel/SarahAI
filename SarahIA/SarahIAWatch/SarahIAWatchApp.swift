@@ -274,54 +274,98 @@ struct SarahWatchHome: View {
     @State private var intro = true
     @State private var glowing = false
 
+    private var listening: Bool { audio.recording || audio.connecting }
+
     var body: some View {
-        ZStack {
-            Color(red: 0.025, green: 0.035, blue: 0.09).ignoresSafeArea()
-            RadialGradient(colors: [.cyan.opacity(0.19), .blue.opacity(0.08), .clear],
-                           center: .center, startRadius: 6, endRadius: 180)
+        GeometryReader { geometry in
+            let compact = geometry.size.height < 205
+            ZStack {
+                Color(red: 0.025, green: 0.035, blue: 0.09).ignoresSafeArea()
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.03, green: 0.28, blue: 0.40).opacity(0.50),
+                        Color(red: 0.04, green: 0.06, blue: 0.17).opacity(0.7),
+                        .clear
+                    ],
+                    center: .center,
+                    startRadius: 1,
+                    endRadius: geometry.size.width * 0.80
+                )
 
-            if intro {
-                VStack(spacing: 9) {
-                    ZStack {
-                        Circle().stroke(.cyan.opacity(0.5), lineWidth: 1)
-                            .frame(width: 72, height: 72)
-                            .scaleEffect(glowing ? 1 : 0.7)
-                        Image(systemName: "sparkles")
+                if intro {
+                    VStack(spacing: 8) {
+                        Image(systemName: "waveform.path")
+                            .font(.system(size: compact ? 24 : 32, weight: .medium))
+                            .foregroundStyle(.cyan)
+                            .scaleEffect(glowing ? 1.0 : 0.87)
+                        Text("Sarah")
+                            .font(.system(size: compact ? 21 : 26, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
-                            .font(.system(size: 24))
                     }
-                    Text("Sarah").font(.system(size: 26, weight: .semibold, design: .rounded))
-                }
-                .transition(.opacity)
-            } else {
-                VStack(spacing: 12) {
-                    Text("Sarah IA Watch")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    Text("🇮🇱  →  🇫🇷").font(.system(size: 22))
-
-                    Button {
-                        (audio.recording || audio.connecting) ? audio.stop() : audio.start()
-                    } label: {
-                        ZStack {
-                            Circle().fill(Color.cyan.opacity(0.18))
-                                .frame(width: 82, height: 82)
-                                .scaleEffect(audio.recording ? 1 + audio.level * 0.18 : 1)
-                            Image(systemName: (audio.recording || audio.connecting) ? "stop.fill" : "mic.fill")
-                                .font(.system(size: 30, weight: .semibold))
-                                .foregroundStyle((audio.recording || audio.connecting) ? .red : .white)
+                    .transition(.opacity)
+                    .accessibilityElement(children: .combine)
+                } else {
+                    VStack(spacing: compact ? 5 : 9) {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(audio.paired ? Color.green : Color.orange)
+                                .frame(width: 6, height: 6)
+                            Text("SARAH IA")
+                                .font(.system(size: compact ? 10 : 11, weight: .bold, design: .rounded))
+                                .tracking(1.2)
+                                .foregroundStyle(.white.opacity(0.86))
                         }
+
+                        HStack(spacing: 5) {
+                            Text("🇮🇱")
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                                .foregroundStyle(.cyan)
+                            Text("🇫🇷")
+                        }
+                        .font(.system(size: compact ? 15 : 18))
+                        .accessibilityLabel("Traduction hébreu vers français")
+
+                        Button {
+                            listening ? audio.stop() : audio.start()
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.cyan.opacity(0.20), lineWidth: 2)
+                                    .frame(width: compact ? 65 : 88, height: compact ? 65 : 88)
+                                Circle()
+                                    .fill(
+                                        listening
+                                            ? Color.red.opacity(0.20)
+                                            : Color.cyan.opacity(0.18)
+                                    )
+                                    .frame(width: compact ? 58 : 78, height: compact ? 58 : 78)
+                                    .scaleEffect(audio.recording ? 1 + audio.level * 0.13 : 1)
+                                Image(systemName: listening ? "stop.fill" : "mic.fill")
+                                    .font(.system(size: compact ? 25 : 30, weight: .medium))
+                                    .foregroundStyle(listening ? .red : .white)
+                            }
+                            .frame(width: compact ? 68 : 90, height: compact ? 68 : 90)
+                            .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(listening ? "Arrêter l'écoute" : "Démarrer la traduction")
+                        .accessibilityHint("Le microphone de la montre transmet l'hébreu à l'iPhone")
+
+                        Text(audio.status)
+                            .font(.system(size: compact ? 10 : 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel((audio.recording || audio.connecting) ? "Arrêter la connexion ou l'écoute" : "Démarrer l'écoute hébreu")
-                    Text(audio.status)
-                        .font(.system(size: 11))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(3)
+                    .padding(.horizontal, 6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
                 }
-                .padding(.horizontal, 8)
-                .transition(.opacity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             withAnimation(.easeOut(duration: 0.55)) { glowing = true }
