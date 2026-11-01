@@ -1250,6 +1250,18 @@ public final class SarahPlaceSearchService {
             .lowercased()
             .replacingOccurrences(of: "’", with: "'")
             .replacingOccurrences(of: "-", with: " ")
+
+        // Les raccourcis vocaux peuvent tronquer le début du nom du monument.
+        // Ils doivent ouvrir une NOUVELLE fiche MapKit, jamais recycler une
+        // ancienne réponse du modèle (« Tour Eiffel »).
+        let arcShortcuts = [
+            "recherche de triomphe", "cherche de triomphe", "je cherche de triomphe",
+            "recherche triomphe", "cherche triomphe", "triomphe",
+            "arc de triomphe", "l'arc de triomphe"
+        ]
+        if arcShortcuts.contains(normalized.trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))) {
+            return "Arc de Triomphe, Paris"
+        }
         let prefixes: [(String, Bool)] = [
             ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
             ("affiche la carte de ", true), ("affiche sur la carte ", true),
@@ -1278,6 +1290,7 @@ public final class SarahPlaceSearchService {
             ("emmene moi a ", true), ("conduis moi a ", true),
             ("localise ", true), ("situe moi ", true),
             ("je cherche ", false), ("je recherche ", false),
+            ("recherche de ", false), ("recherche ", false),
             ("cherche moi ", false), ("cherche ", false),
             ("trouve moi ", false), ("trouve ", false),
             ("montre moi ", false)
@@ -1325,7 +1338,8 @@ public final class SarahPlaceSearchService {
 
         let subject = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
         let placeWords = [
-            "tour eiffel", "tour ", "gare", "station", "mairie", "rue ", "avenue ",
+            "tour eiffel", "tour ", "arc de triomphe", "arc ", "triomphe",
+            "gare", "station", "mairie", "rue ", "avenue ",
             "boulevard ", "place ", "musee", "monument", "aeroport", "parc ",
             "jardin ", "restaurant", "cafe ", "boulangerie", "pharmacie",
             "hopital", "hotel", "ecole", "bibliotheque", "plage", "chateau",
