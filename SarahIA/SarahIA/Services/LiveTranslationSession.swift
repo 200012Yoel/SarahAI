@@ -13,6 +13,13 @@ public final class LiveTranslationSession: ObservableObject {
 
     @Published public private(set) var isActive = false
     @Published public private(set) var isUsingWatchMicrophone = false
+    @Published public private(set) var isAwaitingWatchMicrophone = false
+
+    /// Une notification acceptée affiche l'écran, sans déclencher le micro
+    /// de l'iPhone avant la connexion du microphone Apple Watch.
+    public func prepareForWatchCall() {
+        isAwaitingWatchMicrophone = true
+    }
     @Published public private(set) var languagePair = LiveLanguagePair()
     @Published public private(set) var items: [LiveTranscriptItem] = []
     @Published public private(set) var micEnergy: Float = 0
@@ -56,6 +63,7 @@ public final class LiveTranslationSession: ObservableObject {
 
     public func start() {
         guard !isActive && !isStarting else { return }
+        isAwaitingWatchMicrophone = false
         isUsingWatchMicrophone = false
         isStarting = true
         startupEpoch &+= 1
@@ -91,6 +99,7 @@ public final class LiveTranslationSession: ObservableObject {
 
     /// Démarré depuis la montre : aucun micro iPhone ne doit être ouvert.
     public func startFromWatch() {
+        isAwaitingWatchMicrophone = false
         if isActive && isUsingWatchMicrophone { return }
         if isActive { stop() }
 
@@ -153,6 +162,7 @@ public final class LiveTranslationSession: ObservableObject {
     }
 
     public func stop() {
+        isAwaitingWatchMicrophone = false
         startupEpoch &+= 1
         isStarting = false
         guard isActive else { return }
