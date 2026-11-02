@@ -55,17 +55,10 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         )
     }
 
-    /// Affiche la vraie interface plein écran de Sarah, uniquement lorsque
-    /// l'app est au premier plan après le déverrouillage système d'iOS.
-    /// CallKit ne peut pas être utilisé pour simuler un appel VoIP inexistant.
+    /// La notification système est la seule invitation visible lorsque l'app
+    /// est verrouillée ou absente du premier plan. Son ouverture mène directement
+    /// à Translate Live, sans faux écran d'appel et sans demande de code privée.
     func presentPendingCallIfNeeded() {
-        guard UIApplication.shared.applicationState == .active,
-              UserDefaults.standard.bool(forKey: Self.pendingCallKey) else { return }
-        NotificationCenter.default.post(name: Self.incomingCallNotification, object: nil)
-    }
-
-    /// L'utilisateur a décroché dans Sarah IA (jamais automatiquement).
-    func acceptPendingCall() {
         guard UIApplication.shared.applicationState == .active,
               UserDefaults.standard.bool(forKey: Self.pendingCallKey) else { return }
         UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
@@ -104,16 +97,8 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         if recentCallIDs.count > 32 { recentCallIDs.removeFirst() }
 
         UserDefaults.standard.set(true, forKey: Self.pendingCallKey)
-        if UIApplication.shared.applicationState == .active {
-            reply?(["accepted": true, "method": "foreground"])
-            // Sarah IA affiche Décrocher / Refuser. Elle ne lance pas le micro
-            // avant que l'utilisateur choisisse explicitement Décrocher.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                self?.presentPendingCallIfNeeded()
-            }
-            return
-        }
-
+        // Toujours une notification explicite, même lorsque Sarah est ouverte.
+        // Aucune transition automatique vers une interface d'appel.
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             let enabled: Bool
