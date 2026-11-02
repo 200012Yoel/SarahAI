@@ -46,7 +46,7 @@ public struct LiveTranslationView: View {
         .onAppear {
             // Une session lancée par la Watch est déjà active. Ne surtout pas
             // la remplacer par un micro iPhone en ouvrant l'interface de traduction.
-            if !session.isActive && !session.isStarting {
+            if !session.isActive && !session.isStarting && !session.isAwaitingWatchMicrophone {
                 session.start()
             }
         }
