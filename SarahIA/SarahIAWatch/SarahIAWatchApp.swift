@@ -95,7 +95,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                     source: reply["source"] as? String,
                     target: reply["target"] as? String
                 )
-                if !self.recording && !self.connecting && !self.awaitingPhone {
+                if self.awaitingPhone && self.phoneForeground {
+                    // Quand la Watch sort du sommeil après validation sur iPhone,
+                    // le ping reprend le relais d'un message phoneReady manqué.
+                    self.awaitingPhone = false
+                    self.status = "iPhone prêt • ouverture du microphone…"
+                    self.start()
+                } else if !self.recording && !self.connecting && !self.awaitingPhone {
                     self.status = self.phoneForeground
                         ? "Prête • \(self.languageAccessibleText)"
                         : "iPhone en veille • appel possible"
@@ -430,7 +436,11 @@ struct SarahIAWatchApp: App {
             SarahWatchHome()
                 .onChange(of: scenePhase) { _, phase in
                     // L'écoute active ne survit pas arbitrairement à la suspension watchOS.
-                    if phase != .active { SarahWatchAudio.shared.stop() }
+                    if phase != .active {
+                        SarahWatchAudio.shared.stop()
+                    } else {
+                        SarahWatchAudio.shared.refreshPhoneStatus()
+                    }
                 }
         }
     }
