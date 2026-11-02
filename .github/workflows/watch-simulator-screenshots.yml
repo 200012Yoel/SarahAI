@@ -1,0 +1,134 @@
+name: Sarah IA Watch - Captures simulateurs
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/sarah-watch-live-he-fr
+    paths:
+      - 'SarahIA/SarahIAWatch/**'
+      - '.github/workflows/watch-simulator-screenshots.yml'
+concurrency:
+  group: sarah-watch-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+jobs:
+  watch-screenshots:
+    runs-on: macos-15
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: List watchOS simulators
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available -j > watch-devices.json
+          xcrun simctl list devicetypes -j > watch-types.json
+          xcrun simctl list runtimes -j > watch-runtimes.json
+      - name: Compile Sarah Watch for Simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project SarahIA/SarahIA.xcodeproj \
+            -target SarahIAWatch -configuration Debug -sdk watchsimulator \
+            -destination 'generic/platform=watchOS Simulator' \
+            SYMROOT="$GITHUB_WORKSPACE/watch-simulator-build" \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee watch-preview-build.log
+      - name: Capture genuine Watch simulator screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p watch-preview-shots
+          cat > "$RUNNER_TEMP/capture_watch.py" <<'PY'
+          import json, os, re, subprocess, time, pathlib
+          base = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          report = []
+          runtimes = json.loads((base/"watch-runtimes.json").read_text())["runtimes"]
+          watches = [r for r in runtimes if "watchos" in r["identifier"].lower() and r.get("isAvailable", False)]
+          devices = json.loads((base/"watch-devices.json").read_text())["devices"]
+          types = json.loads((base/"watch-types.json").read_text())["devicetypes"]
+          if not watches:
+              (base/"watch-preview-shots"/"REPORT.txt").write_text("Aucun runtime watchOS Simulator disponible sur ce Mac GitHub.\n")
+              raise SystemExit(0)
+          watches.sort(key=lambda r: tuple(map(int,re.findall(r"\d+",r.get("version","0")))) or (0,), reverse=True)
+          runtime = watches[0]["identifier"]
+          targets = [d for d in devices.get(runtime,[]) if "Apple Watch" in d.get("name","") and d.get("isAvailable",True)]
+          # Include missing SE 2, SE 3, Series 9-11 and Ultra families if the Xcode runtime supports them.
+          families = ["SE (2nd generation)", "SE (3rd generation)", "Series 9", "Series 10", "Series 11", "Ultra 2", "Ultra 3"]
+          for family in families:
+              if any(family.lower() in d["name"].lower() for d in targets): continue
+              typ = next((t for t in types if "Apple Watch" in t["name"] and family.lower() in t["name"].lower()), None)
+              if not typ: continue
+              try:
+                  result = subprocess.run(["xcrun","simctl","create","Sarah Preview "+typ["name"],typ["identifier"],runtime],capture_output=True,text=True,timeout=50,check=True)
+                  targets.append({"udid":result.stdout.strip(),"name":typ["name"]})
+              except Exception as e: report.append("Création impossible "+typ["name"]+": "+str(e))
+          seen=set(); unique=[]
+          for d in targets:
+              if d["name"] not in seen:
+                  seen.add(d["name"]); unique.append(d)
+          # Fast representative run: exact SE 2 first, then the newest Series and Ultra.
+          def priority(device):
+              name = device["name"].lower()
+              if "apple watch se" in name and "2nd generation" in name: return 0
+              if "series 11" in name: return 1
+              if "series 10" in name: return 2
+              if "ultra 3" in name: return 3
+              if "ultra 2" in name: return 4
+              return 10
+          unique.sort(key=priority)
+          unique=unique[:2]
+          report.insert(0,"Runtime watchOS: "+runtime)
+          report.append("Modèles disponibles à tester: "+str(len(unique)))
+          app=str(base/"watch-simulator-build/Debug-watchsimulator/SarahIAWatch.app")
+          for n,d in enumerate(unique,1):
+              name,udid=d["name"],d["udid"]
+              print("CAPTURE",n,len(unique),name,udid,flush=True)
+              try:
+                  subprocess.run(["xcrun","simctl","boot",udid],timeout=70,check=True,capture_output=True,text=True)
+                  subprocess.run(["xcrun","simctl","bootstatus",udid,"-b"],timeout=135,check=True,capture_output=True,text=True)
+                  subprocess.run(["xcrun","simctl","install",udid,app],timeout=80,check=True,capture_output=True,text=True)
+                  launched=subprocess.run(["xcrun","simctl","launch",udid,"com.sarahia.app.watchkitapp"],timeout=50,check=True,capture_output=True,text=True)
+                  time.sleep(4)
+                  safe=re.sub(r"[^a-zA-Z0-9]+","-",name).strip("-")
+                  image=base/"watch-preview-shots"/f"{n:02d}-{safe}.png"
+                  subprocess.run(["xcrun","simctl","io",udid,"screenshot","--type=png",str(image)],timeout=50,check=True,capture_output=True,text=True)
+                  report.append("OK "+name+" => "+image.name+" | "+launched.stdout.strip())
+              except Exception as e: report.append("ERREUR "+name+": "+str(e))
+              finally: subprocess.run(["xcrun","simctl","shutdown",udid],timeout=40,capture_output=True)
+          (base/"watch-preview-shots"/"REPORT.txt").write_text("\n".join(report)+"\n")
+          print("\n".join(report),flush=True)
+          PY
+          python3 "$RUNNER_TEMP/capture_watch.py"
+          find watch-preview-shots -maxdepth 1 -type f -print
+      - name: Upload real Watch screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sarah-Watch-real-simulator-screenshots
+          path: |
+            watch-preview-shots/
+            watch-preview-build.log
+            watch-devices.json
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Publish previews on dedicated branch
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! find watch-preview-shots -name '*.png' | grep -q .; then
+            echo 'No genuine screenshots captured.'
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/sarah-watch-preview-publish"
+          cp watch-preview-shots/* "$RUNNER_TEMP/sarah-watch-preview-publish/"
+          cd "$RUNNER_TEMP/sarah-watch-preview-publish"
+          git init -q -b watch-simulator-previews-se2
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add .
+          git commit -q -m "Real Sarah Watch simulator captures"
+          git push --force "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" HEAD:refs/heads/watch-simulator-previews-se2

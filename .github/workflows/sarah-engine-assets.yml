@@ -1,0 +1,64 @@
+name: Sarah Engine - GitHub Release Model Assets
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/sarah-watch-live-he-fr]
+    paths:
+      - '.github/workflows/sarah-engine-assets.yml'
+permissions:
+  contents: write
+concurrency:
+  group: sarah-engine-assets-v1
+  cancel-in-progress: false
+jobs:
+  publish-models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified upstream model distributions and licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 40 \
+            'https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf?download=true' \
+            -o dist/Qwen3-1.7B-Q4_K_M.gguf
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 40 \
+            'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/1208e45d782fe18602c5eaf10e5758d5b0f24c03/Qwen3-0.6B-Q4_K_M.gguf?download=true' \
+            -o dist/Qwen3-0.6B-Q4_K_M.gguf
+          curl -fL --retry 4 --retry-all-errors --connect-timeout 40 \
+            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
+            -o dist/ggml-base.bin
+          curl -fL --retry 3 \
+            'https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/LICENSE' \
+            -o dist/Qwen3-Apache-2.0-LICENSE.txt
+          curl -fL --retry 3 \
+            'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
+            -o dist/OpenAI-Whisper-MIT.txt
+          curl -fL --retry 3 \
+            'https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/LICENSE' \
+            -o dist/whisper.cpp-MIT.txt
+          test "$(stat -c%s dist/Qwen3-1.7B-Q4_K_M.gguf)" -gt 1000000000
+          test "$(stat -c%s dist/Qwen3-0.6B-Q4_K_M.gguf)" -gt 200000000
+          test "$(stat -c%s dist/ggml-base.bin)" -gt 120000000
+          head -c 4 dist/Qwen3-1.7B-Q4_K_M.gguf | grep -q GGUF
+          head -c 4 dist/Qwen3-0.6B-Q4_K_M.gguf | grep -q GGUF
+          (cd dist && sha256sum *.gguf *.bin > SHA256SUMS.txt)
+          du -h dist/*
+      - name: Publish Sarah Engine assets in this repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=sarah-engine-v1
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title 'Sarah Engine | Modèles hors ligne v1' \
+              --notes 'Distribution des vrais poids Qwen3 Apache 2.0 et Whisper MIT. Les moteurs llama.cpp et whisper.cpp sont liés à l IPA. TTS = voix système Apple. Google ML Kit fournit ses packs de traduction séparément. Voir SHA256SUMS.txt.'
+          fi
+          gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "\(.name) | \(.size) bytes | \(.url)"'

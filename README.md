@@ -73,3 +73,19 @@ La version principale reconnaît « Donne-moi l'adresse de la Tour Eiffel », «
 
 
 Le paquet complet contient aussi le modèle Qwen3 0.6B Q4_K_M de secours, afin de proposer une inférence locale adaptée à un budget mémoire plus réduit sans télécharger ce modèle après installation. Le téléchargement et les sommes de contrôle SHA-256 des deux poids GGUF sont vérifiés dans la compilation. Les très gros modèles de code restent optionnels sur serveur, comme expliqué dans le README.
+
+
+## ⌚ Sarah IA Watch : micro hébreu, traduction et voix sur iPhone
+
+Cette branche inclut une cible **SarahIAWatch** dans le projet Xcode de l'iPhone. La montre possède une animation d'entrée Sarah et un bouton micro / arrêt. La permission micro est demandée sur **la montre**, lors du premier démarrage.
+
+- **Montre** : enregistre le micro local, produit de petits paquets PCM mono 16 kHz et les transmet à l'iPhone par `WatchConnectivity`, uniquement lorsque l'application iPhone est joignable en direct.
+- **iPhone** : reçoit ces paquets sans ouvrir son propre microphone et les injecte dans **LiveSpeechTranslationPipeline** existant (reconnaissance hébraïque Apple / Whisper, traduction hébreu → français via moteur configuré, lecture française sur le haut-parleur iPhone).
+- **Affichage** : l'écran « Traduction en direct » conserve le texte original en bas et la traduction française en haut. Le moteur n'annonce pas une traduction lorsqu'il n'a pas pu la produire.
+- **Anti-écho** : pendant que Sarah prononce une phrase française, le pipeline ignore les paquets reçus et demande également à la montre de suspendre leur envoi. La montre ne lit jamais la traduction.
+
+**Limites importantes** : il s'agit d'une première intégration à compiler et tester sur une vraie Apple Watch. `WCSession.sendMessageData` est une messagerie immédiate, pas un flux audio garanti : l'application iPhone doit pouvoir répondre, la distance et les changements de connectivité peuvent couper la transmission, et la latence n'est pas garantie. Sur watchOS, une application ordinaire ne peut pas conserver indéfiniment une captation micro active après suspension. Les deux applications doivent être installées et autorisées. Aucune activation du mode développeur Watch ni signature gratuite de la Watch n'est réalisée par ce code.
+
+**Compilation** : le projet `SarahIA/SarahIA.xcodeproj` contient une cible Watch incluse dans le build `SarahIA`. Le workflow `sarah-watch-mac.yml` compile séparément la cible Watch pour le simulateur et vérifie la structure du projet. Le workflow iOS existant signe le paquet Watch imbriqué avant de produire le fichier IPA, sans garantir qu'un outil tiers d'installation iPhone saura aussi déployer le paquet Watch sur l'appareil réel.
+
+**Essai réel** : ouvrir Sarah IA sur l'iPhone, puis Sarah IA Watch sur la montre, appuyer sur le micro et autoriser l'accès. Parler en hébreu près de la montre. Pour entendre la voix française, maintenir Sarah IA accessible sur l'iPhone et s'assurer que le volume du téléphone est audible.

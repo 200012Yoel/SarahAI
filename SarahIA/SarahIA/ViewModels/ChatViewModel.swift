@@ -696,21 +696,25 @@ public final class ChatViewModel: ObservableObject {
     }
     
     public func speakMessage(_ text: String) {
+        let spoken = SarahVisibleAnswer.cleaned(text)
+        guard !spoken.isEmpty else { return }
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
-        voiceManager.speak(text: text, for: activeAgent)
+        voiceManager.speak(text: spoken, for: activeAgent)
     }
-    
+
     public func toggleSpeechForMessage(_ text: String) {
+        let spoken = SarahVisibleAnswer.cleaned(text)
+        guard !spoken.isEmpty else { return }
         ensureVoicePipelinePrepared()
         haptics.buttonTap()
         if voiceManager.isSpeaking {
             voiceManager.stop()
         } else {
-            voiceManager.speak(text: text, for: activeAgent)
+            voiceManager.speak(text: spoken, for: activeAgent)
         }
     }
-    
+
     public func cancelCurrentGeneration() {
         haptics.buttonTap()
         isTyping = false
@@ -737,6 +741,7 @@ public final class ChatViewModel: ObservableObject {
         let livePhrases = [
             "traduction en direct", "traduction directe", "traduis en direct",
             "traduction en temps reel", "traduction live", "live translate",
+            "translate live", "start live translation", "live translation",
             "traduis la tele", "traduis l'hebreu"
         ]
         let spontaneousPhrase = liveCommand.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -802,10 +807,14 @@ public final class ChatViewModel: ObservableObject {
                     : response.text
                 // Évite les retours Windows, espaces incohérents et entités HTML
                 // visibles dans les bulles sans altérer les langues non latines.
-                var responseContent = rawText.decodingHTMLEntities()
-                    .replacingOccurrences(of: "\r\n", with: "\n")
-                    .replacingOccurrences(of: "\r", with: "\n")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                var responseContent = SarahVisibleAnswer.cleaned(
+                    rawText.decodingHTMLEntities()
+                        .replacingOccurrences(of: "\r\n", with: "\n")
+                        .replacingOccurrences(of: "\r", with: "\n")
+                )
+                if responseContent.isEmpty && response.placeCard == nil {
+                    responseContent = "Je n'ai pas obtenu de réponse exploitable. Réessaie."
+                }
                 if response.openStudio, response.generatedCode != nil {
                     responseContent += "\n\n🧩 La prévisualisation est prête. Ouvrir le Studio"
                 }
@@ -842,9 +851,13 @@ public final class ChatViewModel: ObservableObject {
                             targetAgent: response.agent
                         )
                     } else {
-                        let spoken = (response.spokenText.isEmpty ? responseContent : response.spokenText)
-                            .decodingHTMLEntities()
-                        self.voiceManager.speak(text: spoken, for: response.agent)
+                        let spoken = SarahVisibleAnswer.cleaned(
+                            (response.spokenText.isEmpty ? responseContent : response.spokenText)
+                                .decodingHTMLEntities()
+                        )
+                        if !spoken.isEmpty {
+                            self.voiceManager.speak(text: spoken, for: response.agent)
+                        }
                     }
                 }
             }

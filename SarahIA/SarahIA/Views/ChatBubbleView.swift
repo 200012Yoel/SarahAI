@@ -129,7 +129,7 @@ public struct ChatBubbleView: View {
                 }
 
                 if !message.isVisionReport {
-                    let rawContent = message.contentWithoutInlinePayloads
+                    let rawContent = SarahVisibleAnswer.cleaned(message.contentWithoutInlinePayloads)
                     let displayContent: String = {
                         if let imgURL = message.detectedImageURL, rawContent.contains(imgURL) {
                             let cleaned = rawContent.replacingOccurrences(of: imgURL, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -813,5 +813,30 @@ private struct SarahPlaceMapRepresentable: UIViewRepresentable {
             ),
             animated: false
         )
+    }
+}
+
+
+/// Les modèles locaux peuvent générer un bloc <think> avant leur réponse.
+/// Rien de ce bloc ne doit apparaître dans une bulle, un historique vocal ou un export.
+/// S'applique aussi aux anciens messages sauvegardés lors de leur affichage.
+enum SarahVisibleAnswer {
+    static func cleaned(_ text: String) -> String {
+        var value = text
+        let patterns = [
+            #"(?is)<think\b[^>]*>.*?</think\s*>"#,
+            #"(?is)<think\b[^>]*>.*\z"#,
+            #"(?i)</?think\s*>"#,
+            #"(?i)<\|im_start\|>assistant"#,
+            #"(?i)<\|im_end\|>"#
+        ]
+        for pattern in patterns {
+            value = value.replacingOccurrences(
+                of: pattern,
+                with: "",
+                options: .regularExpression
+            )
+        }
+        return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -23,6 +23,26 @@ public struct LiveTranslationView: View {
                 header
                 languageBar
 
+                if session.isAwaitingWatchMicrophone {
+                    VStack(spacing: 8) {
+                        Label("Connexion au micro de l’Apple Watch…", systemImage: "applewatch")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(accent)
+                        Button("Utiliser plutôt le micro de l’iPhone") {
+                            // Ne pas démarrer un micro Watch tardivement si l'utilisateur
+                            // a choisi de revenir au micro intégré de l'iPhone.
+                            WatchAudioBridge.shared.declinePendingCall()
+                            session.start()
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 // Traduction (haut, en grand)
                 transcriptPanel(
                     title: "\(session.languagePair.targetFlag) \(session.languagePair.targetName)",
@@ -43,7 +63,13 @@ public struct LiveTranslationView: View {
             .padding(.bottom, 12)
         }
         .preferredColorScheme(.dark)
-        .onAppear { session.start() }
+        .onAppear {
+            // Une session lancée par la Watch est déjà active. Ne surtout pas
+            // la remplacer par un micro iPhone en ouvrant l'interface de traduction.
+            if !session.isActive && !session.isStarting && !session.isAwaitingWatchMicrophone {
+                session.start()
+            }
+        }
         .onDisappear { session.stop() }
     }
 
@@ -89,9 +115,11 @@ public struct LiveTranslationView: View {
     }
 
     private var statusText: String {
+        if session.isAwaitingWatchMicrophone { return "Appel Watch accepté • en attente du micro" }
         if let error = session.lastError { return error }
         guard session.isActive else { return "Démarrage…" }
         if session.isMuted { return "Micro coupé" }
+        if session.isUsingWatchMicrophone { return "Micro Apple Watch · traduction sur iPhone" }
         return "À l'écoute · \(session.recognitionModeLabel)"
     }
 
@@ -114,11 +142,11 @@ public struct LiveTranslationView: View {
         }
     }
 
-    // Les trois langues disponibles utilisent le même pipeline local Whisper/ML Kit.
-    // Un pack de traduction peut nécessiter un téléchargement initial.
+    // Les langues proposées sont celles réellement supportées par le pipeline
+    // de traduction, partagées avec le compagnon Apple Watch.
     private func languageChip(_ flag: String, _ name: String, isSource: Bool) -> some View {
         Menu {
-            ForEach(["he", "fr", "en"], id: \.self) { code in
+            ForEach(LiveLanguagePair.supportedLanguageCodes, id: \.self) { code in
                 Button {
                     var pair = session.languagePair
                     if isSource {

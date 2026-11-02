@@ -1250,10 +1250,28 @@ public final class SarahPlaceSearchService {
             .lowercased()
             .replacingOccurrences(of: "’", with: "'")
             .replacingOccurrences(of: "-", with: " ")
+
+        // Les raccourcis vocaux peuvent tronquer le début du nom du monument.
+        // Ils doivent ouvrir une NOUVELLE fiche MapKit, jamais recycler une
+        // ancienne réponse du modèle (« Tour Eiffel »).
+        let arcShortcuts = [
+            "recherche de triomphe", "cherche de triomphe", "je cherche de triomphe",
+            "recherche triomphe", "cherche triomphe", "triomphe",
+            "arc de triomphe", "l'arc de triomphe"
+        ]
+        if arcShortcuts.contains(normalized.trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))) {
+            return "Arc de Triomphe, Paris"
+        }
         let prefixes: [(String, Bool)] = [
             ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
             ("affiche la carte de ", true), ("affiche sur la carte ", true),
             ("je voudrais voir sur la carte ", true),
+            ("recherche une adresse ", true), ("rechercher une adresse ", true),
+            ("cherche une adresse ", true), ("trouve une adresse ", true),
+            ("localise l'adresse ", true), ("localise cette adresse ", true),
+            ("localiser ", true), ("trouve moi sur la carte ", true),
+            ("montre l'endroit ", true), ("localisation de ", true),
+            ("ouvre plans pour ", true), ("cherche sur plans ", true),
             ("recherche l'adresse de ", true), ("recherche l'adresse du ", true),
             ("recherche l'adresse ", true), ("cherche l'adresse de ", true),
             ("donne moi l'adresse de ", true), ("donne moi l'adresse du ", true),
@@ -1273,11 +1291,13 @@ public final class SarahPlaceSearchService {
             ("navigue vers ", true),
             ("ou se trouve ", true), ("ou est situe ", true), ("ou est ", true),
             ("quelle est l'adresse de ", true), ("quelle est l'adresse du ", true),
-            ("adresse de ", true), ("l'adresse de ", true),
+            ("adresse de ", true), ("adresse ", true),
+            ("l'adresse de ", true), ("localisation ", true),
             ("itineraire vers ", true), ("itineraire pour ", true),
             ("emmene moi a ", true), ("conduis moi a ", true),
             ("localise ", true), ("situe moi ", true),
             ("je cherche ", false), ("je recherche ", false),
+            ("recherche de ", false), ("recherche ", false),
             ("cherche moi ", false), ("cherche ", false),
             ("trouve moi ", false), ("trouve ", false),
             ("montre moi ", false)
@@ -1285,18 +1305,24 @@ public final class SarahPlaceSearchService {
         guard let (prefix, explicitLocation) = prefixes.first(where: { normalized.hasPrefix($0.0) }) else {
             // Une adresse fournie seule, par exemple « 12 rue de Rivoli, Paris »,
             // ouvre également la fiche cartographique native.
-            let directAddressPattern = #"^\d{1,4}\s*(?:bis\s+|ter\s+)?(?:rue|avenue|boulevard|place|route|chemin|quai|impasse|allee|passage|square|cours)\s+\S+"#
+            let directAddressPattern = #"^\d{1,5}\s*(?:(?:bis|ter|quater)\s+)?(?:rue|avenue|av\.?|boulevard|bd\.?|place|route|chemin|quai|impasse|allee|passage|square|cours|rte\.?|street|st\.?|road|rd\.?|drive|dr\.?|lane|ln\.?|highway)\s+\S+"#
             if normalized.range(of: directAddressPattern, options: .regularExpression) != nil {
                 return text
             }
-            if normalized == "tour eiffel" {
+            // Une rue, une place ou une avenue peuvent être saisies sans numéro.
+            // Les noms propres restent disponibles via « adresse de ... ».
+            let standaloneLocation = #"^(?:(?:rue|avenue|boulevard|place|route|chemin|quai|impasse|allee|passage|square|cours)\s+\S+.*|tour eiffel|arc de triomphe)$"#
+            if normalized.range(of: standaloneLocation, options: .regularExpression) != nil {
                 return text
             }
             return nil
         }
 
-        // Les transformations ci-dessus ne modifient pas le nombre de caractères.
-        var candidate = String(text.dropFirst(prefix.count))
+        // La normalisation des accents peut modifier la représentation Unicode.
+        // On supprime la commande en conservant la vraie chaîne originale,
+        // puis on laisse MapKit géocoder les adresses de tous les pays.
+        let originalPrefixRange = text.range(of: prefix, options: [.anchored, .caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_FR"))
+        var candidate = String(text[(originalPrefixRange?.upperBound ?? text.index(text.startIndex, offsetBy: min(prefix.count, text.count)))...])
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let trailing = [
             " sur la carte", " dans plans", " sur plans", " sur google maps",
@@ -1325,7 +1351,9 @@ public final class SarahPlaceSearchService {
 
         let subject = candidate.folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR")).lowercased()
         let placeWords = [
-            "tour eiffel", "tour ", "gare", "station", "mairie", "rue ", "avenue ",
+            "tour eiffel", "tour ", "arc de triomphe", "arc ", "triomphe",
+            "gare", "station", "mairie", "rue ", "avenue ", "street", "road",
+            "square", "centre commercial", "centre ville",
             "boulevard ", "place ", "musee", "monument", "aeroport", "parc ",
             "jardin ", "restaurant", "cafe ", "boulangerie", "pharmacie",
             "hopital", "hotel", "ecole", "bibliotheque", "plage", "chateau",
@@ -1353,11 +1381,32 @@ public final class SarahPlaceSearchService {
                 )
                 DispatchQueue.main.async { completion(.success(place)) }
             } else {
-                let failure = error ?? NSError(
-                    domain: "SarahPlaceSearch", code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "Aucun lieu trouvé par Apple Plans."]
-                )
-                DispatchQueue.main.async { completion(.failure(failure)) }
+                // Certains numéros de rue et adresses internationales ne sont
+                // pas indexés comme points d'intérêt MapKit. Géocoder l'adresse
+                // en seconde tentative, sans inventer de coordonnées.
+                let geocoder = CLGeocoder()
+                geocoder.geocodeAddressString(rawQuery) { placemarks, geocodeError in
+                    if let placemark = placemarks?.first(where: { $0.location != nil }),
+                       let coordinate = placemark.location?.coordinate,
+                       CLLocationCoordinate2DIsValid(coordinate) {
+                        let found = SarahPlaceCardPayload(
+                            name: placemark.name ?? rawQuery,
+                            address: [placemark.thoroughfare, placemark.locality,
+                                      placemark.postalCode, placemark.country]
+                                .compactMap { $0 }
+                                .joined(separator: ", "),
+                            latitude: coordinate.latitude,
+                            longitude: coordinate.longitude
+                        )
+                        DispatchQueue.main.async { completion(.success(found)) }
+                    } else {
+                        let failure = geocodeError ?? error ?? NSError(
+                            domain: "SarahPlaceSearch", code: 404,
+                            userInfo: [NSLocalizedDescriptionKey: "Adresse introuvable dans Apple Plans."]
+                        )
+                        DispatchQueue.main.async { completion(.failure(failure)) }
+                    }
+                }
             }
         }
     }

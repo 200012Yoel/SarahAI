@@ -9,6 +9,7 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @State private var isShowingSarahEngineSetup = false
     @State private var isShowingStartupAnimation = true
     @State private var didScheduleStartupDismissal = false
 
@@ -74,6 +75,11 @@ public struct ContentView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .fullScreenCover(isPresented: $isShowingSarahEngineSetup) {
+            SarahEngineSetupView(onClose: {
+                isShowingSarahEngineSetup = false
+            })
+        }
         .onAppear {
             // Toujours repartir d'un état visuel interactif et déterministe.
             viewModel.isDrawerOpen = false
@@ -92,11 +98,30 @@ public struct ContentView: View {
                 }
             }
 
+            // Une notification Watch acceptée peut avoir ouvert cette scène.
+            // Traiter la demande après le montage des abonnements SwiftUI.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
+            }
+
+            // Première ouverture : vrais modèles téléchargés depuis les Releases
+            // du dépôt SarahAI. Les anciennes IPA déjà équipées restent utilisables.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
+                let engine = SarahEngineInstaller.shared
+                engine.refreshInstalledState()
+                if !engine.hasRequiredModels &&
+                   !UserDefaults.standard.bool(forKey: "sarah.engine.setup.completed.v1") {
+                    isShowingSarahEngineSetup = true
+                }
+            }
+
             // Prépare le modèle Whisper après le premier rendu. Le chargement reste
             // entièrement hors du thread principal afin que le premier appui sur le
             // mode vocal ouvre l'interface immédiatement.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.35) {
-                WhisperService.shared.prepareModel()
+                if SarahEngineInstaller.shared.isReady {
+                    WhisperService.shared.prepareModel()
+                }
                 // Packs de traduction Google hébreu ⇄ français (~60 Mo, une seule fois) :
                 // Google ne permet pas de les inclure dans l'app, Sarah les récupère dès le premier lancement.
                 TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
@@ -107,6 +132,11 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             if viewModel.isContinuousConversationActive {
                 viewModel.stopVoiceConversation()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
             }
         }
         .onChange(of: isShowingSettings) { isPresented in
@@ -280,3 +310,5 @@ private struct SarahStartupAnimationView: View {
         }
     }
 }
+
+

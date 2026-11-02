@@ -2,6 +2,11 @@ import Foundation
 
 /// Paire de langues de la traduction en direct.
 public struct LiveLanguagePair: Equatable {
+    /// Source commune des langues prises en charge par le pipeline actuel.
+    /// Ajouter une langue ici seulement lorsque ASR, traduction et synthèse
+    /// correspondantes fonctionnent réellement dans l'application iPhone.
+    public static let supportedLanguageCodes = ["he", "fr", "en"]
+
     /// Langue parlée devant l'iPhone (ex : "he").
     public var sourceLanguage: String
     /// Langue de la traduction affichée et prononcée (ex : "fr").

@@ -2,35 +2,62 @@ name: Sarah IA Watch - Mac Cloud
 on:
   workflow_dispatch:
   push:
+    branches:
+      - feature/sarah-watch-live-he-fr
     paths:
+      - 'SarahIA/SarahIAWatch/**'
+      - 'SarahIA/SarahIA.xcodeproj/**'
+      - 'SarahIA/SarahIA/Services/WatchAudioBridge.swift'
+      - 'SarahIA/SarahIA/Services/LiveTranslationSession.swift'
       - '.github/workflows/sarah-watch-mac.yml'
+  pull_request:
+    paths:
+      - 'SarahIA/SarahIAWatch/**'
+      - 'SarahIA/SarahIA.xcodeproj/**'
+      - 'SarahIA/SarahIA/Services/WatchAudioBridge.swift'
+concurrency:
+  group: sarah-watch-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
   mac-watch:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Checkout SarahAI
-        uses: actions/checkout@v4
-      - name: Inspect macOS and Xcode
+      - uses: actions/checkout@v4
+      - name: Validate Xcode project
         run: |
-          sw_vers
-          uname -m
           xcodebuild -version
-          xcodebuild -showsdks
-      - name: Find iOS and watchOS projects
+          plutil -lint SarahIA/SarahIA.xcodeproj/project.pbxproj
+          xcodebuild -project SarahIA/SarahIA.xcodeproj -list
+      - name: Build watchOS companion (simulator)
         run: |
-          echo "Xcode projects:"
-          find . \( -name '*.xcodeproj' -o -name '*.xcworkspace' -o -name 'Package.swift' \) -print | head -80
-          echo "Watch-related files:"
-          find . -iname '*watch*' -print | head -80
-      - name: Save diagnostic
+          set -o pipefail
+          xcodebuild -project SarahIA/SarahIA.xcodeproj \
+            -target SarahIAWatch \
+            -configuration Debug \
+            -sdk watchsimulator \
+            -destination 'generic/platform=watchOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee watch-build.log
+      - name: Build watchOS companion (physical device architecture)
         run: |
-          mkdir -p mac-report
-          { sw_vers; xcodebuild -version; xcodebuild -showsdks; find . \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) -print; } > mac-report/diagnostic.txt
-      - name: Upload diagnostic
+          set -o pipefail
+          xcodebuild -project SarahIA/SarahIA.xcodeproj \
+            -target SarahIAWatch \
+            -configuration Release \
+            -sdk watchos \
+            -destination 'generic/platform=watchOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee watch-device-build.log
+      - name: Collect logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sarah-watch-mac-diagnostic
-          path: mac-report/
+          name: sarah-watch-build-logs
+          path: |
+            watch-build.log
+            watch-device-build.log
+          if-no-files-found: ignore

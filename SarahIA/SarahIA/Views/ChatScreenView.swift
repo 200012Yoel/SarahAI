@@ -16,6 +16,7 @@ public struct ChatScreenView: View {
     @Binding var isShowingSettings: Bool
 
     @State private var isShowingActionSheet = false
+    @State private var isShowingAddressFinder = false
     @State private var isShowingLiveTranslation = false
     @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
@@ -179,6 +180,11 @@ public struct ChatScreenView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sarahPresentLiveTranslation)) { _ in
             presentContinuousTranslation()
+            // Le micro Watch ne démarre qu'une fois l'écran de traduction
+            // réellement présenté sur l'iPhone déverrouillé.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                WatchAudioBridge.shared.sendPhoneReady()
+            }
         }
         .onAppear {
             lastDetectedAirPods = nil
@@ -195,11 +201,18 @@ public struct ChatScreenView: View {
         } message: {
             Text("Lancer la traduction dans Sarah ? Le micro sera utilisé après ton accord. La langue entendue est configurable dans Réglages → Écouteurs et traduction.")
         }
+        .sheet(isPresented: $isShowingAddressFinder) {
+            SarahAddressFinderSheet()
+        }
         .actionSheet(isPresented: $isShowingActionSheet) {
             ActionSheet(
                 title: Text("SarahIA"),
                 message: Text("Outils et agents"),
                 buttons: [
+                    .default(Text("📍 Rechercher une adresse")) {
+                        keyboard.dismiss()
+                        isShowingAddressFinder = true
+                    },
                     .default(Text("🌐 Traduction en direct")) {
                         presentContinuousTranslation()
                     },
@@ -290,7 +303,7 @@ public struct ChatScreenView: View {
             } label: {
                 HStack(spacing: 8) {
                     Text(compactVoiceStatus)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white)
                         .lineLimit(1)
                     ZStack {
@@ -303,15 +316,15 @@ public struct ChatScreenView: View {
                             ))
                             .shadow(color: viewModel.activeAgent.themeColor.opacity(0.4), radius: 8)
                         Image(systemName: viewModel.isVoiceMicrophoneMuted ? "mic.slash.fill" : "waveform")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
                     }
-                    .frame(width: 50, height: 50)
+                    .frame(width: 34, height: 34)
                     .scaleEffect(1.0 + min(CGFloat(viewModel.micInputLevel), 1.0) * 0.055)
                 }
-                .padding(.leading, 12)
+                .padding(.leading, 10)
                 .padding(.trailing, 4)
-                .padding(.vertical, 3)
+                .padding(.vertical, 2)
                 .background(Capsule().fill(Color(red: 0.055, green: 0.07, blue: 0.14)))
                 .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
             }
@@ -328,7 +341,9 @@ public struct ChatScreenView: View {
                !isShowingLiveTranslation &&
                !viewModel.isDrawerOpen {
                 compactVoiceBubble
-                    .padding(.trailing, 16)
+                    .padding(.trailing, 12)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityAddTraits(.isButton)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
@@ -1705,6 +1720,88 @@ private struct SarahCameraPicker: UIViewControllerRepresentable {
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onImage(nil)
             picker.dismiss(animated: true)
+        }
+    }
+}
+
+
+/// Recherche cartographique directe, sans imposer une syntaxe de commande.
+@available(iOS 15.0, *)
+private struct SarahAddressFinderSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var place: SarahPlaceCardPayload?
+    @State private var isSearching = false
+    @State private var errorText: String?
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Saisis n’importe quelle adresse ou un lieu connu. Sarah cherchera ses coordonnées réelles dans Apple Plans.")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.75))
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .foregroundColor(.cyan)
+                        TextField("Ex. 5 avenue Anatole France, Paris", text: $query)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .submitLabel(.search)
+                            .onSubmit(search)
+                    }
+                    .padding(13)
+                    .background(Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 14))
+
+                    Button(action: search) {
+                        HStack {
+                            if isSearching { ProgressView().tint(.white) }
+                            else { Image(systemName: "magnifyingglass") }
+                            Text(isSearching ? "Recherche…" : "Localiser sur la carte")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 || isSearching)
+
+                    if let place {
+                        SarahPlaceCardView(place: place)
+                            .frame(maxWidth: .infinity)
+                    }
+                    if let errorText {
+                        Label(errorText, systemImage: "exclamationmark.circle")
+                            .font(.footnote)
+                            .foregroundColor(.orange)
+                    }
+                }
+                .padding(18)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Rechercher une adresse")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Terminé") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func search() {
+        let address = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard address.count >= 3, !isSearching else { return }
+        isSearching = true
+        errorText = nil
+        place = nil
+        SarahPlaceSearchService.shared.search(address) { result in
+            isSearching = false
+            switch result {
+            case .success(let found): place = found
+            case .failure: errorText = "Adresse introuvable dans Apple Plans. Vérifie l’orthographe, la ville ou la connexion Internet."
+            }
         }
     }
 }

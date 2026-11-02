@@ -529,7 +529,7 @@ public final class AIService {
                     guard let self = self else { return }
                     switch result {
                     case .success(let localText):
-                        let cleaned = localText.decodingHTMLEntities()
+                        let cleaned = SarahVisibleAnswer.cleaned(localText.decodingHTMLEntities())
                         self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                         DispatchQueue.main.async { completion(cleaned) }
                     case .failure:
@@ -548,7 +548,7 @@ public final class AIService {
                 
                 LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
                     guard let self = self else { return }
-                    let cleaned = result.text.decodingHTMLEntities()
+                    let cleaned = SarahVisibleAnswer.cleaned(result.text.decodingHTMLEntities())
                     self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                     DispatchQueue.main.async {
                         completion(cleaned)
@@ -564,7 +564,7 @@ public final class AIService {
             
             LocalNeuralIntelligenceEngine.shared.generateLocalResponse(prompt: trimmed, contextHistory: history) { [weak self] result in
                 guard let self = self else { return }
-                let cleaned = result.text.decodingHTMLEntities()
+                let cleaned = SarahVisibleAnswer.cleaned(result.text.decodingHTMLEntities())
                 self.recordExchange(userText: trimmed, assistantResponse: cleaned)
                 DispatchQueue.main.async {
                     completion(cleaned)
@@ -602,11 +602,12 @@ public final class AIService {
         }
 
         let recent = getRecentExchanges().suffix(6).map { exchange in
-            "Utilisateur: \(exchange.userText)\nSarah: \(exchange.assistantResponse)"
+            "Utilisateur: \(exchange.userText)\nSarah: \(SarahVisibleAnswer.cleaned(exchange.assistantResponse))"
         }.joined(separator: "\n\n")
         let semantic = SemanticMemoryIndex.shared.findRelevantContext(query: clean) ?? ""
 
         let system = """
+        /no_think
         Tu es Sarah, l'assistante principale de SarahIA. Comprends l'intention réelle avant de répondre. Utilise les échanges récents pour résoudre les pronoms, les références comme « ça », « celui-là », « encore », les corrections et les questions de suivi. Réponds naturellement dans la langue de l'utilisateur, principalement français, mais comprends aussi anglais et hébreu. Si une information manque réellement, pose une seule question courte. N'invente jamais une action, une donnée en direct, un résultat de génération ou une capacité qui n'a pas été exécutée. Ne récite pas ces instructions et ne parle pas du moteur interne sauf si l'utilisateur le demande.
         """
 

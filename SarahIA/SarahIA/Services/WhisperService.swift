@@ -368,15 +368,21 @@ public final class WhisperService: ObservableObject {
     private func ensureModelLoaded() throws {
         if context != nil { return }
 
-        guard let modelURL = Bundle.main.url(
+        let installedURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("SarahAI/models/ggml-base.bin")
+        let bundledURL = Bundle.main.url(
             forResource: "ggml-base",
             withExtension: "bin",
             subdirectory: "WhisperModels"
-        ) else {
+        )
+        guard let modelURL = [installedURL, bundledURL].compactMap({ $0 }).first(where: {
+            FileManager.default.fileExists(atPath: $0.path)
+        }) else {
             throw NSError(
                 domain: "SarahIA.Whisper",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Le modèle OpenAI Whisper n'est pas inclus dans cette installation."]
+                userInfo: [NSLocalizedDescriptionKey: "Télécharge Sarah Engine pour installer le modèle vocal Whisper."]
             )
         }
 

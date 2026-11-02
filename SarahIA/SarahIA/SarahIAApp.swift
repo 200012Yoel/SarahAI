@@ -25,6 +25,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             didResetUserStateForNewBuild: false
         )
 
+        // Activation légère de WatchConnectivity, sans charger le moteur audio.
+        _ = WatchAudioBridge.shared
         UNUserNotificationCenter.current().delegate = self
 
         DispatchQueue.main.async {
@@ -75,6 +77,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.userInfo["sarahWatchTranslate"] as? Bool == true {
+            UserDefaults.standard.set(true, forKey: "sarah.watch.translate.pendingOpen")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
+            }
+        }
         NotificationService.shared.clearBadge()
         completionHandler()
     }
@@ -113,6 +121,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         completionHandler: @escaping () -> Void
     ) {
         AppDelegate.backgroundSessionCompletionHandler = completionHandler
+        // Réattacher immédiatement le délégué de téléchargement après un
+        // redémarrage iOS, même si l'écran Sarah Engine n'est pas visible.
+        switch identifier {
+        case "com.sarahia.sarahengine.whisper.v1":
+            _ = SarahEngineInstaller.shared
+        case "com.sarahia.sarahengine.qwenmodeldownload.v1":
+            _ = BackgroundModelDownloader.shared
+        default:
+            break
+        }
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
     }
 }

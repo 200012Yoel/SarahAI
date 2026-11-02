@@ -39,19 +39,19 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     // MARK: - Réglages de réactivité
 
     /// Silence après lequel la phrase est considérée comme terminée.
-    private let endOfSentenceSilence: TimeInterval = 0.8
+    private let endOfSentenceSilence: TimeInterval = 0.62
     /// Intervalle minimal entre deux traductions rapides des sous-titres.
-    private let partialTranslationInterval: TimeInterval = 0.9
+    private let partialTranslationInterval: TimeInterval = 0.65
     /// Délai avant de réécouter après la fin de la voix (évite d'attraper la fin du son).
-    private let resumeListeningDelay: TimeInterval = 0.25
+    private let resumeListeningDelay: TimeInterval = 0.17
     /// Fréquence max de mise à jour de l'animation du micro (~15 images/s).
     private let energyUpdateInterval: CFTimeInterval = 1.0 / 15.0
 
     // Whisper
     private let whisperSampleRate: Double = 16_000
     private let whisperVoiceThresholdDB: Float = -45
-    private let whisperPartialInterval: TimeInterval = 2.5
-    private let whisperMinimumSpeech: Double = 0.5
+    private let whisperPartialInterval: TimeInterval = 1.75
+    private let whisperMinimumSpeech: Double = 0.45
     private let whisperMaximumSegment: Double = 25
     private let whisperPreRoll: Double = 0.4
 
@@ -65,6 +65,8 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
     private let audioLock = NSLock()
     private var _mode: RecognitionMode = .unavailable
     private var _activeRequest: SFSpeechAudioBufferRecognitionRequest?
+    /// Permet à l'Apple Watch de suspendre l'envoi pendant la voix française.
+    public var onMicrophoneSuspensionChanged: ((Bool) -> Void)?
     private var _isMicSuspended = false
     private var _whisperSamples: [Float] = []
     private var _whisperHasSpeech = false
@@ -231,6 +233,9 @@ public final class LiveSpeechTranslationPipeline: NSObject, SFSpeechRecognizerDe
         audioLock.unlock()
         if suspended {
             onAudioEnergyLevel?(0)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.onMicrophoneSuspensionChanged?(suspended)
         }
     }
 

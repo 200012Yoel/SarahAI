@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1B2C3D40001000100000001 /* SarahIAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000001 /* SarahIAApp.swift */; };
+        B00000000000000000000020 /* SarahEngineSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* SarahEngineSetupView.swift */; };
 		A1B2C3D40001000100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000002 /* ContentView.swift */; };
 		A1B2C3D40001000100000003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000003 /* Message.swift */; };
 		A1B2C3D40001000100000004 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000004 /* AIService.swift */; };
@@ -100,10 +101,38 @@
 		A1B2C3D400010001000000B0 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000001 /* ZIPFoundation */; };
 		A1B2C3D400010001000000B1 /* SarahLocalMusicGenEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */; };
 		A1B2C3D400010001000000B3 /* StableDiffusion in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4000B000100000003 /* StableDiffusion */; };
+
+        B00000000000000000000002 /* WatchAudioBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* WatchAudioBridge.swift */; };
+        B00000000000000000000004 /* SarahIAWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* SarahIAWatchApp.swift */; };
+        B00000000000000000000006 /* SarahIAWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* SarahIAWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+        B00000000000000000000013 /* PBXContainerItemProxy */ = {
+            isa = PBXContainerItemProxy;
+            containerPortal = A1B2C3D40006000100000001 /* Project object */;
+            proxyType = 1;
+            remoteGlobalIDString = B00000000000000000000009;
+            remoteInfo = SarahIAWatch;
+        };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+        B00000000000000000000008 /* Embed Watch Content */ = {
+            isa = PBXCopyFilesBuildPhase;
+            buildActionMask = 2147483647;
+            dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+            dstSubfolderSpec = 16;
+            files = (B00000000000000000000006 /* SarahIAWatch.app in Embed Watch Content */, );
+            name = "Embed Watch Content";
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A1B2C3D40002000100000001 /* SarahIAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAApp.swift; sourceTree = "<group>"; };
+        B00000000000000000000021 /* SarahEngineSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahEngineSetupView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000004 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
@@ -196,6 +225,11 @@
 		A1B2C3D400020001000000A3 /* SQLiteChatDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteChatDatabase.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000A4 /* SarahLocalImageGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalImageGenEngine.swift; sourceTree = "<group>"; };
 		A1B2C3D400020001000000B1 /* SarahLocalMusicGenEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahLocalMusicGenEngine.swift; sourceTree = "<group>"; };
+
+        B00000000000000000000001 /* WatchAudioBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAudioBridge.swift; sourceTree = "<group>"; };
+        B00000000000000000000003 /* SarahIAWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAWatchApp.swift; sourceTree = "<group>"; };
+        B00000000000000000000005 /* SarahIAWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SarahIAWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -208,6 +242,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+        B00000000000000000000010 /* Watch Frameworks */ = {
+            isa = PBXFrameworksBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -215,7 +257,8 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40004000100000002 /* SarahIA */,
-				A1B2C3D40004000100000007 /* Products */,
+                B00000000000000000000007 /* SarahIAWatch */,
+                A1B2C3D40004000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
@@ -223,6 +266,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40002000100000001 /* SarahIAApp.swift */,
+                B00000000000000000000021 /* SarahEngineSetupView.swift */,
 				A1B2C3D40002000100000002 /* ContentView.swift */,
 				A1B2C3D40004000100000003 /* Models */,
 				A1B2C3D40004000100000004 /* Services */,
@@ -302,6 +346,7 @@
 				A1B2C3D40002000100000088 /* HardwareDetector.swift */,
 				A1B2C3D40002000100000092 /* LiveSpeechTranslationPipeline.swift */,
 				A1B2C3D40002000100000093 /* LiveTranslationSession.swift */,
+                B00000000000000000000001 /* WatchAudioBridge.swift */,
 				A1B2C3D40002000100000096 /* OfflineTranslationAssetLoader.swift */,
 				A1B2C3D4000200010000009C /* SarahActionCoordinator.swift */,
 				A1B2C3D4000200010000009D /* VirtualPhoneManager.swift */,
@@ -354,10 +399,19 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4000200010000000C /* SarahIA.app */,
-			);
-			name = Products;
+                B00000000000000000000005 /* SarahIAWatch.app */,
+            );
+            name = Products;
 			sourceTree = "<group>";
 		};
+
+        B00000000000000000000007 /* SarahIAWatch */ = {
+            isa = PBXGroup;
+            children = (B00000000000000000000003 /* SarahIAWatchApp.swift */, );
+            path = SarahIAWatch;
+            sourceTree = "<group>";
+        };
+
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -368,12 +422,12 @@
 				A1B2C3D40003000100000002 /* Sources */,
 				A1B2C3D40003000100000001 /* Frameworks */,
 				A1B2C3D40003000100000003 /* Resources */,
-			);
+                B00000000000000000000008 /* Embed Watch Content */,
+            );
 			buildRules = (
 			);
-			dependencies = (
-			);
-			name = SarahIA;
+			dependencies = (B00000000000000000000014 /* PBXTargetDependency */, );
+            name = SarahIA;
 			packageProductDependencies = (
 				A1B2C3D4000B000100000001 /* ZIPFoundation */,
 				A1B2C3D4000B000100000003 /* StableDiffusion */,
@@ -382,6 +436,19 @@
 			productReference = A1B2C3D4000200010000000C /* SarahIA.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+        B00000000000000000000009 /* SarahIAWatch */ = {
+            isa = PBXNativeTarget;
+            buildConfigurationList = B00000000000000000000017 /* Build configuration list for SarahIAWatch */;
+            buildPhases = (B00000000000000000000011 /* Sources */, B00000000000000000000010 /* Frameworks */, B00000000000000000000012 /* Resources */, );
+            buildRules = ();
+            dependencies = ();
+            name = SarahIAWatch;
+            productName = SarahIAWatch;
+            productReference = B00000000000000000000005 /* SarahIAWatch.app */;
+            productType = "com.apple.product-type.application";
+        };
+
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -394,7 +461,8 @@
 				TargetAttributes = {
 					A1B2C3D40005000100000001 = {
 						CreatedOnToolsVersion = 15.0;
-					};
+                    };
+                    B00000000000000000000009 = { CreatedOnToolsVersion = 16.0; };
 				};
 			};
 			buildConfigurationList = A1B2C3D40007000100000006 /* Build configuration list for PBXProject "SarahIA" */;
@@ -416,8 +484,9 @@
 			projectRoot = "";
 			targets = (
 				A1B2C3D40005000100000001 /* SarahIA */,
-			);
-		};
+                B00000000000000000000009 /* SarahIAWatch */,
+            );
+        };
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -430,6 +499,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+        B00000000000000000000012 /* Watch Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -438,6 +515,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D40001000100000001 /* SarahIAApp.swift in Sources */,
+                B00000000000000000000020 /* SarahEngineSetupView.swift in Sources */,
 				A1B2C3D40001000100000002 /* ContentView.swift in Sources */,
 				A1B2C3D40001000100000003 /* Message.swift in Sources */,
 				A1B2C3D40001000100000004 /* AIService.swift in Sources */,
@@ -513,6 +591,7 @@
 				A1B2C3D40001000100000090 /* LiveTranslationModels.swift in Sources */,
 				A1B2C3D40001000100000092 /* LiveSpeechTranslationPipeline.swift in Sources */,
 				A1B2C3D40001000100000093 /* LiveTranslationSession.swift in Sources */,
+                B00000000000000000000002 /* WatchAudioBridge.swift in Sources */,
 				A1B2C3D40001000100000094 /* LiveTranslationView.swift in Sources */,
 				A1B2C3D40001000100000096 /* OfflineTranslationAssetLoader.swift in Sources */,
 				A1B2C3D4000100010000009B /* SarahDesignSystem.swift in Sources */,
@@ -529,6 +608,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+
+        B00000000000000000000011 /* Watch Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (B00000000000000000000004 /* SarahIAWatchApp.swift in Sources */, );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -563,6 +650,14 @@
 		};
 /* End XCSwiftPackageProductDependency section */
 
+/* Begin PBXTargetDependency section */
+        B00000000000000000000014 /* PBXTargetDependency */ = {
+            isa = PBXTargetDependency;
+            target = B00000000000000000000009 /* SarahIAWatch */;
+            targetProxy = B00000000000000000000013 /* PBXContainerItemProxy */;
+        };
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		A1B2C3D40007000100000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -577,7 +672,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -588,7 +683,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 4.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -625,7 +720,7 @@
 				CODE_SIGN_STYLE = Manual;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGNING_REQUIRED = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SarahIA/Info.plist;
@@ -636,7 +731,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 4.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-weak_framework",
@@ -781,6 +876,62 @@
 			};
 			name = Release;
 		};
+
+        B00000000000000000000015 /* Watch Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                AD_HOC_CODE_SIGNING_ALLOWED = YES;
+                CODE_SIGN_IDENTITY = "-";
+                CODE_SIGN_STYLE = Manual;
+                CODE_SIGNING_REQUIRED = NO;
+                CURRENT_PROJECT_VERSION = 5;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
+                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch transmet la langue choisie au traducteur de l'iPhone jumelé.";
+                INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
+                INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+                INFOPLIST_KEY_WKWatchKitApp = YES;
+                MARKETING_VERSION = 4.0;
+                PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SDKROOT = watchos;
+                SKIP_INSTALL = NO;
+                SUPPORTED_PLATFORMS = "watchos watchsimulator";
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = 4;
+                WATCHOS_DEPLOYMENT_TARGET = 10.0;
+                SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+            };
+            name = Debug;
+        };
+        B00000000000000000000016 /* Watch Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                AD_HOC_CODE_SIGNING_ALLOWED = YES;
+                CODE_SIGN_IDENTITY = "-";
+                CODE_SIGN_STYLE = Manual;
+                CODE_SIGNING_REQUIRED = NO;
+                CURRENT_PROJECT_VERSION = 5;
+                GENERATE_INFOPLIST_FILE = YES;
+                INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
+                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch transmet la langue choisie au traducteur de l'iPhone jumelé.";
+                INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
+                INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+                INFOPLIST_KEY_WKWatchKitApp = YES;
+                MARKETING_VERSION = 4.0;
+                PRODUCT_BUNDLE_IDENTIFIER = com.sarahia.app.watchkitapp;
+                PRODUCT_NAME = "$(TARGET_NAME)";
+                SDKROOT = watchos;
+                SKIP_INSTALL = NO;
+                SUPPORTED_PLATFORMS = "watchos watchsimulator";
+                SWIFT_VERSION = 5.0;
+                TARGETED_DEVICE_FAMILY = 4;
+                WATCHOS_DEPLOYMENT_TARGET = 10.0;
+                SWIFT_COMPILATION_MODE = wholemodule;
+            };
+            name = Release;
+        };
+
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -802,6 +953,14 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+
+        B00000000000000000000017 /* Build configuration list for SarahIAWatch */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (B00000000000000000000015 /* Debug */, B00000000000000000000016 /* Release */, );
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+
 /* End XCConfigurationList section */
 	};
 	rootObject = A1B2C3D40006000100000001 /* Project object */;
