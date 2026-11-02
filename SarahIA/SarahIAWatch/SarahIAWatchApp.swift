@@ -161,6 +161,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     func cancelCall() {
         awaitingPhone = false
         callInProgress = false
+        if WCSession.default.activationState == .activated {
+            WCSession.default.sendMessage(
+                ["type": "cancelTranslateCall"],
+                replyHandler: nil,
+                errorHandler: nil
+            )
+        }
         status = "Appel annulé sur la montre"
     }
 
@@ -414,9 +421,10 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                 self.status = "Appel refusé sur l'iPhone"
             case "phoneReady":
                 self.phoneForeground = true
-                if self.awaitingPhone {
+                if self.awaitingPhone || self.callInProgress {
                     self.awaitingPhone = false
-                    self.status = "iPhone prêt • ouverture du microphone…"
+                    self.callInProgress = false
+                    self.status = "Appel accepté • connexion au microphone…"
                     self.start()
                 }
             case "languages":
