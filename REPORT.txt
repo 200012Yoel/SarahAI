@@ -1,0 +1,4 @@
+Runtime watchOS: com.apple.CoreSimulator.SimRuntime.watchOS-26-2
+Modèles disponibles à tester: 2
+OK Apple Watch SE (44mm) (2nd generation) => 01-Apple-Watch-SE-44mm-2nd-generation.png | com.sarahia.app.watchkitapp: 3758
+OK Apple Watch SE (40mm) (2nd generation) => 02-Apple-Watch-SE-40mm-2nd-generation.png | com.sarahia.app.watchkitapp: 5975
