@@ -11,6 +11,8 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
     private static let pendingCallKey = "sarah.watch.translate.pendingOpen"
     private var recentCallIDs = [String]()
     private static let notificationIdentifierPrefix = "sarah.watch.translate."
+    private static let incomingCallNotification = Notification.Name("SarahWatchIncomingCall")
+    private var acceptedCallWaitingForWatch = false
 
     private override init() {
         super.init()
@@ -53,14 +55,32 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         )
     }
 
-    /// À appeler après le montage des vues, ou lorsque la scène devient active.
-    /// Ne jamais demander le code de l'iPhone depuis l'application.
+    /// Affiche la vraie interface plein écran de Sarah, uniquement lorsque
+    /// l'app est au premier plan après le déverrouillage système d'iOS.
+    /// CallKit ne peut pas être utilisé pour simuler un appel VoIP inexistant.
     func presentPendingCallIfNeeded() {
         guard UIApplication.shared.applicationState == .active,
               UserDefaults.standard.bool(forKey: Self.pendingCallKey) else { return }
+        NotificationCenter.default.post(name: Self.incomingCallNotification, object: nil)
+    }
+
+    /// L'utilisateur a décroché dans Sarah IA (jamais automatiquement).
+    func acceptPendingCall() {
+        guard UIApplication.shared.applicationState == .active,
+              UserDefaults.standard.bool(forKey: Self.pendingCallKey) else { return }
         UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+        acceptedCallWaitingForWatch = true
         LiveTranslationSession.shared.prepareForWatchCall()
         NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+    }
+
+    func declinePendingCall() {
+        UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+        acceptedCallWaitingForWatch = false
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return }
+        WCSession.default.sendMessage(["type": "phoneDeclined"], replyHandler: nil, errorHandler: nil)
     }
 
     /// Message watchOS depuis une app active : wake opportuniste d'iOS possible.
@@ -83,7 +103,9 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         UserDefaults.standard.set(true, forKey: Self.pendingCallKey)
         if UIApplication.shared.applicationState == .active {
             reply?(["accepted": true, "method": "foreground"])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            // Sarah IA affiche Décrocher / Refuser. Elle ne lance pas le micro
+            // avant que l'utilisateur choisisse explicitement Décrocher.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
                 self?.presentPendingCallIfNeeded()
             }
             return
@@ -164,6 +186,7 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
             self?.sendSpeaking(state)
         }
         live.startFromWatch()
+        acceptedCallWaitingForWatch = false
         if UIApplication.shared.applicationState == .active {
             NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
         }
@@ -227,6 +250,7 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
                 let pair = LiveTranslationSession.shared.languagePair
                 replyHandler([
                     "foreground": UIApplication.shared.applicationState == .active,
+                    "ready": self.acceptedCallWaitingForWatch,
                     "source": pair.sourceLanguage,
                     "target": pair.targetLanguage
                 ])
