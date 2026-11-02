@@ -1,0 +1,1 @@
+error: Build input file cannot be found: '/Users/runner/work/SarahAI/SarahAI/SarahIA/SarahIA/SarahEngineSetupView.swift'. Did you forget to declare this file as an output of a script phase or custom build rule which produces it? (in target 'SarahIA' from project 'SarahIA')
