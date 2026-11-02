@@ -1,0 +1,59 @@
+name: Sarah Engine - Swift syntax and release checks
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/sarah-watch-live-he-fr]
+    paths:
+      - 'SarahIA/SarahIA/Views/SarahEngineSetupView.swift'
+      - 'SarahIA/SarahIA/ContentView.swift'
+      - 'SarahIA/SarahIA/Services/BackgroundModelDownloader.swift'
+      - 'SarahIA/SarahIA/Services/WhisperService.swift'
+      - 'SarahIA/SarahIA/Services/WatchAudioBridge.swift'
+      - 'SarahIA/SarahIAWatch/SarahIAWatchApp.swift'
+      - '.github/workflows/sarah-engine-smoke.yml'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Swift source for syntax errors
+        run: |
+          set -euo pipefail
+          swiftc --version
+          for file in \
+            SarahIA/SarahIA/Views/SarahEngineSetupView.swift \
+            SarahIA/SarahIA/ContentView.swift \
+            SarahIA/SarahIA/Services/WatchAudioBridge.swift \
+            SarahIA/SarahIA/Services/WhisperService.swift \
+            SarahIA/SarahIA/Services/BackgroundModelDownloader.swift \
+            SarahIA/SarahIA/Views/LiveTranslationView.swift \
+            SarahIA/SarahIA/Views/SettingsView.swift \
+            SarahIA/SarahIAWatch/SarahIAWatchApp.swift; do
+            echo "Parsing $file"
+            swiftc -frontend -parse "$file"
+          done
+      - name: Verify model release and canonical app paths
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view sarah-engine-v1 --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' > /tmp/names.txt
+          for name in Qwen3-0.6B-Q4_K_M.gguf Qwen3-1.7B-Q4_K_M.gguf ggml-base.bin SHA256SUMS.txt; do
+            grep -Fqx "$name" /tmp/names.txt
+          done
+          grep -Fq 'SarahEngineSetupView.swift in Sources' SarahIA/SarahIA.xcodeproj/project.pbxproj
+          grep -Fq 'Watch/SarahIAWatch.app' .github/workflows/ios-build.yml
+      - name: Validate workflow YAML
+        run: |
+          python3 -m pip install --quiet PyYAML
+          python3 - <<'PY'
+          import pathlib, yaml
+          for filename in pathlib.Path('.github/workflows').glob('*.yml'):
+              with filename.open(encoding='utf8') as stream:
+                  yaml.safe_load(stream)
+              print('OK', filename)
+          PY
