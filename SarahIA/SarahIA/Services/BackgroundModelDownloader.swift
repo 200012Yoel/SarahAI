@@ -21,12 +21,13 @@ public final class BackgroundModelDownloader: NSObject {
     public var onCompletion: ((Result<URL, Error>) -> Void)?
     
     public private(set) var isDownloading: Bool = false
-    private let resumeDataKey = "sarah_qwen_model_download_resume_data"
+    private let resumeDataKey = "sarah_engine_v1_model_download_resume_data"
     
     private override init() {
         super.init()
-        let config = URLSessionConfiguration.background(withIdentifier: "com.sarahia.qwenmodeldownload")
+        let config = URLSessionConfiguration.background(withIdentifier: "com.sarahia.sarahengine.qwenmodeldownload.v1")
         config.isDiscretionary = false
+        config.waitsForConnectivity = true
         // Les modèles peuvent être volumineux : la préparation continue en arrière-plan,
         // mais ne consomme jamais le forfait mobile sans une action explicite de l'utilisateur.
         config.allowsCellularAccess = false
@@ -201,6 +202,9 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
             if let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
                 self.resumeData = resumeData
                 UserDefaults.standard.set(resumeData, forKey: resumeDataKey)
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.onCompletion?(.failure(error))
             }
         }
     }
