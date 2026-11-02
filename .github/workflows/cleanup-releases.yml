@@ -19,7 +19,7 @@ on:
       keep_releases:
         description: 'Tags des releases à garder (séparés par des espaces)'
         required: false
-        default: 'sarah-ia-latest-fix'
+        default: 'sarah-ia-latest-fix sarah-engine-v1'
   workflow_run:
     workflows: ["iOS 27 Local AI Build"]
     types: [completed]
@@ -36,7 +36,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
-      KEEP: ${{ (github.event_name == 'workflow_dispatch' && inputs.keep_releases) || 'sarah-ia-latest-fix' }}
+      KEEP: ${{ (github.event_name == 'workflow_dispatch' && inputs.keep_releases) || 'sarah-ia-latest-fix sarah-engine-v1' }}
     steps:
       - name: Supprimer les releases (sauf celles à garder) et leurs tags
         run: |
@@ -46,7 +46,9 @@ jobs:
             echo "Refus du nettoyage : aucune IPA canonique complète."
             exit 1
           fi
-          KEEP="sarah-ia-latest-fix $KEEP"
+          # Sarah Engine est un paquet de ressources, pas une ancienne IPA.
+          # Ne jamais supprimer les modèles conservés sur GitHub.
+          KEEP="sarah-ia-latest-fix sarah-engine-v1 $KEEP"
           deleted=0
           gh api --paginate "repos/$REPO/releases?per_page=100" \
             --jq '.[] | "\(.id) \(.tag_name) \([.assets[].size] | max // 0)"' > releases.txt
