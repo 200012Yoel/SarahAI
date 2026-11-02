@@ -109,7 +109,7 @@ public struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) {
                 let engine = SarahEngineInstaller.shared
                 engine.refreshInstalledState()
-                if !engine.isReady &&
+                if !engine.hasRequiredModels &&
                    !UserDefaults.standard.bool(forKey: "sarah.engine.setup.completed.v1") {
                     isShowingSarahEngineSetup = true
                 }
