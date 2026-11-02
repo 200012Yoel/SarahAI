@@ -390,10 +390,13 @@ struct SarahEngineSetupView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 15))
-                    Button("Plus tard") { onClose() }
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.65))
-                        .disabled(installer.isInstalling)
+                    Button(installer.isInstalling ? "Continuer dans Sarah IA pendant le téléchargement" : "Plus tard") {
+                        // URLSession.background garde le transfert en cours
+                        // même après la fermeture de cet écran.
+                        onClose()
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.75))
                     Spacer(minLength: 15)
                 }
                 .padding(.horizontal, 22)
