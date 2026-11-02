@@ -95,11 +95,11 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                     source: reply["source"] as? String,
                     target: reply["target"] as? String
                 )
-                if self.awaitingPhone && self.phoneForeground {
-                    // Quand la Watch sort du sommeil après validation sur iPhone,
-                    // le ping reprend le relais d'un message phoneReady manqué.
+                if self.awaitingPhone && (reply["ready"] as? Bool) == true {
+                    // Le passage au premier plan NE signifie pas que l'utilisateur
+                    // a décroché. Attendre l'accord explicite de Sarah IA.
                     self.awaitingPhone = false
-                    self.status = "iPhone prêt • ouverture du microphone…"
+                    self.status = "Appel accepté • démarrage du microphone…"
                     self.start()
                 } else if !self.recording && !self.connecting && !self.awaitingPhone {
                     self.status = self.phoneForeground
@@ -408,6 +408,10 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                     self?.conversionMuted = speaking
                     if speaking { self?.pcm.removeAll(keepingCapacity: true) }
                 }
+            case "phoneDeclined":
+                self.awaitingPhone = false
+                self.callInProgress = false
+                self.status = "Appel refusé sur l'iPhone"
             case "phoneReady":
                 self.phoneForeground = true
                 if self.awaitingPhone {
