@@ -145,6 +145,11 @@ public struct ContentView: View {
                 isShowingIncomingWatchCall = true
             }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("SarahWatchCallCancelled"))
+        ) { _ in
+            isShowingIncomingWatchCall = false
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 WatchAudioBridge.shared.presentPendingCallIfNeeded()
