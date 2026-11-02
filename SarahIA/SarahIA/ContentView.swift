@@ -92,6 +92,12 @@ public struct ContentView: View {
                 }
             }
 
+            // Une notification Watch acceptée peut avoir ouvert cette scène.
+            // Traiter la demande après le montage des abonnements SwiftUI.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
+            }
+
             // Prépare le modèle Whisper après le premier rendu. Le chargement reste
             // entièrement hors du thread principal afin que le premier appui sur le
             // mode vocal ouvre l'interface immédiatement.
@@ -107,6 +113,11 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             if viewModel.isContinuousConversationActive {
                 viewModel.stopVoiceConversation()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
             }
         }
         .onChange(of: isShowingSettings) { isPresented in
