@@ -1,10 +1,16 @@
 import Foundation
 import WatchConnectivity
+import UIKit
+import UserNotifications
 
 /// La montre transmet le son, tandis que l'iPhone utilise la paire de langues
 /// réellement sélectionnée dans la traduction en direct.
 final class WatchAudioBridge: NSObject, WCSessionDelegate {
     static let shared = WatchAudioBridge()
+
+    private static let pendingCallKey = "sarah.watch.translate.pendingOpen"
+    private var recentCallIDs = [String]()
+    private static let notificationIdentifierPrefix = "sarah.watch.translate."
 
     private override init() {
         super.init()
@@ -31,6 +37,84 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
         }
         if session.isReachable {
             session.sendMessage(values, replyHandler: nil, errorHandler: nil)
+        }
+    }
+
+    /// Après un appui sur la notification, iOS affiche Sarah IA. La montre
+    /// commence le micro seulement lorsque l'interface de traduction est ouverte.
+    func sendPhoneReady() {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return }
+        WCSession.default.sendMessage(
+            ["type": "phoneReady"],
+            replyHandler: nil,
+            errorHandler: nil
+        )
+    }
+
+    /// À appeler après le montage des vues, ou lorsque la scène devient active.
+    /// Ne jamais demander le code de l'iPhone depuis l'application.
+    func presentPendingCallIfNeeded() {
+        guard UIApplication.shared.applicationState == .active,
+              UserDefaults.standard.bool(forKey: Self.pendingCallKey) else { return }
+        UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+        LiveTranslationSession.shared.prepareForWatchCall()
+        NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+    }
+
+    /// Message watchOS depuis une app active : wake opportuniste d'iOS possible.
+    /// Cela NE déverrouille pas l'iPhone et NE force pas l'UI au premier plan.
+    private func requestTranslateFromWatch(
+        _ requestId: String,
+        reply: (([String: Any]) -> Void)? = nil
+    ) {
+        guard !requestId.isEmpty else {
+            reply?(["accepted": false, "reason": "invalidRequest"])
+            return
+        }
+        if recentCallIDs.contains(requestId) {
+            reply?(["accepted": true, "deduplicated": true])
+            return
+        }
+        recentCallIDs.append(requestId)
+        if recentCallIDs.count > 32 { recentCallIDs.removeFirst() }
+
+        UserDefaults.standard.set(true, forKey: Self.pendingCallKey)
+        if UIApplication.shared.applicationState == .active {
+            reply?(["accepted": true, "method": "foreground"])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.presentPendingCallIfNeeded()
+            }
+            return
+        }
+
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            let enabled: Bool
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral: enabled = true
+            default: enabled = false
+            }
+            guard enabled else {
+                reply?(["accepted": false, "reason": "notificationsDisabled"])
+                return
+            }
+            let content = UNMutableNotificationContent()
+            content.title = "Sarah IA Watch"
+            content.body = "Ouvrir Translate Live sur cet iPhone ?"
+            content.sound = .default
+            content.userInfo = ["sarahWatchTranslate": true]
+            let request = UNNotificationRequest(
+                identifier: Self.notificationIdentifierPrefix + requestId,
+                content: content,
+                trigger: nil
+            )
+            center.add(request) { error in
+                reply?(error == nil
+                    ? ["accepted": true, "method": "notification"]
+                    : ["accepted": false, "reason": "notificationError"])
+            }
         }
     }
 
@@ -80,7 +164,9 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
             self?.sendSpeaking(state)
         }
         live.startFromWatch()
-        NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+        if UIApplication.shared.applicationState == .active {
+            NotificationCenter.default.post(name: .sarahPresentLiveTranslation, object: nil)
+        }
         return [
             "started": live.isActive && live.isUsingWatchMicrophone,
             "source": live.languagePair.sourceLanguage,
@@ -93,6 +179,8 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
             switch message["type"] as? String {
             case "start":
                 _ = self.beginWatchTranslation()
+            case "callTranslateLive":
+                self.requestTranslateFromWatch(message["requestId"] as? String ?? "")
             case "stop":
                 if LiveTranslationSession.shared.isUsingWatchMicrophone {
                     LiveTranslationSession.shared.stop()
@@ -100,6 +188,13 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
             default:
                 break
             }
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard userInfo["type"] as? String == "callTranslateLive" else { return }
+        DispatchQueue.main.async {
+            self.requestTranslateFromWatch(userInfo["requestId"] as? String ?? "")
         }
     }
 
@@ -128,6 +223,15 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
                  replyHandler: @escaping ([String: Any]) -> Void) {
         DispatchQueue.main.async {
             switch message["type"] as? String {
+            case "probe":
+                let pair = LiveTranslationSession.shared.languagePair
+                replyHandler([
+                    "foreground": UIApplication.shared.applicationState == .active,
+                    "source": pair.sourceLanguage,
+                    "target": pair.targetLanguage
+                ])
+            case "callTranslateLive":
+                self.requestTranslateFromWatch(message["requestId"] as? String ?? "", reply: replyHandler)
             case "start":
                 replyHandler(self.beginWatchTranslation())
             case "stop":
