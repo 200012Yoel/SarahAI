@@ -63,6 +63,8 @@
 		<string>audio</string>
 		<string>fetch</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Sarah IA utilise l’authentification de l’iPhone pour confirmer l’ouverture de Translate Live depuis l’Apple Watch. Le code et les données biométriques restent gérés par iOS.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sarah IA utilise le microphone pour le mode vocal et transcrit votre voix localement sur l’iPhone avec OpenAI Whisper.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
