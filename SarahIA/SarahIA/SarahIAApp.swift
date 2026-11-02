@@ -105,15 +105,37 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     // MARK: - Finalisation du téléchargement Background (URLSession GGUF)
 
-    public static var backgroundSessionCompletionHandler: (() -> Void)?
+    // Une closure par session : les modèles texte et multimodaux peuvent terminer
+    // indépendamment, y compris après une suspension par iOS.
+    private static var pendingBackgroundCompletions: [String: () -> Void] = [:]
 
     func application(
         _ application: UIApplication,
         handleEventsForBackgroundURLSession identifier: String,
         completionHandler: @escaping () -> Void
     ) {
-        AppDelegate.backgroundSessionCompletionHandler = completionHandler
-        print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
+        Self.pendingBackgroundCompletions[identifier] = completionHandler
+        switch identifier {
+        case "com.sarahia.qwenmodeldownload":
+            _ = BackgroundModelDownloader.shared
+        case "com.sarahia.generative-model-download":
+            if #available(iOS 13.0, *) {
+                _ = GenerativeModelDownloader.shared
+            } else {
+                Self.finishBackgroundSession(identifier: identifier)
+            }
+        default:
+            // Ne jamais garder indéfiniment une completion inconnue.
+            Self.finishBackgroundSession(identifier: identifier)
+        }
+    }
+
+    static func finishBackgroundSession(identifier: String?) {
+        guard let identifier = identifier else { return }
+        DispatchQueue.main.async {
+            let completion = pendingBackgroundCompletions.removeValue(forKey: identifier)
+            completion?()
+        }
     }
 }
 
