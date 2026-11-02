@@ -23,6 +23,23 @@ public struct LiveTranslationView: View {
                 header
                 languageBar
 
+                if session.isAwaitingWatchMicrophone {
+                    VStack(spacing: 8) {
+                        Label("Connexion au micro de l’Apple Watch…", systemImage: "applewatch")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(accent)
+                        Button("Utiliser plutôt le micro de l’iPhone") {
+                            session.start()
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Capsule().fill(Color.white.opacity(0.16)))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 // Traduction (haut, en grand)
                 transcriptPanel(
                     title: "\(session.languagePair.targetFlag) \(session.languagePair.targetName)",
@@ -95,6 +112,7 @@ public struct LiveTranslationView: View {
     }
 
     private var statusText: String {
+        if session.isAwaitingWatchMicrophone { return "Appel Watch accepté • en attente du micro" }
         if let error = session.lastError { return error }
         guard session.isActive else { return "Démarrage…" }
         if session.isMuted { return "Micro coupé" }
