@@ -1252,6 +1252,10 @@ public final class SarahPlaceSearchService {
             .replacingOccurrences(of: "-", with: " ")
         let prefixes: [(String, Bool)] = [
             ("montre moi sur la carte ", true), ("montre moi la carte de ", true),
+            ("ouvre dans plans ", true), ("cherche sur la carte ", true),
+            ("affiche l'emplacement de ", true), ("indique l'adresse de ", true),
+            ("localise l'adresse ", true), ("je cherche l'adresse de ", true),
+            ("trouve l'emplacement de ", true), ("situe sur la carte ", true),
             ("affiche la carte de ", true), ("affiche sur la carte ", true),
             ("je voudrais voir sur la carte ", true),
             ("recherche l'adresse de ", true), ("recherche l'adresse du ", true),
@@ -1285,11 +1289,18 @@ public final class SarahPlaceSearchService {
         guard let (prefix, explicitLocation) = prefixes.first(where: { normalized.hasPrefix($0.0) }) else {
             // Une adresse fournie seule, par exemple « 12 rue de Rivoli, Paris »,
             // ouvre également la fiche cartographique native.
-            let directAddressPattern = #"^\d{1,4}\s*(?:bis\s+|ter\s+)?(?:rue|avenue|boulevard|place|route|chemin|quai|impasse|allee|passage|square|cours)\s+\S+"#
+            // Adresses françaises et internationales, avec ou sans numéro.
+            // On limite le déclenchement à un type de voie explicite.
+            let directAddressPattern = #"^(?:(?:\d{1,6}\s*(?:bis|ter|[a-z])?\s+)?(?:rue|avenue|av\.?|boulevard|bd\.?|place|route|chemin|quai|impasse|allee|allée|passage|square|cours|street|st\.?|road|rd\.?|drive|lane|way|plaza|strasse|straße)\s+\S.{2,}|\d{1,6}\s+\S.{2,}\s+(?:street|st\.?|road|rd\.?|avenue|ave\.?|boulevard|blvd\.?))"#
             if normalized.range(of: directAddressPattern, options: .regularExpression) != nil {
                 return text
             }
             if normalized == "tour eiffel" {
+                return text
+            }
+            // Ex. « 75004 Paris, 12 rue de Rivoli » ou une adresse avec code postal.
+            let postalPattern = #"^\d{4,6}\s+[\p{L}\s-]+[,\s]+\d{1,6}\s+(?:rue|avenue|boulevard|street|road)\b"#
+            if normalized.range(of: postalPattern, options: .regularExpression) != nil {
                 return text
             }
             return nil
@@ -1353,11 +1364,32 @@ public final class SarahPlaceSearchService {
                 )
                 DispatchQueue.main.async { completion(.success(place)) }
             } else {
-                let failure = error ?? NSError(
-                    domain: "SarahPlaceSearch", code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "Aucun lieu trouvé par Apple Plans."]
-                )
-                DispatchQueue.main.async { completion(.failure(failure)) }
+                // Une rue ou un numéro précis peut être connu du géocodeur
+                // sans être classé comme point d'intérêt dans MKLocalSearch.
+                let geocoder = CLGeocoder()
+                geocoder.geocodeAddressString(rawQuery) { placemarks, geocodeError in
+                    if let mark = placemarks?.first,
+                       let coordinate = mark.location?.coordinate,
+                       CLLocationCoordinate2DIsValid(coordinate) {
+                        let address = [mark.name, mark.locality, mark.country]
+                            .compactMap { $0 }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: ", ")
+                        let place = SarahPlaceCardPayload(
+                            name: mark.name ?? rawQuery,
+                            address: address,
+                            latitude: coordinate.latitude,
+                            longitude: coordinate.longitude
+                        )
+                        DispatchQueue.main.async { completion(.success(place)) }
+                    } else {
+                        let failure = geocodeError ?? error ?? NSError(
+                            domain: "SarahPlaceSearch", code: 404,
+                            userInfo: [NSLocalizedDescriptionKey: "Adresse introuvable dans Apple Plans."]
+                        )
+                        DispatchQueue.main.async { completion(.failure(failure)) }
+                    }
+                }
             }
         }
     }
