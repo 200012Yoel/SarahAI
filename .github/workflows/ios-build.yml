@@ -118,41 +118,17 @@ jobs:
           test -d build-apple/whisper.xcframework
           find build-apple/whisper.xcframework -maxdepth 3 -type d -name 'whisper.framework' -print
 
-      - name: Download multilingual OpenAI Whisper base model
+      - name: Verify canonical Sarah Engine release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/WhisperModels"
-          curl -L --fail --retry 3 \
-            'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin?download=true' \
-            -o "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
-          test -s "$RUNNER_TEMP/WhisperModels/ggml-base.bin"
-          curl -L --fail --retry 3 \
-            'https://raw.githubusercontent.com/openai/whisper/main/LICENSE' \
-            -o "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt"
-          cp "$RUNNER_TEMP/whisper.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt"
-          cp "$RUNNER_TEMP/llama.cpp/LICENSE" "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt"
-          ls -lh "$RUNNER_TEMP/WhisperModels"
-
-      - name: Download on-device Qwen3 1.7B GGUF for complete IPA
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/QwenModels"
-          QWEN="$RUNNER_TEMP/QwenModels/Qwen3-1.7B-Q4_K_M.gguf"
-          curl -fL --retry 3 --retry-all-errors 'https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf?download=true' -o "$QWEN"
-          test "$(stat -f%z "$QWEN")" -ge 1000000000
-          test "$(head -c 4 "$QWEN")" = "GGUF"
-          echo "d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5  $QWEN" | shasum -a 256 -c -
-          curl -fL --retry 3 'https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/LICENSE' -o "$RUNNER_TEMP/QwenModels/LICENSE"
-          test "$(stat -f%z "$RUNNER_TEMP/QwenModels/LICENSE")" -ge 10000
-
-      - name: Download compact Qwen3 0.6B GGUF fallback
-        run: |
-          set -euo pipefail
-          SMALL="$RUNNER_TEMP/QwenModels/Qwen3-0.6B-Q4_K_M.gguf"
-          curl -fL --retry 3 --retry-all-errors 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/1208e45d782fe18602c5eaf10e5758d5b0f24c03/Qwen3-0.6B-Q4_K_M.gguf?download=true' -o "$SMALL"
-          test "$(stat -f%z "$SMALL")" -ge 350000000
-          test "$(head -c 4 "$SMALL")" = "GGUF"
-          echo "b0638f08417a2d3c8652760462eb5407c6e30173cf9608ad0820757a281eea0e  $SMALL" | shasum -a 256 -c -
+          gh release view sarah-engine-v1 --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' > /tmp/sarah-engine-assets.txt
+          for asset in Qwen3-1.7B-Q4_K_M.gguf Qwen3-0.6B-Q4_K_M.gguf ggml-base.bin SHA256SUMS.txt; do
+            grep -Fqx "$asset" /tmp/sarah-engine-assets.txt
+          done
+          echo 'All Sarah Engine model weights are mirrored in this GitHub repository.'
 
       - name: Xcode version
         run: xcodebuild -version
@@ -243,20 +219,13 @@ jobs:
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" ci-logs-build
           head -60 build-errors.txt
 
-      - name: Bundle local AI frameworks, Whisper model and licenses
+      - name: Bundle AI runtimes without duplicating the downloadable models
         run: |
           set -euo pipefail
           APP_PATH=$(find "$GITHUB_WORKSPACE/DerivedData" -name 'SarahIA.app' -type d | head -n 1)
           test -n "$APP_PATH"
-          mkdir -p "$APP_PATH/WhisperModels"
-          cp "$RUNNER_TEMP/WhisperModels/ggml-base.bin" "$APP_PATH/WhisperModels/"
-          cp "$RUNNER_TEMP/WhisperModels/OpenAI-Whisper-MIT.txt" "$APP_PATH/WhisperModels/"
-          cp "$RUNNER_TEMP/WhisperModels/whisper.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
-          cp "$RUNNER_TEMP/WhisperModels/llama.cpp-MIT.txt" "$APP_PATH/WhisperModels/"
-          cp "$RUNNER_TEMP/QwenModels/Qwen3-1.7B-Q4_K_M.gguf" "$APP_PATH/"
-          cp "$RUNNER_TEMP/QwenModels/Qwen3-0.6B-Q4_K_M.gguf" "$APP_PATH/"
-          cp "$RUNNER_TEMP/QwenModels/LICENSE" "$APP_PATH/Qwen3-Apache-2.0-LICENSE.txt"
-
+          # Sarah Engine weights are hosted in this repo's GitHub Releases.
+          # Keep the first-install IPA slim, signable on Windows, and updatable.
           WHISPER_FRAMEWORK=$(find "$RUNNER_TEMP/whisper.cpp/build-apple/whisper.xcframework" -path '*/ios-arm64/whisper.framework' -type d -print -quit)
           test -n "$WHISPER_FRAMEWORK"
           if file "$WHISPER_FRAMEWORK/whisper" | grep -q 'dynamically linked shared library'; then
@@ -271,7 +240,7 @@ jobs:
             cp -R "$LLAMA_FRAMEWORK" "$APP_PATH/Frameworks/"
           fi
 
-          du -sh "$APP_PATH/WhisperModels"
+          echo "Sarah Engine models will be downloaded after first launch."
 
       - name: Package IPA
         run: |
@@ -316,24 +285,28 @@ jobs:
         with:
           name: SarahIA-IPA
           path: dist/SarahIA.ipa
-          retention-days: 14
+          retention-days: 3
 
-      - name: Protect canonical IPA from reduced builds
+      - name: Verify unique installable layout for phone and watch
         run: |
           set -euo pipefail
           IPA="$GITHUB_WORKSPACE/dist/SarahIA.ipa"
-          test "$(stat -f%z "$IPA")" -ge 1000000000
-          unzip -Z -1 "$IPA" | grep '/Qwen3-1.7B-Q4_K_M.gguf$' > /dev/null
-          unzip -Z -1 "$IPA" | grep '/Qwen3-0.6B-Q4_K_M.gguf$' > /dev/null
-          unzip -Z -1 "$IPA" | grep '/WhisperModels/ggml-base.bin$' > /dev/null
+          unzip -Z -1 "$IPA" | grep 'Payload/SarahIA.app/Watch/SarahIAWatch.app/' >/dev/null
+          unzip -Z -1 "$IPA" | grep 'Payload/SarahIA.app/SarahIA$' >/dev/null
+          if unzip -Z -1 "$IPA" | grep -E 'Payload/.*(Qwen3-.*gguf|WhisperModels/ggml-base.bin)$'; then
+            echo "Models should be downloaded via Sarah Engine onboarding, not embedded."
+            exit 1
+          fi
+          test "$(stat -f%z "$IPA")" -lt 500000000
+          echo 'One slim app: iPhone + embedded Watch target + Sarah Engine setup.'
 
       - name: Publish permanent website IPA
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/sarah-watch-live-he-fr'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: sarah-ia-latest-fix
-          name: 'Sarah IA - Version complète unifiée'
-          body: 'Build #${{ github.run_number }} : Whisper base multilingue, Qwen3 1.7B + 0.6B GGUF embarqués, MapKit, traduction Apple / Google ML Kit. Les packs linguistiques doivent être téléchargés une première fois.'
+          name: 'Sarah IA - Version unique iPhone + Watch'
+          body: 'Build #${{ github.run_number }} : version unique iPhone + Apple Watch. Au premier lancement, Télécharger Sarah Engine récupère les vrais modèles Qwen3 / Whisper depuis la release sarah-engine-v1 de ce dépôt (contrôle SHA-256). Traduction Google ML Kit: packs installés séparément. Signature ad hoc GitHub non installable sans signature/provisionnement Apple des deux cibles.'
           files: dist/SarahIA.ipa
           overwrite_files: true
           draft: false
