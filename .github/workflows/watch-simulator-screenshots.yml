@@ -7,6 +7,10 @@ on:
     paths:
       - 'SarahIA/SarahIAWatch/**'
       - '.github/workflows/watch-simulator-screenshots.yml'
+concurrency:
+  group: sarah-watch-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 jobs:
