@@ -99,7 +99,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                     // Le passage au premier plan NE signifie pas que l'utilisateur
                     // a décroché. Attendre l'accord explicite de Sarah IA.
                     self.awaitingPhone = false
-                    self.status = "Appel accepté • démarrage du microphone…"
+                    self.status = "Sarah ouverte • démarrage du microphone…"
                     self.start()
                 } else if !self.recording && !self.connecting && !self.awaitingPhone {
                     self.status = self.phoneForeground
@@ -127,7 +127,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
         }
         let requestId = UUID().uuidString
         callInProgress = true
-        status = "Appel Translate Live…"
+        status = "Demande de notification Translate Live…"
         let message: [String: Any] = [
             "type": "callTranslateLive",
             "requestId": requestId
@@ -143,7 +143,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                 } else if (reply["reason"] as? String) == "notificationsDisabled" {
                     self.status = "Active les notifications Sarah sur l’iPhone"
                 } else {
-                    self.status = "Appel non disponible • réessaie"
+                    self.status = "Notification indisponible • réessaie"
                 }
             }
         }, errorHandler: { [weak self] _ in
@@ -168,7 +168,7 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                 errorHandler: nil
             )
         }
-        status = "Appel annulé sur la montre"
+        status = "Demande annulée sur la montre"
     }
 
     func primaryAction() {
@@ -418,13 +418,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
             case "phoneDeclined":
                 self.awaitingPhone = false
                 self.callInProgress = false
-                self.status = "Appel refusé sur l'iPhone"
+                self.status = "Demande annulée sur l'iPhone"
             case "phoneReady":
                 self.phoneForeground = true
                 if self.awaitingPhone || self.callInProgress {
                     self.awaitingPhone = false
                     self.callInProgress = false
-                    self.status = "Appel accepté • connexion au microphone…"
+                    self.status = "Sarah ouverte • connexion au microphone…"
                     self.start()
                 }
             case "languages":
@@ -471,7 +471,7 @@ struct SarahWatchHome: View {
         if audio.recording || audio.connecting { return "Arrêter la traduction" }
         if audio.awaitingPhone { return "Annuler la demande" }
         if audio.callInProgress { return "Appel en cours…" }
-        return callMode ? "Appeler l’iPhone" : "Traduction en temps réel"
+        return callMode ? "Notifier l’iPhone" : "Traduction en temps réel"
     }
     private var actionIcon: String {
         if audio.recording || audio.connecting { return "stop.fill" }
