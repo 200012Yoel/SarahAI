@@ -34,6 +34,12 @@ final class SarahEngineInstaller: NSObject, ObservableObject, URLSessionDownload
             || Bundle.main.url(forResource: "ggml-base", withExtension: "bin", subdirectory: "WhisperModels") != nil
     }
 
+    /// Contrôle synchrone au premier lancement pour éviter une feuille inutile
+    /// lors d'une mise à jour d'une ancienne IPA qui contenait déjà les poids.
+    var hasRequiredModels: Bool {
+        BackgroundModelDownloader.isModelDownloaded && whisperAvailable
+    }
+
     private override init() {
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: "com.sarahia.sarahengine.whisper.v1")
