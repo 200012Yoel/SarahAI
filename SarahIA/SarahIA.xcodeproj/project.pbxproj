@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1B2C3D40001000100000001 /* SarahIAApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000001 /* SarahIAApp.swift */; };
+        B00000000000000000000020 /* SarahEngineSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* SarahEngineSetupView.swift */; };
 		A1B2C3D40001000100000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000002 /* ContentView.swift */; };
 		A1B2C3D40001000100000003 /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000003 /* Message.swift */; };
 		A1B2C3D40001000100000004 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002000100000004 /* AIService.swift */; };
@@ -131,6 +132,7 @@
 
 /* Begin PBXFileReference section */
 		A1B2C3D40002000100000001 /* SarahIAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahIAApp.swift; sourceTree = "<group>"; };
+        B00000000000000000000021 /* SarahEngineSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SarahEngineSetupView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000003 /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		A1B2C3D40002000100000004 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D40002000100000001 /* SarahIAApp.swift */,
+                B00000000000000000000021 /* SarahEngineSetupView.swift */,
 				A1B2C3D40002000100000002 /* ContentView.swift */,
 				A1B2C3D40004000100000003 /* Models */,
 				A1B2C3D40004000100000004 /* Services */,
@@ -512,6 +515,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1B2C3D40001000100000001 /* SarahIAApp.swift in Sources */,
+                B00000000000000000000020 /* SarahEngineSetupView.swift in Sources */,
 				A1B2C3D40001000100000002 /* ContentView.swift in Sources */,
 				A1B2C3D40001000100000003 /* Message.swift in Sources */,
 				A1B2C3D40001000100000004 /* AIService.swift in Sources */,
