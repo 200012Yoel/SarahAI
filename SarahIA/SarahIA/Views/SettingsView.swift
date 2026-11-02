@@ -97,7 +97,7 @@ public struct SettingsView: View {
                                 icon: "applewatch",
                                 tint: .cyan,
                                 title: "Apple Watch",
-                                detail: "Micro hébreu, connexion et traduction"
+                                detail: "Micro multilingue, connexion et traduction"
                             )
 
                             settingsDivider
@@ -1570,6 +1570,8 @@ private struct TranslationEngineSettingsCard: View {
 @available(iOS 15.0, *)
 private struct SarahEngineSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @State private var showEngineInstaller = false
+    @ObservedObject private var engine = SarahEngineInstaller.shared
     @AppStorage("sarahCodingEndpoint") private var codingEndpoint: String = ""
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
@@ -1641,6 +1643,27 @@ private struct SarahEngineSettingsView: View {
                             .fill(Color.white.opacity(0.075))
                     )
 
+                    Button {
+                        showEngineInstaller = true
+                    } label: {
+                        HStack {
+                            Image(systemName: engine.isReady ? "checkmark.circle.fill" : "arrow.down.circle.fill")
+                                .foregroundColor(.cyan)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(engine.isReady ? "Sarah Engine installé" : "Télécharger Sarah Engine")
+                                    .font(.headline)
+                                Text("Modèles Qwen3 et Whisper • depuis ton dépôt GitHub")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.right")
+                        }
+                        .padding(16)
+                        .background(Color.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+
                     TranslationEngineSettingsCard()
 
                     engineCard(
@@ -1704,6 +1727,12 @@ private struct SarahEngineSettingsView: View {
         .navigationTitle("Sarah Engine")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .fullScreenCover(isPresented: $showEngineInstaller) {
+            SarahEngineSetupView(onClose: {
+                showEngineInstaller = false
+                engine.refreshInstalledState()
+            })
+        }
     }
 
     private func engineCard(
@@ -1815,6 +1844,15 @@ private struct AboutSettingsView: View {
                 }
             }
 
+            Section("Moteurs réels de Sarah IA") {
+                Text("Sarah Engine : Qwen3 1,7B Q4_K_M ou 0,6B Q4_K_M, exécuté par llama.cpp.")
+                Text("Reconnaissance vocale : OpenAI Whisper base multilingue, exécuté par whisper.cpp.")
+                Text("Traduction : Google ML Kit et moteurs Apple disponibles ; les packs Google sont téléchargés séparément.")
+                Text("Synthèse vocale (TTS) : AVSpeechSynthesizer, voix du système iOS. Whisper ne produit pas la voix.")
+                Text("Apple Watch : WatchConnectivity pour le microphone et la notification Translate Live.")
+                Link("Modèles et licences Sarah Engine sur GitHub", destination: URL(string: "https://github.com/200012Yoel/SarahAI/releases/tag/sarah-engine-v1")!)
+            }
+
             Section("Développement agentique") {
                 HStack {
                     Text("Architecte")
@@ -1910,12 +1948,12 @@ private struct LegalNoticesView: View {
                 }
 
                 Section("Sarah Engine — modèles locaux Qwen3") {
-                    Text("Les variantes locales Qwen3 0.6B, 1.7B et 4B utilisées par Sarah Engine sont distribuées sous licence Apache License 2.0.")
+                    Text("Les variantes locales Qwen3 0,6B et 1,7B de Sarah Engine sont hébergées dans les Releases GitHub du projet, sous licence Apache License 2.0.")
                     Text("La licence Apache-2.0 autorise l'utilisation, la modification et la distribution commerciale, sous réserve de conserver la licence et les notices applicables.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Link("Lire la licence Apache-2.0", destination: URL(string: "https://www.apache.org/licenses/LICENSE-2.0")!)
-                    Link("Notice officielle Qwen3", destination: URL(string: "https://huggingface.co/Qwen/Qwen3-4B-GGUF")!)
+                    Link("Notice officielle Qwen3", destination: URL(string: "https://github.com/200012Yoel/SarahAI/releases/tag/sarah-engine-v1")!)
                 }
 
                 Section("Développement agentique — Qwen3-Coder") {
@@ -2128,7 +2166,7 @@ private struct SarahWatchSettingsView: View {
                     .font(.body)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Appeler Translate Live")
+                    Text("Notification Translate Live")
                         .font(.headline)
                     Text("Si Sarah IA n'est pas ouverte sur l'iPhone, la montre peut demander une notification. Appuie dessus après avoir déverrouillé l'iPhone pour ouvrir la traduction. Une ouverture forcée de l'application n'est pas autorisée par iOS.")
                         .font(.footnote)
