@@ -9,6 +9,7 @@ import SwiftUI
 public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
+    @State private var isShowingIncomingWatchCall = false
     @State private var isShowingStartupAnimation = true
     @State private var didScheduleStartupDismissal = false
 
@@ -74,6 +75,22 @@ public struct ContentView: View {
         .sheet(isPresented: $isShowingSettings) {
             SettingsView(viewModel: viewModel)
         }
+        .fullScreenCover(isPresented: $isShowingIncomingWatchCall) {
+            SarahIncomingWatchCallView(
+                onAccept: {
+                    isShowingIncomingWatchCall = false
+                    // Attendre la fermeture de la présentation avant d'afficher
+                    // Translate Live. Le code PIN reste géré par iOS.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        WatchAudioBridge.shared.acceptPendingCall()
+                    }
+                },
+                onDecline: {
+                    isShowingIncomingWatchCall = false
+                    WatchAudioBridge.shared.declinePendingCall()
+                }
+            )
+        }
         .onAppear {
             // Toujours repartir d'un état visuel interactif et déterministe.
             viewModel.isDrawerOpen = false
@@ -113,6 +130,19 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
             if viewModel.isContinuousConversationActive {
                 viewModel.stopVoiceConversation()
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSNotification.Name("SarahWatchIncomingCall"))
+        ) { _ in
+            guard !isShowingIncomingWatchCall else { return }
+            viewModel.stopVoiceConversation()
+            viewModel.isShowingVoiceOrbModal = false
+            viewModel.closeDrawer()
+            isShowingSettings = false
+            isShowingStartupAnimation = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                isShowingIncomingWatchCall = true
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
@@ -289,5 +319,106 @@ private struct SarahStartupAnimationView: View {
                 appeared = true
             }
         }
+    }
+}
+
+
+/// Affichage d'appel interne à Sarah IA, pas un faux appel CallKit.
+/// iOS garde le contrôle du déverrouillage, des appels système et de l'écran verrouillé.
+@available(iOS 15.0, *)
+private struct SarahIncomingWatchCallView: View {
+    let onAccept: () -> Void
+    let onDecline: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let small = geometry.size.height < 690
+            ZStack {
+                Color(red: 0.025, green: 0.035, blue: 0.105).ignoresSafeArea()
+                RadialGradient(
+                    colors: [Color.blue.opacity(0.43), Color.purple.opacity(0.15), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: geometry.size.width * 0.95
+                ).ignoresSafeArea()
+
+                VStack(spacing: small ? 12 : 18) {
+                    Spacer(minLength: 12)
+
+                    ZStack {
+                        Circle()
+                            .fill(Color.cyan.opacity(0.12))
+                            .frame(width: small ? 116 : 148, height: small ? 116 : 148)
+                        Circle()
+                            .stroke(Color.cyan.opacity(0.45), lineWidth: 1)
+                            .frame(width: small ? 100 : 130, height: small ? 100 : 130)
+                        Image(systemName: "applewatch.radiowaves.left.and.right")
+                            .font(.system(size: small ? 50 : 61, weight: .thin))
+                            .foregroundStyle(.cyan)
+                    }
+                    .accessibilityHidden(true)
+
+                    Text("SARAH IA WATCH")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .tracking(3)
+                        .foregroundStyle(.cyan)
+
+                    Text("Appel Translate Live")
+                        .font(.system(size: small ? 29 : 35, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+
+                    Text("Votre Apple Watch demande à démarrer la traduction sur cet iPhone.")
+                        .font(.system(size: small ? 14 : 16))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 18)
+
+                    Spacer(minLength: 15)
+
+                    HStack(spacing: min(geometry.size.width * 0.14, 58)) {
+                        Button(action: onDecline) {
+                            VStack(spacing: 10) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .frame(width: 72, height: 72)
+                                    .background(Circle().fill(Color.red))
+                                Text("Refuser")
+                                    .font(.system(size: 15, weight: .medium))
+                            }
+                            .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Refuser l'appel Translate Live")
+
+                        Button(action: onAccept) {
+                            VStack(spacing: 10) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .frame(width: 72, height: 72)
+                                    .background(Circle().fill(Color.green))
+                                Text("Décrocher")
+                                    .font(.system(size: 15, weight: .medium))
+                            }
+                            .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Décrocher et ouvrir la traduction en direct")
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    Text("Le déverrouillage reste protégé par iOS.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .padding(.bottom, small ? 18 : 36)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 18)
+            }
+        }
+        .interactiveDismissDisabled()
+        .preferredColorScheme(.dark)
     }
 }
