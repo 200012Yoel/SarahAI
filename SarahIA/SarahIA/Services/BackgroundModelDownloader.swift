@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import ZIPFoundation
+import UserNotifications
 
 // ============================================================================
 // BACKGROUND MODEL DOWNLOADER — TÉLÉCHARGEMENT PROGRESSIF DU MODÈLE QWEN3 GGUF
@@ -33,6 +34,12 @@ public final class BackgroundModelDownloader: NSObject {
         config.sessionSendsLaunchEvents = true
         self.session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.resumeData = UserDefaults.standard.data(forKey: resumeDataKey)
+        // Les tâches gérées par iOS survivent à la suspension du processus.
+        session.getAllTasks { [weak self] tasks in
+            DispatchQueue.main.async {
+                self?.isDownloading = tasks.contains { $0 is URLSessionDownloadTask }
+            }
+        }
     }
     
     /// Chemin vers le fichier GGUF local dans Application Support
@@ -92,6 +99,7 @@ public final class BackgroundModelDownloader: NSObject {
         
         isDownloading = true
         NotificationCenter.default.post(name: NSNotification.Name("SarahModelDownloadStarted"), object: nil)
+        SarahDownloadNotification.post(kind: "texte", state: .started)
         
         if let resumeData = resumeData {
             print("🔄 [BackgroundModelDownloader] Reprise du téléchargement Qwen3...")
@@ -184,10 +192,12 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
             
             DispatchQueue.main.async { [weak self] in
                 NotificationCenter.default.post(name: NSNotification.Name("SarahModelDownloadCompleted"), object: nil)
+                SarahDownloadNotification.post(kind: "texte", state: .completed)
                 self?.onCompletion?(.success(destinationURL))
             }
         } catch {
             print("❌ [BackgroundModelDownloader] Erreur déplacement modèle : \(error.localizedDescription)")
+            SarahDownloadNotification.post(kind: "texte", state: .failed)
             DispatchQueue.main.async { [weak self] in
                 self?.onCompletion?(.failure(error))
             }
@@ -202,7 +212,14 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
                 self.resumeData = resumeData
                 UserDefaults.standard.set(resumeData, forKey: resumeDataKey)
             }
+            if (error as NSError).code != NSURLErrorCancelled {
+                SarahDownloadNotification.post(kind: "texte", state: .failed)
+            }
         }
+    }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.finishBackgroundSession(identifier: session.configuration.identifier)
     }
 }
 
@@ -248,6 +265,24 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
             delegate: self,
             delegateQueue: nil
         )
+        if let rawKind = UserDefaults.standard.string(forKey: "saraya.generative.kind"),
+           let savedKind = DownloadKind(rawValue: rawKind) {
+            self.activeKind = savedKind
+            self.activeIdentifier = UserDefaults.standard.string(forKey: "saraya.generative.identifier")
+            session.getAllTasks { [weak self] tasks in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.task = tasks.compactMap { $0 as? URLSessionDownloadTask }.first
+                    self.isDownloading = self.task != nil
+                    if self.task == nil { self.clearSavedDownload() }
+                }
+            }
+        }
+    }
+
+    private func clearSavedDownload() {
+        UserDefaults.standard.removeObject(forKey: "saraya.generative.kind")
+        UserDefaults.standard.removeObject(forKey: "saraya.generative.identifier")
     }
 
     public func startImageModelDownload() {
@@ -307,6 +342,7 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
     public func cancel() {
         task?.cancel()
         task = nil
+        clearSavedDownload()
         DispatchQueue.main.async {
             self.isDownloading = false
             self.progress = 0
@@ -347,6 +383,9 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
         activeIdentifier = identifier
         activeURL = url
         isDownloading = true
+        UserDefaults.standard.set(kind.rawValue, forKey: "saraya.generative.kind")
+        UserDefaults.standard.set(identifier, forKey: "saraya.generative.identifier")
+        SarahDownloadNotification.post(kind: kind == .image ? "image" : "vidéo", state: .started)
         progress = 0
         statusText = kind == .image
             ? "Téléchargement du modèle image…"
@@ -453,6 +492,11 @@ public final class GenerativeModelDownloader: NSObject, ObservableObject {
     }
 
     private func publishFailure(_ message: String) {
+        let failedKind = activeKind
+        clearSavedDownload()
+        if let failedKind = failedKind {
+            SarahDownloadNotification.post(kind: failedKind == .image ? "image" : "vidéo", state: .failed)
+        }
         DispatchQueue.main.async {
             self.isDownloading = false
             self.statusText = message
@@ -510,6 +554,8 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
                 )
             }
 
+            clearSavedDownload()
+            SarahDownloadNotification.post(kind: kind == .image ? "image" : "vidéo", state: .completed)
             DispatchQueue.main.async {
                 self.isDownloading = false
                 self.progress = 1
@@ -538,6 +584,39 @@ extension GenerativeModelDownloader: URLSessionDownloadDelegate {
         didCompleteWithError error: Error?
     ) {
         guard let error else { return }
-        publishFailure(error.localizedDescription)
+        if (error as NSError).code != NSURLErrorCancelled {
+            publishFailure(error.localizedDescription)
+        }
+    }
+
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        AppDelegate.finishBackgroundSession(identifier: session.configuration.identifier)
+    }
+}
+
+private enum SarahDownloadNotification {
+    enum State { case started, completed, failed }
+
+    static func post(kind: String, state: State) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized ||
+                  settings.authorizationStatus == .provisional else { return }
+            let content = UNMutableNotificationContent()
+            content.title = state == .started ? "Saraya · Téléchargement en cours" :
+                            state == .completed ? "Saraya · Téléchargement terminé" :
+                                                  "Saraya · Téléchargement interrompu"
+            content.body = state == .started ? "Le modèle \(kind) se télécharge en arrière-plan (Wi-Fi)." :
+                           state == .completed ? "Le modèle \(kind) est disponible dans Saraya." :
+                                                 "Impossible de terminer le modèle \(kind). Ouvre Saraya pour réessayer."
+            content.sound = state == .started ? nil : .default
+            let suffix = state == .started ? "started" : state == .completed ? "finished" : "failed"
+            let request = UNNotificationRequest(
+                identifier: "saraya.download.\(kind).\(suffix)",
+                content: content,
+                trigger: nil
+            )
+            center.add(request, withCompletionHandler: nil)
+        }
     }
 }
