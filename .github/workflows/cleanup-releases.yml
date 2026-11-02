@@ -79,8 +79,7 @@ jobs:
           gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
             --jq '.artifacts[] | select(.name == "SarahIA-IPA") | [.id, (.workflow_run.id // 0)] | @tsv' > artifacts.txt
           deleted=0
-          while IFS=
-\t' read -r artifact_id run_id; do
+          while read -r artifact_id run_id; do
             [ "$run_id" = "$SUCCESS_RUN" ] && continue
             gh api -X DELETE "repos/$REPO/actions/artifacts/$artifact_id" --silent || continue
             deleted=$((deleted + 1))
