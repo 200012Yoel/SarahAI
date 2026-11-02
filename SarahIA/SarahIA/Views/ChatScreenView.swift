@@ -180,6 +180,11 @@ public struct ChatScreenView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sarahPresentLiveTranslation)) { _ in
             presentContinuousTranslation()
+            // Le micro Watch ne démarre qu'une fois l'écran de traduction
+            // réellement présenté sur l'iPhone déverrouillé.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                WatchAudioBridge.shared.sendPhoneReady()
+            }
         }
         .onAppear {
             lastDetectedAirPods = nil
