@@ -1,4 +1,5 @@
 import SwiftUI
+import LocalAuthentication
 
 /// Vue racine de SarahIA orientée stabilité.
 ///
@@ -10,6 +11,8 @@ public struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var isShowingSettings = false
     @State private var isShowingIncomingWatchCall = false
+    @State private var isAuthenticatingWatchCall = false
+    @State private var watchCallAuthError: String?
     @State private var isShowingStartupAnimation = true
     @State private var didScheduleStartupDismissal = false
 
@@ -77,13 +80,10 @@ public struct ContentView: View {
         }
         .fullScreenCover(isPresented: $isShowingIncomingWatchCall) {
             SarahIncomingWatchCallView(
+                isAuthenticating: isAuthenticatingWatchCall,
+                authenticationError: watchCallAuthError,
                 onAccept: {
-                    isShowingIncomingWatchCall = false
-                    // Attendre la fermeture de la présentation avant d'afficher
-                    // Translate Live. Le code PIN reste géré par iOS.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        WatchAudioBridge.shared.acceptPendingCall()
-                    }
+                    authenticateAndAnswerWatchCall()
                 },
                 onDecline: {
                     isShowingIncomingWatchCall = false
@@ -141,6 +141,7 @@ public struct ContentView: View {
             viewModel.closeDrawer()
             isShowingSettings = false
             isShowingStartupAnimation = false
+            watchCallAuthError = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                 isShowingIncomingWatchCall = true
             }
@@ -183,6 +184,38 @@ public struct ContentView: View {
                 viewModel.closeDrawer()
             default:
                 break
+            }
+        }
+    }
+
+    /// Identifie le propriétaire via la fenêtre système Apple (jamais un champ
+    /// de code PIN créé dans Sarah). Face ID ou code de l'iPhone selon l'appareil.
+    private func authenticateAndAnswerWatchCall() {
+        guard !isAuthenticatingWatchCall else { return }
+        watchCallAuthError = nil
+        let context = LAContext()
+        context.localizedFallbackTitle = "Utiliser le code de l’iPhone"
+        var evaluationError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &evaluationError) else {
+            watchCallAuthError = "Active un code de verrouillage dans les Réglages de l’iPhone."
+            return
+        }
+        isAuthenticatingWatchCall = true
+        context.evaluatePolicy(
+            .deviceOwnerAuthentication,
+            localizedReason: "Autoriser Translate Live depuis votre Apple Watch"
+        ) { authenticated, _ in
+            DispatchQueue.main.async {
+                isAuthenticatingWatchCall = false
+                guard isShowingIncomingWatchCall else { return }
+                guard authenticated else {
+                    watchCallAuthError = "Authentification annulée ou refusée. Réessaie ou refuse l’appel."
+                    return
+                }
+                isShowingIncomingWatchCall = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    WatchAudioBridge.shared.acceptPendingCall()
+                }
             }
         }
     }
@@ -332,6 +365,8 @@ private struct SarahStartupAnimationView: View {
 /// iOS garde le contrôle du déverrouillage, des appels système et de l'écran verrouillé.
 @available(iOS 15.0, *)
 private struct SarahIncomingWatchCallView: View {
+    let isAuthenticating: Bool
+    let authenticationError: String?
     let onAccept: () -> Void
     let onDecline: () -> Void
 
@@ -381,6 +416,13 @@ private struct SarahIncomingWatchCallView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 18)
 
+                    if let authenticationError {
+                        Text(authenticationError)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                    }
+
                     Spacer(minLength: 15)
 
                     HStack(spacing: min(geometry.size.width * 0.14, 58)) {
@@ -400,17 +442,24 @@ private struct SarahIncomingWatchCallView: View {
 
                         Button(action: onAccept) {
                             VStack(spacing: 10) {
-                                Image(systemName: "checkmark")
+                                Group {
+                                    if isAuthenticating {
+                                        ProgressView().tint(.white)
+                                    } else {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
                                     .font(.system(size: 28, weight: .semibold))
                                     .frame(width: 72, height: 72)
                                     .background(Circle().fill(Color.green))
-                                Text("Décrocher")
+                                Text(isAuthenticating ? "Code iPhone…" : "Décrocher")
                                     .font(.system(size: 15, weight: .medium))
                             }
                             .foregroundStyle(.white)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Décrocher et ouvrir la traduction en direct")
+                        .disabled(isAuthenticating)
+                        .accessibilityLabel("Décrocher, authentifier le téléphone et ouvrir la traduction en direct")
                     }
                     .frame(maxWidth: .infinity)
 
