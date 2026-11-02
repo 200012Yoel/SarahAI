@@ -77,6 +77,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.userInfo["sarahWatchTranslate"] as? Bool == true {
+            UserDefaults.standard.set(true, forKey: "sarah.watch.translate.pendingOpen")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                WatchAudioBridge.shared.presentPendingCallIfNeeded()
+            }
+        }
         NotificationService.shared.clearBadge()
         completionHandler()
     }
