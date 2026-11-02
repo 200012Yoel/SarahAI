@@ -121,6 +121,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         completionHandler: @escaping () -> Void
     ) {
         AppDelegate.backgroundSessionCompletionHandler = completionHandler
+        // Réattacher immédiatement le délégué de téléchargement après un
+        // redémarrage iOS, même si l'écran Sarah Engine n'est pas visible.
+        switch identifier {
+        case "com.sarahia.sarahengine.whisper.v1":
+            _ = SarahEngineInstaller.shared
+        case "com.sarahia.sarahengine.qwenmodeldownload.v1":
+            _ = BackgroundModelDownloader.shared
+        default:
+            break
+        }
         print("⚡ [AppDelegate] URLSession Background réveillée pour l'identifiant : \(identifier)")
     }
 }
