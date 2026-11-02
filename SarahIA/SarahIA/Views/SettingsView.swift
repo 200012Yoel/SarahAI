@@ -2168,7 +2168,7 @@ private struct SarahWatchSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Notification Translate Live")
                         .font(.headline)
-                    Text("Si Sarah IA n'est pas ouverte sur l'iPhone, la montre peut demander une notification. Appuie dessus après avoir déverrouillé l'iPhone pour ouvrir la traduction. Une ouverture forcée de l'application n'est pas autorisée par iOS.")
+                    Text("Si Sarah IA n'est pas ouverte sur l'iPhone, la montre peut envoyer une notification. Appuie dessus pour déverrouiller l'iPhone et ouvrir directement la traduction. Aucun faux appel n'est affiché.")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.75))
                     Button(notificationsLabel) { requestWatchCallNotifications() }
