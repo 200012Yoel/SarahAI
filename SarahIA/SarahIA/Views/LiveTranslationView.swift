@@ -29,6 +29,9 @@ public struct LiveTranslationView: View {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(accent)
                         Button("Utiliser plutôt le micro de l’iPhone") {
+                            // Ne pas démarrer un micro Watch tardivement si l'utilisateur
+                            // a choisi de revenir au micro intégré de l'iPhone.
+                            WatchAudioBridge.shared.declinePendingCall()
                             session.start()
                         }
                         .font(.system(size: 12, weight: .semibold))
