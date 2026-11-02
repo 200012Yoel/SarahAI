@@ -232,14 +232,25 @@ final class SarahEngineInstaller: NSObject, ObservableObject, URLSessionDownload
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didFinishDownloadingTo location: URL) {
+        // iOS efface l'emplacement temporaire juste après le callback.
+        // Le copier AVANT de quitter ce delegate, puis contrôler SHA-256.
+        let staging = fm.temporaryDirectory.appendingPathComponent("sarah-whisper-\(UUID().uuidString).bin")
+        do {
+            try fm.copyItem(at: location, to: staging)
+        } catch {
+            DispatchQueue.main.async { self.fail("Impossible de préparer le modèle vocal : \(error.localizedDescription)") }
+            return
+        }
         DispatchQueue.main.async {
             guard let response = downloadTask.response as? HTTPURLResponse,
                   response.statusCode == 200 else {
+                try? self.fm.removeItem(at: staging)
                 self.fail("Le serveur GitHub n'a pas retourné le modèle vocal attendu.")
                 return
             }
-            self.validate(location, name: "ggml-base.bin") { valid in
+            self.validate(staging, name: "ggml-base.bin") { valid in
                 guard valid else {
+                    try? self.fm.removeItem(at: staging)
                     self.fail("Vérification du modèle Whisper échouée.")
                     return
                 }
@@ -248,7 +259,7 @@ final class SarahEngineInstaller: NSObject, ObservableObject, URLSessionDownload
                     if self.fm.fileExists(atPath: self.whisperURL.path) {
                         try self.fm.removeItem(at: self.whisperURL)
                     }
-                    try self.fm.moveItem(at: location, to: self.whisperURL)
+                    try self.fm.moveItem(at: staging, to: self.whisperURL)
                     WhisperService.shared.prepareModel()
                     self.finish()
                 } catch {
