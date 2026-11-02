@@ -883,7 +883,7 @@
                 CURRENT_PROJECT_VERSION = 4;
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
-                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch utilise le micro pour transmettre l'hébreu à l'iPhone jumelé pendant l'écoute.";
+                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch transmet la langue choisie au traducteur de l'iPhone jumelé.";
                 INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
                 INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
                 INFOPLIST_KEY_WKWatchKitApp = YES;
@@ -910,7 +910,7 @@
                 CURRENT_PROJECT_VERSION = 4;
                 GENERATE_INFOPLIST_FILE = YES;
                 INFOPLIST_KEY_CFBundleDisplayName = "Sarah IA Watch";
-                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch utilise le micro pour transmettre l'hébreu à l'iPhone jumelé pendant l'écoute.";
+                INFOPLIST_KEY_NSMicrophoneUsageDescription = "Sarah IA Watch transmet la langue choisie au traducteur de l'iPhone jumelé.";
                 INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.sarahia.app;
                 INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
                 INFOPLIST_KEY_WKWatchKitApp = YES;
