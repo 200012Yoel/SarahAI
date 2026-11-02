@@ -1559,6 +1559,11 @@ private struct TranslationEngineSettingsCard: View {
 private struct SarahEngineSettingsView: View {
     @ObservedObject var viewModel: ChatViewModel
     @AppStorage("sarahCodingEndpoint") private var codingEndpoint: String = ""
+    @StateObject private var modelDownloads = GenerativeModelDownloader.shared
+    @State private var textProgress = 0.0
+    @State private var downloadingText = false
+    @State private var textDownloadStatus = ""
+    @State private var packsRequested = false
 
     private let imageProfile = SarahGenerativeModelCatalog.imageProfile()
     private let videoProfile = SarahGenerativeModelCatalog.videoProfile()
@@ -1583,6 +1588,8 @@ private struct SarahEngineSettingsView: View {
                             SarahGenerativeModelCatalog.physicalRAMGB
                         )
                     )
+
+                    sarayaDownloadCard
 
                     engineCard(
                         icon: "text.bubble.fill",
@@ -1692,6 +1699,110 @@ private struct SarahEngineSettingsView: View {
         .navigationTitle("Sarah Engine")
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
+        .onAppear(perform: bindTextModelDownloader)
+    }
+
+    private var sarayaDownloadCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Télécharger Sarah Engine", systemImage: "arrow.down.circle.fill")
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text("Prépare le moteur texte, l'image et les langues disponibles depuis ce menu. Les gros téléchargements utilisent le Wi-Fi et continuent quand Saraya passe en arrière-plan.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                HapticService.shared.buttonTap()
+                // Demande d'autorisation seulement après une action explicite.
+                NotificationService.shared.requestPermission()
+                bindTextModelDownloader()
+                downloadingText = !BackgroundModelDownloader.isModelDownloaded
+                textDownloadStatus = "Préparation de Sarah Engine…"
+                BackgroundModelDownloader.shared.startQwenModelDownload()
+
+                if imageProfile.runtimeState == .requiresDownload &&
+                   !modelDownloads.isInstalled(kind: .image) {
+                    modelDownloads.startImageModelDownload()
+                }
+                if TranslationEngine.shared.isGoogleOfflineAvailable {
+                    TranslationEngine.shared.prepareOfflinePacks(for: ["he", "fr"])
+                    packsRequested = true
+                }
+            } label: {
+                Label("Télécharger les composants disponibles", systemImage: "square.and.arrow.down.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .foregroundColor(.white)
+                    .background(Color.blue, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+
+            if downloadingText {
+                ProgressView(value: textProgress)
+                    .tint(.cyan)
+                Text("Moteur texte : \(Int(textProgress * 100)) %")
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.white.opacity(0.7))
+            } else if BackgroundModelDownloader.isModelDownloaded {
+                Label("Moteur texte disponible", systemImage: "checkmark.circle.fill")
+                    .font(.footnote)
+                    .foregroundColor(.green)
+            }
+
+            if modelDownloads.isDownloading {
+                ProgressView(value: modelDownloads.progress)
+                    .tint(.purple)
+                Text("Image/vidéo : \(Int(modelDownloads.progress * 100)) %")
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.white.opacity(0.7))
+            }
+
+            if !textDownloadStatus.isEmpty {
+                Text(textDownloadStatus)
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.68))
+            }
+            if packsRequested {
+                Text("Packs hébreu et français demandés au moteur de traduction.")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+
+            Text("Les modèles de code sur serveur, la voix système et le checkpoint vidéo expérimental ne font pas partie de ce téléchargement groupé.")
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.45))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.075))
+        )
+    }
+
+    private func bindTextModelDownloader() {
+        let downloader = BackgroundModelDownloader.shared
+        downloadingText = downloader.isDownloading
+        downloader.onProgress = { value, _, _ in
+            DispatchQueue.main.async {
+                textProgress = value
+                downloadingText = true
+            }
+        }
+        downloader.onCompletion = { result in
+            DispatchQueue.main.async {
+                downloadingText = false
+                switch result {
+                case .success:
+                    textProgress = 1
+                    textDownloadStatus = "Téléchargement du moteur texte terminé"
+                case .failure(let error):
+                    textDownloadStatus = "Téléchargement impossible : \(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     private func engineCard(
