@@ -6,9 +6,10 @@ public final class ModelSelectionEngine {
     public static let shared = ModelSelectionEngine()
 
     // Poids Qwen3 sous licence Apache-2.0, en GGUF Q4.
-    public static let qwen06BDownloadURL = "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/1208e45d782fe18602c5eaf10e5758d5b0f24c03/Qwen3-0.6B-Q4_K_M.gguf"
+    public static let sarahEngineReleaseBase = "https://github.com/200012Yoel/SarahAI/releases/download/sarah-engine-v1/"
+    public static let qwen06BDownloadURL = sarahEngineReleaseBase + "Qwen3-0.6B-Q4_K_M.gguf"
     public static let qwen06BFileName = "Qwen3-0.6B-Q4_K_M.gguf"
-    public static let qwen17BDownloadURL = "https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf"
+    public static let qwen17BDownloadURL = sarahEngineReleaseBase + "Qwen3-1.7B-Q4_K_M.gguf"
     public static let qwen17BFileName = "Qwen3-1.7B-Q4_K_M.gguf"
     public static let qwen4BDownloadURL = "https://huggingface.co/ggml-org/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf"
     public static let qwen4BFileName = "Qwen3-4B-Q4_K_M.gguf"
@@ -35,7 +36,8 @@ public final class ModelSelectionEngine {
     /// Le profil dépend de la mémoire réellement libre, pas du seul nom commercial de l'iPhone.
     public func selectOptimalProfile(for capability: DeviceCapabilityProfile) -> ModelProfile {
         guard supportsLocalRuntime(capability) else { return registeredProfiles[2] }
-        if capability.safeMemoryBudgetBytes >= registeredProfiles[0].estimatedMemoryFootprintBytes { return registeredProfiles[0] }
+        // Sarah Engine v1 ne distribue pas le modèle 4B (trop volumineux pour
+        // une distribution iPhone fiable). Ne jamais demander un asset absent.
         if capability.safeMemoryBudgetBytes >= registeredProfiles[1].estimatedMemoryFootprintBytes { return registeredProfiles[1] }
         return registeredProfiles[2]
     }
