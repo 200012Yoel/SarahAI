@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import AVFoundation
 import WatchConnectivity
+import UserNotifications
 
 /// Vue Réglages de Sarah AI Multi-Agents : moteurs locaux, voix et runtime de code agentique optionnel :
 /// - Section Mode : Bouton et sélecteur interactif des Modes (Sarah, Nathan, Esther, Tom, Yohan, Ethel)
@@ -2080,6 +2081,7 @@ private struct SarahWatchSettingsView: View {
     @State private var installedOnWatch = false
     @State private var showInstallInstructions = false
     @State private var showWatchOpenError = false
+    @State private var notificationsLabel = "Vérifier les notifications"
 
     var body: some View {
         ScrollView {
@@ -2090,7 +2092,7 @@ private struct SarahWatchSettingsView: View {
                         .foregroundColor(.cyan)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Sarah IA Watch").font(.title3.bold())
-                        Text("🇮🇱 Hébreu → Français 🇫🇷")
+                        Text("\(LiveTranslationSession.shared.languagePair.sourceFlag) \(LiveTranslationSession.shared.languagePair.sourceName) → \(LiveTranslationSession.shared.languagePair.targetFlag) \(LiveTranslationSession.shared.languagePair.targetName)")
                             .foregroundColor(.white.opacity(0.7))
                     }
                 }
@@ -2125,7 +2127,18 @@ private struct SarahWatchSettingsView: View {
                 Text("1. Installe Sarah IA sur l'iPhone avec un certificat et des profils valides pour les deux versions. 2. Sur l'iPhone, ouvre Watch > Ma montre > Apps > Apps disponibles > Sarah IA Watch > Installer. 3. Ouvre Sarah IA Watch sur la montre et autorise le micro.")
                     .font(.body)
 
-                Text("Le micro utilisé est celui de la montre. Le haut-parleur est celui de l'iPhone. Pendant la lecture française, le traitement vocal se met en pause pour limiter l'écho.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Appeler Translate Live")
+                        .font(.headline)
+                    Text("Si Sarah IA n'est pas ouverte sur l'iPhone, la montre peut demander une notification. Appuie dessus après avoir déverrouillé l'iPhone pour ouvrir la traduction. Une ouverture forcée de l'application n'est pas autorisée par iOS.")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.75))
+                    Button(notificationsLabel) { requestWatchCallNotifications() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.purple)
+                }
+
+                Text("Le micro utilisé est celui de la montre. Le haut-parleur est celui de l'iPhone. Pendant la lecture traduite, le traitement vocal se met en pause pour limiter l'écho.")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.72))
 
@@ -2138,7 +2151,10 @@ private struct SarahWatchSettingsView: View {
         .background(Color.black.ignoresSafeArea())
         .navigationTitle("Apple Watch")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { refresh() }
+        .onAppear {
+            refresh()
+            refreshNotificationPermission()
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active { refresh() }
         }
@@ -2152,6 +2168,27 @@ private struct SarahWatchSettingsView: View {
             Button("Compris", role: .cancel) {}
         } message: {
             Text("L’ouverture automatique de l’app Watch n’est pas disponible sur cette version d’iOS. Ouvre l’app Watch depuis l’écran d’accueil de ton iPhone, puis Apps disponibles.")
+        }
+    }
+
+    private func refreshNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                switch settings.authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    notificationsLabel = "Notifications Translate Live activées"
+                case .denied:
+                    notificationsLabel = "Autoriser Sarah dans Réglages iOS"
+                default:
+                    notificationsLabel = "Activer les notifications Translate Live"
+                }
+            }
+        }
+    }
+
+    private func requestWatchCallNotifications() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+            refreshNotificationPermission()
         }
     }
 
