@@ -11,6 +11,9 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
     @Published private(set) var recording = false
     @Published private(set) var connecting = false
     @Published private(set) var paired = false
+    @Published private(set) var phoneForeground = false
+    @Published private(set) var awaitingPhone = false
+    @Published private(set) var callInProgress = false
     @Published private(set) var level: CGFloat = 0
     @Published private(set) var status = "Connexion à l'iPhone…"
     @Published private(set) var sourceLanguage = "he"
@@ -72,6 +75,94 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
         }
         WCSession.default.delegate = self
         WCSession.default.activate()
+    }
+
+    /// Sonde l'application jumelle. Depuis la montre, sendMessage peut réveiller
+    /// Sarah IA en arrière-plan sans pour autant afficher son écran.
+    func refreshPhoneStatus() {
+        guard WCSession.default.activationState == .activated else {
+            paired = false
+            phoneForeground = false
+            status = "Connexion à l’iPhone…"
+            return
+        }
+        WCSession.default.sendMessage(["type": "probe"], replyHandler: { [weak self] reply in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.paired = true
+                self.phoneForeground = (reply["foreground"] as? Bool) ?? false
+                self.updateLanguages(
+                    source: reply["source"] as? String,
+                    target: reply["target"] as? String
+                )
+                if !self.recording && !self.connecting && !self.awaitingPhone {
+                    self.status = self.phoneForeground
+                        ? "Prête • \(self.languageAccessibleText)"
+                        : "iPhone en veille • appel possible"
+                }
+            }
+        }, errorHandler: { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.phoneForeground = false
+                if self?.awaitingPhone != true {
+                    self?.status = "iPhone indisponible • appel différé"
+                }
+            }
+        })
+    }
+
+    /// L'app n'a aucun droit pour déverrouiller l'iPhone ni ouvrir un écran
+    /// de force. On envoie une demande et iOS affiche une notification locale.
+    func callPhone() {
+        guard !recording && !connecting && !callInProgress && !awaitingPhone else { return }
+        guard WCSession.default.activationState == .activated else {
+            status = "Montre non jumelée"
+            return
+        }
+        let requestId = UUID().uuidString
+        callInProgress = true
+        status = "Appel Translate Live…"
+        let message: [String: Any] = [
+            "type": "callTranslateLive",
+            "requestId": requestId
+        ]
+        WCSession.default.sendMessage(message, replyHandler: { [weak self] reply in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.callInProgress = false
+                let accepted = (reply["accepted"] as? Bool) ?? false
+                self.awaitingPhone = accepted
+                if accepted {
+                    self.status = "Demande envoyée • ouvre Sarah sur l’iPhone"
+                } else if (reply["reason"] as? String) == "notificationsDisabled" {
+                    self.status = "Active les notifications Sarah sur l’iPhone"
+                } else {
+                    self.status = "Appel non disponible • réessaie"
+                }
+            }
+        }, errorHandler: { [weak self] _ in
+            // Livraison opportuniste lorsque le téléphone n'est pas joignable.
+            // Ne jamais indiquer « Appel reçu » avant une confirmation réelle.
+            WCSession.default.transferUserInfo(message)
+            DispatchQueue.main.async {
+                self?.callInProgress = false
+                self?.awaitingPhone = true
+                self?.status = "Demande en attente • livraison différée"
+            }
+        })
+    }
+
+    func cancelCall() {
+        awaitingPhone = false
+        callInProgress = false
+        status = "Appel annulé sur la montre"
+    }
+
+    func primaryAction() {
+        if recording || connecting { stop(); return }
+        if awaitingPhone { cancelCall(); return }
+        if callInProgress { return }
+        if phoneForeground { start() } else { callPhone() }
     }
 
     func start() {
@@ -269,23 +360,26 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
 
     func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
         DispatchQueue.main.async {
-            self.paired = state == .activated && session.isReachable
+            self.paired = state == .activated
+            if state == .activated { self.refreshPhoneStatus() }
             self.updateLanguages(
                 source: session.receivedApplicationContext["source"] as? String,
                 target: session.receivedApplicationContext["target"] as? String
             )
-            if !self.recording {
-                self.status = self.paired ? "Prête • \(self.languageAccessibleText)" : "Ouvre Sarah IA sur l'iPhone"
+            if !self.recording && !self.awaitingPhone && !self.callInProgress {
+                self.status = self.paired ? "Connexion à Sarah…" : "iPhone indisponible"
             }
         }
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async {
-            self.paired = session.isReachable
-            if !session.isReachable && self.recording { self.stop(notifyPhone: false) }
-            if !self.recording {
-                self.status = self.paired ? "Prête • \(self.languageAccessibleText)" : "Ouvre Sarah IA sur l'iPhone"
+            self.paired = session.activationState == .activated
+            if !session.isReachable {
+                self.phoneForeground = false
+                if self.recording { self.stop(notifyPhone: false) }
+            } else {
+                self.refreshPhoneStatus()
             }
         }
     }
@@ -307,6 +401,13 @@ final class SarahWatchAudio: NSObject, ObservableObject, WCSessionDelegate {
                 self.conversionQueue.async { [weak self] in
                     self?.conversionMuted = speaking
                     if speaking { self?.pcm.removeAll(keepingCapacity: true) }
+                }
+            case "phoneReady":
+                self.phoneForeground = true
+                if self.awaitingPhone {
+                    self.awaitingPhone = false
+                    self.status = "iPhone prêt • ouverture du microphone…"
+                    self.start()
                 }
             case "languages":
                 self.updateLanguages(
@@ -337,103 +438,146 @@ struct SarahIAWatchApp: App {
 
 struct SarahWatchHome: View {
     @StateObject private var audio = SarahWatchAudio.shared
-    @State private var intro = true
-    @State private var glowing = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var listening: Bool { audio.recording || audio.connecting }
+    private var activity: Bool {
+        audio.recording || audio.connecting || audio.callInProgress || audio.awaitingPhone
+    }
+
+    private var callMode: Bool { !audio.phoneForeground && !audio.recording }
+    private var actionLabel: String {
+        if audio.recording || audio.connecting { return "Arrêter la traduction" }
+        if audio.awaitingPhone { return "Annuler la demande" }
+        if audio.callInProgress { return "Appel en cours…" }
+        return callMode ? "Appeler l’iPhone" : "Traduction en temps réel"
+    }
+    private var actionIcon: String {
+        if audio.recording || audio.connecting { return "stop.fill" }
+        if audio.awaitingPhone { return "xmark" }
+        return callMode ? "iphone.radiowaves.left.and.right" : "mic.fill"
+    }
 
     var body: some View {
-        GeometryReader { geometry in
-            let compact = geometry.size.height < 205
+        GeometryReader { proxy in
+            let short = proxy.size.height < 195 || dynamicTypeSize.isAccessibilitySize
+            let narrow = proxy.size.width < 170
+            let controlSize = min(proxy.size.width * 0.18, short ? 30.0 : 39.0)
+            let space = short ? 5.0 : 10.0
+
             ZStack {
                 Color(red: 0.025, green: 0.035, blue: 0.09).ignoresSafeArea()
                 RadialGradient(
-                    colors: [
-                        Color(red: 0.03, green: 0.28, blue: 0.40).opacity(0.50),
-                        Color(red: 0.04, green: 0.06, blue: 0.17).opacity(0.7),
-                        .clear
-                    ],
+                    colors: [.cyan.opacity(0.20), Color.blue.opacity(0.06), .clear],
                     center: .center,
-                    startRadius: 1,
-                    endRadius: geometry.size.width * 0.80
+                    startRadius: 4,
+                    endRadius: proxy.size.width * 0.75
                 )
 
-                if intro {
-                    VStack(spacing: 8) {
-                        Image(systemName: "waveform.path")
-                            .font(.system(size: compact ? 24 : 32, weight: .medium))
-                            .foregroundStyle(.cyan)
-                            .scaleEffect(glowing ? 1.0 : 0.87)
-                        Text("Sarah")
-                            .font(.system(size: compact ? 21 : 26, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                    .transition(.opacity)
-                    .accessibilityElement(children: .combine)
-                } else {
-                    VStack(spacing: compact ? 5 : 9) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: space) {
                         HStack(spacing: 5) {
-                            Circle()
-                                .fill(audio.paired ? Color.green : Color.orange)
-                                .frame(width: 6, height: 6)
+                            Image(systemName: "waveform.path")
+                                .foregroundStyle(.cyan)
                             Text("SARAH IA")
-                                .font(.system(size: compact ? 10 : 11, weight: .bold, design: .rounded))
-                                .tracking(1.2)
-                                .foregroundStyle(.white.opacity(0.86))
+                                .font(.system(size: short ? 11 : 13, weight: .bold, design: .rounded))
+                                .tracking(narrow ? 0.2 : 0.9)
+                            Spacer(minLength: 3)
+                            Circle()
+                                .fill(audio.phoneForeground ? Color.green : Color.orange)
+                                .frame(width: 6, height: 6)
+                                .accessibilityLabel(audio.phoneForeground ? "iPhone ouvert" : "iPhone en veille")
                         }
+                        .foregroundStyle(.white)
 
-                        HStack(spacing: 5) {
-                            Text(audio.languageDisplay)
-                        }
-                        .font(.system(size: compact ? 15 : 18))
-                        .accessibilityLabel("Traduction \(audio.languageAccessibleText)")
+                        Text(audio.languageDisplay)
+                            .font(.system(size: short ? 13 : 17, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .accessibilityLabel("Traduction \\(audio.languageAccessibleText)")
 
                         Button {
-                            listening ? audio.stop() : audio.start()
+                            audio.primaryAction()
                         } label: {
-                            ZStack {
-                                Circle()
-                                    .stroke(Color.cyan.opacity(0.20), lineWidth: 2)
-                                    .frame(width: compact ? 65 : 88, height: compact ? 65 : 88)
-                                Circle()
-                                    .fill(
-                                        listening
-                                            ? Color.red.opacity(0.20)
-                                            : Color.cyan.opacity(0.18)
+                            HStack(spacing: narrow ? 6 : 9) {
+                                Image(systemName: actionIcon)
+                                    .font(.system(size: min(controlSize, 22), weight: .bold))
+                                    .frame(width: controlSize, height: controlSize)
+                                    .background(
+                                        Circle().fill(
+                                            activity ? Color.pink.opacity(0.25) : Color.cyan.opacity(0.24)
+                                        )
                                     )
-                                    .frame(width: compact ? 58 : 78, height: compact ? 58 : 78)
-                                    .scaleEffect(audio.recording ? 1 + audio.level * 0.13 : 1)
-                                Image(systemName: listening ? "stop.fill" : "mic.fill")
-                                    .font(.system(size: compact ? 25 : 30, weight: .medium))
-                                    .foregroundStyle(listening ? .red : .white)
+                                Text(actionLabel)
+                                    .font(.system(size: short ? 11 : 13, weight: .bold))
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(width: compact ? 68 : 90, height: compact ? 68 : 90)
-                            .contentShape(Circle())
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, narrow ? 8 : 11)
+                            .padding(.vertical, short ? 7 : 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: activity
+                                                ? [Color.pink.opacity(0.70), Color.indigo.opacity(0.78)]
+                                                : [Color.cyan.opacity(0.77), Color.purple.opacity(0.83)],
+                                            startPoint: .leading, endPoint: .trailing
+                                        )
+                                    )
+                            )
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(listening ? "Arrêter l'écoute" : "Démarrer la traduction")
-                        .accessibilityHint("Le micro de la montre envoie la langue choisie sur l'iPhone, qui affiche et prononce la traduction")
+                        .disabled(audio.callInProgress)
+                        .accessibilityLabel(actionLabel)
+                        .accessibilityHint(callMode
+                            ? "Envoie une demande à l'iPhone ; une notification permet d'ouvrir Sarah."
+                            : "Démarre le micro de l'Apple Watch pour traduire sur l'iPhone.")
 
                         Text(audio.status)
-                            .font(.system(size: compact ? 10 : 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.78))
+                            .font(.system(size: short ? 9 : 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
-                            .lineLimit(2)
+                            .lineLimit(3)
                             .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
+
+                        HStack {
+                            if audio.recording {
+                                Image(systemName: "waveform")
+                                    .foregroundStyle(.cyan)
+                                Text("Micro actif")
+                                    .foregroundStyle(.white)
+                            } else {
+                                Image(systemName: "iphone")
+                                    .foregroundStyle(.cyan)
+                                Text(audio.phoneForeground ? "iPhone connecté" : "Via l’iPhone")
+                                    .foregroundStyle(.white.opacity(0.82))
+                            }
+                            Spacer(minLength: 2)
+                            Button {
+                                audio.refreshPhoneStatus()
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.cyan)
+                                    .frame(width: 30, height: 27)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Vérifier la connexion iPhone")
+                        }
+                        .font(.system(size: 10))
                     }
-                    .padding(.horizontal, 6)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                    .padding(.horizontal, max(5, proxy.size.width * 0.045))
+                    .padding(.vertical, short ? 3 : 7)
+                    .frame(minHeight: proxy.size.height, alignment: .center)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.55)) { glowing = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.05) {
-                withAnimation(.easeInOut(duration: 0.3)) { intro = false }
-            }
-        }
+        .onAppear { audio.refreshPhoneStatus() }
     }
 }
