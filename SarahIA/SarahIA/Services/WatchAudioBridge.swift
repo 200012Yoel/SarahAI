@@ -77,6 +77,9 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
     func declinePendingCall() {
         UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
         acceptedCallWaitingForWatch = false
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: recentCallIDs.map { Self.notificationIdentifierPrefix + $0 }
+        )
         guard WCSession.isSupported(),
               WCSession.default.activationState == .activated,
               WCSession.default.isReachable else { return }
@@ -119,7 +122,11 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
             default: enabled = false
             }
             guard enabled else {
-                reply?(["accepted": false, "reason": "notificationsDisabled"])
+                DispatchQueue.main.async {
+                    UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+                    self.recentCallIDs.removeAll(where: { $0 == requestId })
+                    reply?(["accepted": false, "reason": "notificationsDisabled"])
+                }
                 return
             }
             let content = UNMutableNotificationContent()
@@ -133,9 +140,15 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
                 trigger: nil
             )
             center.add(request) { error in
-                reply?(error == nil
-                    ? ["accepted": true, "method": "notification"]
-                    : ["accepted": false, "reason": "notificationError"])
+                DispatchQueue.main.async {
+                    if error != nil {
+                        UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+                        self.recentCallIDs.removeAll(where: { $0 == requestId })
+                    }
+                    reply?(error == nil
+                        ? ["accepted": true, "method": "notification"]
+                        : ["accepted": false, "reason": "notificationError"])
+                }
             }
         }
     }
@@ -204,6 +217,15 @@ final class WatchAudioBridge: NSObject, WCSessionDelegate {
                 _ = self.beginWatchTranslation()
             case "callTranslateLive":
                 self.requestTranslateFromWatch(message["requestId"] as? String ?? "")
+            case "cancelTranslateCall":
+                UserDefaults.standard.removeObject(forKey: Self.pendingCallKey)
+                self.acceptedCallWaitingForWatch = false
+                UNUserNotificationCenter.current().removePendingNotificationRequests(
+                    withIdentifiers: self.recentCallIDs.map { Self.notificationIdentifierPrefix + $0 }
+                )
+                NotificationCenter.default.post(
+                    name: Notification.Name("SarahWatchCallCancelled"), object: nil
+                )
             case "stop":
                 if LiveTranslationSession.shared.isUsingWatchMicrophone {
                     LiveTranslationSession.shared.stop()
