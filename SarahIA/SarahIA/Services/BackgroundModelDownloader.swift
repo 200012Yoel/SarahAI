@@ -208,6 +208,13 @@ extension BackgroundModelDownloader: URLSessionDownloadDelegate {
             }
         }
     }
+    public func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async {
+            AppDelegate.backgroundSessionCompletionHandler?()
+            AppDelegate.backgroundSessionCompletionHandler = nil
+        }
+    }
+
 }
 
 
