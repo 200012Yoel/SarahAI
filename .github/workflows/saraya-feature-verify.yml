@@ -1,0 +1,48 @@
+name: Saraya feature verification (no signing, no release)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/saraya-download-map-watch-prep-20261102
+  pull_request:
+    paths:
+      - 'SarahIA/**'
+      - '.github/workflows/saraya-feature-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compile-iphone:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode diagnostic
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+      - name: Restore voice helper for CI
+        run: python3 .github/scripts/restore_website_voice_bridge.py
+      - name: Build iPhone simulator without signing
+        run: |
+          set -eo pipefail
+          xcodebuild -project SarahIA/SarahIA.xcodeproj \
+            -scheme SarahIA \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/SarayaDerived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/saraya-compile.log"
+      - name: Archive compilation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saraya-feature-compile-report
+          path: ${{ runner.temp }}/saraya-compile.log
+          if-no-files-found: ignore
+          retention-days: 7
