@@ -16,6 +16,43 @@ public extension Notification.Name {
     static let sarahToggleVoiceRecording     = Notification.Name("SarahToggleVoiceRecording")
 }
 
+/// Reconnaît les commandes de traduction avant tout routage vers un modèle ou un dictionnaire.
+/// Les caractères de ponctuation sont traités comme des séparateurs : "Translate. Live."
+/// et "Translate Live" déclenchent exactement la même action.
+public enum LiveTranslationCommand {
+    public static func normalize(_ text: String) -> String {
+        let folded = text.lowercased()
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
+        let words = folded.unicodeScalars.map { scalar -> String in
+            CharacterSet.alphanumerics.contains(scalar) ? String(scalar) : " "
+        }
+        return words.joined().split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    public static func isActivationRequest(_ text: String) -> Bool {
+        let normalized = normalize(text)
+        guard !normalized.isEmpty else { return false }
+
+        // Ces deux variantes ont déjà été produites par la dictée multilingue.
+        // Elles ne doivent pas partir vers le dictionnaire français-hébreu.
+        if normalized == "トランスレートライブ" || normalized == "トンスライトルライト" {
+            return true
+        }
+
+        let commands = [
+            "translate live", "live translate", "traduction en direct",
+            "traduction directe", "traduis en direct", "traduit en direct",
+            "traduire en direct", "traduction en temps reel",
+            "traduction live", "traduis la tele", "traduis l hebreu"
+        ]
+        return commands.contains {
+            normalized == $0 || normalized.hasPrefix($0 + " ") ||
+            normalized.hasSuffix(" " + $0) || normalized.contains(" " + $0 + " ")
+        }
+    }
+}
+
 // ============================================================================
 // SARAH ACTION COORDINATOR — GESTIONNAIRE D'ÉTAT & D'ACTIONS THREAD-SAFE
 // ============================================================================
