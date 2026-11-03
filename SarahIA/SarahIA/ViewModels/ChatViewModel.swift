@@ -731,29 +731,26 @@ public final class ChatViewModel: ObservableObject {
 
         // Commandes vocales et textuelles de traduction continue : priorité sur le LLM.
         // "Je comprends rien" active le mode hébreu → français demandé par l'utilisateur.
-        let liveCommand = text.lowercased()
-            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "fr_FR"))
-            .replacingOccurrences(of: "’", with: "'")
-        let livePhrases = [
-            "traduction en direct", "traduction directe", "traduis en direct",
-            "traduction en temps reel", "traduction live", "live translate",
-            "traduis la tele", "traduis l'hebreu"
-        ]
-        let spontaneousPhrase = liveCommand.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "mais ", with: "", options: .anchored)
-            .trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
+        let liveCommand = LiveTranslationCommand.normalize(text)
+        let spontaneousPhrase = liveCommand.hasPrefix("mais ")
+            ? String(liveCommand.dropFirst(5)) : liveCommand
         let confusionPhrases = [
             "je comprends rien", "je ne comprends rien",
             "je comprends pas", "je ne comprends pas",
-            "je comprends rien a l'hebreu", "je comprends pas ce qu'il dit"
+            "je comprends rien a l hebreu", "je comprends pas ce qu il dit"
         ]
         let contextualHelp = isContinuousConversationActive &&
             confusionPhrases.contains(spontaneousPhrase)
-        if livePhrases.contains(where: { liveCommand.contains($0) }) || contextualHelp {
+        if LiveTranslationCommand.isActivationRequest(text) || contextualHelp {
+            // Une commande "Translate Live" ouvre par défaut l'écoute HE → FR.
+            // Le sélecteur de langues reste modifiable dans l'écran plein format.
+            LiveTranslationSession.shared.setLanguages(
+                LiveLanguagePair(sourceLanguage: "he", targetLanguage: "fr", isVoiceEnabled: true)
+            )
             // Un seul moteur micro à la fois : on ferme Whisper/chat AVANT le plein écran.
             stopVoiceConversation()
             appendMessage(Message(
-                content: "🌐 Traduction en direct activée : hébreu entendu, français affiché et lu. L'écoute redémarre après chaque phrase.",
+                content: "🌐 J'ouvre la traduction en direct : hébreu entendu, français affiché et lu. Autorise le micro si iOS le demande.",
                 isFromUser: false
             ))
             isTyping = false
