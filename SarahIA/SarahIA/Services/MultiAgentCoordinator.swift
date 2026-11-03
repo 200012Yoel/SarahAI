@@ -667,24 +667,68 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
             .replacingOccurrences(of: "yohan", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "yoann", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         let queryText = clean.isEmpty ? text : clean
-        let result = YohanLexiconEngine.shared.translateExpert(text: queryText)
-        
-        let spoken = result
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "#", with: "")
-            .replacingOccurrences(of: "`", with: "")
-        
-        completion(AgentResponse(
-            agent: .yohan,
-            text: result,
-            spokenText: spoken,
-            openStudio: false,
-            generatedCode: nil
-        ))
+        let translation = TranslationEngine.shared
+        let explicitRequest = translation.parseTranslationIntent(input: queryText)
+        let textToTranslate = explicitRequest?.textToTranslate ?? queryText
+        let source = explicitRequest?.sourceLanguage ??
+            (YohanLexiconEngine.shared.isHebrew(textToTranslate) ? "he" : "fr")
+        let target: TranslationEngine.TargetLanguage = explicitRequest?.targetLanguage ??
+            (source == "he" ? .french : .hebrew)
+        let direction = "\(LiveLanguagePair.name(for: source)) → \(target.displayNameFr)"
+
+        // Ne pas traiter une dictée japonaise mal reconnue comme du français.
+        let unsupportedScript = textToTranslate.unicodeScalars.contains {
+            (0x3040...0x30FF).contains($0.value) ||
+            (0x3400...0x9FFF).contains($0.value) ||
+            (0xAC00...0xD7AF).contains($0.value)
+        }
+        if unsupportedScript && explicitRequest == nil {
+            let notice = "Je n'ai pas compris la dictée. Parle en français, ou dis « Translate Live » pour démarrer la traduction vocale hébreu → français."
+            completion(AgentResponse(agent: .yohan, text: notice, spokenText: notice))
+            return
+        }
+
+        // Une entrée lexicale exacte est fiable ; une phrase partielle ne l'est pas.
+        if target != .english,
+           let exact = YohanLexiconEngine.shared.translateExact(text: textToTranslate) {
+            completion(AgentResponse(
+                agent: .yohan,
+                text: exact,
+                spokenText: exact.replacingOccurrences(of: "*", with: "")
+            ))
+            return
+        }
+
+        // Prépare automatiquement les packs pour les prochaines demandes.
+        // La traduction immédiate peut encore être indisponible au premier lancement.
+        translation.prepareOfflinePacks(for: [source, target.rawValue])
+
+        // Traduction libre via les modèles hors ligne réellement présents.
+        Task {
+            let result = await translation.translateDetailed(
+                text: textToTranslate,
+                sourceLang: source,
+                targetLang: target,
+                quality: .best
+            )
+            let output: String
+            let spoken: String
+            if let result = result, result.engine != .none {
+                let attribution = result.engine.attribution.map { "\n\n\($0)" } ?? ""
+                output = "🇮🇱 **Yohan [\(direction)]**\n\n\(result.text)\(attribution)"
+                spoken = result.text
+            } else {
+                output = "⚠️ **Traduction indisponible** (\(direction)). Aucun moteur local n'a traduit cette phrase. Connecte-toi une fois pour télécharger les packs hors ligne, puis réessaie."
+                spoken = "Traduction indisponible. Il faut préparer les langues hors ligne."
+            }
+            DispatchQueue.main.async {
+                completion(AgentResponse(agent: .yohan, text: output, spokenText: spoken))
+            }
+        }
     }
-    
+
     private func processWithEsther(text: String, completion: @escaping (AgentResponse) -> Void) {
         let clean = text
             .replacingOccurrences(of: "vas-y esther", with: "", options: .caseInsensitive)

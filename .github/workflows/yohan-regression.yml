@@ -1,0 +1,21 @@
+name: Yohan live translation regressions
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'SarahIA/SarahIA/Services/**'
+      - 'SarahIA/SarahIA/ViewModels/ChatViewModel.swift'
+      - '.github/scripts/test_yohan_translation.py'
+      - '.github/workflows/yohan-regression.yml'
+  push:
+    branches: [fix/yohan-live-translation-20261103]
+
+jobs:
+  command-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production Swift command parser and Yohan routing
+        run: python3 .github/scripts/test_yohan_translation.py

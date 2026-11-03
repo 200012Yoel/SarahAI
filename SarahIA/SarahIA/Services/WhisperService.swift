@@ -435,7 +435,10 @@ public final class WhisperService: ObservableObject {
             params.n_threads = threadCount
             params.temperature_inc = -1
 
-            let result: Int32 = "auto".withCString { language in
+            // Le chat reçoit des commandes françaises. L'autodétection de courts
+            // extraits comme « Translate Live » pouvait les classer en japonais.
+            // Le pipeline Live utilise séparément la langue réellement entendue.
+            let result: Int32 = "fr".withCString { language in
                 params.language = language
                 return audio.withUnsafeBufferPointer { pointer in
                     whisper_full(context, params, pointer.baseAddress, Int32(audio.count))

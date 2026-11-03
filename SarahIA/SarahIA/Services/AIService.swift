@@ -782,8 +782,7 @@ public final class AIService {
         }
         
         // 1.3 OUVERTURE DE LA TRADUCTION EN DIRECT (ex : « traduction en direct », « traduis en direct »)
-        if normalized.contains("traduction en direct") || normalized.contains("traduis en direct") ||
-            normalized.contains("traduction en temps reel") || normalized.contains("traduction live") {
+        if LiveTranslationCommand.isActivationRequest(trimmed) {
             DispatchQueue.main.async {
                 SarahActionCoordinator.shared.dispatch(.openLiveTranslation)
             }

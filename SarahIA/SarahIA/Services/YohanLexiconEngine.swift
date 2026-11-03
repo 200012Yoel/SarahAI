@@ -123,71 +123,31 @@ public final class YohanLexiconEngine {
         return totalLetters > 0 && Double(hebrewCount) / Double(totalLetters) > 0.4
     }
     
-    /// Traduction experte bilingue enrichie (Dictionnaires + Grammaire + Racines sémitiques)
+    /// Le dictionnaire ne répond que lorsqu'une entrée correspond exactement.
+    /// Une recherche partielle ("bonjour tout le monde" -> "bonjour") produisait
+    /// auparavant une traduction fausse mais présentée comme complète.
+    public func translateExact(text: String) -> String? {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return nil }
+        let key = normalize(clean)
+
+        if isHebrew(clean) {
+            guard let entry = entriesHEtoFR[key] else { return nil }
+            return formatHebrewToFrenchCard(entry: entry, sourceText: clean)
+        }
+        guard let entry = entriesFRtoHE[key] else { return nil }
+        return formatFrenchToHebrewCard(entry: entry, sourceText: clean)
+    }
+
+    /// API conservée pour les clients du lexique ; ne prétend jamais indexer
+    /// un mot qui n'existe pas dans les ressources installées.
     public func translateExpert(text: String) -> String {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return "Veuillez saisir un texte à traduire." }
-        
-        let norm = normalize(clean)
-        let isInputHebrew = isHebrew(clean)
-        
-        // 1. Recherche directe dans la base de lexique
-        if isInputHebrew {
-            // Recherche HE -> FR
-            if let entry = entriesHEtoFR[norm] {
-                return formatHebrewToFrenchCard(entry: entry, sourceText: clean)
-            }
-            
-            // Recherche par sous-mots
-            for (key, entry) in entriesHEtoFR {
-                if norm.contains(key) {
-                    return formatHebrewToFrenchCard(entry: entry, sourceText: clean)
-                }
-            }
-        } else {
-            // Recherche FR -> HE
-            if let entry = entriesFRtoHE[norm] {
-                return formatFrenchToHebrewCard(entry: entry, sourceText: clean)
-            }
-            
-            // Recherche partielle
-            for (key, entry) in entriesFRtoHE {
-                if norm.contains(key) {
-                    return formatFrenchToHebrewCard(entry: entry, sourceText: clean)
-                }
-            }
-        }
-        
-        // 2. Traduction mot par mot assistée si phrase composée
-        let words = clean.components(separatedBy: " ")
-        if words.count > 1 {
-            var translatedTokens: [String] = []
-            for w in words {
-                let n = normalize(w)
-                if isInputHebrew {
-                    if let e = entriesHEtoFR[n] {
-                        translatedTokens.append(e.french)
-                    } else {
-                        translatedTokens.append(w)
-                    }
-                } else {
-                    if let e = entriesFRtoHE[n] {
-                        translatedTokens.append(e.hebrew)
-                    } else {
-                        translatedTokens.append(w)
-                    }
-                }
-            }
-            let reconstructed = translatedTokens.joined(separator: " ")
-            let dirTitle = isInputHebrew ? "Hébreu ➔ Français" : "Français ➔ Hébreu"
-            return "🇮🇱 **Yohan [Traduction Bilingue - \(dirTitle)]**\n\n« **\(reconstructed)** »"
-        }
-        
-        // Fallback local propre
-        let targetLang = isInputHebrew ? "français" : "hébreu"
-        return "🇮🇱 **Yohan [Dictionnaire Local]**\n\nTraduction de « \(clean) » vers le \(targetLang) en cours d'indexation locale."
+        if let match = translateExact(text: clean) { return match }
+        return "⚠️ Ce texte n'est pas disponible dans le dictionnaire local. Télécharge les packs de traduction français et hébreu, puis réessaie."
     }
-    
+
     private func formatFrenchToHebrewCard(entry: LexiconEntry, sourceText: String) -> String {
         var card = "🇮🇱 **Yohan [Français ➔ Hébreu]**\n\n"
         card += "• **Hébreu :** **\(entry.hebrew)**\n"
