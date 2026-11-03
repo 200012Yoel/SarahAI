@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Regression checks for the command and translation fixes visible in Yohan chat."""
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tempfile
@@ -55,7 +54,6 @@ assert 'let dictKey = "\\(source)|\\(target)|\\(lower)"' in translation
 assert '"fr|he|bonjour": "שלום"' in translation
 assert '"he|fr|שלום": "Bonjour"' in translation
 assert '"fr|en|bonjour": "Hello"' in translation
-assert re.search(r'"(fr\\|he|he\\|fr|fr\\|en)\\|[^"]+":', translation)
 
 yohan = (services / "MultiAgentCoordinator.swift").read_text()
 assert "translation.translateDetailed(" in yohan
