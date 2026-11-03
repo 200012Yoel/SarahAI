@@ -74,48 +74,48 @@ public final class TranslationEngine {
 
     private let fastLocalDict: [String: String] = [
         // FR -> HE
-        "bonjour": "שלום",
-        "salut": "היי",
-        "merci": "תודה",
-        "merci beaucoup": "תודה רבה",
-        "au revoir": "להתראות",
-        "s'il vous plaît": "בבקשה",
-        "s'il te plaît": "בבקשה",
-        "oui": "כן",
-        "non": "לא",
-        "bonne nuit": "לילה טוב",
-        "bonsoir": "ערב טוב",
-        "comment ça va": "מה נשמע",
-        "comment vas tu": "מה שלומך",
-        "je t'aime": "אני אוהב אותך",
-        "bienvenue": "ברוכים הבאים",
-        "bon appétit": "בתיאבון",
-        "félicitations": "מזל טוב",
-        "pardon": "סליחה",
+        "fr|he|bonjour": "שלום",
+        "fr|he|salut": "היי",
+        "fr|he|merci": "תודה",
+        "fr|he|merci beaucoup": "תודה רבה",
+        "fr|he|au revoir": "להתראות",
+        "fr|he|s'il vous plaît": "בבקשה",
+        "fr|he|s'il te plaît": "בבקשה",
+        "fr|he|oui": "כן",
+        "fr|he|non": "לא",
+        "fr|he|bonne nuit": "לילה טוב",
+        "fr|he|bonsoir": "ערב טוב",
+        "fr|he|comment ça va": "מה נשמע",
+        "fr|he|comment vas tu": "מה שלומך",
+        "fr|he|je t'aime": "אני אוהב אותך",
+        "fr|he|bienvenue": "ברוכים הבאים",
+        "fr|he|bon appétit": "בתיאבון",
+        "fr|he|félicitations": "מזל טוב",
+        "fr|he|pardon": "סליחה",
 
         // HE -> FR
-        "שלום": "Bonjour",
-        "תודה": "Merci",
-        "תודה רבה": "Merci beaucoup",
-        "להתראות": "Au revoir",
-        "בבקשה": "S'il vous plaît",
-        "כן": "Oui",
-        "לא": "Non",
-        "לילה טוב": "Bonne nuit",
-        "ערב טוב": "Bonsoir",
-        "מה נשמע": "Comment ça va ?",
-        "מה שלומך": "Comment vas-tu ?",
-        "סליחה": "Pardon / Excusez-moi",
+        "he|fr|שלום": "Bonjour",
+        "he|fr|תודה": "Merci",
+        "he|fr|תודה רבה": "Merci beaucoup",
+        "he|fr|להתראות": "Au revoir",
+        "he|fr|בבקשה": "S'il vous plaît",
+        "he|fr|כן": "Oui",
+        "he|fr|לא": "Non",
+        "he|fr|לילה טוב": "Bonne nuit",
+        "he|fr|ערב טוב": "Bonsoir",
+        "he|fr|מה נשמע": "Comment ça va ?",
+        "he|fr|מה שלומך": "Comment vas-tu ?",
+        "he|fr|סליחה": "Pardon / Excusez-moi",
 
         // FR -> EN
-        "bonjour|en": "Hello",
-        "salut|en": "Hi",
-        "merci|en": "Thank you",
-        "merci beaucoup|en": "Thank you very much",
-        "au revoir|en": "Goodbye",
-        "comment ça va|en": "How are you?",
-        "bonne nuit|en": "Good night",
-        "je t'aime|en": "I love you"
+        "fr|en|bonjour": "Hello",
+        "fr|en|salut": "Hi",
+        "fr|en|merci": "Thank you",
+        "fr|en|merci beaucoup": "Thank you very much",
+        "fr|en|au revoir": "Goodbye",
+        "fr|en|comment ça va": "How are you?",
+        "fr|en|bonne nuit": "Good night",
+        "fr|en|je t'aime": "I love you"
     ]
 
     private init() {}
@@ -248,7 +248,7 @@ public final class TranslationEngine {
 
         // 1. Dictionnaire instantané
         let lower = clean.lowercased()
-        let dictKey = targetLang == .english ? "\(lower)|en" : lower
+        let dictKey = "\(source)|\(target)|\(lower)"
         if let localMatch = fastLocalDict[dictKey] {
             return record(TranslationResult(text: localMatch, engine: .dictionary))
         }
