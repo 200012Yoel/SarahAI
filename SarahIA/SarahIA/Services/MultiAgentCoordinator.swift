@@ -701,6 +701,10 @@ private func processWithYohan(text: String, completion: @escaping (AgentResponse
             return
         }
 
+        // Prépare automatiquement les packs pour les prochaines demandes.
+        // La traduction immédiate peut encore être indisponible au premier lancement.
+        translation.prepareOfflinePacks(for: [source, target.rawValue])
+
         // Traduction libre via les modèles hors ligne réellement présents.
         Task {
             let result = await translation.translateDetailed(
